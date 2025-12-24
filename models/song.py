@@ -1,0 +1,165 @@
+from .database import Database
+from datetime import datetime
+
+
+class SongModel:
+    @staticmethod
+    def add_song(song_data):
+        """Insert a new song into the database."""
+        query = """
+            INSERT INTO songs (file_path, title, artist, album, duration, 
+                             track_number, year, genre, file_size, file_modified)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        return Database.execute_query(query, (
+            song_data['path'],
+            song_data['title'],
+            song_data.get('artist', 'Unknown Artist'),
+            song_data.get('album', 'Unknown Album'),
+            song_data.get('duration', 0),
+            song_data.get('track', 0),
+            song_data.get('year'),
+            song_data.get('genre'),
+            song_data.get('file_size'),
+            song_data.get('file_modified')
+        ))
+    
+    @staticmethod
+    def update_song(file_path, song_data):
+        """Update an existing song in the database."""
+        query = """
+            UPDATE songs 
+            SET title = %s, artist = %s, album = %s, duration = %s,
+                track_number = %s, year = %s, genre = %s, 
+                file_size = %s, file_modified = %s
+            WHERE file_path = %s
+        """
+        return Database.execute_query(query, (
+            song_data['title'],
+            song_data.get('artist', 'Unknown Artist'),
+            song_data.get('album', 'Unknown Album'),
+            song_data.get('duration', 0),
+            song_data.get('track', 0),
+            song_data.get('year'),
+            song_data.get('genre'),
+            song_data.get('file_size'),
+            song_data.get('file_modified'),
+            file_path
+        ))
+    
+    @staticmethod
+    def get_song_by_path(file_path):
+        """Find a song by its file path."""
+        query = "SELECT * FROM songs WHERE file_path = %s"
+        return Database.execute_query(query, (file_path,), fetch_one=True)
+    
+    @staticmethod
+    def get_all_songs():
+        """Get all songs from the database, sorted by artist/album/track."""
+        query = """
+            SELECT id, file_path, title, artist, album, duration, 
+                   track_number, year, genre, file_size, file_modified
+            FROM songs 
+            ORDER BY artist, album, track_number
+        """
+        results = Database.execute_query(query, fetch_all=True)
+        
+        # Transform to match the expected format for the API
+        songs = []
+        for row in results:
+            songs.append({
+                'id': row['file_path'],
+                'path': row['file_path'],
+                'title': row['title'],
+                'artist': row['artist'],
+                'album': row['album'],
+                'duration': row['duration'],
+                'track': row['track_number'],
+                'year': row['year'],
+                'genre': row['genre']
+            })
+        return songs
+    
+    @staticmethod
+    def delete_song(file_path):
+        """Remove a song from the database."""
+        query = "DELETE FROM songs WHERE file_path = %s"
+        return Database.execute_query(query, (file_path,))
+    
+    @staticmethod
+    def delete_all_songs():
+        """Clear all songs from the database (for full rescan)."""
+        query = "DELETE FROM songs"
+        return Database.execute_query(query)
+    
+    @staticmethod
+    def get_existing_paths():
+        """Get a set of all file paths currently in the database."""
+        query = "SELECT file_path FROM songs"
+        results = Database.execute_query(query, fetch_all=True)
+        return {row['file_path'] for row in results}
+    
+    @staticmethod
+    def get_songs_with_file_info():
+        """Get songs with file modification info for incremental scan."""
+        query = "SELECT file_path, file_modified, file_size FROM songs"
+        results = Database.execute_query(query, fetch_all=True)
+        return {row['file_path']: row for row in results}
+    
+    @staticmethod
+    def get_song_count():
+        """Get total number of songs in the library."""
+        query = "SELECT COUNT(*) as count FROM songs"
+        result = Database.execute_query(query, fetch_one=True)
+        return result['count'] if result else 0
+
+
+class ScanHistoryModel:
+    @staticmethod
+    def start_scan(scan_type):
+        """Create a new scan history entry and return its ID."""
+        query = """
+            INSERT INTO scan_history (scan_type, status)
+            VALUES (%s, 'running')
+        """
+        return Database.execute_query(query, (scan_type,))
+    
+    @staticmethod
+    def complete_scan(scan_id, files_found, files_added, files_updated, files_removed):
+        """Mark a scan as completed with statistics."""
+        query = """
+            UPDATE scan_history 
+            SET status = 'completed', files_found = %s, files_added = %s,
+                files_updated = %s, files_removed = %s, completed_at = NOW()
+            WHERE id = %s
+        """
+        return Database.execute_query(query, (
+            files_found, files_added, files_updated, files_removed, scan_id
+        ))
+    
+    @staticmethod
+    def fail_scan(scan_id, error_message):
+        """Mark a scan as failed with an error message."""
+        query = """
+            UPDATE scan_history 
+            SET status = 'failed', error_message = %s, completed_at = NOW()
+            WHERE id = %s
+        """
+        return Database.execute_query(query, (error_message, scan_id))
+    
+    @staticmethod
+    def get_latest_scan():
+        """Get the most recent scan history entry."""
+        query = """
+            SELECT * FROM scan_history 
+            ORDER BY started_at DESC 
+            LIMIT 1
+        """
+        return Database.execute_query(query, fetch_one=True)
+    
+    @staticmethod
+    def is_scan_running():
+        """Check if a scan is currently in progress."""
+        query = "SELECT id FROM scan_history WHERE status = 'running' LIMIT 1"
+        result = Database.execute_query(query, fetch_one=True)
+        return result is not None

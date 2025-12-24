@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Rainy - Your self-hosted music streaming service">
+    <title>Rainy - Music Player</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <!-- Setup Wizard View -->
+    <div id="setup-view" class="setup-wizard hidden">
+        <div class="setup-container">
+            <div class="setup-card slide-up">
+                <div class="setup-header">
+                    <div class="setup-logo">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                        </svg>
+                    </div>
+                    <h1>Welcome to Rainy</h1>
+                    <p>Let's set up your music server</p>
+                </div>
+
+                <div id="setup-error" class="error-message"></div>
+
+                <form id="setup-form">
+                    <div class="form-group">
+                        <label class="form-label" for="setup-username">Username</label>
+                        <input type="text" id="setup-username" class="form-input" placeholder="Enter your username"
+                            required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="setup-email">Email</label>
+                        <input type="email" id="setup-email" class="form-input" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="setup-password">Password</label>
+                        <input type="password" id="setup-password" class="form-input" placeholder="Create a password"
+                            required minlength="6">
+                        <span class="form-hint">Must be at least 6 characters</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="setup-music-path">Music Library Path</label>
+                        <input type="text" id="setup-music-path" class="form-input"
+                            placeholder="C:\Music or /home/user/music" required>
+                        <span class="form-hint">Full path to your music folder</span>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="setup-submit">
+                        <span>Complete Setup</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login View -->
+    <div id="login-view" class="login-container hidden">
+        <div class="setup-container">
+            <div class="setup-card slide-up">
+                <div class="setup-header">
+                    <div class="setup-logo">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                        </svg>
+                    </div>
+                    <h1>Welcome Back</h1>
+                    <p>Sign in to your music library</p>
+                </div>
+
+                <div id="login-error" class="error-message"></div>
+
+                <form id="login-form">
+                    <div class="form-group">
+                        <label class="form-label" for="login-email">Email</label>
+                        <input type="email" id="login-email" class="form-input" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="login-password">Password</label>
+                        <input type="password" id="login-password" class="form-input" placeholder="Enter your password"
+                            required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="login-submit">
+                        <span>Sign In</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App View -->
+    <div id="app-view" class="app-container hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="header-logo">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                </div>
+                <span class="header-title">Rainy</span>
+            </div>
+
+            <div class="header-actions">
+                <div class="header-search">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                    </svg>
+                    <input type="text" id="search-input" placeholder="Search songs, artists...">
+                </div>
+
+                <div class="user-menu" id="user-menu">
+                    <div class="user-menu-trigger" id="user-menu-trigger">
+                        <div class="user-avatar" id="user-avatar">U</div>
+                        <span class="user-name" id="user-name">User</span>
+                        <svg class="user-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7 10l5 5 5-5z" />
+                        </svg>
+                    </div>
+                    <div class="user-dropdown hidden" id="user-dropdown">
+                        <div class="dropdown-item" id="menu-user-settings">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                            </svg>
+                            <span>User Settings</span>
+                        </div>
+                        <div class="dropdown-item sysadmin-only hidden" id="menu-server-settings">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg>
+                            <span>Server Settings</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-item logout" id="menu-logout">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                            </svg>
+                            <span>Logout</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">Your Library</h1>
+                    <p class="section-subtitle" id="library-subtitle">All your music in one place</p>
+                </div>
+
+                <div class="view-toggle">
+                    <button class="view-toggle-btn active" id="grid-view-btn" title="Grid View">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
+                        </svg>
+                    </button>
+                    <button class="view-toggle-btn" id="list-view-btn" title="List View">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Library Stats -->
+            <div class="library-stats" id="library-stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-songs">0</div>
+                    <div class="stat-label">Songs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-artists">0</div>
+                    <div class="stat-label">Artists</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-albums">0</div>
+                    <div class="stat-label">Albums</div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="loading-container hidden">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Loading your library...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state hidden">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                </svg>
+                <h3>No Music Found</h3>
+                <p>Add some music files to your library folder and refresh to see them here.</p>
+            </div>
+
+            <!-- Songs Grid View -->
+            <div id="songs-grid" class="songs-grid"></div>
+
+            <!-- Songs List View -->
+            <div id="songs-list" class="songs-list hidden">
+                <div class="list-header">
+                    <span>#</span>
+                    <span>Title</span>
+                    <span>Album</span>
+                    <span>Duration</span>
+                </div>
+                <div id="songs-list-content"></div>
+            </div>
+        </main>
+
+        <!-- Player Bar -->
+        <div class="player-bar">
+            <!-- Now Playing -->
+            <div class="now-playing">
+                <div class="now-playing-artwork" id="now-playing-artwork">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                </div>
+                <div class="now-playing-info">
+                    <div class="now-playing-title" id="now-playing-title">Not Playing</div>
+                    <div class="now-playing-artist" id="now-playing-artist">Select a song to play</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="player-controls">
+                <div class="controls-main">
+                    <button class="control-btn secondary" id="shuffle-btn" title="Shuffle">
+                        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
+                        </svg>
+                    </button>
+                    <button class="control-btn secondary" id="prev-btn" title="Previous">
+                        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                        </svg>
+                    </button>
+                    <button class="control-btn play-pause" id="play-pause-btn" title="Play">
+                        <svg class="icon-play" width="20" height="20" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                        <svg class="icon-pause hidden" width="20" height="20" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                    </button>
+                    <button class="control-btn secondary" id="next-btn" title="Next">
+                        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                        </svg>
+                    </button>
+                    <button class="control-btn secondary" id="repeat-btn" title="Repeat">
+                        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="progress-container">
+                    <span class="progress-time current" id="current-time">0:00</span>
+                    <div class="progress-bar" id="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <span class="progress-time" id="total-time">0:00</span>
+                </div>
+            </div>
+
+            <!-- Extra Controls -->
+            <div class="player-extra">
+                <div class="volume-control">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                    </svg>
+                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="80">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Settings Modal -->
+    <div class="modal-overlay hidden" id="server-settings-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Server Settings</h2>
+                <button class="modal-close" id="close-server-settings">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Library Scanning Section -->
+                <div class="settings-section">
+                    <h3>Library Scanning</h3>
+                    <p class="settings-description">Scan your music library to update the database with new files.</p>
+
+                    <div class="scan-status" id="scan-status">
+                        <div class="scan-status-info">
+                            <span class="scan-status-label">Library Status:</span>
+                            <span class="scan-status-value" id="library-count">-- songs</span>
+                        </div>
+                        <div class="scan-status-info">
+                            <span class="scan-status-label">Last Scan:</span>
+                            <span class="scan-status-value" id="last-scan-time">Never</span>
+                        </div>
+                    </div>
+
+                    <div class="scan-actions">
+                        <button class="btn btn-secondary" id="quick-scan-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                            </svg>
+                            <span>Quick Scan</span>
+                        </button>
+                        <button class="btn btn-warning" id="full-scan-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
+                            </svg>
+                            <span>Full Rescan</span>
+                        </button>
+                    </div>
+
+                    <div class="scan-progress hidden" id="scan-progress">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="scan-progress-bar"></div>
+                        </div>
+                        <p class="scan-progress-text" id="scan-progress-text">Scanning...</p>
+                    </div>
+
+                    <div class="scan-result hidden" id="scan-result">
+                        <div class="scan-result-stats">
+                            <div class="stat"><span id="scan-files-found">0</span> files found</div>
+                            <div class="stat"><span id="scan-files-added">0</span> added</div>
+                            <div class="stat"><span id="scan-files-updated">0</span> updated</div>
+                            <div class="stat"><span id="scan-files-removed">0</span> removed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Element -->
+    <audio id="audio-player"></audio>
+
+    <!-- Scripts -->
+    <script src="/js/app.js"></script>
+    <script src="/js/player.js"></script>
+    <script src="/js/setup.js"></script>
+</body>
+
+</html>
