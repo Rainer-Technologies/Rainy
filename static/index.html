@@ -322,6 +322,10 @@
                             xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                         </svg>
+                        <svg class="icon-loading hidden" width="20" height="20" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z" />
+                        </svg>
                     </button>
                     <button class="control-btn secondary" id="next-btn" title="Next">
                         <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -599,8 +603,11 @@
         </div>
     </div>
 
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
     <!-- Audio Element -->
-    <audio id="audio-player"></audio>
+    <audio id="audio-player" preload="auto"></audio>
 
     <!-- Scripts -->
     <script src="/js/app.js"></script>

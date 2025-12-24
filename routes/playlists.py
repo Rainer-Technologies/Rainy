@@ -37,13 +37,29 @@ def get_playlist(playlist_id):
     if not playlist:
         return jsonify({'error': 'Playlist not found'}), 404
         
-    songs = PlaylistModel.get_playlist_songs(playlist_id)
+    raw_songs = PlaylistModel.get_playlist_songs(playlist_id)
+    
+    # Transform songs to match expected frontend format (same as SongModel)
+    songs = []
+    for row in (raw_songs or []):
+        songs.append({
+            'id': row['id'],
+            'path': row['file_path'],
+            'title': row['title'],
+            'artist': row['artist'],
+            'album': row['album'],
+            'duration': row['duration'],
+            'track': row['track_number'],
+            'year': row['year'],
+            'genre': row['genre'],
+            'cover_path': row['cover_path']
+        })
     
     return jsonify({
         'id': playlist['id'],
         'name': playlist['name'],
         'created_at': playlist['created_at'],
-        'songs': songs or []
+        'songs': songs
     })
 
 @playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])

@@ -164,25 +164,22 @@ def get_scan_status():
         return jsonify({'error': str(e)}), 500
 
 
-@music_bp.route('/song/<path:song_id>', methods=['DELETE'])
+@music_bp.route('/song/<int:song_id>', methods=['DELETE'])
 @require_auth
 def delete_song(song_id):
     """Delete a song from the database and disk."""
     try:
-        from urllib.parse import unquote
-        
-        file_path = unquote(song_id)
         music_path = SettingsModel.get_music_path()
         
         if not music_path:
             return jsonify({'error': 'Music path not configured'}), 400
         
         # Check if song exists in database
-        song = SongModel.get_song_by_path(file_path)
+        song = SongModel.get_song_by_id(song_id)
         if not song:
             return jsonify({'error': 'Song not found'}), 404
         
-        # Get cover path before deleting from database
+        file_path = song['file_path']
         cover_path = song.get('cover_path')
         
         # Delete song file from disk
@@ -197,7 +194,7 @@ def delete_song(song_id):
                 os.remove(full_cover_path)
         
         # Delete from database
-        SongModel.delete_song(file_path)
+        SongModel.delete_song_by_id(song_id)
         
         return jsonify({
             'success': True,
@@ -209,19 +206,24 @@ def delete_song(song_id):
 
 
 
-@music_bp.route('/stream/<path:song_id>', methods=['GET'])
+@music_bp.route('/stream/<int:song_id>', methods=['GET'])
 @require_auth
 def stream_song(song_id):
-    """Stream an audio file."""
+    """Stream an audio file with range request support."""
     try:
         music_path = SettingsModel.get_music_path()
         
         if not music_path:
             return jsonify({'error': 'Music path not configured'}), 400
         
-        # Decode the song_id (it's the relative path from music root)
-        from urllib.parse import unquote
-        relative_path = unquote(song_id)
+        from flask import Response
+        
+        # Look up song by ID to get file path
+        song = SongModel.get_song_by_id(song_id)
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+        
+        relative_path = song['file_path']
         
         # Build full path and validate it's within music directory
         full_path = os.path.normpath(os.path.join(music_path, relative_path))
@@ -246,33 +248,70 @@ def stream_song(song_id):
         }
         
         mime_type = mime_types.get(ext, 'audio/mpeg')
+        file_size = os.path.getsize(full_path)
         
-        return send_file(
-            full_path,
-            mimetype=mime_type,
-            as_attachment=False
-        )
+        # Handle Range requests for proper audio streaming
+        range_header = request.headers.get('Range')
+        
+        if range_header:
+            # Parse range header (e.g., "bytes=0-1023")
+            byte_range = range_header.replace('bytes=', '').split('-')
+            start = int(byte_range[0]) if byte_range[0] else 0
+            end = int(byte_range[1]) if byte_range[1] else file_size - 1
+            
+            # Ensure valid range
+            if start >= file_size:
+                return Response(status=416)  # Range Not Satisfiable
+            
+            end = min(end, file_size - 1)
+            length = end - start + 1
+        else:
+            # No range - stream full file
+            start = 0
+            end = file_size - 1
+            length = file_size
+        
+        def generate():
+            chunk_size = 64 * 1024  # 64KB chunks for better streaming
+            with open(full_path, 'rb') as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    read_size = min(chunk_size, remaining)
+                    data = f.read(read_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+        
+        if range_header:
+            response = Response(generate(), status=206, mimetype=mime_type)
+            response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+        else:
+            response = Response(generate(), status=200, mimetype=mime_type)
+        
+        response.headers['Accept-Ranges'] = 'bytes'
+        response.headers['Content-Length'] = length
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-@music_bp.route('/info/<path:song_id>', methods=['GET'])
+@music_bp.route('/info/<int:song_id>', methods=['GET'])
 @require_auth
 def get_song_info(song_id):
     """Get detailed info for a specific song."""
     try:
-        from urllib.parse import unquote
-        relative_path = unquote(song_id)
-        
-        # Get song from database
-        song = SongModel.get_song_by_path(relative_path)
+        # Get song from database by ID
+        song = SongModel.get_song_by_id(song_id)
         
         if song:
             return jsonify({
                 'success': True,
                 'song': {
-                    'id': song['file_path'],
+                    'id': song['id'],
                     'path': song['file_path'],
                     'title': song['title'],
                     'artist': song['artist'],
@@ -316,21 +355,21 @@ def search_metadata():
         return jsonify({'error': str(e)}), 500
 
 
-@music_bp.route('/metadata/apply/<path:song_id>', methods=['POST'])
+@music_bp.route('/metadata/apply/<int:song_id>', methods=['POST'])
 @require_auth
 def apply_metadata(song_id):
     """Apply selected metadata to a song."""
     try:
-        from urllib.parse import unquote
         from utils.metadata import MetadataSearcher
         
-        relative_path = unquote(song_id)
         data = request.get_json()
         
         # Get the song to verify it exists
-        song = SongModel.get_song_by_path(relative_path)
+        song = SongModel.get_song_by_id(song_id)
         if not song:
             return jsonify({'error': 'Song not found'}), 404
+        
+        relative_path = song['file_path']
         
         # Prepare metadata update
         metadata = {}
@@ -367,13 +406,13 @@ def apply_metadata(song_id):
             SongModel.update_song_metadata(relative_path, metadata)
         
         # Return updated song info
-        updated_song = SongModel.get_song_by_path(relative_path)
+        updated_song = SongModel.get_song_by_id(song_id)
         
         return jsonify({
             'success': True,
             'message': 'Metadata updated successfully',
             'song': {
-                'id': updated_song['file_path'],
+                'id': updated_song['id'],
                 'path': updated_song['file_path'],
                 'title': updated_song['title'],
                 'artist': updated_song['artist'],
@@ -402,11 +441,20 @@ def serve_cover(cover_path):
             return jsonify({'error': 'Music path not configured'}), 400
         
         relative_path = unquote(cover_path)
-        full_path = os.path.normpath(os.path.join(music_path, relative_path))
         
-        # Security check: ensure the path is within music directory
-        if not full_path.startswith(os.path.normpath(music_path)):
-            return jsonify({'error': 'Invalid path'}), 403
+        # Security: only allow access to 'covers' directory
+        # Check standard path separators
+        is_covers_dir = relative_path.startswith('covers/') or relative_path.startswith('covers\\')
+        if not is_covers_dir:
+             return jsonify({'error': 'Invalid cover path'}), 403
+
+        # Build full path
+        full_path = os.path.normpath(os.path.join(music_path, relative_path))
+        covers_dir = os.path.normpath(os.path.join(music_path, 'covers'))
+        
+        # Security check: ensure file is specifically within the covers directory
+        if not full_path.startswith(covers_dir):
+            return jsonify({'error': 'Access denied'}), 403
         
         if not os.path.isfile(full_path):
             return jsonify({'error': 'Cover not found'}), 404

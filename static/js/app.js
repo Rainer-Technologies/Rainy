@@ -246,8 +246,43 @@ class RainyApp {
                 // Populate/Refresh playlists in submenu
                 this.renderPlaylistSubmenu();
                 playlistSubmenu.classList.remove('hidden');
+
+                // Smart positioning: check if submenu fits on the right
+                const contextMenu = document.getElementById('song-context-menu');
+                const contextRect = contextMenu.getBoundingClientRect();
+                const submenuWidth = 180; // min-width from CSS
+                const gap = 5; // gap between menus
+
+                // Calculate available space on right
+                const spaceOnRight = window.innerWidth - contextRect.right - gap;
+
+                if (spaceOnRight < submenuWidth) {
+                    // Not enough space on right, show on left
+                    playlistSubmenu.classList.add('show-left');
+                } else {
+                    playlistSubmenu.classList.remove('show-left');
+                }
             });
+
+            // Use a timeout for more forgiving submenu interaction
+            let submenuTimeout = null;
+
             playlistItem.addEventListener('mouseleave', () => {
+                // Delay hiding to allow cursor to reach submenu
+                submenuTimeout = setTimeout(() => {
+                    playlistSubmenu.classList.add('hidden');
+                }, 150);
+            });
+
+            // Keep submenu open when hovering over it
+            playlistSubmenu.addEventListener('mouseenter', () => {
+                if (submenuTimeout) {
+                    clearTimeout(submenuTimeout);
+                    submenuTimeout = null;
+                }
+            });
+
+            playlistSubmenu.addEventListener('mouseleave', () => {
                 playlistSubmenu.classList.add('hidden');
             });
 
@@ -888,7 +923,8 @@ class RainyApp {
                 window.player.audio.src = '';
             }
 
-            const response = await this.api(`/api/music/song/${encodeURIComponent(id)}`, 'DELETE');
+            // Delete by database ID
+            const response = await this.api(`/api/music/song/${id}`, 'DELETE');
 
             if (response.success) {
                 // Refresh library
@@ -1075,6 +1111,27 @@ class RainyApp {
         return div.innerHTML;
     }
 
+    showToast(message, type = 'success', duration = 3000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icon = type === 'success'
+            ? '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
+            : '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
+
+        toast.innerHTML = `${icon}<span class="toast-message">${this.escapeHtml(message)}</span>`;
+        container.appendChild(toast);
+
+        // Auto-dismiss
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
     handleCoverError(img) {
         if (!img) return;
 
@@ -1157,10 +1214,14 @@ class RainyApp {
         const contextMenu = document.getElementById('song-context-menu');
         if (!contextMenu) return;
 
+        // Find the full song object to get the path
+        const fullSong = this.songs.find(s => s.id == songData.songId);
+
         this.selectedSong = {
             id: songData.songId,
             title: songData.songTitle,
-            artist: songData.songArtist
+            artist: songData.songArtist,
+            path: fullSong?.path || songData.songId  // Fallback to songId if not found
         };
 
         // Position the menu
@@ -1294,7 +1355,7 @@ class RainyApp {
 
         try {
             const response = await this.api(
-                `/api/music/metadata/apply/${encodeURIComponent(songId)}`,
+                `/api/music/metadata/apply/${songId}`,
                 'POST',
                 {
                     title: metadata.title,
@@ -1495,13 +1556,13 @@ class RainyApp {
                 const playlistName = playlist ? playlist.name : 'Unknown Playlist';
 
                 this.hideContextMenu();
-                alert(`Added to playlist: ${playlistName}`);
+                this.showToast(`Added to "${playlistName}"`, 'success');
             } else {
                 throw new Error(response.error || 'Failed to add to playlist');
             }
         } catch (error) {
             console.error('Error adding to playlist:', error);
-            alert('Failed to add song to playlist: ' + error.message);
+            this.showToast('Failed to add song to playlist', 'error');
         }
     }
 }

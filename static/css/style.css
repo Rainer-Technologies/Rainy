@@ -573,12 +573,29 @@ a:hover {
 .sidebar-nav {
     padding: var(--spacing-lg) 0;
     flex: 1;
-    overflow-y: auto;
-    padding-bottom: calc(var(--player-height) + var(--spacing-xl));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .nav-section {
     margin-bottom: var(--spacing-xl);
+}
+
+/* Make playlist section take remaining space */
+.sidebar-nav .nav-section:last-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
+}
+
+#sidebar-playlists {
+    flex: 1;
+    overflow-y: auto;
+    /* content padding + player height + extra space */
+    padding-bottom: calc(var(--player-height) + var(--spacing-xl));
 }
 
 .nav-header {
@@ -624,6 +641,13 @@ a:hover {
     width: 20px;
     height: 20px;
     fill: currentColor;
+    flex-shrink: 0;
+}
+
+.nav-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .icon-btn-small {
@@ -2518,7 +2542,7 @@ a:hover {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
-    overflow: hidden;
+    padding: var(--spacing-sm) 0;
     animation: contextMenuFade 0.15s ease;
 }
 
@@ -2569,4 +2593,194 @@ a:hover {
 
 .context-menu-item.danger:hover {
     background: rgba(255, 68, 68, 0.1);
+}
+
+/* Context menu submenu (flyout for Add to Playlist) */
+.context-menu-item.has-submenu {
+    position: relative;
+}
+
+.context-menu-item .submenu-arrow {
+    width: 14px;
+    height: 14px;
+    margin-left: auto;
+}
+
+.context-submenu {
+    position: absolute;
+    left: calc(100% + 2px);
+    top: 0;
+    width: 200px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: var(--spacing-sm) 0;
+    z-index: 1001;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.context-menu-item.has-submenu:hover .context-submenu {
+    display: block;
+}
+
+.context-submenu.hidden {
+    display: none;
+}
+
+.context-submenu.show-left {
+    left: auto;
+    right: calc(100% + 2px);
+}
+
+.context-submenu .context-menu-item {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.context-submenu .context-menu-item svg {
+    flex-shrink: 0;
+}
+
+.context-submenu .context-menu-item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.context-submenu .dropdown-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: var(--spacing-xs) 0;
+}
+
+/* Modal actions container (buttons side by side) */
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+}
+
+/* ============================================
+   TOAST NOTIFICATIONS
+   ============================================ */
+
+#toast-container {
+    position: fixed;
+    bottom: 100px;
+    right: var(--spacing-xl);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    min-width: 280px;
+    max-width: 400px;
+    animation: toastSlideIn 0.3s ease;
+}
+
+.toast.success {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.toast.error {
+    border-left: 3px solid #ff4444;
+}
+
+.toast svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.toast.success svg {
+    fill: var(--accent-primary);
+}
+
+.toast.error svg {
+    fill: #ff4444;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.toast.hiding {
+    animation: toastSlideOut 0.3s ease forwards;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+
+/* Buffering state for now playing artwork */
+.now-playing-artwork.buffering {
+    animation: bufferingPulse 1s ease-in-out infinite;
+}
+
+@keyframes bufferingPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Loading spinner on play button */
+.icon-loading {
+    animation: spinLoader 0.8s linear infinite;
+}
+
+@keyframes spinLoader {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }

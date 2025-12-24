@@ -84,6 +84,18 @@ class SongModel:
         return Database.execute_query(query, (file_path,), fetch_one=True)
     
     @staticmethod
+    def get_song_by_id(song_id):
+        """Find a song by its database ID."""
+        query = "SELECT * FROM songs WHERE id = %s"
+        return Database.execute_query(query, (song_id,), fetch_one=True)
+    
+    @staticmethod
+    def delete_song_by_id(song_id):
+        """Remove a song by its database ID."""
+        query = "DELETE FROM songs WHERE id = %s"
+        return Database.execute_query(query, (song_id,))
+    
+    @staticmethod
     def get_all_songs():
         """Get all songs from the database, sorted by artist/album/track."""
         query = """
@@ -98,7 +110,7 @@ class SongModel:
         songs = []
         for row in results:
             songs.append({
-                'id': row['file_path'],
+                'id': row['id'],
                 'path': row['file_path'],
                 'title': row['title'],
                 'artist': row['artist'],
@@ -126,7 +138,7 @@ class SongModel:
         songs = []
         for row in results:
             songs.append({
-                'id': row['file_path'],
+                'id': row['id'],
                 'path': row['file_path'],
                 'title': row['title'],
                 'artist': row['artist'],

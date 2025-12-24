@@ -11,6 +11,8 @@ class AudioPlayer {
         this.isPlaying = false;
         this.isShuffle = false;
         this.repeatMode = 'none'; // 'none', 'all', 'one'
+        this.isBuffering = false;
+        this.lastDisplayedTime = 0;
 
         this.init();
     }
@@ -46,6 +48,7 @@ class AudioPlayer {
         // Icons
         this.iconPlay = this.playPauseBtn.querySelector('.icon-play');
         this.iconPause = this.playPauseBtn.querySelector('.icon-pause');
+        this.iconLoading = this.playPauseBtn.querySelector('.icon-loading');
     }
 
     bindEvents() {
@@ -56,6 +59,14 @@ class AudioPlayer {
         this.audio.addEventListener('play', () => this.handlePlay());
         this.audio.addEventListener('pause', () => this.handlePause());
         this.audio.addEventListener('error', (e) => this.handleError(e));
+
+        // Buffering events
+        this.audio.addEventListener('waiting', () => this.handleWaiting());
+        this.audio.addEventListener('stalled', () => this.handleWaiting());
+        this.audio.addEventListener('seeking', () => this.handleWaiting());
+        this.audio.addEventListener('canplay', () => this.handleCanPlay());
+        this.audio.addEventListener('playing', () => this.handleCanPlay());
+        this.audio.addEventListener('seeked', () => this.handleCanPlay());
 
         // Control buttons
         this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
@@ -104,8 +115,8 @@ class AudioPlayer {
         this.currentIndex = index;
         const song = this.playlist[index];
 
-        // Update audio source
-        const streamUrl = `/api/music/stream/${encodeURIComponent(song.id)}`;
+        // Update audio source - API now uses database ID
+        const streamUrl = `/api/music/stream/${song.id}`;
         this.audio.src = streamUrl;
 
         // Update now playing info
@@ -265,9 +276,13 @@ class AudioPlayer {
     }
 
     handleTimeUpdate() {
+        // Don't update time display while buffering
+        if (this.isBuffering) return;
+
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
             this.progressFill.style.width = `${percent}%`;
+            this.lastDisplayedTime = this.audio.currentTime;
             this.currentTimeEl.textContent = this.formatTime(this.audio.currentTime);
         }
     }
@@ -301,6 +316,36 @@ class AudioPlayer {
 
     handleError(e) {
         console.error('Audio error:', e);
+        this.isBuffering = false;
+    }
+
+    handleWaiting() {
+        // Audio is waiting for data (buffering)
+        this.isBuffering = true;
+        console.log('Audio buffering...');
+        this.nowPlayingArtwork.classList.add('buffering');
+        // Show loading spinner, hide play/pause icons
+        this.iconPlay.classList.add('hidden');
+        this.iconPause.classList.add('hidden');
+        this.iconLoading.classList.remove('hidden');
+        // Freeze time display
+        this.currentTimeEl.textContent = this.formatTime(this.lastDisplayedTime);
+    }
+
+    handleCanPlay() {
+        // Audio has enough data to play
+        if (this.isBuffering) {
+            this.isBuffering = false;
+            // Hide spinner, restore appropriate icon
+            this.iconLoading.classList.add('hidden');
+            if (this.isPlaying) {
+                this.iconPause.classList.remove('hidden');
+            } else {
+                this.iconPlay.classList.remove('hidden');
+            }
+            this.currentTimeEl.textContent = this.formatTime(this.lastDisplayedTime);
+        }
+        this.nowPlayingArtwork.classList.remove('buffering');
     }
 
     handleProgressClick(e) {
