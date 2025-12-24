@@ -78,6 +78,7 @@ class Database:
                 track_number INT DEFAULT 0,
                 year VARCHAR(20),
                 genre VARCHAR(100),
+                cover_path VARCHAR(768),
                 file_size BIGINT,
                 file_modified DATETIME,
                 scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -86,6 +87,15 @@ class Database:
                 INDEX idx_album (album)
             )
         """)
+        
+        # Migration: Add cover_path column if it doesn't exist
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = 'songs' AND column_name = 'cover_path'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE songs ADD COLUMN cover_path VARCHAR(768)")
         
         # Scan history table - tracks scan operations
         cursor.execute("""

@@ -8,8 +8,8 @@ class SongModel:
         """Insert a new song into the database."""
         query = """
             INSERT INTO songs (file_path, title, artist, album, duration, 
-                             track_number, year, genre, file_size, file_modified)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             track_number, year, genre, cover_path, file_size, file_modified)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         return Database.execute_query(query, (
             song_data['path'],
@@ -20,6 +20,7 @@ class SongModel:
             song_data.get('track', 0),
             song_data.get('year'),
             song_data.get('genre'),
+            song_data.get('cover_path'),
             song_data.get('file_size'),
             song_data.get('file_modified')
         ))
@@ -30,7 +31,7 @@ class SongModel:
         query = """
             UPDATE songs 
             SET title = %s, artist = %s, album = %s, duration = %s,
-                track_number = %s, year = %s, genre = %s, 
+                track_number = %s, year = %s, genre = %s, cover_path = %s,
                 file_size = %s, file_modified = %s
             WHERE file_path = %s
         """
@@ -42,10 +43,39 @@ class SongModel:
             song_data.get('track', 0),
             song_data.get('year'),
             song_data.get('genre'),
+            song_data.get('cover_path'),
             song_data.get('file_size'),
             song_data.get('file_modified'),
             file_path
         ))
+    
+    @staticmethod
+    def update_song_metadata(file_path, metadata):
+        """Update only specific metadata fields for a song."""
+        # Build dynamic query based on provided fields
+        fields = []
+        values = []
+        
+        field_mapping = {
+            'title': 'title',
+            'artist': 'artist',
+            'album': 'album',
+            'year': 'year',
+            'genre': 'genre',
+            'cover_path': 'cover_path'
+        }
+        
+        for key, column in field_mapping.items():
+            if key in metadata and metadata[key] is not None:
+                fields.append(f"{column} = %s")
+                values.append(metadata[key])
+        
+        if not fields:
+            return None
+        
+        values.append(file_path)
+        query = f"UPDATE songs SET {', '.join(fields)} WHERE file_path = %s"
+        return Database.execute_query(query, tuple(values))
     
     @staticmethod
     def get_song_by_path(file_path):
@@ -58,7 +88,7 @@ class SongModel:
         """Get all songs from the database, sorted by artist/album/track."""
         query = """
             SELECT id, file_path, title, artist, album, duration, 
-                   track_number, year, genre, file_size, file_modified
+                   track_number, year, genre, cover_path, file_size, file_modified
             FROM songs 
             ORDER BY artist, album, track_number
         """
@@ -76,7 +106,36 @@ class SongModel:
                 'duration': row['duration'],
                 'track': row['track_number'],
                 'year': row['year'],
-                'genre': row['genre']
+                'genre': row['genre'],
+                'cover_path': row['cover_path']
+            })
+        return songs
+    
+    @staticmethod
+    def get_recently_added(limit=20):
+        """Get recently added songs, ordered by scan date (newest first)."""
+        query = """
+            SELECT id, file_path, title, artist, album, duration, 
+                   track_number, year, genre, cover_path, scanned_at
+            FROM songs 
+            ORDER BY scanned_at DESC
+            LIMIT %s
+        """
+        results = Database.execute_query(query, (limit,), fetch_all=True)
+        
+        songs = []
+        for row in results:
+            songs.append({
+                'id': row['file_path'],
+                'path': row['file_path'],
+                'title': row['title'],
+                'artist': row['artist'],
+                'album': row['album'],
+                'duration': row['duration'],
+                'track': row['track_number'],
+                'year': row['year'],
+                'genre': row['genre'],
+                'cover_path': row['cover_path']
             })
         return songs
     

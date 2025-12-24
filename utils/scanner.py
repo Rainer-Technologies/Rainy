@@ -199,6 +199,36 @@ class MusicScanner:
             pass
         return default
     
+    def scan_single_file(self, full_path):
+        """Scan a single file and add it to the database."""
+        from models.song import SongModel
+        
+        if not os.path.isfile(full_path):
+            return None
+        
+        filename = os.path.basename(full_path)
+        relative_path = os.path.relpath(full_path, self.music_path).replace('\\', '/')
+        
+        # Get file info
+        try:
+            file_stat = os.stat(full_path)
+            file_size = file_stat.st_size
+            file_modified = datetime.fromtimestamp(file_stat.st_mtime)
+        except OSError:
+            file_size = None
+            file_modified = None
+        
+        # Extract metadata
+        metadata = self._extract_metadata(full_path, filename)
+        metadata['path'] = relative_path
+        metadata['file_size'] = file_size
+        metadata['file_modified'] = file_modified
+        
+        # Add to database
+        SongModel.add_song(metadata)
+        
+        return metadata
+    
     def format_duration(self, seconds):
         """Format duration in seconds to MM:SS format."""
         if not seconds:
@@ -206,3 +236,4 @@ class MusicScanner:
         minutes = int(seconds // 60)
         secs = int(seconds % 60)
         return f"{minutes}:{secs:02d}"
+

@@ -143,6 +143,14 @@
                         </svg>
                     </div>
                     <div class="user-dropdown hidden" id="user-dropdown">
+                        <div class="dropdown-item" id="menu-add-music">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zM10 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+                            </svg>
+                            <span>Add Music</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
                         <div class="dropdown-item" id="menu-user-settings">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path
@@ -231,7 +239,12 @@
             <div id="songs-list" class="songs-list hidden">
                 <div class="list-header">
                     <span>#</span>
-                    <span>Title</span>
+                    <span class="list-header-sortable" id="list-sort-title">
+                        Title
+                        <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7 10l5 5 5-5z" />
+                        </svg>
+                    </span>
                     <span>Album</span>
                     <span>Duration</span>
                 </div>
@@ -376,6 +389,137 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Metadata Search Modal -->
+    <div class="modal-overlay hidden" id="metadata-modal">
+        <div class="modal-content metadata-modal">
+            <div class="modal-header">
+                <h2>Find Metadata</h2>
+                <button class="modal-close" id="close-metadata-modal">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="metadata-current-song">
+                    <span class="label">Searching for:</span>
+                    <span class="song-name" id="metadata-song-name">Song Name</span>
+                </div>
+
+                <div class="metadata-search-bar">
+                    <input type="text" id="metadata-search-input" placeholder="Search YouTube Music...">
+                    <button class="btn btn-primary" id="metadata-search-btn">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="metadata-loading hidden" id="metadata-loading">
+                    <div class="loading-spinner"></div>
+                    <p>Searching...</p>
+                </div>
+
+                <div class="metadata-results" id="metadata-results">
+                    <!-- Results will be populated here -->
+                </div>
+
+                <div class="metadata-no-results hidden" id="metadata-no-results">
+                    <p>No results found. Try a different search term.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Music Modal -->
+    <div class="modal-overlay hidden" id="add-music-modal">
+        <div class="modal-content add-music-modal-content">
+            <div class="modal-header">
+                <h2>Add Music</h2>
+                <button class="modal-close" id="close-add-music-modal">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="add-music-tabs">
+                    <button class="add-music-tab active" data-tab="upload">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+                        </svg>
+                        Upload Files
+                    </button>
+                    <button class="add-music-tab" data-tab="youtube">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z" />
+                        </svg>
+                        YouTube Import
+                    </button>
+                </div>
+
+                <!-- Upload Tab -->
+                <div class="add-music-tab-content active" id="upload-tab">
+                    <div class="upload-dropzone" id="upload-dropzone">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                        </svg>
+                        <p class="dropzone-text">Drag & drop audio files here</p>
+                        <p class="dropzone-subtext">or click to browse</p>
+                        <input type="file" id="file-upload-input" accept="audio/*" multiple hidden>
+                    </div>
+                    <div class="upload-progress hidden" id="upload-progress">
+                        <div class="upload-progress-bar">
+                            <div class="upload-progress-fill" id="upload-progress-fill"></div>
+                        </div>
+                        <p class="upload-status" id="upload-status">Uploading...</p>
+                    </div>
+                </div>
+
+                <!-- YouTube Tab -->
+                <div class="add-music-tab-content" id="youtube-tab">
+                    <div class="youtube-input-group">
+                        <input type="text" id="youtube-url-input" placeholder="Paste YouTube or YouTube Music URL...">
+                        <button class="btn btn-primary" id="youtube-import-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M5 4v2h14V4H5zm0 10h4v6h6v-6h4l-7-7-7 7z" />
+                            </svg>
+                            Import
+                        </button>
+                    </div>
+                    <div class="youtube-status hidden" id="youtube-status">
+                        <div class="youtube-progress-bar">
+                            <div class="youtube-progress-fill" id="youtube-progress-fill"></div>
+                        </div>
+                        <p id="youtube-status-text">Importing from YouTube...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Song Context Menu -->
+    <div class="song-context-menu hidden" id="song-context-menu">
+        <div class="context-menu-item" id="context-find-metadata">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                    d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+            </svg>
+            <span>Find Metadata</span>
+        </div>
+        <div class="context-menu-item danger" id="context-remove-song">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+            </svg>
+            <span>Remove Song</span>
         </div>
     </div>
 
