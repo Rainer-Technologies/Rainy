@@ -670,7 +670,7 @@ class RainyApp {
         songsGrid.classList.remove('hidden');
         songsList.classList.add('hidden');
 
-        songsGrid.innerHTML = this.filteredSongs.map((song, index) => {
+        const songsHtml = this.filteredSongs.map((song, index) => {
             const coverHtml = song.cover_path
                 ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" onerror="window.app.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -700,6 +700,8 @@ class RainyApp {
                 </div>
             </div>
         `}).join('');
+
+        songsGrid.innerHTML = `<div class="songs-grid-section" style="width: 100%;">${songsHtml}</div>`;
 
         // Add click listeners for play
         songsGrid.querySelectorAll('.song-card').forEach(card => {
