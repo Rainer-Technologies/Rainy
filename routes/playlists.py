@@ -1,0 +1,97 @@
+from flask import Blueprint, jsonify, request
+from models.playlist import PlaylistModel
+from routes.auth import require_auth
+
+playlists_bp = Blueprint('playlists', __name__)
+
+@playlists_bp.route('/', methods=['GET'])
+@require_auth
+def get_playlists():
+    """Get all playlists."""
+    playlists = PlaylistModel.get_all_playlists()
+    return jsonify(playlists or [])
+
+@playlists_bp.route('/', methods=['POST'])
+@require_auth
+def create_playlist():
+    """Create a new playlist."""
+    data = request.get_json()
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Name is required'}), 400
+    
+    try:
+        playlist_id = PlaylistModel.create_playlist(data['name'])
+        return jsonify({
+            'success': True, 
+            'id': playlist_id,
+            'name': data['name']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@playlists_bp.route('/<int:playlist_id>', methods=['GET'])
+@require_auth
+def get_playlist(playlist_id):
+    """Get playlist details and songs."""
+    playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+    if not playlist:
+        return jsonify({'error': 'Playlist not found'}), 404
+        
+    songs = PlaylistModel.get_playlist_songs(playlist_id)
+    
+    return jsonify({
+        'id': playlist['id'],
+        'name': playlist['name'],
+        'created_at': playlist['created_at'],
+        'songs': songs or []
+    })
+
+@playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])
+@require_auth
+def delete_playlist(playlist_id):
+    """Delete a playlist."""
+    try:
+        PlaylistModel.delete_playlist(playlist_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@playlists_bp.route('/<int:playlist_id>', methods=['PUT'])
+@require_auth
+def rename_playlist(playlist_id):
+    """Rename a playlist."""
+    data = request.get_json()
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Name is required'}), 400
+        
+    try:
+        PlaylistModel.update_playlist_name(playlist_id, data['name'])
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@playlists_bp.route('/<int:playlist_id>/songs', methods=['POST'])
+@require_auth
+def add_song(playlist_id):
+    """Add a song to a playlist."""
+    data = request.get_json()
+    if not data or 'song_id' not in data:
+        return jsonify({'error': 'Song ID is required'}), 400
+        
+    try:
+        PlaylistModel.add_song_to_playlist(playlist_id, data['song_id'])
+        return jsonify({'success': True})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@playlists_bp.route('/<int:playlist_id>/songs/<int:song_id>', methods=['DELETE'])
+@require_auth
+def remove_song(playlist_id, song_id):
+    """Remove a song from a playlist."""
+    try:
+        PlaylistModel.remove_song_from_playlist(playlist_id, song_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

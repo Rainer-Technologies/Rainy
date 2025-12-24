@@ -65,3 +65,13 @@ def get_current_user():
             'role': user['role']
         }
     })
+
+def require_auth(f):
+    """Decorator to require authentication."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated

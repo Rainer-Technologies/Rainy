@@ -96,6 +96,28 @@ class Database:
         result = cursor.fetchone()
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE songs ADD COLUMN cover_path VARCHAR(768)")
+            
+        # Playlists table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS playlists (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Playlist Songs table (linking table)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS playlist_entries (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                playlist_id INT NOT NULL,
+                track_id INT NOT NULL,
+                order_num INT NOT NULL DEFAULT 0,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                FOREIGN KEY (track_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
         
         # Scan history table - tracks scan operations
         cursor.execute("""

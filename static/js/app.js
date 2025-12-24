@@ -214,6 +214,51 @@ class RainyApp {
             }
         });
 
+        // Playlist events
+        document.getElementById('sidebar-new-playlist')?.addEventListener('click', (e) => {
+            e.stopPropagation(); // prevent triggering nav section collapse if we had that
+            this.openCreatePlaylistModal();
+        });
+
+        document.getElementById('close-playlist-modal')?.addEventListener('click', () => {
+            document.getElementById('create-playlist-modal').classList.add('hidden');
+        });
+
+        document.getElementById('cancel-playlist-btn')?.addEventListener('click', () => {
+            document.getElementById('create-playlist-modal').classList.add('hidden');
+        });
+
+        document.getElementById('save-playlist-btn')?.addEventListener('click', () => {
+            this.createPlaylist();
+        });
+
+        document.getElementById('nav-library')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToLibraryView();
+        });
+
+        // Context menu submenu hover
+        const playlistItem = document.getElementById('context-add-playlist');
+        const playlistSubmenu = document.getElementById('context-playlist-submenu');
+
+        if (playlistItem && playlistSubmenu) {
+            playlistItem.addEventListener('mouseenter', () => {
+                // Populate/Refresh playlists in submenu
+                this.renderPlaylistSubmenu();
+                playlistSubmenu.classList.remove('hidden');
+            });
+            playlistItem.addEventListener('mouseleave', () => {
+                playlistSubmenu.classList.add('hidden');
+            });
+
+            document.getElementById('context-new-playlist')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Close context menu
+                document.getElementById('song-context-menu').classList.add('hidden');
+                this.openCreatePlaylistModal();
+            });
+        }
+
     }
 
     closeDropdown() {
@@ -239,6 +284,7 @@ class RainyApp {
             if (authResponse.authenticated) {
                 this.user = authResponse.user;
                 this.showView('app');
+                await this.loadPlaylists();
                 await this.loadLibrary();
             } else {
                 this.showView('login');
@@ -386,7 +432,10 @@ class RainyApp {
 
             if (response.all_songs && response.all_songs.length > 0) {
                 this.songs = response.all_songs;
+                this.librarySongs = [...this.songs]; // Cache for switching back
+                this.currentViewType = 'library'; // Track view type
                 this.sections = response.sections || [];
+                this.librarySections = JSON.parse(JSON.stringify(this.sections)); // Deep copy cache
                 this.filteredSongs = [...this.songs];
                 this.renderSections();
                 this.updateStats();
@@ -1297,6 +1346,162 @@ class RainyApp {
             alert('Failed to apply metadata: ' + error.message);
         } finally {
             applyButtons.forEach(btn => btn.disabled = false);
+        }
+    }
+    // Playlist Methods
+
+    async loadPlaylists() {
+        try {
+            const playlists = await this.api('/api/playlists');
+            this.playlists = playlists;
+            this.renderSidebarPlaylists();
+        } catch (error) {
+            console.error('Error loading playlists:', error);
+        }
+    }
+
+    renderSidebarPlaylists() {
+        const container = document.getElementById('sidebar-playlists');
+        if (!container) return;
+
+        container.innerHTML = (this.playlists || []).map(playlist => `
+            <div class="nav-item ${this.currentViewType === 'playlist' && this.currentPlaylistId === playlist.id ? 'active' : ''}" 
+                 onclick="window.app.openPlaylist(${playlist.id})">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>
+                <span>${this.escapeHtml(playlist.name)}</span>
+            </div>
+        `).join('');
+    }
+
+    openCreatePlaylistModal() {
+        document.getElementById('create-playlist-modal').classList.remove('hidden');
+        document.getElementById('playlist-name-input').value = '';
+        document.getElementById('playlist-name-input').focus();
+    }
+
+    async createPlaylist() {
+        const nameInput = document.getElementById('playlist-name-input');
+        const name = nameInput.value.trim();
+        if (!name) return;
+
+        try {
+            const response = await this.api('/api/playlists', 'POST', { name });
+            if (response.success) {
+                document.getElementById('create-playlist-modal').classList.add('hidden');
+                await this.loadPlaylists();
+            } else {
+                alert('Failed to create playlist: ' + response.error);
+            }
+        } catch (error) {
+            console.error('Error creating playlist:', error);
+            alert('Failed to create playlist');
+        }
+    }
+
+    async openPlaylist(playlistId) {
+        try {
+            const playlist = await this.api(`/api/playlists/${playlistId}`);
+            if (playlist && playlist.songs) {
+                this.currentViewType = 'playlist';
+                this.currentPlaylistId = playlistId;
+
+                // Update UI state
+                document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+
+                // Re-render sidebar to highlight active playlist
+                this.renderSidebarPlaylists();
+
+                // Update Header
+                document.querySelector('.section-title').textContent = playlist.name;
+                document.getElementById('library-subtitle').textContent = `${playlist.songs.length} songs`;
+                document.getElementById('library-stats').classList.add('hidden');
+
+                // Set content
+                this.songs = playlist.songs;
+                this.filteredSongs = [...playlist.songs];
+
+                // Create a dummy section for compatibility
+                this.sections = [{
+                    type: 'grid',
+                    title: 'Playlist Songs',
+                    songs: this.songs
+                }];
+
+                // Reset search if any
+                document.getElementById('search-input').value = '';
+
+                this.renderSections();
+            }
+        } catch (error) {
+            console.error('Error loading playlist:', error);
+        }
+    }
+
+    switchToLibraryView() {
+        if (this.currentViewType === 'library') return;
+
+        this.currentViewType = 'library';
+        this.currentPlaylistId = null;
+
+        // Update Sidebar UI
+        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-library').classList.add('active');
+        this.renderSidebarPlaylists(); // Remove active state from playlist items
+
+        // Restore Library Content
+        this.songs = [...(this.librarySongs || [])];
+        this.sections = JSON.parse(JSON.stringify(this.librarySections || []));
+        this.filteredSongs = [...this.songs];
+
+        // Update Header
+        document.querySelector('.section-title').textContent = 'Your Library';
+        const totalSongs = this.songs.length;
+        document.getElementById('library-subtitle').textContent = 'All your music in one place';
+
+        // Show Stats
+        document.getElementById('library-stats').classList.remove('hidden');
+        document.getElementById('stat-songs').textContent = totalSongs;
+
+        // Clear search
+        document.getElementById('search-input').value = '';
+
+        this.renderSections();
+    }
+
+    renderPlaylistSubmenu() {
+        const container = document.getElementById('context-playlists-list');
+        if (!container) return;
+
+        container.innerHTML = (this.playlists || []).map(playlist => `
+            <div class="context-menu-item" onclick="window.app.addToPlaylist(${playlist.id}, event)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                <span>${this.escapeHtml(playlist.name)}</span>
+            </div>
+        `).join('');
+    }
+
+    async addToPlaylist(playlistId, event) {
+        if (event) event.stopPropagation();
+        if (!this.selectedSong) return;
+
+        try {
+            const response = await this.api(`/api/playlists/${playlistId}/songs`, 'POST', {
+                song_id: this.selectedSong.id
+            });
+
+            if (response.success) {
+                // Determine playlist name for toaster
+                const playlist = this.playlists.find(p => p.id === playlistId);
+                const playlistName = playlist ? playlist.name : 'Unknown Playlist';
+
+                this.hideContextMenu();
+                alert(`Added to playlist: ${playlistName}`);
+            } else {
+                throw new Error(response.error || 'Failed to add to playlist');
+            }
+        } catch (error) {
+            console.error('Error adding to playlist:', error);
+            alert('Failed to add song to playlist: ' + error.message);
         }
     }
 }

@@ -3,6 +3,7 @@ from flask_cors import CORS
 from config import Config
 from models.database import Database
 from routes import auth_bp, setup_bp, music_bp
+from routes.playlists import playlists_bp
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = Config.FLASK_SECRET_KEY
@@ -14,6 +15,7 @@ CORS(app, supports_credentials=True)
 app.register_blueprint(auth_bp)
 app.register_blueprint(setup_bp)
 app.register_blueprint(music_bp)
+app.register_blueprint(playlists_bp, url_prefix='/api/playlists')
 
 @app.route('/')
 def serve_index():

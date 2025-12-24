@@ -179,78 +179,109 @@
         </header>
 
         <!-- Main Content -->
-        <main class="app-main">
-            <div class="section-header">
-                <div>
-                    <h1 class="section-title">Your Library</h1>
-                    <p class="section-subtitle" id="library-subtitle">All your music in one place</p>
+        <div class="app-body">
+            <aside class="app-sidebar">
+                <nav class="sidebar-nav">
+                    <div class="nav-section">
+                        <h3 class="nav-header">Library</h3>
+                        <a href="#" class="nav-item active" id="nav-library">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 16h8V4h-2v6l-2.5-1.5L11 10V4h-1v12z" />
+                            </svg>
+                            <span>Library</span>
+                        </a>
+                    </div>
+
+                    <div class="nav-section">
+                        <div class="nav-header-row">
+                            <h3 class="nav-header">Playlists</h3>
+                            <button class="icon-btn-small" id="sidebar-new-playlist" title="New Playlist">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="sidebar-playlists" id="sidebar-playlists">
+                            <!-- Playlists populated via JS -->
+                        </div>
+                    </div>
+                </nav>
+            </aside>
+            <main class="app-main" id="app-main">
+                <div class="section-header">
+                    <div>
+                        <h1 class="section-title">Your Library</h1>
+                        <p class="section-subtitle" id="library-subtitle">All your music in one place</p>
+                    </div>
+
+                    <div class="view-toggle">
+                        <button class="view-toggle-btn active" id="grid-view-btn" title="Grid View">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
+                            </svg>
+                        </button>
+                        <button class="view-toggle-btn" id="list-view-btn" title="List View">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                <div class="view-toggle">
-                    <button class="view-toggle-btn active" id="grid-view-btn" title="Grid View">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
-                        </svg>
-                    </button>
-                    <button class="view-toggle-btn" id="list-view-btn" title="List View">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path
-                                d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
-                        </svg>
-                    </button>
+                <!-- Library Stats -->
+                <div class="library-stats" id="library-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-songs">0</div>
+                        <div class="stat-label">Songs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-artists">0</div>
+                        <div class="stat-label">Artists</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-albums">0</div>
+                        <div class="stat-label">Albums</div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Library Stats -->
-            <div class="library-stats" id="library-stats">
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-songs">0</div>
-                    <div class="stat-label">Songs</div>
+                <!-- Loading State -->
+                <div id="loading-state" class="loading-container hidden">
+                    <div class="loading-spinner"></div>
+                    <p class="loading-text">Loading your library...</p>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-artists">0</div>
-                    <div class="stat-label">Artists</div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="empty-state hidden">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                    <h3>No Music Found</h3>
+                    <p>Add some music files to your library folder and refresh to see them here.</p>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-albums">0</div>
-                    <div class="stat-label">Albums</div>
+
+                <!-- Songs Grid View -->
+                <div id="songs-grid" class="songs-grid"></div>
+
+                <!-- Songs List View -->
+                <div id="songs-list" class="songs-list hidden">
+                    <div class="list-header">
+                        <span>#</span>
+                        <span class="list-header-sortable" id="list-sort-title">
+                            Title
+                            <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 10l5 5 5-5z" />
+                            </svg>
+                        </span>
+                        <span>Album</span>
+                        <span>Duration</span>
+                    </div>
+                    <div id="songs-list-content"></div>
                 </div>
-            </div>
-
-            <!-- Loading State -->
-            <div id="loading-state" class="loading-container hidden">
-                <div class="loading-spinner"></div>
-                <p class="loading-text">Loading your library...</p>
-            </div>
-
-            <!-- Empty State -->
-            <div id="empty-state" class="empty-state hidden">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                </svg>
-                <h3>No Music Found</h3>
-                <p>Add some music files to your library folder and refresh to see them here.</p>
-            </div>
-
-            <!-- Songs Grid View -->
-            <div id="songs-grid" class="songs-grid"></div>
-
-            <!-- Songs List View -->
-            <div id="songs-list" class="songs-list hidden">
-                <div class="list-header">
-                    <span>#</span>
-                    <span class="list-header-sortable" id="list-sort-title">
-                        Title
-                        <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M7 10l5 5 5-5z" />
-                        </svg>
-                    </span>
-                    <span>Album</span>
-                    <span>Duration</span>
-                </div>
-                <div id="songs-list-content"></div>
-            </div>
-        </main>
+            </main>
+        </div>
 
         <!-- Player Bar -->
         <div class="player-bar">
@@ -436,6 +467,31 @@
         </div>
     </div>
 
+    <!-- Create Playlist Modal -->
+    <div class="modal-overlay hidden" id="create-playlist-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>New Playlist</h2>
+                <button class="modal-close" id="close-playlist-modal">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Playlist Name</label>
+                    <input type="text" id="playlist-name-input" class="form-input" placeholder="My Awesome Playlist">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="cancel-playlist-btn">Cancel</button>
+                    <button class="btn btn-primary" id="save-playlist-btn">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Music Modal -->
     <div class="modal-overlay hidden" id="add-music-modal">
         <div class="modal-content add-music-modal-content">
@@ -508,6 +564,26 @@
 
     <!-- Song Context Menu -->
     <div class="song-context-menu hidden" id="song-context-menu">
+        <div class="context-menu-item has-submenu" id="context-add-playlist">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z" />
+            </svg>
+            <span>Add to Playlist</span>
+            <svg viewBox="0 0 24 24" fill="currentColor" class="submenu-arrow">
+                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+            </svg>
+            <div class="context-submenu hidden" id="context-playlist-submenu">
+                <div class="context-menu-item" id="context-new-playlist">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                    <span>New Playlist</span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <!-- Playlists populated via JS -->
+                <div id="context-playlists-list"></div>
+            </div>
+        </div>
         <div class="context-menu-item" id="context-find-metadata">
             <svg viewBox="0 0 24 24" fill="currentColor">
                 <path

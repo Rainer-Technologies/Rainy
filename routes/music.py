@@ -2,20 +2,10 @@ from flask import Blueprint, jsonify, session, send_file, request
 from models.settings import SettingsModel
 from models.song import SongModel, ScanHistoryModel
 from utils.scanner import MusicScanner
+from routes.auth import require_auth
 import os
 
 music_bp = Blueprint('music', __name__, url_prefix='/api/music')
-
-
-def require_auth(f):
-    """Decorator to require authentication."""
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if 'user_id' not in session:
-            return jsonify({'error': 'Authentication required'}), 401
-        return f(*args, **kwargs)
-    return decorated
 
 
 @music_bp.route('/library', methods=['GET'])
