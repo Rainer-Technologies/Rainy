@@ -259,18 +259,24 @@ class AudioPlayer {
 
         // Update button appearance
         const svg = this.repeatBtn.querySelector('svg');
+        const baseLoopPath = 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z';
+
         switch (this.repeatMode) {
             case 'none':
                 svg.style.fill = '';
                 this.repeatBtn.title = 'Repeat Off';
+                svg.innerHTML = `<path d="${baseLoopPath}" />`;
                 break;
             case 'all':
                 svg.style.fill = 'var(--accent-primary)';
                 this.repeatBtn.title = 'Repeat All';
+                svg.innerHTML = `<path d="${baseLoopPath}" /><circle cx="12" cy="12" r="2" />`;
                 break;
             case 'one':
                 svg.style.fill = 'var(--accent-primary)';
                 this.repeatBtn.title = 'Repeat One';
+                // Add the "1" inside
+                svg.innerHTML = `<path d="${baseLoopPath}" /><path d="M13 15V9h-1l-2 1v1h1.5v4H13z" />`;
                 break;
         }
     }

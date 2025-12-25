@@ -18,6 +18,12 @@ class RainyApp {
     }
 
     async init() {
+        // Restore sidebar state
+        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        if (isCollapsed) {
+            document.querySelector('.app-sidebar')?.classList.add('collapsed');
+        }
+
         // Bind event listeners
         this.bindEvents();
 
@@ -116,13 +122,67 @@ class RainyApp {
         });
 
         // Context menu
+
+
+        // Playlist Settings Menu
+        document.getElementById('playlist-settings-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById('playlist-settings-dropdown');
+            dropdown.classList.toggle('hidden');
+        });
+
+        document.getElementById('action-rename-playlist')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            this.renameCurrentPlaylist();
+        });
+
+        document.getElementById('action-delete-playlist')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            this.deleteCurrentPlaylist();
+        });
+
+        // Rename Playlist Modal
+        document.getElementById('close-rename-playlist-modal')?.addEventListener('click', () => {
+            document.getElementById('rename-playlist-modal').classList.add('hidden');
+        });
+        document.getElementById('cancel-rename-playlist')?.addEventListener('click', () => {
+            document.getElementById('rename-playlist-modal').classList.add('hidden');
+        });
+        document.getElementById('save-rename-playlist')?.addEventListener('click', () => {
+            this.performRenamePlaylist();
+        });
+        document.getElementById('rename-playlist-input')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.performRenamePlaylist();
+            }
+        });
+
+        // Delete Playlist Modal
+        document.getElementById('close-delete-playlist-modal')?.addEventListener('click', () => {
+            document.getElementById('delete-playlist-modal').classList.add('hidden');
+        });
+        document.getElementById('cancel-delete-playlist')?.addEventListener('click', () => {
+            document.getElementById('delete-playlist-modal').classList.add('hidden');
+        });
+        document.getElementById('confirm-delete-playlist')?.addEventListener('click', () => {
+            this.performDeletePlaylist();
+        });
+
         document.addEventListener('click', (e) => {
             // Close context menu when clicking outside
             const contextMenu = document.getElementById('song-context-menu');
             if (contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.song-menu-btn')) {
                 contextMenu.classList.add('hidden');
             }
+
+            // Close playlist settings menu when clicking outside
+            const playlistDropdown = document.getElementById('playlist-settings-dropdown');
+            const playlistBtn = document.getElementById('playlist-settings-btn');
+            if (playlistDropdown && !playlistDropdown.contains(e.target) && !playlistBtn?.contains(e.target)) {
+                playlistDropdown.classList.add('hidden');
+            }
         });
+
 
         document.getElementById('context-find-metadata')?.addEventListener('click', () => {
             this.hideContextMenu();
@@ -237,6 +297,11 @@ class RainyApp {
             this.switchToLibraryView();
         });
 
+        // Sidebar Toggle
+        document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+            this.toggleSidebar();
+        });
+
         // Context menu submenu hover
         const playlistItem = document.getElementById('context-add-playlist');
         const playlistSubmenu = document.getElementById('context-playlist-submenu');
@@ -301,6 +366,15 @@ class RainyApp {
         const userDropdown = document.getElementById('user-dropdown');
         userMenu?.classList.remove('open');
         userDropdown?.classList.add('hidden');
+    }
+
+    toggleSidebar() {
+        const sidebar = document.querySelector('.app-sidebar');
+        if (sidebar) {
+            sidebar.classList.toggle('collapsed');
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+        }
     }
 
     async checkAppState() {
@@ -797,15 +871,16 @@ class RainyApp {
 
         if (!searchTerm) {
             this.filteredSongs = [...this.songs];
+            this.renderSections();
         } else {
             this.filteredSongs = this.songs.filter(song =>
                 song.title.toLowerCase().includes(searchTerm) ||
                 song.artist.toLowerCase().includes(searchTerm) ||
                 song.album.toLowerCase().includes(searchTerm)
             );
+            this.renderSongs();
         }
 
-        this.renderSongs();
         this.updateStats();
     }
 
@@ -1452,12 +1527,77 @@ class RainyApp {
             if (response.success) {
                 document.getElementById('create-playlist-modal').classList.add('hidden');
                 await this.loadPlaylists();
+                this.showToast('Playlist created', 'success');
             } else {
-                alert('Failed to create playlist: ' + response.error);
+                this.showToast(response.error || 'Failed to create playlist', 'error');
             }
         } catch (error) {
             console.error('Error creating playlist:', error);
-            alert('Failed to create playlist');
+            this.showToast('Failed to create playlist', 'error');
+        }
+    }
+
+    renameCurrentPlaylist() {
+        if (!this.currentPlaylistId) return;
+
+        const playlist = this.playlists.find(p => p.id === this.currentPlaylistId);
+        const currentName = playlist ? playlist.name : '';
+
+        document.getElementById('rename-playlist-input').value = currentName;
+        document.getElementById('rename-playlist-modal').classList.remove('hidden');
+        document.getElementById('rename-playlist-input').focus();
+    }
+
+    async performRenamePlaylist() {
+        const input = document.getElementById('rename-playlist-input');
+        const newName = input.value.trim();
+
+        if (!newName) {
+            this.showToast('Playlist name cannot be empty', 'error');
+            return;
+        }
+
+        try {
+            const response = await this.api(`/api/playlists/${this.currentPlaylistId}`, 'PUT', {
+                name: newName
+            });
+
+            if (response.success) {
+                document.getElementById('rename-playlist-modal').classList.add('hidden');
+                await this.loadPlaylists(); // Refresh sidebar
+
+                // Update header if we are still on that playlist
+                document.querySelector('.section-title').textContent = newName;
+                this.showToast('Playlist renamed', 'success');
+            } else {
+                this.showToast(response.error || 'Failed to rename playlist', 'error');
+            }
+        } catch (error) {
+            console.error('Error renaming playlist:', error);
+            this.showToast('Failed to rename playlist', 'error');
+        }
+    }
+
+    deleteCurrentPlaylist() {
+        if (!this.currentPlaylistId) return;
+        document.getElementById('delete-playlist-modal').classList.remove('hidden');
+    }
+
+    async performDeletePlaylist() {
+        try {
+            const response = await this.api(`/api/playlists/${this.currentPlaylistId}`, 'DELETE');
+
+            if (response.success) {
+                document.getElementById('delete-playlist-modal').classList.add('hidden');
+                await this.loadPlaylists(); // Refresh sidebar list
+                this.switchToLibraryView(); // Go back to library
+                this.showToast('Playlist deleted', 'success');
+            } else {
+                this.showToast(response.error || 'Failed to delete playlist', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting playlist:', error);
+            this.showToast('Failed to delete playlist', 'error');
         }
     }
 
@@ -1478,6 +1618,9 @@ class RainyApp {
                 document.querySelector('.section-title').textContent = playlist.name;
                 document.getElementById('library-subtitle').textContent = `${playlist.songs.length} songs`;
                 document.getElementById('library-stats').classList.add('hidden');
+
+                // Show playlist settings menu
+                document.getElementById('playlist-menu-container').classList.remove('hidden');
 
                 // Set content
                 this.songs = playlist.songs;
@@ -1520,6 +1663,9 @@ class RainyApp {
         document.querySelector('.section-title').textContent = 'Your Library';
         const totalSongs = this.songs.length;
         document.getElementById('library-subtitle').textContent = 'All your music in one place';
+
+        // Hide playlist settings menu
+        document.getElementById('playlist-menu-container').classList.add('hidden');
 
         // Show Stats
         document.getElementById('library-stats').classList.remove('hidden');
