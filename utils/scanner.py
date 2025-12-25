@@ -106,6 +106,36 @@ class MusicScanner:
                                     metadata['path'] = relative_path
                                     metadata['file_size'] = file_size
                                     metadata['file_modified'] = file_modified
+                                    # Preserve existing manual metadata when extractor returns defaults/empties
+                                    existing_row = SongModel.get_song_by_path(relative_path)
+                                    if existing_row:
+                                        default_title = os.path.splitext(filename)[0]
+                                        if not metadata.get('title') or str(metadata.get('title')).strip() == '':
+                                            metadata['title'] = existing_row.get('title')
+                                        elif str(metadata.get('title')).strip() == default_title and existing_row.get('title'):
+                                            metadata['title'] = existing_row.get('title')
+                                        
+                                        if not metadata.get('artist') or metadata.get('artist') == 'Unknown Artist':
+                                            metadata['artist'] = existing_row.get('artist') or metadata.get('artist')
+                                        
+                                        if not metadata.get('album') or metadata.get('album') == 'Unknown Album':
+                                            metadata['album'] = existing_row.get('album') or metadata.get('album')
+                                        
+                                        if metadata.get('track', 0) in (None, 0) and existing_row.get('track_number') is not None:
+                                            try:
+                                                metadata['track'] = int(existing_row.get('track_number'))
+                                            except (TypeError, ValueError):
+                                                pass
+                                        
+                                        if metadata.get('year') is None:
+                                            metadata['year'] = existing_row.get('year')
+                                        
+                                        if metadata.get('genre') is None:
+                                            metadata['genre'] = existing_row.get('genre')
+                                        
+                                        if not metadata.get('cover_path'):
+                                            metadata['cover_path'] = existing_row.get('cover_path')
+                                    
                                     SongModel.update_song(relative_path, metadata)
                                     stats['files_updated'] += 1
                         else:

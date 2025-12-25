@@ -13,6 +13,8 @@ class RainyApp {
         this.selectedSong = null; // For context menu
         this.listSortOrder = 'none'; // 'none', 'asc', 'desc'
         this.currentSort = 'default';
+        this.coverVersion = {};
+        this.coverOverride = {};
 
         this.init();
     }
@@ -593,8 +595,10 @@ class RainyApp {
 
     renderHorizontalSection(section) {
         const songsHtml = section.songs.map((song, index) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" onerror="window.app.handleCoverError(this)">`
+            const overridePath = this.coverOverride[song.id] || song.cover_path;
+            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                    </svg>`;
@@ -640,8 +644,10 @@ class RainyApp {
 
     renderGridSection(section) {
         const songsHtml = section.songs.map((song, index) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" onerror="window.app.handleCoverError(this)">`
+            const overridePath = this.coverOverride[song.id] || song.cover_path;
+            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                    </svg>`;
@@ -745,8 +751,10 @@ class RainyApp {
         songsList.classList.add('hidden');
 
         const songsHtml = this.filteredSongs.map((song, index) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" onerror="window.app.handleCoverError(this)">`
+            const overridePath = this.coverOverride[song.id] || song.cover_path;
+            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                    </svg>`;
@@ -805,8 +813,10 @@ class RainyApp {
         songsList.classList.remove('hidden');
 
         listContent.innerHTML = this.filteredSongs.map((song, index) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" onerror="window.app.handleCoverError(this)">`
+            const overridePath = this.coverOverride[song.id] || song.cover_path;
+            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                    </svg>`;
@@ -1394,7 +1404,7 @@ class RainyApp {
             <div class="metadata-result-card" data-result='${JSON.stringify(result).replace(/'/g, "&#39;")}'>
                 <div class="metadata-result-cover">
                     ${result.cover_url
-                ? `<img src="${result.cover_url}" alt="Cover">`
+                ? `<img src="${result.cover_url}" alt="Cover" loading="lazy">`
                 : `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`
             }
                 </div>
@@ -1447,24 +1457,50 @@ class RainyApp {
                 // Close modal first
                 this.closeMetadataModal();
 
-                // Update local song data
-                const songIndex = this.songs.findIndex(s => s.id === songId);
-                if (songIndex !== -1) {
-                    this.songs[songIndex] = { ...this.songs[songIndex], ...response.song };
+                // Update local song data in ALL caches
+                const updatedSong = response.song;
+                if (updatedSong.cover_path) {
+                    this.coverVersion[songId] = Date.now();
+                    this.coverOverride[songId] = updatedSong.cover_path;
                 }
 
+                // Update main songs array
+                const songIndex = this.songs.findIndex(s => s.id === songId);
+                if (songIndex !== -1) {
+                    this.songs[songIndex] = { ...this.songs[songIndex], ...updatedSong };
+                }
+
+                // Update filtered songs
                 const filteredIndex = this.filteredSongs.findIndex(s => s.id === songId);
                 if (filteredIndex !== -1) {
-                    this.filteredSongs[filteredIndex] = { ...this.filteredSongs[filteredIndex], ...response.song };
+                    this.filteredSongs[filteredIndex] = { ...this.filteredSongs[filteredIndex], ...updatedSong };
+                }
+
+                // Update library cache (for switching back from playlist view)
+                if (this.librarySongs) {
+                    const libIndex = this.librarySongs.findIndex(s => s.id === songId);
+                    if (libIndex !== -1) {
+                        this.librarySongs[libIndex] = { ...this.librarySongs[libIndex], ...updatedSong };
+                    }
+                }
+
+                // Update sections cache
+                if (this.librarySections) {
+                    for (const section of this.librarySections) {
+                        const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
+                        if (sectionSongIndex !== -1) {
+                            section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
+                        }
+                    }
                 }
 
                 // Re-render with sections
                 if (this.sections && this.sections.length > 0) {
-                    // Update sections data
+                    // Update current sections data
                     for (const section of this.sections) {
                         const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
                         if (sectionSongIndex !== -1) {
-                            section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...response.song };
+                            section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
                         }
                     }
                     this.renderSections();
@@ -1472,10 +1508,39 @@ class RainyApp {
                     this.renderSongs();
                 }
 
+                if (updatedSong.cover_path) {
+                    this.coverVersion[songId] = Date.now();
+                    setTimeout(() => {
+                        const ts = this.coverVersion[songId] || Date.now();
+                        document.querySelectorAll(`[data-id="${songId}"] .song-artwork, [data-id="${songId}"] .song-row-artwork`).forEach(container => {
+                            const img = container.querySelector('img');
+                            if (img) {
+                                const base = img.src.split('?')[0];
+                                img.src = `${base}?t=${ts}`;
+                            } else {
+                                const svg = container.querySelector('svg');
+                                const newImg = document.createElement('img');
+                                newImg.alt = 'Cover';
+                                newImg.loading = 'lazy';
+                                newImg.src = `/api/music/cover/${encodeURIComponent(updatedSong.cover_path)}?t=${ts}`;
+                                newImg.onerror = () => window.app && window.app.handleCoverError ? window.app.handleCoverError(newImg) : null;
+                                if (svg) {
+                                    container.insertBefore(newImg, svg);
+                                    svg.remove();
+                                } else {
+                                    container.insertBefore(newImg, container.firstChild);
+                                }
+                            }
+                        });
+                    }, 50);
+                }
+
                 // Update player if this song is currently playing
                 if (window.player && window.player.currentSong && window.player.currentSong.id === songId) {
-                    window.player.updateNowPlaying(response.song);
+                    window.player.updateNowPlaying(updatedSong);
                 }
+
+                this.showToast('Metadata updated successfully', 'success');
             } else {
                 alert('Failed to apply metadata: ' + (response.error || 'Unknown error'));
             }

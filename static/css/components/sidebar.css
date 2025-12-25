@@ -1,0 +1,163 @@
+/* ============================================
+   Sidebar Styles
+   ============================================ */
+
+.app-sidebar {
+    width: 240px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    transition: width var(--transition-normal);
+}
+
+.app-sidebar.collapsed {
+    width: 72px;
+}
+
+.sidebar-header-actions {
+    padding: var(--spacing-sm) var(--spacing-md) 0;
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: -10px;
+}
+
+.sidebar-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.sidebar-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.sidebar-toggle svg {
+    width: 24px;
+    height: 24px;
+}
+
+.app-sidebar.collapsed .sidebar-header-actions {
+    justify-content: center;
+    padding: var(--spacing-sm) 0 0;
+    margin-bottom: 0;
+}
+
+.app-sidebar.collapsed .sidebar-toggle svg {
+    transform: rotate(180deg);
+}
+
+/* Collapsed state internals */
+.app-sidebar.collapsed .nav-header,
+.app-sidebar.collapsed .nav-item span,
+.app-sidebar.collapsed .nav-header-row .icon-btn-small {
+    display: none;
+}
+
+.app-sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: var(--spacing-md) 0;
+}
+
+.app-sidebar.collapsed .nav-item svg {
+    margin: 0;
+    width: 24px;
+    height: 24px;
+}
+
+.app-sidebar.collapsed .nav-header-row {
+    display: none;
+}
+
+.sidebar-nav {
+    padding: var(--spacing-lg) 0;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.sidebar-nav .nav-section:last-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
+}
+
+#sidebar-playlists {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: calc(var(--player-height) + var(--spacing-xl));
+}
+
+.nav-header {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0 var(--spacing-xl);
+    margin-bottom: var(--spacing-sm);
+}
+
+.nav-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: var(--spacing-md);
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-xl);
+    color: var(--text-secondary);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.nav-item.active {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border-left-color: var(--accent-primary);
+}
+
+.nav-item svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    flex-shrink: 0;
+}
+
+.nav-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}

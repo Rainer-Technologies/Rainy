@@ -1,0 +1,205 @@
+/* ============================================
+   Base Styles - Reset, Typography, Utilities
+   ============================================ */
+
+/* Reset */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-family);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+a:hover {
+    color: var(--accent-secondary);
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.flex {
+    display: flex;
+}
+
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-accent {
+    color: var(--accent-primary);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.slide-up {
+    animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+@media (max-width: 768px) {
+    :root {
+        --player-height: 140px;
+    }
+
+    .header-search {
+        display: none;
+    }
+
+    .songs-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+
+    .song-row {
+        grid-template-columns: 48px 1fr 60px;
+    }
+
+    .song-row-album {
+        display: none;
+    }
+
+    .list-header {
+        grid-template-columns: 48px 1fr 60px;
+    }
+
+    .list-header span:nth-child(3) {
+        display: none;
+    }
+
+    .player-bar {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        padding: var(--spacing-md);
+        gap: var(--spacing-sm);
+    }
+
+    .now-playing {
+        display: none;
+    }
+
+    .player-extra {
+        display: none;
+    }
+
+    .player-controls {
+        width: 100%;
+    }
+
+    .progress-container {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .setup-card {
+        padding: var(--spacing-xl);
+    }
+
+    .songs-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .library-stats {
+        flex-wrap: wrap;
+    }
+
+    .stat-card {
+        flex: 1;
+        min-width: 120px;
+    }
+}
