@@ -3,7 +3,7 @@
  * DOM manipulation and UI updates
  */
 
-const UI = {
+export const UI = {
     /**
      * Show a specific view (setup, login, app)
      * @param {string} view - View name
@@ -26,8 +26,11 @@ const UI = {
     updateUserInfo(user) {
         if (!user) return;
 
-        document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
-        document.getElementById('user-name').textContent = user.username;
+        const userAvatar = document.getElementById('user-avatar');
+        const userName = document.getElementById('user-name');
+        
+        if (userAvatar) userAvatar.textContent = user.username.charAt(0).toUpperCase();
+        if (userName) userName.textContent = user.username;
 
         const serverSettingsItem = document.getElementById('menu-server-settings');
         if (serverSettingsItem) {
@@ -78,9 +81,13 @@ const UI = {
      * @param {number} albumCount - Unique albums
      */
     updateStats(songCount, artistCount = 0, albumCount = 0) {
-        document.getElementById('stat-songs').textContent = songCount;
-        document.getElementById('stat-artists').textContent = artistCount;
-        document.getElementById('stat-albums').textContent = albumCount;
+        const statSongs = document.getElementById('stat-songs');
+        const statArtists = document.getElementById('stat-artists');
+        const statAlbums = document.getElementById('stat-albums');
+
+        if (statSongs) statSongs.textContent = songCount;
+        if (statArtists) statArtists.textContent = artistCount;
+        if (statAlbums) statAlbums.textContent = albumCount;
     },
 
     /**
@@ -144,8 +151,3 @@ const UI = {
         }
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = UI;
-}

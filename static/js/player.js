@@ -3,7 +3,7 @@
  * Handles audio playback, progress, volume, and queue
  */
 
-class AudioPlayer {
+export class AudioPlayer {
     constructor() {
         this.audio = document.getElementById('audio-player');
         this.playlist = [];
@@ -417,7 +417,3 @@ class AudioPlayer {
         return null;
     }
 }
-
-// Initialize player
-const player = new AudioPlayer();
-window.player = player;

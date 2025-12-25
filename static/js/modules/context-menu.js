@@ -3,7 +3,7 @@
  * Handles song context menu (right-click/three-dot menu)
  */
 
-const ContextMenu = {
+export const ContextMenu = {
     selectedSong: null,
 
     /**
@@ -93,8 +93,3 @@ const ContextMenu = {
         });
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ContextMenu;
-}

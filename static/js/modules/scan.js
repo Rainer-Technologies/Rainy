@@ -3,7 +3,7 @@
  * Handles library scanning operations
  */
 
-const Scan = {
+export const Scan = {
     /**
      * Get current scan status
      * @param {function} api - API function
@@ -50,14 +50,14 @@ const Scan = {
      * @param {object} stats - Scan statistics
      */
     showResults(stats) {
-        document.getElementById('scan-files-found').textContent = stats.files_found || 0;
-        document.getElementById('scan-files-added').textContent = stats.files_added || 0;
-        document.getElementById('scan-files-updated').textContent = stats.files_updated || 0;
-        document.getElementById('scan-files-removed').textContent = stats.files_removed || 0;
+        const filesFound = document.getElementById('scan-files-found');
+        const filesAdded = document.getElementById('scan-files-added');
+        const filesUpdated = document.getElementById('scan-files-updated');
+        const filesRemoved = document.getElementById('scan-files-removed');
+
+        if (filesFound) filesFound.textContent = stats.files_found || 0;
+        if (filesAdded) filesAdded.textContent = stats.files_added || 0;
+        if (filesUpdated) filesUpdated.textContent = stats.files_updated || 0;
+        if (filesRemoved) filesRemoved.textContent = stats.files_removed || 0;
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Scan;
-}

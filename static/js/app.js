@@ -1,9 +1,16 @@
-/**
- * Rainy Music Player - Main Application
- * Handles views, API communication, and state management
- */
+import { API } from './modules/api.js';
+import { Auth } from './modules/auth.js';
+import { State } from './modules/state.js';
+import { UI } from './modules/ui.js';
+import { Library } from './modules/library.js';
+import { Playlists } from './modules/playlists.js';
+import { Scan } from './modules/scan.js';
+import { Metadata } from './modules/metadata.js';
+import { Importer } from './modules/importer.js';
+import { ContextMenu } from './modules/context-menu.js';
+import { Utils } from './modules/utils.js';
 
-class RainyApp {
+export class RainyApp {
     constructor() {
         this.currentView = null;
         this.user = null;
@@ -577,131 +584,19 @@ class RainyApp {
         songsGrid.classList.remove('hidden');
         songsList.classList.add('hidden');
 
-        let html = '';
-
-        for (const section of this.sections) {
-            if (section.type === 'horizontal') {
-                html += this.renderHorizontalSection(section);
-            } else {
-                html += this.renderGridSection(section);
-            }
-        }
-
-        songsGrid.innerHTML = html;
+        Library.renderSections(
+            songsGrid,
+            this.sections,
+            this.songs,
+            this.escapeHtml.bind(this),
+            this.formatDuration.bind(this),
+            this.currentSort,
+            this.coverOverride,
+            this.coverVersion
+        );
 
         // Bind click events
         this.bindSongEvents();
-    }
-
-    renderHorizontalSection(section) {
-        const songsHtml = section.songs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-
-            // Find the global index in all songs for playback
-            const globalIndex = this.songs.findIndex(s => s.id === song.id);
-
-            return `
-            <div class="song-card-horizontal fade-in" data-index="${globalIndex}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${this.escapeHtml(song.title)}</div>
-                    <div class="song-artist">${this.escapeHtml(song.artist)}</div>
-                </div>
-            </div>
-        `}).join('');
-
-        return `
-        <div class="library-section" data-section-id="${section.id}">
-            <h2 class="section-heading">${section.title}</h2>
-            <div class="horizontal-scroll-container">
-                <div class="horizontal-scroll-content">
-                    ${songsHtml}
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
-    renderGridSection(section) {
-        const songsHtml = section.songs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-
-            return `
-            <div class="song-card fade-in" data-index="${index}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${this.escapeHtml(song.title)}</div>
-                    <div class="song-artist">${this.escapeHtml(song.artist)}</div>
-                    <div class="song-duration">${this.formatDuration(song.duration)}</div>
-                </div>
-            </div>
-        `}).join('');
-
-        // Add sort filter for All Songs section
-        const sortFilterHtml = section.id === 'all-songs' ? `
-            <div class="section-header-row">
-                <h2 class="section-heading">${section.title}</h2>
-                <div class="section-sort">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
-                    </svg>
-                    <select id="sort-select" class="sort-select">
-                        <option value="default" ${this.currentSort === 'default' ? 'selected' : ''}>Default Order</option>
-                        <option value="title-asc" ${this.currentSort === 'title-asc' ? 'selected' : ''}>Title (A-Z)</option>
-                        <option value="title-desc" ${this.currentSort === 'title-desc' ? 'selected' : ''}>Title (Z-A)</option>
-                    </select>
-                </div>
-            </div>
-        ` : `<h2 class="section-heading">${section.title}</h2>`;
-
-        return `
-        <div class="library-section" data-section-id="${section.id}">
-            ${sortFilterHtml}
-            <div class="songs-grid-section">
-                ${songsHtml}
-            </div>
-        </div>
-        `;
     }
 
     bindSongEvents() {
@@ -750,40 +645,21 @@ class RainyApp {
         songsGrid.classList.remove('hidden');
         songsList.classList.add('hidden');
 
-        const songsHtml = this.filteredSongs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-            return `
-            <div class="song-card fade-in" data-index="${index}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${this.escapeHtml(song.title)}</div>
-                    <div class="song-artist">${this.escapeHtml(song.artist)}</div>
-                    <div class="song-duration">${this.formatDuration(song.duration)}</div>
-                </div>
-            </div>
-        `}).join('');
+        // We wrap filtered songs in a section to use Library.renderGridSection
+        const section = {
+            id: 'filtered-songs',
+            title: 'Search Results',
+            songs: this.filteredSongs
+        };
 
-        songsGrid.innerHTML = `<div class="songs-grid-section" style="width: 100%;">${songsHtml}</div>`;
+        songsGrid.innerHTML = Library.renderGridSection(
+            section,
+            this.escapeHtml.bind(this),
+            this.formatDuration.bind(this),
+            this.currentSort,
+            this.coverOverride,
+            this.coverVersion
+        );
 
         // Add click listeners for play
         songsGrid.querySelectorAll('.song-card').forEach(card => {
@@ -812,35 +688,14 @@ class RainyApp {
         songsGrid.classList.add('hidden');
         songsList.classList.remove('hidden');
 
-        listContent.innerHTML = this.filteredSongs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-            return `
-            <div class="song-row fade-in" data-index="${index}" data-id="${song.id}">
-                <div class="song-row-number">${index + 1}</div>
-                <div class="song-row-main">
-                    <div class="song-row-artwork">
-                        ${coverHtml}
-                    </div>
-                    <div class="song-row-info">
-                        <div class="song-row-title">${this.escapeHtml(song.title)}</div>
-                        <div class="song-row-artist">${this.escapeHtml(song.artist)}</div>
-                    </div>
-                </div>
-                <div class="song-row-album">${this.escapeHtml(song.album)}</div>
-                <div class="song-row-duration">${this.formatDuration(song.duration)}</div>
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-            </div>
-        `}).join('');
+        Library.renderListView(
+            listContent,
+            this.filteredSongs,
+            this.escapeHtml.bind(this),
+            this.formatDuration.bind(this),
+            this.coverOverride,
+            this.coverVersion
+        );
 
         // Add click listeners for play
         listContent.querySelectorAll('.song-row').forEach(row => {
@@ -1168,55 +1023,20 @@ class RainyApp {
 
     // API helper
     async api(url, method = 'GET', data = null) {
-        const options = {
-            method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include'
-        };
-
-        if (data) {
-            options.body = JSON.stringify(data);
-        }
-
-        const response = await fetch(url, options);
-        return response.json();
+        return API.request(url, method, data);
     }
 
     // Utility functions
     formatDuration(seconds) {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        return Utils.formatDuration(seconds);
     }
 
     escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return Utils.escapeHtml(text);
     }
 
     showToast(message, type = 'success', duration = 3000) {
-        const container = document.getElementById('toast-container');
-        if (!container) return;
-
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-
-        const icon = type === 'success'
-            ? '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
-            : '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
-
-        toast.innerHTML = `${icon}<span class="toast-message">${this.escapeHtml(message)}</span>`;
-        container.appendChild(toast);
-
-        // Auto-dismiss
-        setTimeout(() => {
-            toast.classList.add('hiding');
-            setTimeout(() => toast.remove(), 300);
-        }, duration);
+        return Utils.showToast(message, type, duration);
     }
 
     handleCoverError(img) {
@@ -1523,7 +1343,7 @@ class RainyApp {
                                 newImg.alt = 'Cover';
                                 newImg.loading = 'lazy';
                                 newImg.src = `/api/music/cover/${encodeURIComponent(updatedSong.cover_path)}?t=${ts}`;
-                                newImg.onerror = () => window.app && window.app.handleCoverError ? window.app.handleCoverError(newImg) : null;
+                                newImg.onerror = () => window.handleCoverError ? window.handleCoverError(newImg) : null;
                                 if (svg) {
                                     container.insertBefore(newImg, svg);
                                     svg.remove();
@@ -1565,15 +1385,14 @@ class RainyApp {
 
     renderSidebarPlaylists() {
         const container = document.getElementById('sidebar-playlists');
-        if (!container) return;
-
-        container.innerHTML = (this.playlists || []).map(playlist => `
-            <div class="nav-item ${this.currentViewType === 'playlist' && this.currentPlaylistId === playlist.id ? 'active' : ''}" 
-                 onclick="window.app.openPlaylist(${playlist.id})">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>
-                <span>${this.escapeHtml(playlist.name)}</span>
-            </div>
-        `).join('');
+        Playlists.renderSidebar(
+            container,
+            this.playlists,
+            this.currentPlaylistId,
+            this.currentViewType,
+            this.escapeHtml.bind(this),
+            (id) => this.openPlaylist(id)
+        );
     }
 
     openCreatePlaylistModal() {
@@ -1746,12 +1565,17 @@ class RainyApp {
         const container = document.getElementById('context-playlists-list');
         if (!container) return;
 
-        container.innerHTML = (this.playlists || []).map(playlist => `
-            <div class="context-menu-item" onclick="window.app.addToPlaylist(${playlist.id}, event)">
+        container.innerHTML = '';
+        (this.playlists || []).forEach(playlist => {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
                 <span>${this.escapeHtml(playlist.name)}</span>
-            </div>
-        `).join('');
+            `;
+            item.addEventListener('click', (e) => this.addToPlaylist(playlist.id, e));
+            container.appendChild(item);
+        });
     }
 
     async addToPlaylist(playlistId, event) {
@@ -1779,7 +1603,3 @@ class RainyApp {
         }
     }
 }
-
-// Initialize app
-const app = new RainyApp();
-window.app = app;

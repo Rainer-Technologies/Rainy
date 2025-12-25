@@ -3,7 +3,7 @@
  * Handles all HTTP API communication
  */
 
-const API = {
+export const API = {
     /**
      * Make an API request
      * @param {string} url - API endpoint
@@ -45,8 +45,3 @@ const API = {
         return this.request(url, 'DELETE');
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = API;
-}
