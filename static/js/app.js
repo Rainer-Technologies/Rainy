@@ -563,8 +563,9 @@ export class RainyApp {
             songsGrid,
             this.sections,
             this.songs,
-            this.escapeHtml.bind(this),
-            this.formatDuration.bind(this),
+            // FIXME: Why are we even passing on these methods???
+            Utils.escapeHtml,
+            Utils.formatDuration,
             this.currentSort,
             this.coverOverride,
             this.coverVersion
@@ -629,8 +630,9 @@ export class RainyApp {
 
         songsGrid.innerHTML = Library.renderGridSection(
             section,
-            this.escapeHtml.bind(this),
-            this.formatDuration.bind(this),
+            // FIXME: Why are we even passing on these methods???
+            Utils.escapeHtml,
+            Utils.formatDuration,
             this.currentSort,
             this.coverOverride,
             this.coverVersion
@@ -666,8 +668,9 @@ export class RainyApp {
         Library.renderListView(
             listContent,
             this.filteredSongs,
-            this.escapeHtml.bind(this),
-            this.formatDuration.bind(this),
+            // FIXME: Why are we even passing on these methods???
+            Utils.escapeHtml,
+            Utils.formatDuration,
             this.coverOverride,
             this.coverVersion
         );
@@ -989,15 +992,6 @@ export class RainyApp {
         importBtn.disabled = false;
     }
 
-    // Utility functions
-    formatDuration(seconds) {
-        return Utils.formatDuration(seconds);
-    }
-
-    escapeHtml(text) {
-        return Utils.escapeHtml(text);
-    }
-
     showToast(message, type = 'success', duration = 3000) {
         return Utils.showToast(message, type, duration);
     }
@@ -1195,10 +1189,10 @@ export class RainyApp {
             }
                 </div>
                 <div class="metadata-result-info">
-                    <div class="metadata-result-title">${this.escapeHtml(result.title)}</div>
-                    <div class="metadata-result-artist">${this.escapeHtml(result.artist)}</div>
-                    <div class="metadata-result-album">${this.escapeHtml(result.album)}</div>
-                    <div class="metadata-result-duration">${result.duration_text || this.formatDuration(result.duration)}</div>
+                    <div class="metadata-result-title">${Utils.escapeHtml(result.title)}</div>
+                    <div class="metadata-result-artist">${Utils.escapeHtml(result.artist)}</div>
+                    <div class="metadata-result-album">${Utils.escapeHtml(result.album)}</div>
+                    <div class="metadata-result-duration">${result.duration_text || Utils.formatDuration(result.duration)}</div>
                 </div>
                 <div class="metadata-result-action">
                     <button class="btn btn-primary apply-metadata-btn">Apply</button>
@@ -1336,7 +1330,8 @@ export class RainyApp {
             this.playlists,
             this.currentPlaylistId,
             this.currentViewType,
-            this.escapeHtml.bind(this),
+            // FIXME: Just why?
+            Utils.escapeHtml,
             (id) => this.openPlaylist(id)
         );
     }
@@ -1492,7 +1487,7 @@ export class RainyApp {
             item.className = 'context-menu-item';
             item.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-                <span>${this.escapeHtml(playlist.name)}</span>
+                <span>${Utils.escapeHtml(playlist.name)}</span>
             `;
             item.addEventListener('click', (e) => this.addToPlaylist(playlist.id, e));
             container.appendChild(item);
