@@ -15,7 +15,6 @@ import * as LoginView from "./view/login.js";
 
 export class RainyApp {
     constructor() {
-        this.currentView = null;
         this.user = null;
         this.songs = [];
         this.filteredSongs = [];
@@ -39,12 +38,6 @@ export class RainyApp {
         this.init();
     }
 
-    /** @param {import('./helper/router.js').View} view */
-    navigate(view) {
-        this.currentView = view.path;
-        Router.navigate(view, this);
-    }
-
     async init() {
         // Restore sidebar state
         const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
@@ -64,19 +57,19 @@ export class RainyApp {
 
         const setup = data.value;
         if(!setup) return console.error('unreachable');
-        if(setup.needs_setup) return this.navigate(new View('setup'));
+        if(setup.needs_setup) return Router.navigate(new View('setup'));
 
         /** @type {Result<import('../services/auth.js').UserModel, import('../services/auth.js').ErrorModel | ResponseError>} */
         data = await this.authService.me();
         if(data.error) {
-            if('authenticated' in data.error) return this.navigate(new View('login'));
+            if('authenticated' in data.error) return Router.navigate(new View('login'));
             return console.error(data.error);;
         }
 
         const user = data.value;
         if(!user) return console.error('unreachable');
 
-        this.navigate(new View('app', user));
+        Router.navigate(new View('app', user));
     }
 
     bindEvents() {
@@ -754,7 +747,7 @@ export class RainyApp {
         this.songs = [];
         this.filteredSongs = [];
 
-        this.navigate(new View('login'));
+        Router.navigate(new View('login'));
     }
 
     applySortFilter(sortValue) {
