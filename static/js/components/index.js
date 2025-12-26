@@ -127,7 +127,6 @@ export function html(userdata) {
 
         return template
             .content
-            .firstElementChild
-            .cloneNode(true);
+            .firstElementChild;
     }
 }
