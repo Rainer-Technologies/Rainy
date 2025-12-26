@@ -35,3 +35,12 @@ export class SetupService extends Service {
         return Ok(true);
     }
 };
+
+const __singleton = new SetupService();
+
+/**
+ * @returns {SetupService}
+ */
+export function useSetupService() {
+    return __singleton;
+};

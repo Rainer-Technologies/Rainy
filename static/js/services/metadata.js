@@ -65,3 +65,12 @@ export class MetadataService extends Service {
         }));
     }
 };
+
+const __singleton = new MetadataService();
+
+/**
+ * @returns {MetadataService}
+ */
+export function useMetadataService() {
+    return __singleton;
+};

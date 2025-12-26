@@ -105,3 +105,12 @@ export class PlaylistService extends Service {
         return Ok(true);
     }
 };
+
+const __singleton = new PlaylistService();
+
+/**
+ * @returns {PlaylistService}
+ */
+export function usePlaylistService() {
+    return __singleton;
+};
