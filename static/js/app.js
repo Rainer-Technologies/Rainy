@@ -196,7 +196,9 @@ export class RainyApp {
             document.getElementById('delete-playlist-modal').classList.add('hidden');
         });
         document.getElementById('cancel-delete-playlist')?.addEventListener('click', () => {
-            document.getElementById('delete-playlist-modal').classList.add('hidden');
+            /** @type {import('./components/modal.js').Modal} */
+            const modal = document.getElementById('delete-playlist-modal');
+            modal.hide();
         });
         document.getElementById('confirm-delete-playlist')?.addEventListener('click', () => {
             this.performDeletePlaylist();
@@ -1385,7 +1387,10 @@ export class RainyApp {
 
     deleteCurrentPlaylist() {
         if (!this.currentPlaylistId) return;
-        document.getElementById('delete-playlist-modal').classList.remove('hidden');
+
+        /** @type {import('./components/modal.js').Modal} */
+        const modal = document.getElementById('delete-playlist-modal');
+        modal.show();
     }
 
     async performDeletePlaylist() {
@@ -1397,7 +1402,10 @@ export class RainyApp {
             return;
         }
 
-        document.getElementById('delete-playlist-modal').classList.add('hidden');
+        /** @type {import('./components/modal.js').Modal} */
+        const modal = document.getElementById('delete-playlist-modal');
+        modal.hide();
+
         await this.loadPlaylists();
         this.switchToLibraryView();
         this.showToast('Playlist deleted', 'success');
