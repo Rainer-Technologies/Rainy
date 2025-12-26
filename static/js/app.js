@@ -4,12 +4,12 @@ import { Router, View } from './helper/router.js';
 import { Library } from './modules/library.js';
 import { Playlists } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
-import { AuthService } from "./services/auth.js";
-import { MetadataService } from './services/metadata.js';
-import { MusicService } from "./services/music.js";
-import { PlaylistService } from './services/playlist.js';
-import { ScanService } from './services/scan.js';
-import { SetupService } from "./services/setup.js";
+import { useAuthService } from "./services/auth.js";
+import { useMetadataService } from './services/metadata.js';
+import { useMusicService } from "./services/music.js";
+import { usePlaylistService } from './services/playlist.js';
+import { useScanService } from './services/scan.js';
+import { useSetupService } from "./services/setup.js";
 import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 
@@ -24,13 +24,6 @@ export class RainyApp {
         this.currentSort = 'default';
         this.coverVersion = {};
         this.coverOverride = {};
-
-        this.authService = new AuthService();
-        this.setupService = new SetupService();
-        this.musicService = new MusicService();
-        this.scanService = new ScanService();
-        this.metadataService = new MetadataService();
-        this.playlistService = new PlaylistService();
 
         Router.register('login', LoginView.handle);
         Router.register('app', AppView.handle);
@@ -52,7 +45,7 @@ export class RainyApp {
         document.getElementById('login-view').classList.add('hidden');
         document.getElementById('app-view').classList.add('hidden');
 
-        let data = await this.setupService.status();
+        let data = await useSetupService().status();
         if(data.error) return console.error(data.error);
 
         const setup = data.value;
@@ -60,7 +53,7 @@ export class RainyApp {
         if(setup.needs_setup) return Router.navigate(new View('setup'), this);
 
         /** @type {Result<import('../services/auth.js').UserModel, import('../services/auth.js').ErrorModel | ResponseError>} */
-        data = await this.authService.me();
+        data = await useAuthService().me();
         if(data.error) {
             if('authenticated' in data.error) return Router.navigate(new View('login'), this);
             return console.error(data.error);;
@@ -436,7 +429,7 @@ export class RainyApp {
     }
 
     async loadScanStatus() {
-        const data = await this.scanService.status();
+        const data = await useScanService().status();
         if(data.error) return console.error(data.error);
 
         const status = data.value;
@@ -470,8 +463,8 @@ export class RainyApp {
         scanProgressText.textContent = fullScan ? 'Running full scan...' : 'Scanning for new files...';
 
         const data = await (fullScan
-            ? this.scanService.full()
-            : this.scanService.quick());
+            ? useScanService().full()
+            : useScanService().quick());
         if(data.error) {
             console.error(data.error);
             scanProgress?.classList.add('hidden');
@@ -512,7 +505,7 @@ export class RainyApp {
         songsGrid.innerHTML = '';
         document.getElementById('songs-list-content').innerHTML = '';
 
-        const data = await this.musicService.library();
+        const data = await useMusicService().library();
         if(data.error) {
             console.error('Failed to load music libary!', data.error);
             loadingState.classList.add('hidden');
@@ -744,7 +737,7 @@ export class RainyApp {
 
     async handleLogout() {
         // FIXME: Handle error
-        await this.authService.logout();
+        await useAuthService().logout();
 
         this.user = null;
         this.songs = [];
@@ -839,7 +832,7 @@ export class RainyApp {
             window.player.audio.src = '';
         }
 
-        const data = await this.musicService.delete(id);
+        const data = await useMusicService().delete(id);
         // FIXME: Add toast notification
         if(data.error) return console.error(data.error);
 
@@ -965,7 +958,7 @@ export class RainyApp {
             }
         }, 500);
 
-        const data = await this.musicService.YouTube.import(url);
+        const data = await useMusicService().YouTube.import(url);
         if(data.error) {
             console.error(data.error);
 
@@ -1156,7 +1149,7 @@ export class RainyApp {
         resultsContainer.innerHTML = '';
         noResults.classList.add('hidden');
 
-        const data = await this.metadataService.search(query);
+        const data = await useMetadataService().search(query);
         if(data.error) {
             console.error(data.error);
             loading.classList.add('hidden');
@@ -1219,7 +1212,7 @@ export class RainyApp {
         const applyButtons = document.querySelectorAll('.apply-metadata-btn');
         applyButtons.forEach(btn => btn.disabled = true);
 
-        const data = await this.metadataService.apply(songId, 
+        const data = await useMetadataService().apply(songId, 
             metadata.title, metadata.artist, metadata.album, metadata.year, metadata.genre, metadata.cover_url);
         if(data.error) {
             console.log(data.error);
@@ -1312,7 +1305,7 @@ export class RainyApp {
     // Playlist Methods
 
     async loadPlaylists() {
-        const data = await this.playlistService.all();
+        const data = await usePlaylistService().all();
         // FIXME: Show toast notification
         if(data.error) return console.error(data.error);
 
@@ -1347,7 +1340,7 @@ export class RainyApp {
         const name = nameInput.value.trim();
         if (!name) return;
 
-        const data = await this.playlistService.create(name);
+        const data = await usePlaylistService().create(name);
         if(data.error) {
             console.error(data.error);
             this.showToast('Failed to create playlist', 'error');
@@ -1375,7 +1368,7 @@ export class RainyApp {
         const newName = input.value.trim();
         if(!newName) return this.showToast('Playlist name cannot be empty', 'error');
 
-        const data = await this.playlistService.rename(this.currentPlaylistId, newName);
+        const data = await usePlaylistService().rename(this.currentPlaylistId, newName);
         if(data.error) {
             console.error(data.error);
             this.showToast('Failed to rename playlist', 'error');
@@ -1396,7 +1389,7 @@ export class RainyApp {
     }
 
     async performDeletePlaylist() {
-        const data = await this.playlistService.delete(this.currentPlaylistId);
+        const data = await usePlaylistService().delete(this.currentPlaylistId);
         if(data.error) {
             console.error(data.error);
             this.showToast('Failed to delete playlist', 'error');
@@ -1411,7 +1404,7 @@ export class RainyApp {
     }
 
     async openPlaylist(playlistId) {
-        const data = await this.playlistService.fetch(playlistId);
+        const data = await usePlaylistService().fetch(playlistId);
         // FIXME: Show toast notification
         if(data.error) return console.error(data.error);
 
@@ -1498,7 +1491,7 @@ export class RainyApp {
         if(event) event.stopPropagation();
         if(!this.selectedSong) return;
 
-        const data = await this.playlistService.addSong(playlistId, this.selectedSong.id);
+        const data = await usePlaylistService().addSong(playlistId, this.selectedSong.id);
         if(data.error) {
             console.error(data.error);
             this.showToast('Failed to add song to playlist', 'error');

@@ -95,3 +95,12 @@ export class MusicService extends Service {
         }
     }
 };
+
+const __singleton = new MusicService();
+
+/**
+ * @returns {MusicService}
+ */
+export function useMusicService() {
+    return __singleton;
+};

@@ -51,3 +51,12 @@ export class AuthService extends Service {
         return Ok(data.value.user);
     }
 };
+
+const __singleton = new AuthService();
+
+/**
+ * @returns {AuthService}
+ */
+export function useAuthService() {
+    return __singleton;
+};

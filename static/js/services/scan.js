@@ -72,3 +72,12 @@ export class ScanService extends Service {
         return this.wrap(RequestHelper.request(this.url('/scan/status')));
     }
 };
+
+const __singleton = new ScanService();
+
+/**
+ * @returns {ScanService}
+ */
+export function useScanService() {
+    return __singleton;
+};
