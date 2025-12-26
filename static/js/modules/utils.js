@@ -3,7 +3,7 @@
  * Common helper functions used across the application
  */
 
-const Utils = {
+export const Utils = {
     /**
      * Format duration in seconds to mm:ss
      * @param {number} seconds - Duration in seconds
@@ -116,8 +116,3 @@ const Utils = {
 
 // Make available globally for onerror handlers
 window.Utils = Utils;
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Utils;
-}

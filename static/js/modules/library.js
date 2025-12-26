@@ -3,7 +3,7 @@
  * Handles library rendering and song display
  */
 
-const Library = {
+export const Library = {
     /**
      * Render library sections (horizontal and grid)
      * @param {HTMLElement} container - Container element
@@ -12,16 +12,18 @@ const Library = {
      * @param {function} escapeHtml - HTML escape function
      * @param {function} formatDuration - Duration format function
      * @param {string} currentSort - Current sort value
+     * @param {object} coverOverrides - Optional cover overrides
+     * @param {object} coverVersions - Optional cover versions
      */
-    renderSections(container, sections, songs, escapeHtml, formatDuration, currentSort) {
+    renderSections(container, sections, songs, escapeHtml, formatDuration, currentSort, coverOverrides = {}, coverVersions = {}) {
         container.innerHTML = '';
 
         let html = '';
         for (const section of sections) {
             if (section.type === 'horizontal') {
-                html += this.renderHorizontalSection(section, songs, escapeHtml);
+                html += this.renderHorizontalSection(section, songs, escapeHtml, coverOverrides, coverVersions);
             } else {
-                html += this.renderGridSection(section, escapeHtml, formatDuration, currentSort);
+                html += this.renderGridSection(section, escapeHtml, formatDuration, currentSort, coverOverrides, coverVersions);
             }
         }
 
@@ -31,10 +33,12 @@ const Library = {
     /**
      * Render horizontal scrolling section
      */
-    renderHorizontalSection(section, allSongs, escapeHtml) {
+    renderHorizontalSection(section, allSongs, escapeHtml, coverOverrides = {}, coverVersions = {}) {
         const songsHtml = section.songs.map((song) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
+            const overridePath = coverOverrides[song.id] || song.cover_path;
+            const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             const globalIndex = allSongs.findIndex(s => s.id === song.id);
@@ -78,10 +82,12 @@ const Library = {
     /**
      * Render grid section
      */
-    renderGridSection(section, escapeHtml, formatDuration, currentSort) {
-            const coverHtml = section.songs.map((song, index) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
+    renderGridSection(section, escapeHtml, formatDuration, currentSort, coverOverrides = {}, coverVersions = {}) {
+            const songsHtml = section.songs.map((song, index) => {
+            const overridePath = coverOverrides[song.id] || song.cover_path;
+            const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
@@ -141,11 +147,15 @@ const Library = {
      * @param {array} songs - Songs to render
      * @param {function} escapeHtml - HTML escape function
      * @param {function} formatDuration - Duration format function
+     * @param {object} coverOverrides - Optional cover overrides
+     * @param {object} coverVersions - Optional cover versions
      */
-    renderListView(container, songs, escapeHtml, formatDuration) {
+    renderListView(container, songs, escapeHtml, formatDuration, coverOverrides = {}, coverVersions = {}) {
         const html = songs.map((song, index) => {
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover">`
+            const overridePath = coverOverrides[song.id] || song.cover_path;
+            const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
+            const coverHtml = overridePath
+                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
@@ -170,8 +180,3 @@ const Library = {
         container.innerHTML = html;
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Library;
-}

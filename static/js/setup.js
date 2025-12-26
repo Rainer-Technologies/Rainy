@@ -3,12 +3,7 @@
  * Handles first-time setup and user authentication
  */
 
-document.addEventListener('DOMContentLoaded', () => {
-    initSetup();
-    initLogin();
-});
-
-function initSetup() {
+export function initSetup() {
     const setupForm = document.getElementById('setup-form');
     const setupError = document.getElementById('setup-error');
     const setupSubmit = document.getElementById('setup-submit');
@@ -73,7 +68,7 @@ function initSetup() {
     });
 }
 
-function initLogin() {
+export function initLogin() {
     const loginForm = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
     const loginSubmit = document.getElementById('login-submit');

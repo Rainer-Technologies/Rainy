@@ -3,7 +3,7 @@
  * Handles metadata search and application
  */
 
-const Metadata = {
+export const Metadata = {
     /**
      * Search for metadata
      * @param {function} api - API function
@@ -87,12 +87,12 @@ const Metadata = {
         const noResults = document.getElementById('metadata-no-results');
         const loading = document.getElementById('metadata-loading');
 
-        resultsContainer.innerHTML = '';
-        noResults.classList.add('hidden');
-        loading.classList.add('hidden');
+        if (resultsContainer) resultsContainer.innerHTML = '';
+        if (noResults) noResults.classList.add('hidden');
+        if (loading) loading.classList.add('hidden');
 
-        songName.textContent = `${song.title} - ${song.artist}`;
-        searchInput.value = `${song.title} ${song.artist}`;
+        if (songName) songName.textContent = `${song.title} - ${song.artist}`;
+        if (searchInput) searchInput.value = `${song.title} ${song.artist}`;
 
         modal?.classList.remove('hidden');
     },
@@ -105,8 +105,3 @@ const Metadata = {
         modal?.classList.add('hidden');
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Metadata;
-}

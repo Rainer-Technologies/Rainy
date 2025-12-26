@@ -40,4 +40,4 @@ if __name__ == '__main__':
     init_app()
     print("Starting server on http://localhost:5000")
     print("=" * 40)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=6969, debug=True)

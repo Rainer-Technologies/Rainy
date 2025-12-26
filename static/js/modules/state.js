@@ -3,7 +3,7 @@
  * Application state management
  */
 
-const State = {
+export const State = {
     // User state
     user: null,
 
@@ -87,8 +87,3 @@ const State = {
         return this.filteredSongs;
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = State;
-}

@@ -3,7 +3,7 @@
  * Handles authentication and app state
  */
 
-const Auth = {
+export const Auth = {
     /**
      * Check if setup is needed
      * @param {function} api - API function
@@ -72,8 +72,3 @@ const Auth = {
         return { view: 'login', user: null };
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Auth;
-}

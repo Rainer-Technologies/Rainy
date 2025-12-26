@@ -1,11 +1,20 @@
-/**
- * Rainy Music Player - Main Application
- * Handles views, API communication, and state management
- */
+import { ResponseError } from './helper/request.js';
+import { Result } from './helper/result.js';
+import { Router, View } from './helper/router.js';
+import { Library } from './modules/library.js';
+import { Playlists } from './modules/playlists.js';
+import { Utils } from './modules/utils.js';
+import { AuthService } from "./services/auth.js";
+import { MetadataService } from './services/metadata.js';
+import { MusicService } from "./services/music.js";
+import { PlaylistService } from './services/playlist.js';
+import { ScanService } from './services/scan.js';
+import { SetupService } from "./services/setup.js";
+import * as AppView from "./view/app.js";
+import * as LoginView from "./view/login.js";
 
-class RainyApp {
+export class RainyApp {
     constructor() {
-        this.currentView = null;
         this.user = null;
         this.songs = [];
         this.filteredSongs = [];
@@ -15,6 +24,16 @@ class RainyApp {
         this.currentSort = 'default';
         this.coverVersion = {};
         this.coverOverride = {};
+
+        this.authService = new AuthService();
+        this.setupService = new SetupService();
+        this.musicService = new MusicService();
+        this.scanService = new ScanService();
+        this.metadataService = new MetadataService();
+        this.playlistService = new PlaylistService();
+
+        Router.register('login', LoginView.handle);
+        Router.register('app', AppView.handle);
 
         this.init();
     }
@@ -29,8 +48,28 @@ class RainyApp {
         // Bind event listeners
         this.bindEvents();
 
-        // Check app state and show appropriate view
-        await this.checkAppState();
+        document.getElementById('setup-view').classList.add('hidden');
+        document.getElementById('login-view').classList.add('hidden');
+        document.getElementById('app-view').classList.add('hidden');
+
+        let data = await this.setupService.status();
+        if(data.error) return console.error(data.error);
+
+        const setup = data.value;
+        if(!setup) return console.error('unreachable');
+        if(setup.needs_setup) return Router.navigate(new View('setup'), this);
+
+        /** @type {Result<import('../services/auth.js').UserModel, import('../services/auth.js').ErrorModel | ResponseError>} */
+        data = await this.authService.me();
+        if(data.error) {
+            if('authenticated' in data.error) return Router.navigate(new View('login'), this);
+            return console.error(data.error);;
+        }
+
+        const user = data.value;
+        if(!user) return console.error('unreachable');
+
+        Router.navigate(new View('app', user), this);
     }
 
     bindEvents() {
@@ -379,63 +418,6 @@ class RainyApp {
         }
     }
 
-    async checkAppState() {
-        try {
-            // First check if setup is needed
-            const setupResponse = await this.api('/api/setup/status');
-
-            if (setupResponse.needs_setup) {
-                this.showView('setup');
-                return;
-            }
-
-            // Check if user is authenticated
-            const authResponse = await this.api('/api/auth/me');
-
-            if (authResponse.authenticated) {
-                this.user = authResponse.user;
-                this.showView('app');
-                await this.loadPlaylists();
-                await this.loadLibrary();
-            } else {
-                this.showView('login');
-            }
-        } catch (error) {
-            console.error('Error checking app state:', error);
-            this.showView('setup');
-        }
-    }
-
-    showView(view) {
-        // Hide all views
-        document.getElementById('setup-view').classList.add('hidden');
-        document.getElementById('login-view').classList.add('hidden');
-        document.getElementById('app-view').classList.add('hidden');
-
-        // Show requested view
-        const viewElement = document.getElementById(`${view}-view`);
-        if (viewElement) {
-            viewElement.classList.remove('hidden');
-            this.currentView = view;
-        }
-
-        // Update user info if showing app
-        if (view === 'app' && this.user) {
-            document.getElementById('user-avatar').textContent = this.user.username.charAt(0).toUpperCase();
-            document.getElementById('user-name').textContent = this.user.username;
-
-            // Show server settings for sysadmin users
-            const serverSettingsItem = document.getElementById('menu-server-settings');
-            if (serverSettingsItem) {
-                if (this.user.role === 'sysadmin') {
-                    serverSettingsItem.classList.remove('hidden');
-                } else {
-                    serverSettingsItem.classList.add('hidden');
-                }
-            }
-        }
-    }
-
     async openServerSettings() {
         const modal = document.getElementById('server-settings-modal');
         modal?.classList.remove('hidden');
@@ -454,27 +436,23 @@ class RainyApp {
     }
 
     async loadScanStatus() {
-        try {
-            const response = await this.api('/api/music/scan/status');
+        const data = await this.scanService.status();
+        if(data.error) return console.error(data.error);
 
-            // Update library count
-            const libraryCount = document.getElementById('library-count');
-            if (libraryCount) {
-                libraryCount.textContent = `${response.library_total || 0} songs`;
+        const status = data.value;
+        if(!status) return console.error('unreachable');
+
+        const libraryCount = document.querySelector('#library-count');
+        const lastScanTime = document.querySelector('#last-scan-time');
+
+        if(libraryCount) libraryCount.textContent = `${status.library_total || 0} songs`;
+        if(lastScanTime && status.has_scan) {
+            if(status.scan.status === 'running') {
+                lastScanTime.textContent = 'In progress...';
+                return;
             }
 
-            // Update last scan time
-            const lastScanTime = document.getElementById('last-scan-time');
-            if (lastScanTime && response.has_scan && response.scan) {
-                if (response.scan.completed_at) {
-                    const date = new Date(response.scan.completed_at);
-                    lastScanTime.textContent = date.toLocaleString();
-                } else if (response.scan.status === 'running') {
-                    lastScanTime.textContent = 'In progress...';
-                }
-            }
-        } catch (error) {
-            console.error('Error loading scan status:', error);
+            lastScanTime.textContent = (new Date(status.scan.completed_at)).toLocaleString();
         }
     }
 
@@ -485,79 +463,83 @@ class RainyApp {
         const scanProgressText = document.getElementById('scan-progress-text');
         const scanResult = document.getElementById('scan-result');
 
-        // Disable buttons and show progress
         quickScanBtn.disabled = true;
         fullScanBtn.disabled = true;
         scanProgress?.classList.remove('hidden');
         scanResult?.classList.add('hidden');
         scanProgressText.textContent = fullScan ? 'Running full scan...' : 'Scanning for new files...';
 
-        try {
-            const endpoint = fullScan ? '/api/music/scan/full' : '/api/music/scan';
-            const response = await this.api(endpoint, 'POST');
-
-            // Hide progress, show result
+        const data = await (fullScan
+            ? this.scanService.full()
+            : this.scanService.quick());
+        if(data.error) {
+            console.error(data.error);
             scanProgress?.classList.add('hidden');
-            scanResult?.classList.remove('hidden');
 
-            // Update result stats
-            if (response.stats) {
-                document.getElementById('scan-files-found').textContent = response.stats.files_found || 0;
-                document.getElementById('scan-files-added').textContent = response.stats.files_added || 0;
-                document.getElementById('scan-files-updated').textContent = response.stats.files_updated || 0;
-                document.getElementById('scan-files-removed').textContent = response.stats.files_removed || 0;
-            }
-
-            // Refresh library count
-            await this.loadScanStatus();
-
-            // Reload library in the background
-            this.loadLibrary();
-
-        } catch (error) {
-            console.error('Scan error:', error);
-            scanProgress?.classList.add('hidden');
-            alert('Scan failed: ' + (error.message || 'Unknown error'));
-        } finally {
             quickScanBtn.disabled = false;
             fullScanBtn.disabled = false;
+
+            return;
         }
+
+        const scan = data.value;
+        if(!scan) return console.error('unreachable');
+
+        scanProgress?.classList.add('hidden');
+        scanResult?.classList.remove('hidden');
+
+        if(scan.stats) {
+            document.getElementById('scan-files-found').textContent = scan.stats.files_found || 0;
+            document.getElementById('scan-files-added').textContent = scan.stats.files_added || 0;
+            document.getElementById('scan-files-updated').textContent = scan.stats.files_updated || 0;
+            document.getElementById('scan-files-removed').textContent = scan.stats.files_removed || 0;
+        }
+
+        await this.loadScanStatus();
+        this.loadLibrary();
+            
+        quickScanBtn.disabled = false;
+        fullScanBtn.disabled = false;
     }
 
     async loadLibrary() {
         const loadingState = document.getElementById('loading-state');
         const emptyState = document.getElementById('empty-state');
         const songsGrid = document.getElementById('songs-grid');
-        const songsList = document.getElementById('songs-list');
 
-        // Show loading
         loadingState.classList.remove('hidden');
         emptyState.classList.add('hidden');
         songsGrid.innerHTML = '';
         document.getElementById('songs-list-content').innerHTML = '';
 
-        try {
-            const response = await this.api('/api/music/library');
-
-            loadingState.classList.add('hidden');
-
-            if (response.all_songs && response.all_songs.length > 0) {
-                this.songs = response.all_songs;
-                this.librarySongs = [...this.songs]; // Cache for switching back
-                this.currentViewType = 'library'; // Track view type
-                this.sections = response.sections || [];
-                this.librarySections = JSON.parse(JSON.stringify(this.sections)); // Deep copy cache
-                this.filteredSongs = [...this.songs];
-                this.renderSections();
-                this.updateStats();
-            } else {
-                emptyState.classList.remove('hidden');
-            }
-        } catch (error) {
-            console.error('Error loading library:', error);
+        const data = await this.musicService.library();
+        if(data.error) {
+            console.error('Failed to load music libary!', data.error);
             loadingState.classList.add('hidden');
             emptyState.classList.remove('hidden');
+
+            return;
         }
+
+        const library = data.value;
+        if(!library) throw new Error('unreachable');
+        loadingState.classList.add('hidden');
+
+        const allSongs = library.all_songs;
+        if(allSongs && allSongs.length > 0) {
+            this.songs = allSongs;
+            this.librarySongs = [...this.songs];
+            this.currentViewType = 'library';
+            this.sections = library.sections || [];
+            this.librarySections = JSON.parse(JSON.stringify(this.sections));
+            this.filteredSongs = [...this.songs];
+            this.renderSections();
+            this.updateStats();
+
+            return;
+        }
+            
+        emptyState.classList.remove('hidden');
     }
 
     renderSections() {
@@ -577,131 +559,20 @@ class RainyApp {
         songsGrid.classList.remove('hidden');
         songsList.classList.add('hidden');
 
-        let html = '';
-
-        for (const section of this.sections) {
-            if (section.type === 'horizontal') {
-                html += this.renderHorizontalSection(section);
-            } else {
-                html += this.renderGridSection(section);
-            }
-        }
-
-        songsGrid.innerHTML = html;
+        Library.renderSections(
+            songsGrid,
+            this.sections,
+            this.songs,
+            // FIXME: Why are we even passing on these methods???
+            Utils.escapeHtml,
+            Utils.formatDuration,
+            this.currentSort,
+            this.coverOverride,
+            this.coverVersion
+        );
 
         // Bind click events
         this.bindSongEvents();
-    }
-
-    renderHorizontalSection(section) {
-        const songsHtml = section.songs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-
-            // Find the global index in all songs for playback
-            const globalIndex = this.songs.findIndex(s => s.id === song.id);
-
-            return `
-            <div class="song-card-horizontal fade-in" data-index="${globalIndex}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${this.escapeHtml(song.title)}</div>
-                    <div class="song-artist">${this.escapeHtml(song.artist)}</div>
-                </div>
-            </div>
-        `}).join('');
-
-        return `
-        <div class="library-section" data-section-id="${section.id}">
-            <h2 class="section-heading">${section.title}</h2>
-            <div class="horizontal-scroll-container">
-                <div class="horizontal-scroll-content">
-                    ${songsHtml}
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
-    renderGridSection(section) {
-        const songsHtml = section.songs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-
-            return `
-            <div class="song-card fade-in" data-index="${index}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${this.escapeHtml(song.title)}</div>
-                    <div class="song-artist">${this.escapeHtml(song.artist)}</div>
-                    <div class="song-duration">${this.formatDuration(song.duration)}</div>
-                </div>
-            </div>
-        `}).join('');
-
-        // Add sort filter for All Songs section
-        const sortFilterHtml = section.id === 'all-songs' ? `
-            <div class="section-header-row">
-                <h2 class="section-heading">${section.title}</h2>
-                <div class="section-sort">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
-                    </svg>
-                    <select id="sort-select" class="sort-select">
-                        <option value="default" ${this.currentSort === 'default' ? 'selected' : ''}>Default Order</option>
-                        <option value="title-asc" ${this.currentSort === 'title-asc' ? 'selected' : ''}>Title (A-Z)</option>
-                        <option value="title-desc" ${this.currentSort === 'title-desc' ? 'selected' : ''}>Title (Z-A)</option>
-                    </select>
-                </div>
-            </div>
-        ` : `<h2 class="section-heading">${section.title}</h2>`;
-
-        return `
-        <div class="library-section" data-section-id="${section.id}">
-            ${sortFilterHtml}
-            <div class="songs-grid-section">
-                ${songsHtml}
-            </div>
-        </div>
-        `;
     }
 
     bindSongEvents() {
@@ -750,40 +621,22 @@ class RainyApp {
         songsGrid.classList.remove('hidden');
         songsList.classList.add('hidden');
 
-        const songsHtml = this.filteredSongs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-            return `
-            <div class="song-card fade-in" data-index="${index}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${this.escapeHtml(song.title)}</div>
-                    <div class="song-artist">${this.escapeHtml(song.artist)}</div>
-                    <div class="song-duration">${this.formatDuration(song.duration)}</div>
-                </div>
-            </div>
-        `}).join('');
+        // We wrap filtered songs in a section to use Library.renderGridSection
+        const section = {
+            id: 'filtered-songs',
+            title: 'Search Results',
+            songs: this.filteredSongs
+        };
 
-        songsGrid.innerHTML = `<div class="songs-grid-section" style="width: 100%;">${songsHtml}</div>`;
+        songsGrid.innerHTML = Library.renderGridSection(
+            section,
+            // FIXME: Why are we even passing on these methods???
+            Utils.escapeHtml,
+            Utils.formatDuration,
+            this.currentSort,
+            this.coverOverride,
+            this.coverVersion
+        );
 
         // Add click listeners for play
         songsGrid.querySelectorAll('.song-card').forEach(card => {
@@ -812,35 +665,15 @@ class RainyApp {
         songsGrid.classList.add('hidden');
         songsList.classList.remove('hidden');
 
-        listContent.innerHTML = this.filteredSongs.map((song, index) => {
-            const overridePath = this.coverOverride[song.id] || song.cover_path;
-            const bust = this.coverVersion[song.id] ? `?t=${this.coverVersion[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.app.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                   </svg>`;
-            return `
-            <div class="song-row fade-in" data-index="${index}" data-id="${song.id}">
-                <div class="song-row-number">${index + 1}</div>
-                <div class="song-row-main">
-                    <div class="song-row-artwork">
-                        ${coverHtml}
-                    </div>
-                    <div class="song-row-info">
-                        <div class="song-row-title">${this.escapeHtml(song.title)}</div>
-                        <div class="song-row-artist">${this.escapeHtml(song.artist)}</div>
-                    </div>
-                </div>
-                <div class="song-row-album">${this.escapeHtml(song.album)}</div>
-                <div class="song-row-duration">${this.formatDuration(song.duration)}</div>
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${this.escapeHtml(song.title)}" data-song-artist="${this.escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-            </div>
-        `}).join('');
+        Library.renderListView(
+            listContent,
+            this.filteredSongs,
+            // FIXME: Why are we even passing on these methods???
+            Utils.escapeHtml,
+            Utils.formatDuration,
+            this.coverOverride,
+            this.coverVersion
+        );
 
         // Add click listeners for play
         listContent.querySelectorAll('.song-row').forEach(row => {
@@ -910,15 +743,14 @@ class RainyApp {
     }
 
     async handleLogout() {
-        try {
-            await this.api('/api/auth/logout', 'POST');
-            this.user = null;
-            this.songs = [];
-            this.filteredSongs = [];
-            this.showView('login');
-        } catch (error) {
-            console.error('Error logging out:', error);
-        }
+        // FIXME: Handle error
+        await this.authService.logout();
+
+        this.user = null;
+        this.songs = [];
+        this.filteredSongs = [];
+
+        Router.navigate(new View('login'), this);
     }
 
     applySortFilter(sortValue) {
@@ -994,35 +826,27 @@ class RainyApp {
 
     async removeSong() {
         if (!this.selectedSong) return;
-
         const { id, title, artist } = this.selectedSong;
 
-        // Confirm deletion
+        // FIXME: Use Dialog with actions (cancel, confirm)
         if (!confirm(`Remove "${title}" by ${artist}?\n\nThis will permanently delete the song file.`)) {
             return;
         }
 
-        try {
-            // Stop playback if this song is currently playing
-            const currentSong = window.player?.getCurrentSong();
-            if (currentSong && currentSong.id === id) {
-                window.player.audio.pause();
-                window.player.audio.src = '';
-            }
-
-            // Delete by database ID
-            const response = await this.api(`/api/music/song/${id}`, 'DELETE');
-
-            if (response.success) {
-                // Refresh library
-                this.loadLibrary();
-            } else {
-                throw new Error(response.error || 'Failed to remove song');
-            }
-        } catch (error) {
-            console.error('Error removing song:', error);
-            alert('Failed to remove song: ' + error.message);
+        const currentSong = window.player.getCurrentSong();
+        if(currentSong && currentSong.id === id) {
+            window.player.audio.pause();
+            window.player.audio.src = '';
         }
+
+        const data = await this.musicService.delete(id);
+        // FIXME: Add toast notification
+        if(data.error) return console.error(data.error);
+
+        const result = data.value;
+        if(!result) return console.error('unreachable');
+
+        this.loadLibrary();
     }
 
     // Add Music Modal Methods
@@ -1099,6 +923,7 @@ class RainyApp {
         }
     }
 
+    // FIXME: This method is fucking crazy. Refactor it ASAP
     async importFromYouTube() {
         const urlInput = document.getElementById('youtube-url-input');
         const importBtn = document.getElementById('youtube-import-btn');
@@ -1122,101 +947,53 @@ class RainyApp {
             statusText.textContent = message;
         };
 
-        try {
-            updateProgress(10, 'Connecting to YouTube...');
+        updateProgress(10, 'Connecting to YouTube...');
 
-            // Start a simulated progress animation while waiting
-            let currentProgress = 10;
-            const progressInterval = setInterval(() => {
-                if (currentProgress < 85) {
-                    currentProgress += Math.random() * 5;
-                    const messages = [
-                        'Fetching video info...',
-                        'Downloading audio...',
-                        'Converting to MP3...',
-                        'Downloading cover art...'
-                    ];
-                    const messageIndex = Math.min(Math.floor(currentProgress / 25), messages.length - 1);
-                    updateProgress(currentProgress, messages[messageIndex]);
-                }
-            }, 500);
-
-            const response = await this.api('/api/music/youtube-import', 'POST', { url });
-
-            clearInterval(progressInterval);
-
-            if (response.success) {
-                updateProgress(100, `✓ Imported: ${response.title || 'song'}`);
-                setTimeout(() => {
-                    this.closeAddMusicModal();
-                    this.loadLibrary();
-                }, 1500);
-            } else {
-                throw new Error(response.error || 'Import failed');
+        // Start a simulated progress animation while waiting
+        let currentProgress = 10;
+        const progressInterval = setInterval(() => {
+            if (currentProgress < 85) {
+                currentProgress += Math.random() * 5;
+                const messages = [
+                    'Fetching video info...',
+                    'Downloading audio...',
+                    'Converting to MP3...',
+                    'Downloading cover art...'
+                ];
+                const messageIndex = Math.min(Math.floor(currentProgress / 25), messages.length - 1);
+                updateProgress(currentProgress, messages[messageIndex]);
             }
-        } catch (error) {
-            console.error('YouTube import error:', error);
+        }, 500);
+
+        const data = await this.musicService.YouTube.import(url);
+        if(data.error) {
+            console.error(data.error);
+
+            importBtn.disabled = false;
             progressFill.style.width = '0%';
             statusText.textContent = error.message || 'Import failed. Please try again.';
             setTimeout(() => {
                 status.classList.add('hidden');
             }, 3000);
-        } finally {
-            importBtn.disabled = false;
-        }
-    }
 
-    // API helper
-    async api(url, method = 'GET', data = null) {
-        const options = {
-            method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include'
-        };
-
-        if (data) {
-            options.body = JSON.stringify(data);
+            return;
         }
 
-        const response = await fetch(url, options);
-        return response.json();
-    }
+        const result = data.value;
+        if(!result) return console.error('unreachable');
 
-    // Utility functions
-    formatDuration(seconds) {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
+        clearInterval(progressInterval);
+        updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
+        setTimeout(() => {
+            this.closeAddMusicModal();
+            this.loadLibrary();
+        }, 1500);
 
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        importBtn.disabled = false;
     }
 
     showToast(message, type = 'success', duration = 3000) {
-        const container = document.getElementById('toast-container');
-        if (!container) return;
-
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-
-        const icon = type === 'success'
-            ? '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
-            : '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
-
-        toast.innerHTML = `${icon}<span class="toast-message">${this.escapeHtml(message)}</span>`;
-        container.appendChild(toast);
-
-        // Auto-dismiss
-        setTimeout(() => {
-            toast.classList.add('hiding');
-            setTimeout(() => toast.remove(), 300);
-        }, duration);
+        return Utils.showToast(message, type, duration);
     }
 
     handleCoverError(img) {
@@ -1375,26 +1152,29 @@ class RainyApp {
         const query = searchInput.value.trim();
         if (!query) return;
 
-        // Show loading
         loading.classList.remove('hidden');
         resultsContainer.innerHTML = '';
         noResults.classList.add('hidden');
 
-        try {
-            const response = await this.api('/api/music/metadata/search', 'POST', { query });
-
-            loading.classList.add('hidden');
-
-            if (response.success && response.results && response.results.length > 0) {
-                this.renderMetadataResults(response.results);
-            } else {
-                noResults.classList.remove('hidden');
-            }
-        } catch (error) {
-            console.error('Metadata search error:', error);
+        const data = await this.metadataService.search(query);
+        if(data.error) {
+            console.error(data.error);
             loading.classList.add('hidden');
             noResults.classList.remove('hidden');
+
+            return;
         }
+
+        loading.classList.add('hidden');
+
+        const matches = data.value;
+        if(!matches) return console.error('unreachable');
+        if(matches.results.length === 0) {
+            noResults.classList.remove('hidden');
+            return;
+        }
+
+        this.renderMetadataResults(matches.results);
     }
 
     renderMetadataResults(results) {
@@ -1409,10 +1189,10 @@ class RainyApp {
             }
                 </div>
                 <div class="metadata-result-info">
-                    <div class="metadata-result-title">${this.escapeHtml(result.title)}</div>
-                    <div class="metadata-result-artist">${this.escapeHtml(result.artist)}</div>
-                    <div class="metadata-result-album">${this.escapeHtml(result.album)}</div>
-                    <div class="metadata-result-duration">${result.duration_text || this.formatDuration(result.duration)}</div>
+                    <div class="metadata-result-title">${Utils.escapeHtml(result.title)}</div>
+                    <div class="metadata-result-artist">${Utils.escapeHtml(result.artist)}</div>
+                    <div class="metadata-result-album">${Utils.escapeHtml(result.album)}</div>
+                    <div class="metadata-result-duration">${result.duration_text || Utils.formatDuration(result.duration)}</div>
                 </div>
                 <div class="metadata-result-action">
                     <button class="btn btn-primary apply-metadata-btn">Apply</button>
@@ -1431,149 +1211,129 @@ class RainyApp {
         });
     }
 
+    // FIXME: This method is fucking crazy. Refactor it ASAP
     async applyMetadata(metadata) {
         if (!this.selectedSong) return;
-
-        // Store the song ID before we clear selectedSong
         const songId = this.selectedSong.id;
 
         const applyButtons = document.querySelectorAll('.apply-metadata-btn');
         applyButtons.forEach(btn => btn.disabled = true);
 
-        try {
-            const response = await this.api(
-                `/api/music/metadata/apply/${songId}`,
-                'POST',
-                {
-                    title: metadata.title,
-                    artist: metadata.artist,
-                    album: metadata.album,
-                    year: metadata.year,
-                    cover_url: metadata.cover_url
-                }
-            );
-
-            if (response.success) {
-                // Close modal first
-                this.closeMetadataModal();
-
-                // Update local song data in ALL caches
-                const updatedSong = response.song;
-                if (updatedSong.cover_path) {
-                    this.coverVersion[songId] = Date.now();
-                    this.coverOverride[songId] = updatedSong.cover_path;
-                }
-
-                // Update main songs array
-                const songIndex = this.songs.findIndex(s => s.id === songId);
-                if (songIndex !== -1) {
-                    this.songs[songIndex] = { ...this.songs[songIndex], ...updatedSong };
-                }
-
-                // Update filtered songs
-                const filteredIndex = this.filteredSongs.findIndex(s => s.id === songId);
-                if (filteredIndex !== -1) {
-                    this.filteredSongs[filteredIndex] = { ...this.filteredSongs[filteredIndex], ...updatedSong };
-                }
-
-                // Update library cache (for switching back from playlist view)
-                if (this.librarySongs) {
-                    const libIndex = this.librarySongs.findIndex(s => s.id === songId);
-                    if (libIndex !== -1) {
-                        this.librarySongs[libIndex] = { ...this.librarySongs[libIndex], ...updatedSong };
-                    }
-                }
-
-                // Update sections cache
-                if (this.librarySections) {
-                    for (const section of this.librarySections) {
-                        const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
-                        if (sectionSongIndex !== -1) {
-                            section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
-                        }
-                    }
-                }
-
-                // Re-render with sections
-                if (this.sections && this.sections.length > 0) {
-                    // Update current sections data
-                    for (const section of this.sections) {
-                        const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
-                        if (sectionSongIndex !== -1) {
-                            section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
-                        }
-                    }
-                    this.renderSections();
-                } else {
-                    this.renderSongs();
-                }
-
-                if (updatedSong.cover_path) {
-                    this.coverVersion[songId] = Date.now();
-                    setTimeout(() => {
-                        const ts = this.coverVersion[songId] || Date.now();
-                        document.querySelectorAll(`[data-id="${songId}"] .song-artwork, [data-id="${songId}"] .song-row-artwork`).forEach(container => {
-                            const img = container.querySelector('img');
-                            if (img) {
-                                const base = img.src.split('?')[0];
-                                img.src = `${base}?t=${ts}`;
-                            } else {
-                                const svg = container.querySelector('svg');
-                                const newImg = document.createElement('img');
-                                newImg.alt = 'Cover';
-                                newImg.loading = 'lazy';
-                                newImg.src = `/api/music/cover/${encodeURIComponent(updatedSong.cover_path)}?t=${ts}`;
-                                newImg.onerror = () => window.app && window.app.handleCoverError ? window.app.handleCoverError(newImg) : null;
-                                if (svg) {
-                                    container.insertBefore(newImg, svg);
-                                    svg.remove();
-                                } else {
-                                    container.insertBefore(newImg, container.firstChild);
-                                }
-                            }
-                        });
-                    }, 50);
-                }
-
-                // Update player if this song is currently playing
-                if (window.player && window.player.currentSong && window.player.currentSong.id === songId) {
-                    window.player.updateNowPlaying(updatedSong);
-                }
-
-                this.showToast('Metadata updated successfully', 'success');
-            } else {
-                alert('Failed to apply metadata: ' + (response.error || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('Apply metadata error:', error);
-            alert('Failed to apply metadata: ' + error.message);
-        } finally {
+        const data = await this.metadataService.apply(songId, 
+            metadata.title, metadata.artist, metadata.album, metadata.year, metadata.genre, metadata.cover_url);
+        if(data.error) {
+            console.log(data.error);
             applyButtons.forEach(btn => btn.disabled = false);
+
+            return;
         }
+
+        const result = data.value;
+        if(!result) return console.error('unreachable');
+        this.closeMetadataModal();
+
+        const updatedSong = result.song;
+        if (updatedSong.cover_path) {
+            this.coverVersion[songId] = Date.now();
+            this.coverOverride[songId] = updatedSong.cover_path;
+        }
+
+        const songIndex = this.songs.findIndex(s => s.id === songId);
+        if (songIndex !== -1) {
+            this.songs[songIndex] = { ...this.songs[songIndex], ...updatedSong };
+        }
+
+        const filteredIndex = this.filteredSongs.findIndex(s => s.id === songId);
+        if (filteredIndex !== -1) {
+            this.filteredSongs[filteredIndex] = { ...this.filteredSongs[filteredIndex], ...updatedSong };
+        }
+
+        if (this.librarySongs) {
+            const libIndex = this.librarySongs.findIndex(s => s.id === songId);
+            if (libIndex !== -1) {
+                this.librarySongs[libIndex] = { ...this.librarySongs[libIndex], ...updatedSong };
+            }
+        }
+
+        if (this.librarySections) {
+            for (const section of this.librarySections) {
+                const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
+                if (sectionSongIndex !== -1) {
+                    section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
+                }
+            }
+        }
+
+        if (this.sections && this.sections.length > 0) {
+            for (const section of this.sections) {
+                const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
+                if (sectionSongIndex !== -1) {
+                    section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
+                }
+            }
+            this.renderSections();
+        } else {
+            this.renderSongs();
+        }
+
+        if (updatedSong.cover_path) {
+            this.coverVersion[songId] = Date.now();
+            setTimeout(() => {
+                const ts = this.coverVersion[songId] || Date.now();
+                document.querySelectorAll(`[data-id="${songId}"] .song-artwork, [data-id="${songId}"] .song-row-artwork`).forEach(container => {
+                    const img = container.querySelector('img');
+                    if (img) {
+                        const base = img.src.split('?')[0];
+                        img.src = `${base}?t=${ts}`;
+                    } else {
+                        const svg = container.querySelector('svg');
+                        const newImg = document.createElement('img');
+                        newImg.alt = 'Cover';
+                        newImg.loading = 'lazy';
+                        newImg.src = `/api/music/cover/${encodeURIComponent(updatedSong.cover_path)}?t=${ts}`;
+                        newImg.onerror = () => window.handleCoverError ? window.handleCoverError(newImg) : null;
+                        if (svg) {
+                            container.insertBefore(newImg, svg);
+                            svg.remove();
+                        } else {
+                            container.insertBefore(newImg, container.firstChild);
+                        }
+                    }
+                });
+            }, 50);
+        }
+
+        if (window.player && window.player.currentSong && window.player.currentSong.id === songId) {
+            window.player.updateNowPlaying(updatedSong);
+        }
+
+        this.showToast('Metadata updated successfully', 'success');
     }
     // Playlist Methods
 
     async loadPlaylists() {
-        try {
-            const playlists = await this.api('/api/playlists');
-            this.playlists = playlists;
-            this.renderSidebarPlaylists();
-        } catch (error) {
-            console.error('Error loading playlists:', error);
-        }
+        const data = await this.playlistService.all();
+        // FIXME: Show toast notification
+        if(data.error) return console.error(data.error);
+
+        const playlists = data.value;
+        if(!Array.isArray(playlists)) return console.error('unreachable');
+
+        this.playlists = playlists;
+        this.renderSidebarPlaylists();
     }
 
     renderSidebarPlaylists() {
         const container = document.getElementById('sidebar-playlists');
-        if (!container) return;
-
-        container.innerHTML = (this.playlists || []).map(playlist => `
-            <div class="nav-item ${this.currentViewType === 'playlist' && this.currentPlaylistId === playlist.id ? 'active' : ''}" 
-                 onclick="window.app.openPlaylist(${playlist.id})">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>
-                <span>${this.escapeHtml(playlist.name)}</span>
-            </div>
-        `).join('');
+        Playlists.renderSidebar(
+            container,
+            this.playlists,
+            this.currentPlaylistId,
+            this.currentViewType,
+            // FIXME: Just why?
+            Utils.escapeHtml,
+            (id) => this.openPlaylist(id)
+        );
     }
 
     openCreatePlaylistModal() {
@@ -1587,19 +1347,16 @@ class RainyApp {
         const name = nameInput.value.trim();
         if (!name) return;
 
-        try {
-            const response = await this.api('/api/playlists', 'POST', { name });
-            if (response.success) {
-                document.getElementById('create-playlist-modal').classList.add('hidden');
-                await this.loadPlaylists();
-                this.showToast('Playlist created', 'success');
-            } else {
-                this.showToast(response.error || 'Failed to create playlist', 'error');
-            }
-        } catch (error) {
-            console.error('Error creating playlist:', error);
+        const data = await this.playlistService.create(name);
+        if(data.error) {
+            console.error(data.error);
             this.showToast('Failed to create playlist', 'error');
+            return;
         }
+
+        document.getElementById('create-playlist-modal').classList.add('hidden');
+        await this.loadPlaylists();
+        this.showToast('Playlist created', 'success');
     }
 
     renameCurrentPlaylist() {
@@ -1616,31 +1373,21 @@ class RainyApp {
     async performRenamePlaylist() {
         const input = document.getElementById('rename-playlist-input');
         const newName = input.value.trim();
+        if(!newName) return this.showToast('Playlist name cannot be empty', 'error');
 
-        if (!newName) {
-            this.showToast('Playlist name cannot be empty', 'error');
+        const data = await this.playlistService.rename(this.currentPlaylistId, newName);
+        if(data.error) {
+            console.error(data.error);
+            this.showToast('Failed to rename playlist', 'error');
+
             return;
         }
 
-        try {
-            const response = await this.api(`/api/playlists/${this.currentPlaylistId}`, 'PUT', {
-                name: newName
-            });
+        document.getElementById('rename-playlist-modal').classList.add('hidden');
+        await this.loadPlaylists();
 
-            if (response.success) {
-                document.getElementById('rename-playlist-modal').classList.add('hidden');
-                await this.loadPlaylists(); // Refresh sidebar
-
-                // Update header if we are still on that playlist
-                document.querySelector('.section-title').textContent = newName;
-                this.showToast('Playlist renamed', 'success');
-            } else {
-                this.showToast(response.error || 'Failed to rename playlist', 'error');
-            }
-        } catch (error) {
-            console.error('Error renaming playlist:', error);
-            this.showToast('Failed to rename playlist', 'error');
-        }
+        document.querySelector('.section-title').textContent = newName;
+        this.showToast('Playlist renamed', 'success');
     }
 
     deleteCurrentPlaylist() {
@@ -1649,63 +1396,51 @@ class RainyApp {
     }
 
     async performDeletePlaylist() {
-        try {
-            const response = await this.api(`/api/playlists/${this.currentPlaylistId}`, 'DELETE');
-
-            if (response.success) {
-                document.getElementById('delete-playlist-modal').classList.add('hidden');
-                await this.loadPlaylists(); // Refresh sidebar list
-                this.switchToLibraryView(); // Go back to library
-                this.showToast('Playlist deleted', 'success');
-            } else {
-                this.showToast(response.error || 'Failed to delete playlist', 'error');
-            }
-        } catch (error) {
-            console.error('Error deleting playlist:', error);
+        const data = await this.playlistService.delete(this.currentPlaylistId);
+        if(data.error) {
+            console.error(data.error);
             this.showToast('Failed to delete playlist', 'error');
+
+            return;
         }
+
+        document.getElementById('delete-playlist-modal').classList.add('hidden');
+        await this.loadPlaylists();
+        this.switchToLibraryView();
+        this.showToast('Playlist deleted', 'success');
     }
 
     async openPlaylist(playlistId) {
-        try {
-            const playlist = await this.api(`/api/playlists/${playlistId}`);
-            if (playlist && playlist.songs) {
-                this.currentViewType = 'playlist';
-                this.currentPlaylistId = playlistId;
+        const data = await this.playlistService.fetch(playlistId);
+        // FIXME: Show toast notification
+        if(data.error) return console.error(data.error);
 
-                // Update UI state
-                document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        const playlist = data.value;
+        if(!playlist) return console.error('unreachable');
 
-                // Re-render sidebar to highlight active playlist
-                this.renderSidebarPlaylists();
+        this.currentViewType = 'playlist';
+        this.currentPlaylistId = playlistId;
 
-                // Update Header
-                document.querySelector('.section-title').textContent = playlist.name;
-                document.getElementById('library-subtitle').textContent = `${playlist.songs.length} songs`;
-                document.getElementById('library-stats').classList.add('hidden');
+        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        this.renderSidebarPlaylists();
 
-                // Show playlist settings menu
-                document.getElementById('playlist-menu-container').classList.remove('hidden');
+        document.querySelector('.section-title').textContent = playlist.name;
+        document.getElementById('library-subtitle').textContent = `${playlist.songs.length} songs`;
+        document.getElementById('library-stats').classList.add('hidden');
 
-                // Set content
-                this.songs = playlist.songs;
-                this.filteredSongs = [...playlist.songs];
+        document.getElementById('playlist-menu-container').classList.remove('hidden');
 
-                // Create a dummy section for compatibility
-                this.sections = [{
-                    type: 'grid',
-                    title: 'Playlist Songs',
-                    songs: this.songs
-                }];
+        this.songs = playlist.songs;
+        this.filteredSongs = [...playlist.songs];
 
-                // Reset search if any
-                document.getElementById('search-input').value = '';
+        this.sections = [{
+            type: 'grid',
+            title: 'Playlist Songs',
+            songs: this.songs
+        }];
 
-                this.renderSections();
-            }
-        } catch (error) {
-            console.error('Error loading playlist:', error);
-        }
+        document.getElementById('search-input').value = '';
+        this.renderSections();
     }
 
     switchToLibraryView() {
@@ -1746,40 +1481,35 @@ class RainyApp {
         const container = document.getElementById('context-playlists-list');
         if (!container) return;
 
-        container.innerHTML = (this.playlists || []).map(playlist => `
-            <div class="context-menu-item" onclick="window.app.addToPlaylist(${playlist.id}, event)">
+        container.innerHTML = '';
+        (this.playlists || []).forEach(playlist => {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-                <span>${this.escapeHtml(playlist.name)}</span>
-            </div>
-        `).join('');
+                <span>${Utils.escapeHtml(playlist.name)}</span>
+            `;
+            item.addEventListener('click', (e) => this.addToPlaylist(playlist.id, e));
+            container.appendChild(item);
+        });
     }
 
     async addToPlaylist(playlistId, event) {
-        if (event) event.stopPropagation();
-        if (!this.selectedSong) return;
+        if(event) event.stopPropagation();
+        if(!this.selectedSong) return;
 
-        try {
-            const response = await this.api(`/api/playlists/${playlistId}/songs`, 'POST', {
-                song_id: this.selectedSong.id
-            });
-
-            if (response.success) {
-                // Determine playlist name for toaster
-                const playlist = this.playlists.find(p => p.id === playlistId);
-                const playlistName = playlist ? playlist.name : 'Unknown Playlist';
-
-                this.hideContextMenu();
-                this.showToast(`Added to "${playlistName}"`, 'success');
-            } else {
-                throw new Error(response.error || 'Failed to add to playlist');
-            }
-        } catch (error) {
-            console.error('Error adding to playlist:', error);
+        const data = await this.playlistService.addSong(playlistId, this.selectedSong.id);
+        if(data.error) {
+            console.error(data.error);
             this.showToast('Failed to add song to playlist', 'error');
+
+            return;
         }
+
+        const playlist = this.playlists.find(p => p.id === playlistId);
+        const playlistName = playlist ? playlist.name : 'Unknown Playlist';
+
+        this.hideContextMenu();
+        this.showToast(`Added to "${playlistName}"`, 'success');
     }
 }
-
-// Initialize app
-const app = new RainyApp();
-window.app = app;

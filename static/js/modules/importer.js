@@ -3,7 +3,7 @@
  * Handles file upload and YouTube import
  */
 
-const Importer = {
+export const Importer = {
     /**
      * Upload audio files
      * @param {FileList} files - Files to upload
@@ -120,15 +120,14 @@ const Importer = {
      * Reset all inputs
      */
     resetInputs() {
-        document.getElementById('youtube-url-input').value = '';
-        document.getElementById('file-upload-input').value = '';
+        const youtubeInput = document.getElementById('youtube-url-input');
+        const fileInput = document.getElementById('file-upload-input');
+        
+        if (youtubeInput) youtubeInput.value = '';
+        if (fileInput) fileInput.value = '';
+        
         document.getElementById('upload-progress')?.classList.add('hidden');
         document.getElementById('youtube-status')?.classList.add('hidden');
         document.getElementById('upload-dropzone')?.classList.remove('hidden');
     }
 };
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Importer;
-}
