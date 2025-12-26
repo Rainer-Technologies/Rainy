@@ -44,6 +44,32 @@ export class AudioPlayer {
         this.nowPlayingTitle = document.getElementById('now-playing-title');
         this.nowPlayingArtist = document.getElementById('now-playing-artist');
         this.nowPlayingArtwork = document.getElementById('now-playing-artwork');
+        this.nowPlayingContainer = document.querySelector('.now-playing');
+
+        // Fullscreen Player
+        this.fsContainer = document.getElementById('fullscreen-player');
+        this.fsBackdrop = document.getElementById('fs-backdrop');
+        this.fsCloseBtn = document.getElementById('fs-close-btn');
+        this.fsQueueList = document.getElementById('fs-queue-list');
+        this.fsArtwork = document.getElementById('fs-artwork');
+        this.fsTitle = document.getElementById('fs-title');
+        this.fsArtist = document.getElementById('fs-artist');
+
+        // Fullscreen Controls
+        this.fsPlayPauseBtn = document.getElementById('fs-play-pause-btn');
+        this.fsPrevBtn = document.getElementById('fs-prev-btn');
+        this.fsNextBtn = document.getElementById('fs-next-btn');
+        this.fsShuffleBtn = document.getElementById('fs-shuffle-btn');
+        this.fsRepeatBtn = document.getElementById('fs-repeat-btn');
+        this.fsProgressBar = document.getElementById('fs-progress-bar');
+        this.fsProgressFill = document.getElementById('fs-progress-fill');
+        this.fsCurrentTimeEl = document.getElementById('fs-current-time');
+        this.fsTotalTimeEl = document.getElementById('fs-total-time');
+        
+        if (this.fsPlayPauseBtn) {
+            this.fsIconPlay = this.fsPlayPauseBtn.querySelector('.icon-play');
+            this.fsIconPause = this.fsPlayPauseBtn.querySelector('.icon-pause');
+        }
 
         // Icons
         this.iconPlay = this.playPauseBtn.querySelector('.icon-play');
@@ -74,6 +100,29 @@ export class AudioPlayer {
         this.nextBtn.addEventListener('click', () => this.playNext());
         this.shuffleBtn.addEventListener('click', () => this.toggleShuffle());
         this.repeatBtn.addEventListener('click', () => this.toggleRepeat());
+
+        // Fullscreen events
+        if (this.nowPlayingContainer) {
+            this.nowPlayingContainer.addEventListener('click', (e) => {
+                // Prevent opening if clicking play/pause or heart inside the container if any
+                if (e.target.closest('button')) return;
+                this.toggleFullscreen();
+            });
+        }
+        if (this.fsCloseBtn) {
+            this.fsCloseBtn.addEventListener('click', () => this.toggleFullscreen());
+        }
+        if (this.fsArtwork) {
+            this.fsArtwork.addEventListener('click', () => this.toggleFullscreen());
+        }
+
+        // Fullscreen Controls Events
+        if (this.fsPlayPauseBtn) this.fsPlayPauseBtn.addEventListener('click', () => this.togglePlayPause());
+        if (this.fsPrevBtn) this.fsPrevBtn.addEventListener('click', () => this.playPrevious());
+        if (this.fsNextBtn) this.fsNextBtn.addEventListener('click', () => this.playNext());
+        if (this.fsShuffleBtn) this.fsShuffleBtn.addEventListener('click', () => this.toggleShuffle());
+        if (this.fsRepeatBtn) this.fsRepeatBtn.addEventListener('click', () => this.toggleRepeat());
+        if (this.fsProgressBar) this.fsProgressBar.addEventListener('click', (e) => this.handleProgressClick(e, this.fsProgressBar));
 
         // Progress bar
         this.progressBar.addEventListener('click', (e) => this.handleProgressClick(e));
@@ -150,6 +199,11 @@ export class AudioPlayer {
 
         // Update document title
         document.title = `${song.title} - ${song.artist} | Rainy`;
+
+        // Update fullscreen view if active
+        if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
+            this.updateFullscreenView();
+        }
 
         // Update playing state in library
         if (window.app) {
@@ -248,8 +302,16 @@ export class AudioPlayer {
 
     toggleShuffle() {
         this.isShuffle = !this.isShuffle;
-        this.shuffleBtn.style.color = this.isShuffle ? 'var(--accent-primary)' : '';
-        this.shuffleBtn.querySelector('svg').style.fill = this.isShuffle ? 'var(--accent-primary)' : '';
+        const color = this.isShuffle ? 'var(--accent-primary)' : '';
+        const fill = this.isShuffle ? 'var(--accent-primary)' : '';
+        
+        this.shuffleBtn.style.color = color;
+        this.shuffleBtn.querySelector('svg').style.fill = fill;
+        
+        if (this.fsShuffleBtn) {
+            this.fsShuffleBtn.style.color = color;
+            this.fsShuffleBtn.querySelector('svg').style.fill = fill;
+        }
     }
 
     toggleRepeat() {
@@ -258,27 +320,33 @@ export class AudioPlayer {
         this.repeatMode = modes[(currentModeIndex + 1) % modes.length];
 
         // Update button appearance
-        const svg = this.repeatBtn.querySelector('svg');
-        const baseLoopPath = 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z';
+        const updateBtn = (btn) => {
+            if (!btn) return;
+            const svg = btn.querySelector('svg');
+            const baseLoopPath = 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z';
 
-        switch (this.repeatMode) {
-            case 'none':
-                svg.style.fill = '';
-                this.repeatBtn.title = 'Repeat Off';
-                svg.innerHTML = `<path d="${baseLoopPath}" />`;
-                break;
-            case 'all':
-                svg.style.fill = 'var(--accent-primary)';
-                this.repeatBtn.title = 'Repeat All';
-                svg.innerHTML = `<path d="${baseLoopPath}" /><circle cx="12" cy="12" r="2" />`;
-                break;
-            case 'one':
-                svg.style.fill = 'var(--accent-primary)';
-                this.repeatBtn.title = 'Repeat One';
-                // Add the "1" inside
-                svg.innerHTML = `<path d="${baseLoopPath}" /><path d="M13 15V9h-1l-2 1v1h1.5v4H13z" />`;
-                break;
-        }
+            switch (this.repeatMode) {
+                case 'none':
+                    svg.style.fill = '';
+                    btn.title = 'Repeat Off';
+                    svg.innerHTML = `<path d="${baseLoopPath}" />`;
+                    break;
+                case 'all':
+                    svg.style.fill = 'var(--accent-primary)';
+                    btn.title = 'Repeat All';
+                    svg.innerHTML = `<path d="${baseLoopPath}" /><circle cx="12" cy="12" r="2" />`;
+                    break;
+                case 'one':
+                    svg.style.fill = 'var(--accent-primary)';
+                    btn.title = 'Repeat One';
+                    // Add the "1" inside
+                    svg.innerHTML = `<path d="${baseLoopPath}" /><path d="M13 15V9h-1l-2 1v1h1.5v4H13z" />`;
+                    break;
+            }
+        };
+
+        updateBtn(this.repeatBtn);
+        updateBtn(this.fsRepeatBtn);
     }
 
     handleTimeUpdate() {
@@ -287,14 +355,22 @@ export class AudioPlayer {
 
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
+            
+            // Main bar
             this.progressFill.style.width = `${percent}%`;
             this.lastDisplayedTime = this.audio.currentTime;
             this.currentTimeEl.textContent = this.formatTime(this.audio.currentTime);
+            
+            // Fullscreen bar
+            if (this.fsProgressFill) this.fsProgressFill.style.width = `${percent}%`;
+            if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(this.audio.currentTime);
         }
     }
 
     handleMetadataLoaded() {
-        this.totalTimeEl.textContent = this.formatTime(this.audio.duration);
+        const timeStr = this.formatTime(this.audio.duration);
+        this.totalTimeEl.textContent = timeStr;
+        if (this.fsTotalTimeEl) this.fsTotalTimeEl.textContent = timeStr;
     }
 
     handleEnded() {
@@ -311,6 +387,10 @@ export class AudioPlayer {
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
         this.nowPlayingArtwork.classList.add('playing');
+        
+        // Fullscreen update
+        if (this.fsIconPlay) this.fsIconPlay.classList.add('hidden');
+        if (this.fsIconPause) this.fsIconPause.classList.remove('hidden');
     }
 
     handlePause() {
@@ -318,6 +398,10 @@ export class AudioPlayer {
         this.iconPlay.classList.remove('hidden');
         this.iconPause.classList.add('hidden');
         this.nowPlayingArtwork.classList.remove('playing');
+        
+        // Fullscreen update
+        if (this.fsIconPlay) this.fsIconPlay.classList.remove('hidden');
+        if (this.fsIconPause) this.fsIconPause.classList.add('hidden');
     }
 
     handleError(e) {
@@ -354,10 +438,14 @@ export class AudioPlayer {
         this.nowPlayingArtwork.classList.remove('buffering');
     }
 
-    handleProgressClick(e) {
+    handleProgressClick(e, progressBarElement) {
         if (!this.audio.duration) return;
 
-        const rect = this.progressBar.getBoundingClientRect();
+        // Use the passed element (for fullscreen) or default to the main progress bar
+        const bar = progressBarElement || this.progressBar;
+        const rect = bar.getBoundingClientRect();
+        
+        // Calculate relative to the specific bar that was clicked
         const percent = (e.clientX - rect.left) / rect.width;
         this.audio.currentTime = percent * this.audio.duration;
     }
@@ -415,5 +503,91 @@ export class AudioPlayer {
             return this.playlist[this.currentIndex];
         }
         return null;
+    }
+
+    toggleFullscreen() {
+        if (!this.fsContainer) return;
+        
+        const isHidden = this.fsContainer.classList.contains('hidden');
+        if (isHidden) {
+            this.fsContainer.classList.remove('hidden');
+            // Trigger reflow
+            void this.fsContainer.offsetWidth;
+            this.fsContainer.classList.add('active');
+            this.updateFullscreenView();
+        } else {
+            this.fsContainer.classList.remove('active');
+            // Wait for transition to finish
+            setTimeout(() => {
+                this.fsContainer.classList.add('hidden');
+            }, 300);
+        }
+    }
+
+    updateFullscreenView() {
+        if (!this.currentSong) return;
+        
+        const song = this.currentSong;
+        
+        // Update Info
+        if (this.fsTitle) this.fsTitle.textContent = song.title;
+        if (this.fsArtist) this.fsArtist.textContent = song.artist;
+        
+        // Update Artwork
+        if (this.fsArtwork) {
+            if (song.cover_path) {
+                const imgHtml = `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}?t=${Date.now()}" alt="Cover">`;
+                this.fsArtwork.innerHTML = imgHtml;
+                // Update backdrop
+                if (this.fsBackdrop) {
+                    this.fsBackdrop.style.backgroundImage = `url('/api/music/cover/${encodeURIComponent(song.cover_path)}?t=${Date.now()}')`;
+                }
+            } else {
+                this.fsArtwork.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                if (this.fsBackdrop) {
+                    this.fsBackdrop.style.backgroundImage = 'none';
+                    this.fsBackdrop.style.backgroundColor = 'var(--bg-primary)';
+                }
+            }
+        }
+        
+        // Render Queue
+        this.renderFullscreenQueue();
+    }
+    
+    renderFullscreenQueue() {
+        if (!this.fsQueueList) return;
+        
+        // Optimization: If list length matches and we just need to update active state
+        // This is a naive check but helps prevent flickering on every song change if playlist is same
+        // For now, let's just re-render to be safe and simple
+        
+        const html = this.playlist.map((song, index) => {
+            const isActive = index === this.currentIndex;
+            const coverHtml = song.cover_path
+                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy">`
+                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                
+            return `
+                <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" onclick="window.player.playSong(${index})">
+                    <div class="fs-queue-cover">${coverHtml}</div>
+                    <div class="fs-queue-info">
+                        <div class="fs-queue-title">${window.escapeHtml ? window.escapeHtml(song.title) : song.title}</div>
+                        <div class="fs-queue-artist">${window.escapeHtml ? window.escapeHtml(song.artist) : song.artist}</div>
+                    </div>
+                    <div class="fs-queue-duration">${this.formatTime(song.duration)}</div>
+                </div>
+            `;
+        }).join('');
+        
+        this.fsQueueList.innerHTML = html;
+        
+        // Scroll to current song
+        const activeItem = this.fsQueueList.querySelector('.active');
+        if (activeItem) {
+            setTimeout(() => {
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
     }
 }

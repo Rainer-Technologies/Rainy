@@ -1,0 +1,417 @@
+/* ============================================
+   Fullscreen Player Component
+   Splits screen: Queue (Left) | Current Song (Right)
+   ============================================ */
+
+#fullscreen-player {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    background-color: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-base), transform var(--transition-base);
+    transform: translateY(100%); /* Slide up effect */
+}
+
+#fullscreen-player.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
+}
+
+/* Backdrop Blur */
+.fs-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    filter: blur(80px) brightness(0.4);
+    z-index: 0;
+    transition: background-image 0.5s ease;
+}
+
+/* Close Button */
+#fs-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: var(--text-primary);
+    font-size: 2rem;
+    line-height: 1;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition-fast);
+}
+
+#fs-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Main Content Layout */
+.fs-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    padding: var(--spacing-2xl);
+    box-sizing: border-box;
+}
+
+/* Left Side: Queue */
+.fs-queue-container {
+    width: 40%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-right: var(--spacing-xl);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fs-queue-header {
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+#fs-queue-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: var(--spacing-sm);
+}
+
+/* Scrollbar styling for queue */
+#fs-queue-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+#fs-queue-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#fs-queue-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+#fs-queue-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Firefox scrollbar support */
+#fs-queue-list {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+/* Queue Items */
+.fs-queue-item {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    margin-bottom: 4px;
+}
+
+.fs-queue-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.fs-queue-item.active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.fs-queue-item.active .fs-queue-title {
+    color: var(--accent-primary);
+}
+
+.fs-queue-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-right: var(--spacing-md);
+    flex-shrink: 0;
+}
+
+.fs-queue-cover img,
+.fs-queue-cover svg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.fs-queue-cover svg {
+    background: var(--bg-tertiary);
+    fill: var(--text-secondary);
+    padding: 8px;
+}
+
+.fs-queue-info {
+    flex: 1;
+    min-width: 0; /* Text truncation fix */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.fs-queue-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fs-queue-artist {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fs-queue-duration {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-left: var(--spacing-md);
+}
+
+/* Right Side: Current Song */
+.fs-current-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-left: var(--spacing-xl);
+    text-align: center;
+}
+
+.fs-artwork-container {
+    width: 350px;
+    height: 350px;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    margin-bottom: var(--spacing-xl);
+    cursor: pointer;
+    transition: transform var(--transition-fast);
+}
+
+.fs-artwork-container:hover {
+    transform: scale(1.02);
+}
+
+.fs-artwork-container img,
+.fs-artwork-container svg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.fs-artwork-container svg {
+    background: var(--bg-elevated);
+    fill: var(--text-secondary);
+    padding: 60px;
+}
+
+.fs-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+    line-height: 1.2;
+}
+
+.fs-artist {
+    font-size: var(--font-size-xl);
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: var(--spacing-xl);
+}
+
+/* Fullscreen Controls */
+.fs-player-controls {
+    width: 100%;
+    max-width: 600px;
+    margin-top: var(--spacing-lg);
+}
+
+.fs-progress-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    width: 100%;
+}
+
+.fs-time {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    min-width: 45px;
+    text-align: center;
+}
+
+.fs-progress-bar {
+    flex: 1;
+    height: 6px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-full);
+    margin: 0 var(--spacing-md);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.fs-progress-fill {
+    height: 100%;
+    background-color: var(--text-primary);
+    width: 0%;
+    border-radius: var(--radius-full);
+    transition: width 0.1s linear;
+}
+
+.fs-progress-bar:hover .fs-progress-fill {
+    background-color: var(--accent-primary);
+}
+
+.fs-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 var(--spacing-xl);
+}
+
+.fs-control-btn {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.fs-control-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+.fs-control-btn:active {
+    transform: scale(0.95);
+}
+
+.fs-control-btn svg {
+    fill: currentColor;
+}
+
+.fs-control-btn.secondary {
+    color: var(--text-secondary);
+}
+
+.fs-control-btn.secondary:hover {
+    color: var(--text-primary);
+}
+
+.fs-control-btn.play-pause {
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    width: 72px;
+    height: 72px;
+}
+
+.fs-control-btn.play-pause:hover {
+    background-color: var(--accent-primary);
+    color: white;
+    transform: scale(1.05);
+}
+
+.fs-control-btn.play-pause svg {
+    width: 36px;
+    height: 36px;
+    fill: currentColor;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .fs-content {
+        flex-direction: column-reverse;
+        padding: var(--spacing-md);
+    }
+
+    .fs-queue-container {
+        width: 100%;
+        height: 40%;
+        border-right: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding-right: 0;
+        padding-top: var(--spacing-md);
+    }
+
+    .fs-current-info {
+        height: 60%;
+        padding-left: 0;
+        padding-bottom: var(--spacing-md);
+        justify-content: flex-end;
+    }
+
+    .fs-artwork-container {
+        width: 180px;
+        height: 180px;
+        margin-bottom: var(--spacing-md);
+    }
+
+    .fs-title {
+        font-size: var(--font-size-xl);
+    }
+
+    .fs-artist {
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-md);
+    }
+    
+    #fs-close-btn {
+        top: 10px;
+        right: 10px;
+        width: 32px;
+        height: 32px;
+        font-size: 1.5rem;
+    }
+
+    .fs-buttons {
+        padding: 0;
+    }
+
+    .fs-control-btn.play-pause {
+        width: 60px;
+        height: 60px;
+    }
+}

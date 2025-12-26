@@ -16,6 +16,7 @@
 @import url('./components/header.css');
 @import url('./components/sidebar.css');
 @import url('./components/player-bar.css');
+@import url('./components/fullscreen.css');
 @import url('./components/toast.css');
 @import url('./components/context-menu.css');
 

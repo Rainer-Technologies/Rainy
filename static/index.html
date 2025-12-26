@@ -689,6 +689,69 @@
         </div>
     </div>
 
+    <!-- Fullscreen Player -->
+    <div id="fullscreen-player" class="hidden">
+        <div class="fs-backdrop" id="fs-backdrop"></div>
+        <button id="fs-close-btn" title="Close Fullscreen">&times;</button>
+        <div class="fs-content">
+            <div class="fs-queue-container">
+                <div class="fs-queue-header">Up Next</div>
+                <div id="fs-queue-list">
+                    <!-- Queue items will be populated by JS -->
+                </div>
+            </div>
+            <div class="fs-current-info">
+                <div class="fs-artwork-container" id="fs-artwork">
+                    <!-- Artwork injected here -->
+                </div>
+                <div class="fs-title" id="fs-title">Song Title</div>
+                <div class="fs-artist" id="fs-artist">Artist Name</div>
+
+                <!-- Fullscreen Player Controls -->
+                <div class="fs-player-controls">
+                     <div class="fs-progress-container">
+                        <span class="fs-time current" id="fs-current-time">0:00</span>
+                        <div class="fs-progress-bar" id="fs-progress-bar">
+                            <div class="fs-progress-fill" id="fs-progress-fill"></div>
+                        </div>
+                        <span class="fs-time" id="fs-total-time">0:00</span>
+                    </div>
+                    
+                    <div class="fs-buttons">
+                        <button class="fs-control-btn secondary" id="fs-shuffle-btn" title="Shuffle">
+                            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
+                            </svg>
+                        </button>
+                        <button class="fs-control-btn" id="fs-prev-btn" title="Previous">
+                            <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                            </svg>
+                        </button>
+                        <button class="fs-control-btn play-pause" id="fs-play-pause-btn" title="Play">
+                            <svg class="icon-play" width="48" height="48" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                            <svg class="icon-pause hidden" width="48" height="48" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                        </button>
+                        <button class="fs-control-btn" id="fs-next-btn" title="Next">
+                            <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                            </svg>
+                        </button>
+                        <button class="fs-control-btn secondary" id="fs-repeat-btn" title="Repeat">
+                            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Audio Element -->
     <audio id="audio-player" preload="auto"></audio>
 
