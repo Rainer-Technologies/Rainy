@@ -158,6 +158,53 @@
     height: 20px;
 }
 
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+    vertical-align: middle;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    transition: all var(--transition-fast);
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    transform: translateY(-50%);
+    background: var(--text-primary);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--transition-fast);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translate(25px, -50%);
+}
+
 /* Scan Progress */
 .scan-progress {
     margin-top: var(--spacing-lg);
@@ -519,6 +566,102 @@
     background: var(--bg-tertiary);
     border-radius: var(--radius-full);
     overflow: hidden;
+}
+
+.settings-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-xl);
+}
+
+.settings-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.settings-tab:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.settings-tab.active {
+    background: var(--accent-gradient);
+    border-color: transparent;
+    color: white;
+}
+
+.settings-tab-content {
+    display: none;
+}
+
+.settings-tab-content.active {
+    display: block;
+}
+
+.settings-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.settings-inline .btn-sm {
+    margin-left: auto;
+}
+
+.color-presets {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.color-preset-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--bg-elevated);
+    cursor: pointer;
+    transition: transform var(--transition-fast);
+}
+
+.color-preset-btn:hover {
+    transform: scale(1.06);
+}
+
+.color-preset-btn[data-color="#fa586a"] { background-color: #fa586a; }
+.color-preset-btn[data-color="#007aff"] { background-color: #007aff; }
+.color-preset-btn[data-color="#34c759"] { background-color: #34c759; }
+.color-preset-btn[data-color="#af52de"] { background-color: #af52de; }
+.color-preset-btn[data-color="#ff9500"] { background-color: #ff9500; }
+
+.select-wrapper {
+    position: relative;
+}
+
+.select-wrapper .form-input {
+    appearance: none;
+    padding-right: 40px;
+}
+
+.select-arrow {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    width: 16px;
+    height: 16px;
+    fill: var(--text-secondary);
 }
 
 .upload-progress-fill {

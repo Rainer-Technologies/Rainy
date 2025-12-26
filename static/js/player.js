@@ -71,6 +71,10 @@ export class AudioPlayer {
             this.fsIconPause = this.fsPlayPauseBtn.querySelector('.icon-pause');
         }
 
+        this.fsVolumeBtn = document.getElementById('fs-volume-btn');
+        this.fsVolumePopover = document.getElementById('fs-volume-popover');
+        this.fsVolumeSlider = document.getElementById('fs-volume-slider');
+
         // Icons
         this.iconPlay = this.playPauseBtn.querySelector('.icon-play');
         this.iconPause = this.playPauseBtn.querySelector('.icon-pause');
@@ -123,6 +127,8 @@ export class AudioPlayer {
         if (this.fsShuffleBtn) this.fsShuffleBtn.addEventListener('click', () => this.toggleShuffle());
         if (this.fsRepeatBtn) this.fsRepeatBtn.addEventListener('click', () => this.toggleRepeat());
         if (this.fsProgressBar) this.fsProgressBar.addEventListener('click', (e) => this.handleProgressClick(e, this.fsProgressBar));
+        if (this.fsVolumeBtn) this.fsVolumeBtn.addEventListener('click', () => this.toggleFsVolumePopover());
+        if (this.fsVolumeSlider) this.fsVolumeSlider.addEventListener('input', (e) => this.handleFsVolumeChange(e));
 
         // Progress bar
         this.progressBar.addEventListener('click', (e) => this.handleProgressClick(e));
@@ -132,6 +138,13 @@ export class AudioPlayer {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+        document.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!this.fsContainer || this.fsContainer.classList.contains('hidden')) return;
+            if (!this.fsVolumePopover || this.fsVolumePopover.classList.contains('hidden')) return;
+            if (target.closest('#fs-volume-popover') || target.closest('#fs-volume-btn')) return;
+            this.fsVolumePopover.classList.add('hidden');
+        });
     }
 
     loadSettings() {
@@ -145,11 +158,20 @@ export class AudioPlayer {
         }
         // Set initial volume gradient
         this.updateVolumeGradient();
+        if (this.fsVolumeSlider) {
+            this.fsVolumeSlider.value = this.volumeSlider.value;
+            this.updateFsVolumeGradient();
+        }
     }
 
     updateVolumeGradient() {
         const percent = this.volumeSlider.value;
         this.volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+    }
+    updateFsVolumeGradient() {
+        if (!this.fsVolumeSlider) return;
+        const percent = this.fsVolumeSlider.value;
+        this.fsVolumeSlider.style.setProperty('--volume-percent', `${percent}%`);
     }
 
     playSong(index, playlist = null) {
@@ -455,6 +477,10 @@ export class AudioPlayer {
         this.audio.volume = volume;
         localStorage.setItem('rainy_volume', volume.toString());
         this.updateVolumeGradient();
+        if (this.fsVolumeSlider) {
+            this.fsVolumeSlider.value = e.target.value;
+            this.updateFsVolumeGradient();
+        }
     }
 
     handleKeyboard(e) {
@@ -481,14 +507,41 @@ export class AudioPlayer {
                 this.audio.volume = Math.min(1, this.audio.volume + 0.1);
                 this.volumeSlider.value = this.audio.volume * 100;
                 this.updateVolumeGradient();
+                if (this.fsVolumeSlider) {
+                    this.fsVolumeSlider.value = this.volumeSlider.value;
+                    this.updateFsVolumeGradient();
+                }
                 break;
             case 'ArrowDown':
                 e.preventDefault();
                 this.audio.volume = Math.max(0, this.audio.volume - 0.1);
                 this.volumeSlider.value = this.audio.volume * 100;
                 this.updateVolumeGradient();
+                if (this.fsVolumeSlider) {
+                    this.fsVolumeSlider.value = this.volumeSlider.value;
+                    this.updateFsVolumeGradient();
+                }
                 break;
         }
+    }
+
+    toggleFsVolumePopover() {
+        if (!this.fsVolumePopover) return;
+        const isHidden = this.fsVolumePopover.classList.contains('hidden');
+        if (isHidden) {
+            this.fsVolumePopover.classList.remove('hidden');
+        } else {
+            this.fsVolumePopover.classList.add('hidden');
+        }
+    }
+
+    handleFsVolumeChange(e) {
+        const volume = e.target.value / 100;
+        this.audio.volume = volume;
+        localStorage.setItem('rainy_volume', volume.toString());
+        this.updateFsVolumeGradient();
+        this.volumeSlider.value = e.target.value;
+        this.updateVolumeGradient();
     }
 
     formatTime(seconds) {
@@ -510,17 +563,45 @@ export class AudioPlayer {
 
         const isHidden = this.fsContainer.classList.contains('hidden');
         if (isHidden) {
+            // Apply mode class
+            let mode = 'standard'; // Default
+            let swap = false;
+            if (window.app && window.app.user && window.app.user.preferences) {
+                let prefs = window.app.user.preferences;
+                if (typeof prefs === 'string') {
+                    try {
+                        prefs = JSON.parse(prefs);
+                    } catch (e) { }
+                }
+                if (prefs && prefs.fullscreen_mode) {
+                    mode = prefs.fullscreen_mode;
+                }
+                if (prefs && typeof prefs.fullscreen_swap_sides !== 'undefined') {
+                    swap = !!prefs.fullscreen_swap_sides;
+                }
+            }
+
+            // Remove existing mode classes
+            this.fsContainer.classList.remove('mode-modern', 'mode-standard');
+            this.fsContainer.classList.add(`mode-${mode}`);
+            this.fsContainer.classList.toggle('layout-swapped', swap);
+
             this.fsContainer.classList.remove('hidden');
             // Trigger reflow
             void this.fsContainer.offsetWidth;
             this.fsContainer.classList.add('active');
+            if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
             this.updateFullscreenView();
         } else {
             this.fsContainer.classList.remove('active');
             // Wait for transition to finish
             setTimeout(() => {
                 this.fsContainer.classList.add('hidden');
+                // Clean up classes
+                this.fsContainer.classList.remove('mode-modern', 'mode-standard');
+                this.fsContainer.classList.remove('layout-swapped');
             }, 300);
+            if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
         }
     }
 

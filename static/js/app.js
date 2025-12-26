@@ -87,6 +87,13 @@ export class RainyApp {
             }
         });
         
+        // User Settings tabs
+        document.querySelectorAll('.settings-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchSettingsTab(tab.dataset.tab);
+            });
+        });
+        
         // Color Picker Logic
         const colorInput = document.getElementById('settings-accent-color');
         
@@ -120,6 +127,14 @@ export class RainyApp {
             document.getElementById('settings-accent-color-value').textContent = defaultColor;
             this.applyTheme(defaultColor);
             this.savePreferences({ theme_color: defaultColor });
+        });
+        
+        // Fullscreen Mode Setting
+        document.getElementById('settings-fullscreen-mode')?.addEventListener('change', (e) => {
+            this.savePreferences({ fullscreen_mode: e.target.value });
+        });
+        document.getElementById('settings-fullscreen-swap')?.addEventListener('change', (e) => {
+            this.savePreferences({ fullscreen_swap_sides: e.target.checked });
         });
         
         // Change Password
@@ -1643,10 +1658,54 @@ export class RainyApp {
         const colorValue = document.getElementById('settings-accent-color-value');
         if (colorInput) colorInput.value = currentColor;
         if (colorValue) colorValue.textContent = currentColor;
+
+        // Set fullscreen mode
+        const fsModeSelect = document.getElementById('settings-fullscreen-mode');
+        let currentFsMode = 'standard';
+        if (this.user && this.user.preferences) {
+            let prefs = this.user.preferences;
+            if (typeof prefs === 'string') {
+                try {
+                    prefs = JSON.parse(prefs);
+                } catch (e) { }
+            }
+            if (prefs && prefs.fullscreen_mode) {
+                currentFsMode = prefs.fullscreen_mode;
+            }
+        }
+        if (fsModeSelect) fsModeSelect.value = currentFsMode;
+        
+        const fsSwapToggle = document.getElementById('settings-fullscreen-swap');
+        let swap = false;
+        if (this.user && this.user.preferences) {
+            let prefs = this.user.preferences;
+            if (typeof prefs === 'string') {
+                try {
+                    prefs = JSON.parse(prefs);
+                } catch (e) { }
+            }
+            if (prefs && typeof prefs.fullscreen_swap_sides !== 'undefined') {
+                swap = !!prefs.fullscreen_swap_sides;
+            }
+        }
+        if (fsSwapToggle) fsSwapToggle.checked = swap;
+        
+        // Default to Appearance tab
+        this.switchSettingsTab('appearance');
     }
 
     closeUserSettings() {
         document.getElementById('user-settings-modal')?.classList.add('hidden');
+    }
+    
+    switchSettingsTab(tabName) {
+        document.querySelectorAll('.settings-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === tabName);
+        });
+        document.querySelectorAll('.settings-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`settings-tab-${tabName}`)?.classList.add('active');
     }
 
     async savePreferences(newPrefs) {
