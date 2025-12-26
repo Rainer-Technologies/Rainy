@@ -65,7 +65,7 @@ export class AudioPlayer {
         this.fsProgressFill = document.getElementById('fs-progress-fill');
         this.fsCurrentTimeEl = document.getElementById('fs-current-time');
         this.fsTotalTimeEl = document.getElementById('fs-total-time');
-        
+
         if (this.fsPlayPauseBtn) {
             this.fsIconPlay = this.fsPlayPauseBtn.querySelector('.icon-play');
             this.fsIconPause = this.fsPlayPauseBtn.querySelector('.icon-pause');
@@ -304,10 +304,10 @@ export class AudioPlayer {
         this.isShuffle = !this.isShuffle;
         const color = this.isShuffle ? 'var(--accent-primary)' : '';
         const fill = this.isShuffle ? 'var(--accent-primary)' : '';
-        
+
         this.shuffleBtn.style.color = color;
         this.shuffleBtn.querySelector('svg').style.fill = fill;
-        
+
         if (this.fsShuffleBtn) {
             this.fsShuffleBtn.style.color = color;
             this.fsShuffleBtn.querySelector('svg').style.fill = fill;
@@ -355,12 +355,12 @@ export class AudioPlayer {
 
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
-            
+
             // Main bar
             this.progressFill.style.width = `${percent}%`;
             this.lastDisplayedTime = this.audio.currentTime;
             this.currentTimeEl.textContent = this.formatTime(this.audio.currentTime);
-            
+
             // Fullscreen bar
             if (this.fsProgressFill) this.fsProgressFill.style.width = `${percent}%`;
             if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(this.audio.currentTime);
@@ -387,7 +387,7 @@ export class AudioPlayer {
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
         this.nowPlayingArtwork.classList.add('playing');
-        
+
         // Fullscreen update
         if (this.fsIconPlay) this.fsIconPlay.classList.add('hidden');
         if (this.fsIconPause) this.fsIconPause.classList.remove('hidden');
@@ -398,7 +398,7 @@ export class AudioPlayer {
         this.iconPlay.classList.remove('hidden');
         this.iconPause.classList.add('hidden');
         this.nowPlayingArtwork.classList.remove('playing');
-        
+
         // Fullscreen update
         if (this.fsIconPlay) this.fsIconPlay.classList.remove('hidden');
         if (this.fsIconPause) this.fsIconPause.classList.add('hidden');
@@ -444,7 +444,7 @@ export class AudioPlayer {
         // Use the passed element (for fullscreen) or default to the main progress bar
         const bar = progressBarElement || this.progressBar;
         const rect = bar.getBoundingClientRect();
-        
+
         // Calculate relative to the specific bar that was clicked
         const percent = (e.clientX - rect.left) / rect.width;
         this.audio.currentTime = percent * this.audio.duration;
@@ -507,7 +507,7 @@ export class AudioPlayer {
 
     toggleFullscreen() {
         if (!this.fsContainer) return;
-        
+
         const isHidden = this.fsContainer.classList.contains('hidden');
         if (isHidden) {
             this.fsContainer.classList.remove('hidden');
@@ -526,13 +526,13 @@ export class AudioPlayer {
 
     updateFullscreenView() {
         if (!this.currentSong) return;
-        
+
         const song = this.currentSong;
-        
+
         // Update Info
         if (this.fsTitle) this.fsTitle.textContent = song.title;
         if (this.fsArtist) this.fsArtist.textContent = song.artist;
-        
+
         // Update Artwork
         if (this.fsArtwork) {
             if (song.cover_path) {
@@ -550,24 +550,24 @@ export class AudioPlayer {
                 }
             }
         }
-        
+
         // Render Queue
         this.renderFullscreenQueue();
     }
-    
+
     renderFullscreenQueue() {
         if (!this.fsQueueList) return;
-        
+
         // Optimization: If list length matches and we just need to update active state
         // This is a naive check but helps prevent flickering on every song change if playlist is same
         // For now, let's just re-render to be safe and simple
-        
+
         const html = this.playlist.map((song, index) => {
             const isActive = index === this.currentIndex;
             const coverHtml = song.cover_path
                 ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
-                
+
             return `
                 <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" onclick="window.player.playSong(${index})">
                     <div class="fs-queue-cover">${coverHtml}</div>
@@ -579,9 +579,9 @@ export class AudioPlayer {
                 </div>
             `;
         }).join('');
-        
+
         this.fsQueueList.innerHTML = html;
-        
+
         // Scroll to current song
         const activeItem = this.fsQueueList.querySelector('.active');
         if (activeItem) {
