@@ -42,6 +42,22 @@ export class AuthService extends Service {
         return Ok(true);
     }
 
+    /** @returns {Promise<Result<any, ErrorModel | ResponseError>>} */
+    async changePassword(currentPassword, newPassword) {
+        return this.wrap(RequestHelper.request(this.url('/change-password'), {
+            method: 'POST',
+            body: { current_password: currentPassword, new_password: newPassword }
+        }));
+    }
+
+    /** @returns {Promise<Result<any, ErrorModel | ResponseError>>} */
+    async updatePreferences(preferences) {
+        return this.wrap(RequestHelper.request(this.url('/preferences'), {
+            method: 'POST',
+            body: { preferences }
+        }));
+    }
+
     /** @returns {Promise<Result<UserModel, ErrorModel | ResponseError>>} */
     async me() {
         /** @type {Result<{ user: UserModel }, ErrorModel | ResponseError>} */

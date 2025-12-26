@@ -62,9 +62,69 @@ def get_current_user():
             'id': user['id'],
             'username': user['username'],
             'email': user['email'],
-            'role': user['role']
+            'role': user['role'],
+            'preferences': user.get('preferences')
         }
     })
+
+@auth_bp.route('/change-password', methods=['POST'])
+def change_password():
+    """Change user password."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    try:
+        data = request.get_json()
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+        
+        if not current_password or not new_password:
+            return jsonify({'error': 'Current and new password are required'}), 400
+            
+        user_id = session['user_id']
+        user = UserModel.get_user_by_id(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        # Verify current password
+        verified_user = UserModel.verify_password(user['email'], current_password)
+        if not verified_user:
+            return jsonify({'error': 'Incorrect current password'}), 401
+            
+        # Update password
+        UserModel.update_password(user_id, new_password)
+        
+        return jsonify({'success': True, 'message': 'Password updated successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/preferences', methods=['POST'])
+def update_preferences():
+    """Update user preferences."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+        
+    try:
+        data = request.get_json()
+        preferences = data.get('preferences')
+        
+        # preferences should be a JSON string or dict? 
+        # The DB column is TEXT. If frontend sends a dict, we should probably json.dumps it if we want to store as string, 
+        # or rely on the DB driver.
+        # But wait, if I store it as TEXT, I should serialize it.
+        import json
+        if isinstance(preferences, (dict, list)):
+            preferences = json.dumps(preferences)
+            
+        user_id = session['user_id']
+        UserModel.update_preferences(user_id, preferences)
+        
+        return jsonify({'success': True, 'message': 'Preferences updated'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def require_auth(f):
     """Decorator to require authentication."""

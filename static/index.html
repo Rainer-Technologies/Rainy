@@ -458,6 +458,65 @@
         </div>
     </div>
 
+    <!-- User Settings Modal -->
+    <div class="modal-overlay hidden" id="user-settings-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>User Settings</h2>
+                <button class="modal-close" id="close-user-settings">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Appearance</h3>
+                    <p class="settings-description">Customize the look and feel of Rainy.</p>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Accent Color</label>
+                        <div class="color-picker-container" style="display: flex; align-items: center; gap: 10px;">
+                            <input type="color" id="settings-accent-color" value="#fa586a" style="cursor: pointer;">
+                            <span id="settings-accent-color-value">#fa586a</span>
+                            <button class="btn btn-secondary btn-sm" id="reset-theme-btn" style="margin-left: auto;">Reset to Default</button>
+                        </div>
+                        <div class="color-presets" style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button class="color-preset-btn" data-color="#fa586a" style="background-color: #fa586a; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--bg-elevated); cursor: pointer; transition: transform 0.1s;" title="Red (Default)"></button>
+                            <button class="color-preset-btn" data-color="#007aff" style="background-color: #007aff; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--bg-elevated); cursor: pointer; transition: transform 0.1s;" title="Blue"></button>
+                            <button class="color-preset-btn" data-color="#34c759" style="background-color: #34c759; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--bg-elevated); cursor: pointer; transition: transform 0.1s;" title="Green"></button>
+                            <button class="color-preset-btn" data-color="#af52de" style="background-color: #af52de; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--bg-elevated); cursor: pointer; transition: transform 0.1s;" title="Purple"></button>
+                            <button class="color-preset-btn" data-color="#ff9500" style="background-color: #ff9500; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--bg-elevated); cursor: pointer; transition: transform 0.1s;" title="Orange"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top: 2rem; border-top: 1px solid var(--border-subtle); padding-top: 1.5rem;">
+                    <h3>Change Password</h3>
+                    <p class="settings-description">Update your login password.</p>
+                    
+                    <form id="change-password-form">
+                        <div class="form-group">
+                            <label class="form-label" for="current-password">Current Password</label>
+                            <input type="password" id="current-password" class="form-input" required placeholder="Enter current password">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new-password">New Password</label>
+                            <input type="password" id="new-password" class="form-input" required minlength="6" placeholder="Enter new password">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="confirm-password">Confirm New Password</label>
+                            <input type="password" id="confirm-password" class="form-input" required minlength="6" placeholder="Confirm new password">
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                            <button type="submit" class="btn btn-primary">Update Password</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Metadata Search Modal -->
     <div class="modal-overlay hidden" id="metadata-modal">
         <div class="modal-content metadata-modal">

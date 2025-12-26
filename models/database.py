@@ -54,9 +54,19 @@ class Database:
                 email VARCHAR(255) NOT NULL UNIQUE,
                 password_hash VARCHAR(255) NOT NULL,
                 role VARCHAR(50) NOT NULL DEFAULT 'user',
+                preferences TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Migration: Add preferences column if it doesn't exist
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = 'users' AND column_name = 'preferences'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE users ADD COLUMN preferences TEXT")
         
         # Settings table
         cursor.execute("""

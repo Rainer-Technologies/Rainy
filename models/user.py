@@ -22,8 +22,21 @@ class UserModel:
     @staticmethod
     def get_user_by_id(user_id):
         """Get user by ID."""
-        query = "SELECT id, username, email, role, created_at FROM users WHERE id = %s"
+        query = "SELECT id, username, email, role, preferences, created_at FROM users WHERE id = %s"
         return Database.execute_query(query, (user_id,), fetch_one=True)
+    
+    @staticmethod
+    def update_password(user_id, password):
+        """Update user password."""
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        query = "UPDATE users SET password_hash = %s WHERE id = %s"
+        return Database.execute_query(query, (password_hash, user_id))
+
+    @staticmethod
+    def update_preferences(user_id, preferences):
+        """Update user preferences."""
+        query = "UPDATE users SET preferences = %s WHERE id = %s"
+        return Database.execute_query(query, (preferences, user_id))
     
     @staticmethod
     def verify_password(email, password):

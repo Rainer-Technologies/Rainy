@@ -12,6 +12,7 @@ import { useScanService } from './services/scan.js';
 import { useSetupService } from "./services/setup.js";
 import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
+import * as SetupView from "./view/setup.js";
 
 export class RainyApp {
     constructor() {
@@ -27,6 +28,7 @@ export class RainyApp {
 
         Router.register('login', LoginView.handle);
         Router.register('app', AppView.handle);
+        Router.register('setup', SetupView.handle);
 
         this.init();
     }
@@ -62,10 +64,86 @@ export class RainyApp {
         const user = data.value;
         if(!user) return console.error('unreachable');
 
+        this.user = user;
+        this.applyThemeFromPreferences();
+
         Router.navigate(new View('app', user), this);
     }
 
     bindEvents() {
+        // User Settings Modal
+        document.getElementById('menu-user-settings')?.addEventListener('click', () => {
+            this.closeDropdown();
+            this.openUserSettings();
+        });
+
+        document.getElementById('close-user-settings')?.addEventListener('click', () => {
+            this.closeUserSettings();
+        });
+
+        document.getElementById('user-settings-modal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'user-settings-modal') {
+                this.closeUserSettings();
+            }
+        });
+        
+        // Color Picker Logic
+        const colorInput = document.getElementById('settings-accent-color');
+        
+        // Real-time preview
+        colorInput?.addEventListener('input', (e) => {
+            const color = e.target.value;
+            document.getElementById('settings-accent-color-value').textContent = color;
+            this.applyTheme(color);
+        });
+
+        // Save on commit
+        colorInput?.addEventListener('change', (e) => {
+            this.savePreferences({ theme_color: e.target.value });
+        });
+        
+        // Color Presets
+        document.querySelectorAll('.color-preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const color = btn.dataset.color;
+                if (colorInput) colorInput.value = color;
+                document.getElementById('settings-accent-color-value').textContent = color;
+                this.applyTheme(color);
+                this.savePreferences({ theme_color: color });
+            });
+        });
+
+        // Reset Theme
+        document.getElementById('reset-theme-btn')?.addEventListener('click', () => {
+            const defaultColor = '#fa586a';
+            if (colorInput) colorInput.value = defaultColor;
+            document.getElementById('settings-accent-color-value').textContent = defaultColor;
+            this.applyTheme(defaultColor);
+            this.savePreferences({ theme_color: defaultColor });
+        });
+        
+        // Change Password
+        document.getElementById('change-password-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentPass = document.getElementById('current-password').value;
+            const newPass = document.getElementById('new-password').value;
+            const confirmPass = document.getElementById('confirm-password').value;
+            
+            if (newPass !== confirmPass) {
+                this.showToast('New passwords do not match', 'error');
+                return;
+            }
+            
+            const data = await useAuthService().changePassword(currentPass, newPass);
+            if (data.error) {
+                this.showToast(data.error.error || 'Failed to change password', 'error');
+                return;
+            }
+            
+            this.showToast('Password updated successfully', 'success');
+            document.getElementById('change-password-form').reset();
+        });
+
         // Search
         const searchInput = document.getElementById('search-input');
         if (searchInput) {
@@ -105,11 +183,7 @@ export class RainyApp {
         });
 
         // Dropdown menu items
-        document.getElementById('menu-user-settings')?.addEventListener('click', () => {
-            this.closeDropdown();
-            // TODO: Open user settings modal
-            console.log('User settings clicked');
-        });
+        // User settings listener is already added at the top
 
         document.getElementById('menu-server-settings')?.addEventListener('click', () => {
             this.closeDropdown();
@@ -1512,5 +1586,90 @@ export class RainyApp {
 
         this.hideContextMenu();
         this.showToast(`Added to "${playlistName}"`, 'success');
+    }
+
+    // User Settings & Theming Methods
+    
+    applyTheme(color) {
+        if (!color) return;
+        const root = document.documentElement;
+        root.style.setProperty('--accent-primary', color);
+        root.style.setProperty('--accent-secondary', color); // Simple fallback
+        // Create a simple gradient
+        root.style.setProperty('--accent-gradient', `linear-gradient(135deg, ${color} 0%, ${color} 100%)`);
+        // Calculate glow (hex + opacity)
+        root.style.setProperty('--accent-glow', `${color}4D`); // ~30% opacity
+    }
+
+    applyThemeFromPreferences() {
+        if (this.user && this.user.preferences) {
+            let prefs = this.user.preferences;
+            if (typeof prefs === 'string') {
+                try {
+                    prefs = JSON.parse(prefs);
+                } catch (e) {
+                    console.error('Failed to parse preferences', e);
+                    return;
+                }
+            }
+            if (prefs && prefs.theme_color) {
+                this.applyTheme(prefs.theme_color);
+            }
+        }
+    }
+
+    openUserSettings() {
+        const modal = document.getElementById('user-settings-modal');
+        modal?.classList.remove('hidden');
+        
+        // Reset form
+        document.getElementById('change-password-form').reset();
+        
+        // Set current color in picker
+        let currentColor = '#fa586a'; // default
+        if (this.user && this.user.preferences) {
+            let prefs = this.user.preferences;
+             if (typeof prefs === 'string') {
+                try {
+                    prefs = JSON.parse(prefs);
+                } catch (e) { }
+            }
+            if (prefs && prefs.theme_color) {
+                currentColor = prefs.theme_color;
+            }
+        }
+        
+        const colorInput = document.getElementById('settings-accent-color');
+        const colorValue = document.getElementById('settings-accent-color-value');
+        if (colorInput) colorInput.value = currentColor;
+        if (colorValue) colorValue.textContent = currentColor;
+    }
+
+    closeUserSettings() {
+        document.getElementById('user-settings-modal')?.classList.add('hidden');
+    }
+
+    async savePreferences(newPrefs) {
+        // Merge with existing
+        let currentPrefs = {};
+        if (this.user) {
+            if (this.user.preferences) {
+                 if (typeof this.user.preferences === 'string') {
+                    try {
+                        currentPrefs = JSON.parse(this.user.preferences);
+                    } catch (e) {}
+                } else {
+                    currentPrefs = this.user.preferences;
+                }
+            }
+            
+            const updatedPrefs = { ...currentPrefs, ...newPrefs };
+            
+            // Update local user object immediately
+            this.user.preferences = updatedPrefs;
+            
+            // Save to server
+            await useAuthService().updatePreferences(updatedPrefs);
+        }
     }
 }

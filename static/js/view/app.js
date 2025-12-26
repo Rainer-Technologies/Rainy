@@ -6,6 +6,8 @@ export function handle(data, userdata) {
     const viewElement = document.getElementById('app-view');
     if(!viewElement) return console.error('app-view is missing!');
 
+    document.getElementById('login-view')?.classList.add('hidden');
+    document.getElementById('setup-view')?.classList.add('hidden');
     viewElement.classList.remove('hidden');
 
     document.getElementById('user-avatar').textContent = data.username.charAt(0).toUpperCase();
