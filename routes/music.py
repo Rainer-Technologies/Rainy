@@ -205,7 +205,6 @@ def delete_song(song_id):
         return jsonify({'error': str(e)}), 500
 
 
-
 @music_bp.route('/stream/<int:song_id>', methods=['GET'])
 @require_auth
 def stream_song(song_id):

@@ -38,6 +38,7 @@ export class RainyApp {
         const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
         if (isCollapsed) {
             document.querySelector('.app-sidebar')?.classList.add('collapsed');
+            document.querySelector('.header-left')?.classList.add('collapsed');
         }
 
         // Bind event listeners
@@ -512,9 +513,14 @@ export class RainyApp {
 
     toggleSidebar() {
         const sidebar = document.querySelector('.app-sidebar');
+        const headerLeft = document.querySelector('.header-left');
         if (sidebar) {
             sidebar.classList.toggle('collapsed');
             const isCollapsed = sidebar.classList.contains('collapsed');
+            // Sync header-left width for browsers without :has() support
+            if (headerLeft) {
+                headerLeft.classList.toggle('collapsed', isCollapsed);
+            }
             localStorage.setItem('sidebarCollapsed', isCollapsed);
         }
     }

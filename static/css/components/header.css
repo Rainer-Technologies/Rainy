@@ -11,10 +11,26 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 var(--spacing-xl);
+    padding: 0 var(--spacing-lg) 0 0;
     position: sticky;
     top: 0;
     z-index: 100;
+}
+
+/* Left section - sidebar toggle and branding together */
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Toggle wrapper - controls alignment with sidebar */
+.header-toggle-wrapper {
+    width: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 .header-brand {
@@ -62,6 +78,7 @@
     }
 }
 
+/* Right section - actions */
 .header-actions {
     display: flex;
     align-items: center;
@@ -129,28 +146,19 @@
    USER DROPDOWN MENU
    ============================================ */
 
+/* Container - no background, just for positioning */
 .user-menu {
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-full);
-    cursor: pointer;
-    transition: all var(--transition-fast);
 }
 
-.user-menu:hover {
-    background: var(--bg-elevated);
-}
-
+/* The clickable trigger - this is the only element with the pill shape */
 .user-menu-trigger {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 6px 12px 6px 6px;
     background: var(--bg-tertiary);
+    border: 1px solid transparent;
     border-radius: var(--radius-full);
     cursor: pointer;
     transition: all var(--transition-fast);
@@ -158,6 +166,12 @@
 
 .user-menu-trigger:hover {
     background: var(--bg-elevated);
+    border-color: var(--border-subtle);
+}
+
+.user-menu.open .user-menu-trigger {
+    background: var(--bg-elevated);
+    border-color: var(--border-color);
 }
 
 .user-avatar {

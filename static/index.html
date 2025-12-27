@@ -115,21 +115,27 @@
     <div id="app-view" class="app-container hidden">
         <!-- Header -->
         <header class="app-header">
-            <div class="header-brand">
-                <button class="sidebar-toggle header-icon-btn" id="sidebar-toggle" title="Collapse Sidebar">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
-                    </svg>
-                </button>
-                <div class="header-logo">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                    </svg>
+            <!-- Left section - toggle wrapper for alignment + brand -->
+            <div class="header-left">
+                <div class="header-toggle-wrapper">
+                    <button class="sidebar-toggle header-icon-btn" id="sidebar-toggle" title="Collapse Sidebar">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                        </svg>
+                    </button>
                 </div>
-                <span class="header-title">Rainy</span>
+                <div class="header-brand">
+                    <div class="header-logo">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                        </svg>
+                    </div>
+                    <span class="header-title">Rainy</span>
+                </div>
             </div>
 
+            <!-- Right section - actions -->
             <div class="header-actions">
                 <div class="header-search">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
