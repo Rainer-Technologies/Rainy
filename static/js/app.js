@@ -7,7 +7,6 @@ import { Library } from './modules/library.js';
 import { Playlists } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
 import { useAuthService } from "./services/auth.js";
-import { useMetadataService } from './services/metadata.js';
 import { useMusicService } from "./services/music.js";
 import { usePlaylistService } from './services/playlist.js';
 import { useScanService } from './services/scan.js';
@@ -38,6 +37,9 @@ export class RainyApp {
     }
 
     async init() {
+        const ctx = useContext();
+        ctx.set('current-view-type', 'library');
+
         // Restore sidebar state
         const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
         if (isCollapsed) {
@@ -318,10 +320,10 @@ export class RainyApp {
         });
 
         document.addEventListener('click', (e) => {
-            // Close context menu when clicking outside
-            const contextMenu = document.getElementById('song-context-menu');
-            if (contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.song-menu-btn')) {
-                contextMenu.classList.add('hidden');
+            /** @type {import('./components/contextMenu.js').ContextMenu} */
+            const contextMenu = document.querySelector('rainy-song-context-menu');
+            if(contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.song-menu-btn')) {
+                contextMenu.hide();
             }
 
             // Close playlist settings menu when clicking outside
@@ -329,53 +331,6 @@ export class RainyApp {
             const playlistBtn = document.getElementById('playlist-settings-btn');
             if (playlistDropdown && !playlistDropdown.contains(e.target) && !playlistBtn?.contains(e.target)) {
                 playlistDropdown.classList.add('hidden');
-            }
-        });
-
-
-        document.getElementById('context-find-metadata')?.addEventListener('click', () => {
-            this.hideContextMenu();
-            this.openMetadataModal();
-        });
-
-        document.getElementById('context-remove-song')?.addEventListener('click', () => {
-            this.hideContextMenu();
-            this.removeSong();
-        });
-
-        document.getElementById('context-remove-from-playlist')?.addEventListener('click', () => {
-            this.hideContextMenu();
-            this.removeFromPlaylist();
-        });
-
-        document.getElementById('context-play-next')?.addEventListener('click', () => {
-            this.hideContextMenu();
-            this.playNext();
-        });
-
-        document.getElementById('context-add-to-queue')?.addEventListener('click', () => {
-            this.hideContextMenu();
-            this.addToQueue();
-        });
-
-        // Metadata modal
-        document.getElementById('close-metadata-modal')?.addEventListener('click', () => {
-            this.closeMetadataModal();
-        });
-
-        document.getElementById('metadata-modal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'metadata-modal') {
-                this.closeMetadataModal();
-            }
-        });
-
-        document.getElementById('metadata-search-btn')?.addEventListener('click', () => {
-            this.searchMetadata();
-        });
-
-        document.getElementById('metadata-search-input')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.searchMetadata();
             }
         });
 
@@ -469,69 +424,6 @@ export class RainyApp {
         document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
             this.toggleSidebar();
         });
-
-        // Context menu submenu hover
-        const playlistItem = document.getElementById('context-add-playlist');
-        const playlistSubmenu = document.getElementById('context-playlist-submenu');
-
-        if (playlistItem && playlistSubmenu) {
-            playlistItem.addEventListener('mouseenter', () => {
-                // Populate/Refresh playlists in submenu
-                this.renderPlaylistSubmenu();
-                playlistSubmenu.classList.remove('hidden');
-
-                // Smart positioning: check if submenu fits on the right
-                const contextMenu = document.getElementById('song-context-menu');
-                const contextRect = contextMenu.getBoundingClientRect();
-                const submenuWidth = 180; // min-width from CSS
-                const gap = 5; // gap between menus
-
-                // Calculate available space on right
-                const spaceOnRight = window.innerWidth - contextRect.right - gap;
-
-                if (spaceOnRight < submenuWidth) {
-                    // Not enough space on right, show on left
-                    playlistSubmenu.classList.add('show-left');
-                } else {
-                    playlistSubmenu.classList.remove('show-left');
-                }
-            });
-
-            // Use a timeout for more forgiving submenu interaction
-            let submenuTimeout = null;
-
-            playlistItem.addEventListener('mouseleave', () => {
-                // Delay hiding to allow cursor to reach submenu
-                submenuTimeout = setTimeout(() => {
-                    playlistSubmenu.classList.add('hidden');
-                }, 150);
-            });
-
-            // Keep submenu open when hovering over it
-            playlistSubmenu.addEventListener('mouseenter', () => {
-                if (submenuTimeout) {
-                    clearTimeout(submenuTimeout);
-                    submenuTimeout = null;
-                }
-            });
-
-            playlistSubmenu.addEventListener('mouseleave', () => {
-                playlistSubmenu.classList.add('hidden');
-            });
-
-            document.getElementById('context-new-playlist')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-
-                // Close context menu
-                document.getElementById('song-context-menu').classList.add('hidden');
-
-                /** @type {import('./components/newPlaylistModal.js').NewPlaylistModal} */
-                const modal = document.querySelector('rainy-new-playlist-modal');
-                if(!modal) return;
-                modal.show();
-            });
-        }
-
     }
 
     closeDropdown() {
@@ -658,7 +550,7 @@ export class RainyApp {
         if (allSongs && allSongs.length > 0) {
             this.songs = allSongs;
             this.librarySongs = [...this.songs];
-            this.currentViewType = 'library';
+            useContext().set('current-view-type', 'library');
             this.sections = library.sections || [];
             this.librarySections = JSON.parse(JSON.stringify(this.sections));
             this.filteredSongs = [...this.songs];
@@ -723,7 +615,7 @@ export class RainyApp {
                 if (e.target.closest('.song-menu-btn')) return;
                 const index = parseInt(card.dataset.index);
                 if (index >= 0) {
-                    const context = this.currentViewType === 'playlist'
+                    const context = useContext().get('current-view-type') === 'playlist'
                         ? { type: 'playlist', id: this.currentPlaylistId }
                         : { type: 'library', id: null };
                     window.player.playSong(index, this.songs, context);
@@ -824,9 +716,10 @@ export class RainyApp {
                 // Don't play if clicking menu button
                 if (e.target.closest('.song-menu-btn')) return;
                 const index = parseInt(row.dataset.index);
-                const context = this.currentViewType === 'playlist'
+                const currentViewType = useContext().get('current-view-type');
+                const context = currentViewType === 'playlist'
                     ? { type: 'playlist', id: this.currentPlaylistId }
-                    : this.currentViewType === 'library'
+                    : currentViewType === 'library'
                         ? { type: 'library', id: null }
                         : { type: 'search', id: null };
                 window.player.playSong(index, this.filteredSongs, context);
@@ -1230,250 +1123,22 @@ export class RainyApp {
 
     // Context menu methods
     showContextMenu(event, songData) {
-        const contextMenu = document.getElementById('song-context-menu');
-        if (!contextMenu) return;
+        /** @type {import('./components/songContextMenu.js').SongContextMenu} */
+        const songContextMenu = document.querySelector('rainy-song-context-menu');
+        if(!songContextMenu) return;
 
-        // Find the full song object to get the path
-        const fullSong = this.songs.find(s => s.id == songData.songId);
-
-        this.selectedSong = {
+        songContextMenu.setCurrentSong({
             id: songData.songId,
             title: songData.songTitle,
-            artist: songData.songArtist,
-            path: fullSong?.path || songData.songId  // Fallback to songId if not found
-        };
+            artist: songData.songArtist
+        });
 
-        // Toggle playlist-only items based on current view
-        const removeFromPlaylistItem = document.getElementById('context-remove-from-playlist');
-        if (removeFromPlaylistItem) {
-            if (this.currentViewType === 'playlist' && this.currentPlaylistId) {
-                removeFromPlaylistItem.classList.remove('hidden');
-            } else {
-                removeFromPlaylistItem.classList.add('hidden');
-            }
-        }
-
-        // Position the menu
-        const x = event.clientX;
-        const y = event.clientY;
-
-        contextMenu.style.left = `${x}px`;
-        contextMenu.style.top = `${y}px`;
-        contextMenu.classList.remove('hidden');
-
-        // Adjust if menu goes off screen
-        const rect = contextMenu.getBoundingClientRect();
-        if (rect.right > window.innerWidth) {
-            contextMenu.style.left = `${window.innerWidth - rect.width - 10}px`;
-        }
-        if (rect.bottom > window.innerHeight) {
-            contextMenu.style.top = `${window.innerHeight - rect.height - 10}px`;
-        }
-    }
-
-    hideContextMenu() {
-        const contextMenu = document.getElementById('song-context-menu');
-        contextMenu?.classList.add('hidden');
-    }
-
-    // Metadata modal methods
-    openMetadataModal() {
-        if (!this.selectedSong) return;
-
-        const modal = document.getElementById('metadata-modal');
-        const songName = document.getElementById('metadata-song-name');
-        const searchInput = document.getElementById('metadata-search-input');
-        const resultsContainer = document.getElementById('metadata-results');
-        const noResults = document.getElementById('metadata-no-results');
-        const loading = document.getElementById('metadata-loading');
-
-        // Reset modal state
-        resultsContainer.innerHTML = '';
-        noResults.classList.add('hidden');
-        loading.classList.add('hidden');
-
-        // Set song info and pre-fill search
-        songName.textContent = `${this.selectedSong.title} - ${this.selectedSong.artist}`;
-        searchInput.value = `${this.selectedSong.title} ${this.selectedSong.artist}`;
-
-        modal?.classList.remove('hidden');
-
-        // Auto-search
-        this.searchMetadata();
-    }
-
-    closeMetadataModal() {
-        const modal = document.getElementById('metadata-modal');
-        modal?.classList.add('hidden');
-        this.selectedSong = null;
-    }
-
-    async searchMetadata() {
-        const searchInput = document.getElementById('metadata-search-input');
-        const resultsContainer = document.getElementById('metadata-results');
-        const noResults = document.getElementById('metadata-no-results');
-        const loading = document.getElementById('metadata-loading');
-
-        const query = searchInput.value.trim();
-        if (!query) return;
-
-        loading.classList.remove('hidden');
-        resultsContainer.innerHTML = '';
-        noResults.classList.add('hidden');
-
-        const data = await useMetadataService().search(query);
-        if (data.error) {
-            console.error(data.error);
-            loading.classList.add('hidden');
-            noResults.classList.remove('hidden');
-
-            return;
-        }
-
-        loading.classList.add('hidden');
-
-        const matches = data.value;
-        if (!matches) return console.error('unreachable');
-        if (matches.results.length === 0) {
-            noResults.classList.remove('hidden');
-            return;
-        }
-
-        this.renderMetadataResults(matches.results);
-    }
-
-    renderMetadataResults(results) {
-        const container = document.getElementById('metadata-results');
-
-        container.innerHTML = results.map(result => `
-            <div class="metadata-result-card" data-result='${JSON.stringify(result).replace(/'/g, "&#39;")}'>
-                <div class="metadata-result-cover">
-                    ${result.cover_url
-                ? `<img src="${result.cover_url}" alt="Cover" loading="lazy">`
-                : `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`
-            }
-                </div>
-                <div class="metadata-result-info">
-                    <div class="metadata-result-title">${Utils.escapeHtml(result.title)}</div>
-                    <div class="metadata-result-artist">${Utils.escapeHtml(result.artist)}</div>
-                    <div class="metadata-result-album">${Utils.escapeHtml(result.album)}</div>
-                    <div class="metadata-result-duration">${result.duration_text || Utils.formatDuration(result.duration)}</div>
-                </div>
-                <div class="metadata-result-action">
-                    <button class="btn btn-primary apply-metadata-btn">Apply</button>
-                </div>
-            </div>
-        `).join('');
-
-        // Add click listeners
-        container.querySelectorAll('.apply-metadata-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const card = btn.closest('.metadata-result-card');
-                const result = JSON.parse(card.dataset.result);
-                this.applyMetadata(result);
-            });
+        songContextMenu.show({ 
+            x: event.clientX, 
+            y: event.clientY
         });
     }
 
-    // FIXME: This method is fucking crazy. Refactor it ASAP
-    async applyMetadata(metadata) {
-        if (!this.selectedSong) return;
-        const songId = this.selectedSong.id;
-
-        const applyButtons = document.querySelectorAll('.apply-metadata-btn');
-        applyButtons.forEach(btn => btn.disabled = true);
-
-        const data = await useMetadataService().apply(songId,
-            metadata.title, metadata.artist, metadata.album, metadata.year, metadata.genre, metadata.cover_url);
-        if (data.error) {
-            console.log(data.error);
-            applyButtons.forEach(btn => btn.disabled = false);
-
-            return;
-        }
-
-        const result = data.value;
-        if (!result) return console.error('unreachable');
-        this.closeMetadataModal();
-
-        const updatedSong = result.song;
-        if (updatedSong.cover_path) {
-            this.coverVersion[songId] = Date.now();
-            this.coverOverride[songId] = updatedSong.cover_path;
-        }
-
-        const songIndex = this.songs.findIndex(s => s.id === songId);
-        if (songIndex !== -1) {
-            this.songs[songIndex] = { ...this.songs[songIndex], ...updatedSong };
-        }
-
-        const filteredIndex = this.filteredSongs.findIndex(s => s.id === songId);
-        if (filteredIndex !== -1) {
-            this.filteredSongs[filteredIndex] = { ...this.filteredSongs[filteredIndex], ...updatedSong };
-        }
-
-        if (this.librarySongs) {
-            const libIndex = this.librarySongs.findIndex(s => s.id === songId);
-            if (libIndex !== -1) {
-                this.librarySongs[libIndex] = { ...this.librarySongs[libIndex], ...updatedSong };
-            }
-        }
-
-        if (this.librarySections) {
-            for (const section of this.librarySections) {
-                const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
-                if (sectionSongIndex !== -1) {
-                    section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
-                }
-            }
-        }
-
-        if (this.sections && this.sections.length > 0) {
-            for (const section of this.sections) {
-                const sectionSongIndex = section.songs.findIndex(s => s.id === songId);
-                if (sectionSongIndex !== -1) {
-                    section.songs[sectionSongIndex] = { ...section.songs[sectionSongIndex], ...updatedSong };
-                }
-            }
-            this.renderSections();
-        } else {
-            this.renderSongs();
-        }
-
-        if (updatedSong.cover_path) {
-            this.coverVersion[songId] = Date.now();
-            setTimeout(() => {
-                const ts = this.coverVersion[songId] || Date.now();
-                document.querySelectorAll(`[data-id="${songId}"] .song-artwork, [data-id="${songId}"] .song-row-artwork`).forEach(container => {
-                    const img = container.querySelector('img');
-                    if (img) {
-                        const base = img.src.split('?')[0];
-                        img.src = `${base}?t=${ts}`;
-                    } else {
-                        const svg = container.querySelector('svg');
-                        const newImg = document.createElement('img');
-                        newImg.alt = 'Cover';
-                        newImg.loading = 'lazy';
-                        newImg.src = `/api/music/cover/${encodeURIComponent(updatedSong.cover_path)}?t=${ts}`;
-                        newImg.onerror = () => window.handleCoverError ? window.handleCoverError(newImg) : null;
-                        if (svg) {
-                            container.insertBefore(newImg, svg);
-                            svg.remove();
-                        } else {
-                            container.insertBefore(newImg, container.firstChild);
-                        }
-                    }
-                });
-            }, 50);
-        }
-
-        if (window.player && window.player.currentSong && window.player.currentSong.id === songId) {
-            window.player.updateNowPlaying(updatedSong);
-        }
-
-        this.showToast('Metadata updated successfully', 'success');
-    }
     // Playlist Methods
 
     async loadPlaylists() {
@@ -1494,7 +1159,7 @@ export class RainyApp {
             container,
             this.playlists,
             this.currentPlaylistId,
-            this.currentViewType,
+            useContext().get('current-view-type'),
             // FIXME: Just why?
             Utils.escapeHtml,
             (id) => this.openPlaylist(id)
@@ -1728,7 +1393,7 @@ export class RainyApp {
         const playlist = data.value;
         if (!playlist) return console.error('unreachable');
 
-        this.currentViewType = 'playlist';
+        useContext().set('current-view-type', 'playlist');
         this.currentPlaylistId = playlistId;
 
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
@@ -1754,9 +1419,9 @@ export class RainyApp {
     }
 
     switchToLibraryView() {
-        if (this.currentViewType === 'library') return;
+        if (useContext().get('current-view-type') === 'library') return;
 
-        this.currentViewType = 'library';
+        useContext().set('current-view-type', 'library')
         this.currentPlaylistId = null;
 
         // Update Sidebar UI
@@ -1787,45 +1452,6 @@ export class RainyApp {
         this.renderSections();
     }
 
-    renderPlaylistSubmenu() {
-        const container = document.getElementById('context-playlists-list');
-        if (!container) return;
-
-        container.innerHTML = '';
-        (this.playlists || []).forEach(playlist => {
-            const item = document.createElement('div');
-            item.className = 'context-menu-item';
-            item.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-                <span>${Utils.escapeHtml(playlist.name)}</span>
-            `;
-            item.addEventListener('click', (e) => this.addToPlaylist(playlist.id, e));
-            container.appendChild(item);
-        });
-    }
-
-    async addToPlaylist(playlistId, event) {
-        if (event) event.stopPropagation();
-        if (!this.selectedSong) return;
-
-        const data = await usePlaylistService().addSong(playlistId, this.selectedSong.id);
-        if (data.error) {
-            console.error(data.error);
-            this.showToast('Failed to add song to playlist', 'error');
-
-            return;
-        }
-
-        const playlist = this.playlists.find(p => p.id === playlistId);
-        const playlistName = playlist ? playlist.name : 'Unknown Playlist';
-
-        this.hideContextMenu();
-        this.showToast(`Added to "${playlistName}"`, 'success');
-
-        // Refresh player queue if we're playing this playlist (non-blocking)
-        this.refreshPlayerQueueIfNeeded(playlistId);
-    }
-
     /**
      * Remove selected song from the current playlist
      */
@@ -1853,97 +1479,6 @@ export class RainyApp {
 
         // Also refresh player queue if we're playing this playlist
         await this.refreshPlayerQueueIfNeeded(this.currentPlaylistId);
-    }
-
-    /**
-     * Add selected song to play immediately after the current song
-     */
-    playNext() {
-        if (!this.selectedSong) return;
-        if (!window.player || window.player.currentIndex < 0) {
-            // No song is playing, just play this one
-            const song = this.songs.find(s => s.id == this.selectedSong.id);
-            if (song) {
-                window.player.playSong(0, [song], { type: 'library', id: null });
-                this.showToast(`Now playing: "${song.title}"`, 'success');
-            }
-            return;
-        }
-
-        const song = this.songs.find(s => s.id == this.selectedSong.id);
-        if (!song) {
-            this.showToast('Song not found', 'error');
-            return;
-        }
-
-        // Insert after current song
-        const insertIndex = window.player.currentIndex + 1;
-        window.player.playlist.splice(insertIndex, 0, song);
-
-        // Record the operation
-        window.player.queueOperations.push({
-            action: 'add',
-            songId: song.id,
-            position: insertIndex
-        });
-
-        // Mark queue as modified for localStorage persistence
-        window.player.queueModified = true;
-        window.player.savePlaybackState();
-
-        // Update fullscreen queue if visible
-        if (window.player.fsQueueList) {
-            window.player.renderFullscreenQueue();
-        }
-
-        this.showToast(`"${song.title}" will play next`, 'success');
-    }
-
-    /**
-     * Add selected song to the end of the queue
-     */
-    addToQueue() {
-        if (!this.selectedSong) return;
-        if (!window.player || window.player.currentIndex < 0) {
-            // No song is playing, just play this one
-            const song = this.songs.find(s => s.id == this.selectedSong.id);
-            if (song) {
-                window.player.playSong(0, [song], { type: 'library', id: null });
-                this.showToast(`Now playing: "${song.title}"`, 'success');
-            }
-            return;
-        }
-
-        const song = this.songs.find(s => s.id == this.selectedSong.id);
-        if (!song) {
-            this.showToast('Song not found', 'error');
-            return;
-        }
-
-        // Get the position before adding
-        const insertPosition = window.player.playlist.length;
-
-        // Add to end of queue
-        window.player.playlist.push(song);
-
-        // Record the operation
-        window.player.queueOperations.push({
-            action: 'add',
-            songId: song.id,
-            position: insertPosition
-        });
-
-        // Mark queue as modified for localStorage persistence
-        window.player.queueModified = true;
-        window.player.savePlaybackState();
-
-        // Update fullscreen queue if visible
-        if (window.player.fsQueueList) {
-            window.player.renderFullscreenQueue();
-        }
-
-        const position = window.player.playlist.length - window.player.currentIndex - 1;
-        this.showToast(`"${song.title}" added to queue (${position} songs away)`, 'success');
     }
 
     /**

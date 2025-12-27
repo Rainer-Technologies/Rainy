@@ -656,48 +656,7 @@
     </div>
 
     <!-- Metadata Search Modal -->
-    <div class="modal-overlay hidden" id="metadata-modal">
-        <div class="modal-content metadata-modal">
-            <div class="modal-header">
-                <h2>Find Metadata</h2>
-                <button class="modal-close" id="close-metadata-modal">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="metadata-current-song">
-                    <span class="label">Searching for:</span>
-                    <span class="song-name" id="metadata-song-name">Song Name</span>
-                </div>
-
-                <div class="metadata-search-bar">
-                    <input type="text" id="metadata-search-input" placeholder="Search YouTube Music...">
-                    <button class="btn btn-primary" id="metadata-search-btn">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="metadata-loading hidden" id="metadata-loading">
-                    <div class="loading-spinner"></div>
-                    <p>Searching...</p>
-                </div>
-
-                <div class="metadata-results" id="metadata-results">
-                    <!-- Results will be populated here -->
-                </div>
-
-                <div class="metadata-no-results hidden" id="metadata-no-results">
-                    <p>No results found. Try a different search term.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <rainy-metadata-modal></rainy-metadata-modal>
 
     <!-- Create Playlist Modal -->
     <rainy-new-playlist-modal></rainy-new-playlist-modal>
@@ -910,60 +869,8 @@
     </div>
 
     <!-- Song Context Menu -->
-    <div class="song-context-menu hidden" id="song-context-menu">
-        <div class="context-menu-item has-submenu" id="context-add-playlist">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z" />
-            </svg>
-            <span>Add to Playlist</span>
-            <svg viewBox="0 0 24 24" fill="currentColor" class="submenu-arrow">
-                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
-            </svg>
-            <div class="context-submenu hidden" id="context-playlist-submenu">
-                <div class="context-menu-item" id="context-new-playlist">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                    </svg>
-                    <span>New Playlist</span>
-                </div>
-                <div class="dropdown-divider"></div>
-                <!-- Playlists populated via JS -->
-                <div id="context-playlists-list"></div>
-            </div>
-        </div>
-        <div class="context-menu-item playlist-only hidden" id="context-remove-from-playlist">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19-2v-2h-9v2h9z" />
-            </svg>
-            <span>Remove from Playlist</span>
-        </div>
-        <div class="context-menu-item" id="context-play-next">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-            </svg>
-            <span>Play Next</span>
-        </div>
-        <div class="context-menu-item" id="context-add-to-queue">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zm11.5-4.33v6.67L21 15l-6.5-3.33z" />
-            </svg>
-            <span>Add to Queue</span>
-        </div>
-        <div class="context-menu-item" id="context-find-metadata">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                    d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-            </svg>
-            <span>Find Metadata</span>
-        </div>
-        <div class="context-menu-item danger" id="context-remove-song">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-            </svg>
-            <span>Remove Song</span>
-        </div>
-    </div>
-
+    <rainy-song-context-menu></rainy-song-context-menu>
+    
     <!-- Toast Notifications Container -->
     <div id="toast-container"></div>
 
@@ -1099,11 +1006,15 @@
     <!-- Audio Element -->
     <audio id="audio-player" preload="auto"></audio>
 
-    <!-- Scripts -->
-    <script type='module' src='/js/components/modal.js'></script>
-    <script type='module' src='/js/components/newPlaylistModal.js'></script>
     <!-- Main application -->
     <script type="module" src="/js/main.js"></script>
+
+    <!-- Scripts -->
+    <script type='module' src='/js/components/modal.js'></script>
+    <script type='module' src='/js/components/contextMenu.js'></script>
+    <script type='module' src='/js/components/songContextMenu.js'></script>
+    <script type='module' src='/js/components/newPlaylistModal.js'></script>
+    <script type='module' src='/js/components/metadataModal.js'></script>
 </body>
 
 </html>
