@@ -19,12 +19,17 @@ def create_playlist():
     if not data or 'name' not in data:
         return jsonify({'error': 'Name is required'}), 400
     
+    icon = data.get('icon', 'music-note')
+    icon_color = data.get('icon_color', '#888888')
+    
     try:
-        playlist_id = PlaylistModel.create_playlist(data['name'])
+        playlist_id = PlaylistModel.create_playlist(data['name'], icon, icon_color)
         return jsonify({
             'success': True, 
             'id': playlist_id,
-            'name': data['name']
+            'name': data['name'],
+            'icon': icon,
+            'icon_color': icon_color
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -58,6 +63,8 @@ def get_playlist(playlist_id):
     return jsonify({
         'id': playlist['id'],
         'name': playlist['name'],
+        'icon': playlist.get('icon', 'music-note'),
+        'icon_color': playlist.get('icon_color', '#fa586a'),
         'created_at': playlist['created_at'],
         'songs': songs
     })
@@ -74,14 +81,26 @@ def delete_playlist(playlist_id):
 
 @playlists_bp.route('/<int:playlist_id>', methods=['PUT'])
 @require_auth
-def rename_playlist(playlist_id):
-    """Rename a playlist."""
+def update_playlist(playlist_id):
+    """Update a playlist (name, icon, color)."""
     data = request.get_json()
-    if not data or 'name' not in data:
-        return jsonify({'error': 'Name is required'}), 400
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
         
     try:
-        PlaylistModel.update_playlist_name(playlist_id, data['name'])
+        # Update name if provided
+        if 'name' in data:
+            PlaylistModel.update_playlist_name(playlist_id, data['name'])
+        
+        # Update appearance if provided
+        if 'icon' in data or 'icon_color' in data:
+            playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+            if not playlist:
+                return jsonify({'error': 'Playlist not found'}), 404
+            icon = data.get('icon', playlist.get('icon', 'music-note'))
+            icon_color = data.get('icon_color', playlist.get('icon_color', '#fa586a'))
+            PlaylistModel.update_playlist_appearance(playlist_id, icon, icon_color)
+        
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

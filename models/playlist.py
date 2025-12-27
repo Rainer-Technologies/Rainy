@@ -2,10 +2,10 @@ from .database import Database
 
 class PlaylistModel:
     @staticmethod
-    def create_playlist(name):
-        """Create a new playlist."""
-        query = "INSERT INTO playlists (name) VALUES (%s)"
-        return Database.execute_query(query, (name,))
+    def create_playlist(name, icon='music-note', icon_color='#888888'):
+        """Create a new playlist with optional icon and color."""
+        query = "INSERT INTO playlists (name, icon, icon_color) VALUES (%s, %s, %s)"
+        return Database.execute_query(query, (name, icon, icon_color))
     
     @staticmethod
     def get_all_playlists():
@@ -30,6 +30,12 @@ class PlaylistModel:
         """Rename a playlist."""
         query = "UPDATE playlists SET name = %s WHERE id = %s"
         return Database.execute_query(query, (new_name, playlist_id))
+    
+    @staticmethod
+    def update_playlist_appearance(playlist_id, icon, icon_color):
+        """Update a playlist's icon and color."""
+        query = "UPDATE playlists SET icon = %s, icon_color = %s WHERE id = %s"
+        return Database.execute_query(query, (icon, icon_color, playlist_id))
     
     @staticmethod
     def add_song_to_playlist(playlist_id, track_id):

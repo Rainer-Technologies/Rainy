@@ -11,6 +11,8 @@ import { Service } from "./index.js";
  * @typedef {Object} PlaylistModel
  * @property {number} id
  * @property {string} name
+ * @property {string} icon
+ * @property {string} icon_color
  * @property {string} created_at
  */
 
@@ -26,16 +28,20 @@ export class PlaylistService extends Service {
 
     /** 
      * @param {string} name
+     * @param {string} icon - Icon identifier
+     * @param {string} iconColor - Icon color hex
      * @returns {Promise<Result<{
      *  success: boolean;
      *  id: number;
      *  name: string;
+     *  icon: string;
+     *  icon_color: string;
      * }, ErrorModel | ResponseError>>} 
      */
-    create(name) {
+    create(name, icon = 'music-note', iconColor = '#fa586a') {
         return this.wrap(RequestHelper.request(this.url('/'), {
             method: 'POST',
-            body: { name }
+            body: { name, icon, icon_color: iconColor }
         }));
     }
 
@@ -58,7 +64,7 @@ export class PlaylistService extends Service {
             method: 'DELETE'
         }));
 
-        if(data.error) return error;
+        if (data.error) return error;
         return Ok(true);
     }
 
@@ -72,7 +78,7 @@ export class PlaylistService extends Service {
             body: { name }
         }));
 
-        if(data.error) return error;
+        if (data.error) return error;
         return Ok(true);
     }
 
@@ -87,7 +93,7 @@ export class PlaylistService extends Service {
             body: { song_id: songId }
         }));
 
-        if(data.error) return error;
+        if (data.error) return error;
         return Ok(true);
     }
 
@@ -101,7 +107,24 @@ export class PlaylistService extends Service {
             method: 'DELETE'
         }));
 
-        if(data.error) return error;
+        if (data.error) return error;
+        return Ok(true);
+    }
+
+    /**
+     * Update playlist icon and color
+     * @param {string} playlistId 
+     * @param {string} icon - Icon identifier
+     * @param {string} iconColor - Icon color hex
+     * @returns {Promise<Result<boolean, ErrorModel | ResponseError>>}
+     */
+    async updateAppearance(playlistId, icon, iconColor) {
+        const data = await this.wrap(RequestHelper.request(this.url(`/${playlistId}`), {
+            method: 'PUT',
+            body: { icon, icon_color: iconColor }
+        }));
+
+        if (data.error) return error;
         return Ok(true);
     }
 };

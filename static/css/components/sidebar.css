@@ -146,8 +146,12 @@
 .nav-item svg {
     width: 20px;
     height: 20px;
-    fill: currentColor;
     flex-shrink: 0;
+}
+
+/* Default icons use currentColor, but playlist icons keep their custom fill */
+.nav-item svg:not(.playlist-icon) {
+    fill: currentColor;
 }
 
 .nav-item span {

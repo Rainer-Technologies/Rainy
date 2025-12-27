@@ -112,9 +112,30 @@ class Database:
             CREATE TABLE IF NOT EXISTS playlists (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
+                icon VARCHAR(50) DEFAULT 'music-note',
+                icon_color VARCHAR(7) DEFAULT '#888888',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Migration: Add icon column if it doesn't exist
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'icon'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE playlists ADD COLUMN icon VARCHAR(50) DEFAULT 'music-note'")
+        
+        # Migration: Add icon_color column if it doesn't exist
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'icon_color'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE playlists ADD COLUMN icon_color VARCHAR(7) DEFAULT '#888888'")
+        
         
         # Playlist Songs table (linking table)
         cursor.execute("""

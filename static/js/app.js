@@ -4,6 +4,7 @@ import { Router, View } from './helper/router.js';
 import { Library } from './modules/library.js';
 import { Playlists } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
+import { PLAYLIST_ICONS, PLAYLIST_ICON_COLORS } from './data/playlist-icons.js';
 import { useAuthService } from "./services/auth.js";
 import { useMetadataService } from './services/metadata.js';
 import { useMusicService } from "./services/music.js";
@@ -265,6 +266,23 @@ export class RainyApp {
         document.getElementById('action-delete-playlist')?.addEventListener('click', () => {
             document.getElementById('playlist-settings-dropdown').classList.add('hidden');
             this.deleteCurrentPlaylist();
+        });
+
+        // Edit Playlist Icon action
+        document.getElementById('action-edit-playlist-icon')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            this.openEditPlaylistIconModal();
+        });
+
+        // Edit Playlist Icon Modal
+        document.getElementById('close-edit-icon-modal')?.addEventListener('click', () => {
+            document.getElementById('edit-playlist-icon-modal').classList.add('hidden');
+        });
+        document.getElementById('cancel-edit-icon-btn')?.addEventListener('click', () => {
+            document.getElementById('edit-playlist-icon-modal').classList.add('hidden');
+        });
+        document.getElementById('save-edit-icon-btn')?.addEventListener('click', () => {
+            this.savePlaylistIcon();
         });
 
         // Rename Playlist Modal
@@ -1475,6 +1493,113 @@ export class RainyApp {
         document.getElementById('create-playlist-modal').classList.remove('hidden');
         document.getElementById('playlist-name-input').value = '';
         document.getElementById('playlist-name-input').focus();
+
+        // Initialize icon picker with preview
+        this.initIconPicker('playlist-icon-picker', 'playlist-icon-color', 'playlist-color-presets', 'music-note', '#888888', 'playlist-preview-icon');
+    }
+
+    initIconPicker(pickerContainerId, colorInputId, colorPresetsId, selectedIcon = 'music-note', selectedColor = '#888888', previewContainerId = null) {
+        const iconPicker = document.getElementById(pickerContainerId);
+        const colorInput = document.getElementById(colorInputId);
+        const colorPresets = document.getElementById(colorPresetsId);
+        const previewContainer = previewContainerId ? document.getElementById(previewContainerId) : null;
+
+        if (!iconPicker) return;
+
+        // Get the icon path for the selected icon
+        const getIconPath = (iconId) => {
+            const iconData = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
+            return iconData.path;
+        };
+
+        // Update the large preview icon
+        const updatePreviewIcon = (iconId, color) => {
+            if (previewContainer) {
+                const path = getIconPath(iconId);
+                previewContainer.innerHTML = `<svg viewBox="0 0 24 24" style="fill: ${color}"><path d="${path}"/></svg>`;
+            }
+        };
+
+        // Helper function to update the selected icon's color preview
+        const updateIconPreview = (color) => {
+            const selectedBtn = iconPicker.querySelector('.icon-picker-btn.selected');
+            if (selectedBtn) {
+                const svg = selectedBtn.querySelector('svg');
+                if (svg) svg.style.fill = color;
+                // Also update the large preview
+                updatePreviewIcon(selectedBtn.dataset.icon, color);
+            }
+        };
+
+        // Initial preview
+        updatePreviewIcon(selectedIcon, selectedColor);
+
+        // Populate icons - all start grey, selected one gets the color
+        iconPicker.innerHTML = Object.entries(PLAYLIST_ICONS).map(([id, icon]) => `
+            <button type="button" class="icon-picker-btn ${id === selectedIcon ? 'selected' : ''}" data-icon="${id}" title="${icon.name}">
+                <svg viewBox="0 0 24 24" style="fill: ${id === selectedIcon ? selectedColor : '#888888'}"><path d="${icon.path}"/></svg>
+            </button>
+        `).join('');
+
+        // Icon selection handler
+        iconPicker.querySelectorAll('.icon-picker-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Reset all icons to grey
+                iconPicker.querySelectorAll('.icon-picker-btn').forEach(b => {
+                    b.classList.remove('selected');
+                    const svg = b.querySelector('svg');
+                    if (svg) svg.style.fill = '#888888';
+                });
+                // Highlight selected icon with current color
+                btn.classList.add('selected');
+                const currentColor = colorInput?.value || '#888888';
+                const svg = btn.querySelector('svg');
+                if (svg) svg.style.fill = currentColor;
+                // Update large preview
+                updatePreviewIcon(btn.dataset.icon, currentColor);
+            });
+        });
+
+        // Set color input value
+        if (colorInput) {
+            colorInput.value = selectedColor;
+
+            // Live color preview when using color picker
+            colorInput.addEventListener('input', (e) => {
+                updateIconPreview(e.target.value);
+                // Update preset selection
+                colorPresets?.querySelectorAll('.color-preset').forEach(b => b.classList.remove('selected'));
+            });
+        }
+
+        // Populate color presets
+        if (colorPresets) {
+            colorPresets.innerHTML = PLAYLIST_ICON_COLORS.map(color => `
+                <button type="button" class="color-preset ${color === selectedColor ? 'selected' : ''}" data-color="${color}" style="background-color: ${color};"></button>
+            `).join('');
+
+            colorPresets.querySelectorAll('.color-preset').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const color = btn.dataset.color;
+                    if (colorInput) colorInput.value = color;
+                    colorPresets.querySelectorAll('.color-preset').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    // Update icon preview with new color
+                    updateIconPreview(color);
+                });
+            });
+        }
+    }
+
+    getSelectedIconData(pickerContainerId, colorInputId) {
+        const iconPicker = document.getElementById(pickerContainerId);
+        const colorInput = document.getElementById(colorInputId);
+
+        const selectedBtn = iconPicker?.querySelector('.icon-picker-btn.selected');
+        const icon = selectedBtn?.dataset.icon || 'music-note';
+        const iconColor = colorInput?.value || '#fa586a';
+
+        return { icon, iconColor };
     }
 
     async createPlaylist() {
@@ -1482,7 +1607,9 @@ export class RainyApp {
         const name = nameInput.value.trim();
         if (!name) return;
 
-        const data = await usePlaylistService().create(name);
+        const { icon, iconColor } = this.getSelectedIconData('playlist-icon-picker', 'playlist-icon-color');
+
+        const data = await usePlaylistService().create(name, icon, iconColor);
         if (data.error) {
             console.error(data.error);
             this.showToast('Failed to create playlist', 'error');
@@ -1492,6 +1619,36 @@ export class RainyApp {
         document.getElementById('create-playlist-modal').classList.add('hidden');
         await this.loadPlaylists();
         this.showToast('Playlist created', 'success');
+    }
+
+    openEditPlaylistIconModal() {
+        if (!this.currentPlaylistId) return;
+
+        const playlist = this.playlists.find(p => p.id === this.currentPlaylistId);
+        if (!playlist) return;
+
+        const currentIcon = playlist.icon || 'music-note';
+        const currentColor = playlist.icon_color || '#888888';
+
+        document.getElementById('edit-playlist-icon-modal').classList.remove('hidden');
+        this.initIconPicker('edit-playlist-icon-picker', 'edit-playlist-icon-color', 'edit-playlist-color-presets', currentIcon, currentColor, 'edit-playlist-preview-icon');
+    }
+
+    async savePlaylistIcon() {
+        if (!this.currentPlaylistId) return;
+
+        const { icon, iconColor } = this.getSelectedIconData('edit-playlist-icon-picker', 'edit-playlist-icon-color');
+
+        const data = await usePlaylistService().updateAppearance(this.currentPlaylistId, icon, iconColor);
+        if (data.error) {
+            console.error(data.error);
+            this.showToast('Failed to update playlist icon', 'error');
+            return;
+        }
+
+        document.getElementById('edit-playlist-icon-modal').classList.add('hidden');
+        await this.loadPlaylists();
+        this.showToast('Playlist icon updated', 'success');
     }
 
     renameCurrentPlaylist() {

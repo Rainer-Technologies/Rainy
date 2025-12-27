@@ -225,6 +225,13 @@
                                     </svg>
                                 </button>
                                 <div class="dropdown-menu hidden" id="playlist-settings-dropdown">
+                                    <div class="dropdown-item" id="action-edit-playlist-icon">
+                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                            <path
+                                                d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                                        </svg>
+                                        <span>Edit Icon</span>
+                                    </div>
                                     <div class="dropdown-item" id="action-rename-playlist">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path
@@ -694,9 +701,19 @@
 
     <!-- Create Playlist Modal -->
     <div class="modal-overlay hidden" id="create-playlist-modal">
-        <div class="modal-content">
+        <div class="modal-content playlist-modal-content">
             <div class="modal-header">
-                <h2>New Playlist</h2>
+                <div class="modal-header-info">
+                    <div class="modal-icon playlist-modal-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>New Playlist</h2>
+                        <p class="modal-subtitle">Create a personalized playlist</p>
+                    </div>
+                </div>
                 <button class="modal-close" id="close-playlist-modal">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -705,13 +722,104 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label">Playlist Name</label>
-                    <input type="text" id="playlist-name-input" class="form-input" placeholder="My Awesome Playlist">
+                <!-- Icon Preview -->
+                <div class="playlist-preview-section">
+                    <div class="playlist-preview-icon" id="playlist-preview-icon">
+                        <!-- Preview icon populated via JS -->
+                    </div>
+                    <input type="text" id="playlist-name-input" class="playlist-name-input-styled"
+                        placeholder="Playlist name">
                 </div>
+
+                <div class="playlist-customize-section">
+                    <div class="customize-row">
+                        <div class="customize-group">
+                            <label class="form-label">Choose Icon</label>
+                            <div class="icon-picker" id="playlist-icon-picker">
+                                <!-- Icons populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customize-row">
+                        <div class="customize-group">
+                            <label class="form-label">Choose Color</label>
+                            <div class="color-picker-row">
+                                <input type="color" id="playlist-icon-color" class="color-input" value="#888888">
+                                <div class="color-presets" id="playlist-color-presets">
+                                    <!-- Color presets populated via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="modal-actions">
                     <button class="btn btn-secondary" id="cancel-playlist-btn">Cancel</button>
-                    <button class="btn btn-primary" id="save-playlist-btn">Create</button>
+                    <button class="btn btn-primary" id="save-playlist-btn">Create Playlist</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Playlist Icon Modal -->
+    <div class="modal-overlay hidden" id="edit-playlist-icon-modal">
+        <div class="modal-content playlist-modal-content">
+            <div class="modal-header">
+                <div class="modal-header-info">
+                    <div class="modal-icon playlist-modal-icon edit-icon-mode">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>Edit Icon</h2>
+                        <p class="modal-subtitle">Customize your playlist appearance</p>
+                    </div>
+                </div>
+                <button class="modal-close" id="close-edit-icon-modal">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Icon Preview -->
+                <div class="playlist-preview-section edit-mode">
+                    <div class="playlist-preview-icon" id="edit-playlist-preview-icon">
+                        <!-- Preview icon populated via JS -->
+                    </div>
+                    <span class="preview-label">Preview</span>
+                </div>
+
+                <div class="playlist-customize-section">
+                    <div class="customize-row">
+                        <div class="customize-group">
+                            <label class="form-label">Choose Icon</label>
+                            <div class="icon-picker" id="edit-playlist-icon-picker">
+                                <!-- Icons populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customize-row">
+                        <div class="customize-group">
+                            <label class="form-label">Choose Color</label>
+                            <div class="color-picker-row">
+                                <input type="color" id="edit-playlist-icon-color" class="color-input" value="#888888">
+                                <div class="color-presets" id="edit-playlist-color-presets">
+                                    <!-- Color presets populated via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="cancel-edit-icon-btn">Cancel</button>
+                    <button class="btn btn-primary" id="save-edit-icon-btn">Save Changes</button>
                 </div>
             </div>
         </div>

@@ -3,6 +3,8 @@
  * Handles playlist operations
  */
 
+import { PLAYLIST_ICONS, getPlaylistIconSvg } from '../data/playlist-icons.js';
+
 export const Playlists = {
     /**
      * Load all playlists from API
@@ -22,10 +24,23 @@ export const Playlists = {
      * Create a new playlist
      * @param {function} api - API function
      * @param {string} name - Playlist name
+     * @param {string} icon - Icon identifier (optional)
+     * @param {string} iconColor - Icon color hex (optional)
      * @returns {Promise<object>} - Response
      */
-    async create(api, name) {
-        return await api('/api/playlists', 'POST', { name });
+    async create(api, name, icon = 'music-note', iconColor = '#fa586a') {
+        return await api('/api/playlists', 'POST', { name, icon, icon_color: iconColor });
+    },
+
+    /**
+     * Update a playlist (name, icon, color)
+     * @param {function} api - API function
+     * @param {number} playlistId - Playlist ID
+     * @param {object} updates - { name, icon, icon_color }
+     * @returns {Promise<object>} - Response
+     */
+    async update(api, playlistId, updates) {
+        return await api(`/api/playlists/${playlistId}`, 'PUT', updates);
     },
 
     /**
@@ -82,13 +97,18 @@ export const Playlists = {
     renderSidebar(container, playlists, currentPlaylistId, currentViewType, escapeHtml, onOpenPlaylist) {
         if (!container) return;
 
-        container.innerHTML = (playlists || []).map(playlist => `
+        container.innerHTML = (playlists || []).map(playlist => {
+            const iconId = playlist.icon || 'music-note';
+            const iconColor = playlist.icon_color || '#888888';
+            const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
+
+            return `
             <div class="nav-item ${currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''}" 
                  data-id="${playlist.id}">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>
+                <svg viewBox="0 0 24 24" fill="${iconColor}" class="playlist-icon"><path d="${icon.path}"/></svg>
                 <span>${escapeHtml(playlist.name)}</span>
             </div>
-        `).join('');
+        `}).join('');
 
         // Add click listeners
         container.querySelectorAll('.nav-item').forEach(item => {
@@ -109,12 +129,17 @@ export const Playlists = {
     renderSubmenu(container, playlists, escapeHtml, onAddToPlaylist) {
         if (!container) return;
 
-        container.innerHTML = (playlists || []).map(playlist => `
+        container.innerHTML = (playlists || []).map(playlist => {
+            const iconId = playlist.icon || 'music-note';
+            const iconColor = playlist.icon_color || '#888888';
+            const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
+
+            return `
             <div class="context-menu-item" data-id="${playlist.id}">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                <svg viewBox="0 0 24 24" fill="${iconColor}"><path d="${icon.path}"/></svg>
                 <span>${escapeHtml(playlist.name)}</span>
             </div>
-        `).join('');
+        `}).join('');
 
         // Add click listeners
         container.querySelectorAll('.context-menu-item').forEach(item => {
