@@ -20,6 +20,11 @@ export class Component extends HTMLElement {
         if(this.created) this.created();
     }
 
+    static new() {
+        if(!this.componentName) return;
+        return document.createElement(this.componentName);
+    }
+
     get(path) {
         return this._ctx.get(path);
     }

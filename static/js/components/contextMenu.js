@@ -7,6 +7,8 @@ import { Component, html } from "./index.js";
  */
 
 export class ContextSubMenu extends Component {
+    static componentName = 'rainy-context-sub-menu';
+
     created() {
         this.set('hidden', true);
         this.set('position', 'right');
@@ -41,6 +43,8 @@ export class ContextSubMenu extends Component {
 };
 
 export class ContextMenuItem extends Component {
+    static componentName = 'rainy-context-menu-item';
+
     /** @returns {ContextSubMenu?} */
     get submenu() {
         return this.root.querySelector('rainy-context-sub-menu');
@@ -96,6 +100,8 @@ export class ContextMenuItem extends Component {
 };
 
 export class ContextMenu extends Component {
+    static componentName = 'rainy-context-menu';
+
     created() {
         this.set('hidden', true);
         this.watch('hidden', (_path, _oldValue, newValue) => {
@@ -141,6 +147,6 @@ export class ContextMenu extends Component {
     }
 };
 
-customElements.define('rainy-context-sub-menu', ContextSubMenu);
-customElements.define('rainy-context-menu-item', ContextMenuItem);
-customElements.define('rainy-context-menu', ContextMenu);
+customElements.define(ContextSubMenu.componentName, ContextSubMenu);
+customElements.define(ContextMenuItem.componentName, ContextMenuItem);
+customElements.define(ContextMenu.componentName, ContextMenu);

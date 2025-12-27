@@ -1,6 +1,8 @@
 import { Component, html } from "./index.js";
 
 export class Modal extends Component {
+    static componentName = 'rainy-modal';
+
     created() {
         this.set('hidden', true);
         this.watch('hidden', (_path, _oldValue, newValue) => {
@@ -56,4 +58,4 @@ export class Modal extends Component {
     }
 };
 
-customElements.define('rainy-modal', Modal);
+customElements.define(Modal.componentName, Modal);

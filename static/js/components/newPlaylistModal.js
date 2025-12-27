@@ -4,6 +4,8 @@ import { usePlaylistService } from "../services/playlist.js";
 import { Component, html } from "./index.js";
 
 export class NewPlaylistModal extends Component {
+    static componentName = 'rainy-new-playlist-modal';
+
     created() {
         this.set('current-icon', 'music-note');
         this.set('current-color', '#888888');
@@ -173,4 +175,4 @@ export class NewPlaylistModal extends Component {
     }
 };
 
-customElements.define('rainy-new-playlist-modal', NewPlaylistModal);
+customElements.define(NewPlaylistModal.componentName, NewPlaylistModal);

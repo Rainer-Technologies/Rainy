@@ -12,6 +12,8 @@ import { Component, html } from "./index.js";
  */
 
 export class SongContextMenu extends Component {
+    static componentName = 'rainy-song-context-menu';
+
     created() {
         this.set('current-song', null);
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
@@ -280,4 +282,4 @@ export class SongContextMenu extends Component {
     }
 };
 
-customElements.define('rainy-song-context-menu', SongContextMenu);
+customElements.define(SongContextMenu.componentName, SongContextMenu);

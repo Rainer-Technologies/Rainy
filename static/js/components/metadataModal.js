@@ -4,6 +4,8 @@ import { useMetadataService } from "../services/metadata.js";
 import { Component, html } from "./index.js";
 
 export class MetadataModal extends Component {
+    static componentName = 'rainy-metadata-modal';
+
     created() {
         this.set('loading', false);
         this.set('songs', []);
@@ -263,4 +265,4 @@ export class MetadataModal extends Component {
     }
 };
 
-customElements.define('rainy-metadata-modal', MetadataModal);
+customElements.define(MetadataModal.componentName, MetadataModal);
