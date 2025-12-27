@@ -1999,6 +1999,15 @@ export class RainyApp {
                         break;
                     }
                 }
+            } else if (op.action === 'move') {
+                // Find the song (may have shifted from original position)
+                const songIndex = queue.findIndex(s => s.id === op.songId);
+                if (songIndex !== -1) {
+                    const [song] = queue.splice(songIndex, 1);
+                    // Adjust target position if needed
+                    const targetPos = Math.min(op.toPosition, queue.length);
+                    queue.splice(targetPos, 0, song);
+                }
             }
         }
 

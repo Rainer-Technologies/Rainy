@@ -671,7 +671,12 @@ export class AudioPlayer {
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
-                <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}">
+                <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}" draggable="true">
+                    <div class="fs-queue-drag-handle" title="Drag to reorder">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                        </svg>
+                    </div>
                     <div class="fs-queue-cover">${coverHtml}</div>
                     <div class="fs-queue-info">
                         <div class="fs-queue-title">${window.escapeHtml ? window.escapeHtml(song.title) : song.title}</div>
@@ -691,9 +696,9 @@ export class AudioPlayer {
 
         // Bind click events for queue items
         this.fsQueueList.querySelectorAll('.fs-queue-item').forEach(item => {
-            // Play song on click (but not on menu button)
+            // Play song on click (but not on menu button or drag handle)
             item.addEventListener('click', (e) => {
-                if (e.target.closest('.fs-queue-menu-btn')) return;
+                if (e.target.closest('.fs-queue-menu-btn') || e.target.closest('.fs-queue-drag-handle')) return;
                 const index = parseInt(item.dataset.index);
                 this.playSong(index);
             });
@@ -703,6 +708,63 @@ export class AudioPlayer {
                 e.preventDefault();
                 const index = parseInt(item.dataset.index);
                 this.showQueueContextMenu(e, index);
+            });
+
+            // Drag and drop events
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', item.dataset.index);
+                item.classList.add('dragging');
+                this.draggedIndex = parseInt(item.dataset.index);
+            });
+
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                this.fsQueueList.querySelectorAll('.fs-queue-item').forEach(i => {
+                    i.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+                });
+                this.draggedIndex = null;
+            });
+
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+
+                const rect = item.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+
+                // Remove previous indicators
+                item.classList.remove('drag-over-top', 'drag-over-bottom');
+
+                // Show indicator based on position
+                if (e.clientY < midY) {
+                    item.classList.add('drag-over-top');
+                } else {
+                    item.classList.add('drag-over-bottom');
+                }
+            });
+
+            item.addEventListener('dragleave', () => {
+                item.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+            });
+
+            item.addEventListener('drop', (e) => {
+                e.preventDefault();
+                item.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+
+                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                let toIndex = parseInt(item.dataset.index);
+
+                // Adjust drop position based on where the cursor is
+                const rect = item.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY > midY && toIndex < this.playlist.length - 1) {
+                    toIndex++;
+                }
+
+                if (fromIndex !== toIndex) {
+                    this.moveSongInQueue(fromIndex, toIndex);
+                }
             });
         });
 
@@ -802,6 +864,55 @@ export class AudioPlayer {
         if (menu) {
             menu.remove();
         }
+    }
+
+    /**
+     * Move a song in the queue (for drag and drop reordering)
+     * @param {number} fromIndex - Current index of the song
+     * @param {number} toIndex - Target index to move to
+     */
+    moveSongInQueue(fromIndex, toIndex) {
+        if (fromIndex < 0 || fromIndex >= this.playlist.length) return;
+        if (toIndex < 0 || toIndex >= this.playlist.length) return;
+        if (fromIndex === toIndex) return;
+
+        // Get the song being moved
+        const song = this.playlist[fromIndex];
+
+        // Record the operation
+        this.queueOperations.push({
+            action: 'move',
+            songId: song.id,
+            fromPosition: fromIndex,
+            toPosition: toIndex
+        });
+
+        // Remove from old position
+        this.playlist.splice(fromIndex, 1);
+
+        // Insert at new position
+        this.playlist.splice(toIndex, 0, song);
+
+        // Adjust current index if needed
+        if (fromIndex === this.currentIndex) {
+            // Moved the currently playing song
+            this.currentIndex = toIndex;
+        } else if (fromIndex < this.currentIndex && toIndex >= this.currentIndex) {
+            // Moved a song from before current to after current
+            this.currentIndex--;
+        } else if (fromIndex > this.currentIndex && toIndex <= this.currentIndex) {
+            // Moved a song from after current to before current
+            this.currentIndex++;
+        }
+
+        // Mark queue as modified
+        this.queueModified = true;
+        this.savePlaybackState();
+
+        // Re-render the queue
+        this.renderFullscreenQueue();
+
+        console.log(`Moved song from position ${fromIndex} to ${toIndex}`);
     }
 
     /**

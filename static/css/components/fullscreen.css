@@ -167,6 +167,7 @@
 #fullscreen-player.mode-standard #fs-volume-popover {
     display: none;
 }
+
 #fs-close-btn:hover {
     background: rgba(255, 255, 255, 0.2);
 }
@@ -414,6 +415,55 @@
 .fs-queue-menu-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
+}
+
+/* Queue Item Drag Handle */
+.fs-queue-drag-handle {
+    opacity: 0;
+    width: 20px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: var(--text-secondary);
+    margin-right: var(--spacing-xs);
+    flex-shrink: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.fs-queue-drag-handle svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.fs-queue-item:hover .fs-queue-drag-handle {
+    opacity: 1;
+}
+
+.fs-queue-drag-handle:hover {
+    color: var(--text-primary);
+}
+
+.fs-queue-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Drag and Drop States */
+.fs-queue-item.dragging {
+    opacity: 0.5;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.fs-queue-item.drag-over-top {
+    border-top: 2px solid var(--accent-primary);
+    margin-top: -2px;
+}
+
+.fs-queue-item.drag-over-bottom {
+    border-bottom: 2px solid var(--accent-primary);
+    margin-bottom: -2px;
 }
 
 /* Queue Context Menu */
