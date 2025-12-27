@@ -18,6 +18,8 @@ export class AudioPlayer {
         this.playbackContext = { type: 'library', id: null };
         this.lastSaveTime = 0;
         this.saveThrottleMs = 5000; // Save every 5 seconds
+        this.queueModified = false; // Track if queue has been manually modified
+        this.queueOperations = []; // Track add/remove operations for efficient storage
 
         this.init();
     }
@@ -182,6 +184,9 @@ export class AudioPlayer {
     playSong(index, playlist = null, context = null) {
         if (playlist) {
             this.playlist = playlist;
+            // Reset queue modifications when switching to a new playlist/context
+            this.queueModified = false;
+            this.queueOperations = [];
         }
 
         // Update playback context if provided
@@ -659,10 +664,6 @@ export class AudioPlayer {
     renderFullscreenQueue() {
         if (!this.fsQueueList) return;
 
-        // Optimization: If list length matches and we just need to update active state
-        // This is a naive check but helps prevent flickering on every song change if playlist is same
-        // For now, let's just re-render to be safe and simple
-
         const html = this.playlist.map((song, index) => {
             const isActive = index === this.currentIndex;
             const coverHtml = song.cover_path
@@ -670,18 +671,49 @@ export class AudioPlayer {
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
-                <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" onclick="window.player.playSong(${index})">
+                <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}">
                     <div class="fs-queue-cover">${coverHtml}</div>
                     <div class="fs-queue-info">
                         <div class="fs-queue-title">${window.escapeHtml ? window.escapeHtml(song.title) : song.title}</div>
                         <div class="fs-queue-artist">${window.escapeHtml ? window.escapeHtml(song.artist) : song.artist}</div>
                     </div>
                     <div class="fs-queue-duration">${this.formatTime(song.duration)}</div>
+                    <button class="fs-queue-menu-btn" data-index="${index}" title="More options">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                        </svg>
+                    </button>
                 </div>
             `;
         }).join('');
 
         this.fsQueueList.innerHTML = html;
+
+        // Bind click events for queue items
+        this.fsQueueList.querySelectorAll('.fs-queue-item').forEach(item => {
+            // Play song on click (but not on menu button)
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.fs-queue-menu-btn')) return;
+                const index = parseInt(item.dataset.index);
+                this.playSong(index);
+            });
+
+            // Right-click context menu
+            item.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const index = parseInt(item.dataset.index);
+                this.showQueueContextMenu(e, index);
+            });
+        });
+
+        // Bind menu button clicks
+        this.fsQueueList.querySelectorAll('.fs-queue-menu-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(btn.dataset.index);
+                this.showQueueContextMenu(e, index);
+            });
+        });
 
         // Scroll to current song
         const activeItem = this.fsQueueList.querySelector('.active');
@@ -693,8 +725,139 @@ export class AudioPlayer {
     }
 
     /**
+     * Show context menu for queue item
+     * @param {Event} e - The click/contextmenu event
+     * @param {number} index - Index of the song in the queue
+     */
+    showQueueContextMenu(e, index) {
+        // Remove any existing context menu
+        this.hideQueueContextMenu();
+
+        const song = this.playlist[index];
+        if (!song) return;
+
+        // Create context menu
+        const menu = document.createElement('div');
+        menu.id = 'fs-queue-context-menu';
+        menu.className = 'fs-queue-context-menu';
+        menu.innerHTML = `
+            <div class="fs-queue-menu-item" data-action="play" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                <span>Play Now</span>
+            </div>
+            <div class="fs-queue-menu-item danger" data-action="remove" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13H5v-2h14v2z"/>
+                </svg>
+                <span>Remove from Queue</span>
+            </div>
+        `;
+
+        // Position the menu
+        menu.style.position = 'fixed';
+        menu.style.left = `${e.clientX}px`;
+        menu.style.top = `${e.clientY}px`;
+        menu.style.zIndex = '3000';
+
+        document.body.appendChild(menu);
+
+        // Adjust if menu goes off screen
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            menu.style.left = `${window.innerWidth - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+            menu.style.top = `${window.innerHeight - rect.height - 10}px`;
+        }
+
+        // Bind menu item clicks
+        menu.querySelectorAll('.fs-queue-menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const action = item.dataset.action;
+                const idx = parseInt(item.dataset.index);
+
+                if (action === 'play') {
+                    this.playSong(idx);
+                } else if (action === 'remove') {
+                    this.removeFromQueue(idx);
+                }
+
+                this.hideQueueContextMenu();
+            });
+        });
+
+        // Close menu on click outside
+        setTimeout(() => {
+            document.addEventListener('click', this.hideQueueContextMenu.bind(this), { once: true });
+        }, 10);
+    }
+
+    /**
+     * Hide the queue context menu
+     */
+    hideQueueContextMenu() {
+        const menu = document.getElementById('fs-queue-context-menu');
+        if (menu) {
+            menu.remove();
+        }
+    }
+
+    /**
+     * Remove a song from the queue
+     * @param {number} index - Index of the song to remove
+     */
+    removeFromQueue(index) {
+        if (index < 0 || index >= this.playlist.length) return;
+        if (this.playlist.length <= 1) {
+            // Don't remove the last song
+            console.warn('Cannot remove the only song in queue');
+            return;
+        }
+
+        // Record the operation before removing
+        const removedSong = this.playlist[index];
+        this.queueOperations.push({
+            action: 'remove',
+            songId: removedSong.id,
+            position: index
+        });
+
+        // Remove the song from playlist
+        this.playlist.splice(index, 1);
+
+        // Adjust current index if needed
+        if (index < this.currentIndex) {
+            // Removed song was before current, shift index down
+            this.currentIndex--;
+        } else if (index === this.currentIndex) {
+            // Removed the current song
+            if (this.currentIndex >= this.playlist.length) {
+                this.currentIndex = this.playlist.length - 1;
+            }
+            // Start playing the song that took its place
+            if (this.playlist.length > 0) {
+                this.playSong(this.currentIndex);
+            }
+        }
+
+        // Mark queue as modified (for localStorage persistence)
+        this.queueModified = true;
+
+        // Save the modified queue
+        this.savePlaybackState();
+
+        // Re-render the queue
+        this.renderFullscreenQueue();
+
+        console.log('Removed song at index', index, 'from queue');
+    }
+
+    /**
      * Save current playback state to localStorage
-     * Only stores essential data (song ID, context, time) - not the full queue
+     * Stores essential data (song ID, context, time)
+     * For modified queues, stores only the operations (add/remove) for space efficiency
      */
     savePlaybackState() {
         if (this.currentIndex < 0 || !this.playlist.length) return;
@@ -705,8 +868,14 @@ export class AudioPlayer {
         const state = {
             songId: song.id,
             currentTime: this.audio.currentTime || 0,
+            currentIndex: this.currentIndex,
             context: this.playbackContext
         };
+
+        // If queue has been modified, save only the operations (much smaller than full queue)
+        if (this.queueModified && this.queueOperations.length > 0) {
+            state.queueOperations = this.queueOperations;
+        }
 
         try {
             localStorage.setItem('rainy_playback_state', JSON.stringify(state));
@@ -743,8 +912,21 @@ export class AudioPlayer {
         this.playlist = queue;
         this.playbackContext = state.context || { type: 'library', id: null };
 
-        // Find the song index in the queue
-        const songIndex = queue.findIndex(s => s.id === state.songId);
+        // Use stored currentIndex if available (for modified queues with possible duplicates)
+        // Fall back to findIndex for normal cases
+        let songIndex;
+        if (typeof state.currentIndex === 'number' && state.currentIndex >= 0 && state.currentIndex < queue.length) {
+            // Verify the song at the stored index matches
+            if (queue[state.currentIndex] && queue[state.currentIndex].id === state.songId) {
+                songIndex = state.currentIndex;
+            } else {
+                // Index doesn't match, fall back to findIndex
+                songIndex = queue.findIndex(s => s.id === state.songId);
+            }
+        } else {
+            songIndex = queue.findIndex(s => s.id === state.songId);
+        }
+
         if (songIndex === -1) return; // Song not found in queue
 
         this.currentIndex = songIndex;

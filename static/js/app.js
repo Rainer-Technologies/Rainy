@@ -326,6 +326,16 @@ export class RainyApp {
             this.removeFromPlaylist();
         });
 
+        document.getElementById('context-play-next')?.addEventListener('click', () => {
+            this.hideContextMenu();
+            this.playNext();
+        });
+
+        document.getElementById('context-add-to-queue')?.addEventListener('click', () => {
+            this.hideContextMenu();
+            this.addToQueue();
+        });
+
         // Metadata modal
         document.getElementById('close-metadata-modal')?.addEventListener('click', () => {
             this.closeMetadataModal();
@@ -619,8 +629,15 @@ export class RainyApp {
             this.renderSections();
             this.updateStats();
 
-            // Restore last played song after library loads
-            this.restorePlaybackState();
+            // Restore last played song only on initial load (when player has no active playback)
+            // Don't restore if player is already playing or has a song loaded
+            if (!window.player ||
+                (window.player.currentIndex < 0 && !window.player.audio.src)) {
+                this.restorePlaybackState();
+            } else if (window.player && window.player.playbackContext?.type === 'library') {
+                // If player is playing from library, update the queue with new songs
+                this.refreshLibraryQueue();
+            }
 
             return;
         }
@@ -1630,8 +1647,8 @@ export class RainyApp {
         this.hideContextMenu();
         this.showToast(`Added to "${playlistName}"`, 'success');
 
-        // Refresh player queue if we're playing this playlist
-        await this.refreshPlayerQueueIfNeeded(playlistId); // FIXME: This seems to cause errors after adding new songs to the system and playing music from the all songs section
+        // Refresh player queue if we're playing this playlist (non-blocking)
+        this.refreshPlayerQueueIfNeeded(playlistId);
     }
 
     /**
@@ -1664,23 +1681,117 @@ export class RainyApp {
     }
 
     /**
+     * Add selected song to play immediately after the current song
+     */
+    playNext() {
+        if (!this.selectedSong) return;
+        if (!window.player || window.player.currentIndex < 0) {
+            // No song is playing, just play this one
+            const song = this.songs.find(s => s.id == this.selectedSong.id);
+            if (song) {
+                window.player.playSong(0, [song], { type: 'library', id: null });
+                this.showToast(`Now playing: "${song.title}"`, 'success');
+            }
+            return;
+        }
+
+        const song = this.songs.find(s => s.id == this.selectedSong.id);
+        if (!song) {
+            this.showToast('Song not found', 'error');
+            return;
+        }
+
+        // Insert after current song
+        const insertIndex = window.player.currentIndex + 1;
+        window.player.playlist.splice(insertIndex, 0, song);
+
+        // Record the operation
+        window.player.queueOperations.push({
+            action: 'add',
+            songId: song.id,
+            position: insertIndex
+        });
+
+        // Mark queue as modified for localStorage persistence
+        window.player.queueModified = true;
+        window.player.savePlaybackState();
+
+        // Update fullscreen queue if visible
+        if (window.player.fsQueueList) {
+            window.player.renderFullscreenQueue();
+        }
+
+        this.showToast(`"${song.title}" will play next`, 'success');
+    }
+
+    /**
+     * Add selected song to the end of the queue
+     */
+    addToQueue() {
+        if (!this.selectedSong) return;
+        if (!window.player || window.player.currentIndex < 0) {
+            // No song is playing, just play this one
+            const song = this.songs.find(s => s.id == this.selectedSong.id);
+            if (song) {
+                window.player.playSong(0, [song], { type: 'library', id: null });
+                this.showToast(`Now playing: "${song.title}"`, 'success');
+            }
+            return;
+        }
+
+        const song = this.songs.find(s => s.id == this.selectedSong.id);
+        if (!song) {
+            this.showToast('Song not found', 'error');
+            return;
+        }
+
+        // Get the position before adding
+        const insertPosition = window.player.playlist.length;
+
+        // Add to end of queue
+        window.player.playlist.push(song);
+
+        // Record the operation
+        window.player.queueOperations.push({
+            action: 'add',
+            songId: song.id,
+            position: insertPosition
+        });
+
+        // Mark queue as modified for localStorage persistence
+        window.player.queueModified = true;
+        window.player.savePlaybackState();
+
+        // Update fullscreen queue if visible
+        if (window.player.fsQueueList) {
+            window.player.renderFullscreenQueue();
+        }
+
+        const position = window.player.playlist.length - window.player.currentIndex - 1;
+        this.showToast(`"${song.title}" added to queue (${position} songs away)`, 'success');
+    }
+
+    /**
      * Refresh the player queue if we're currently playing a specific playlist
      * Called when songs are added/removed from a playlist
      * @param {number} playlistId - The playlist that was modified
      */
     async refreshPlayerQueueIfNeeded(playlistId) {
-        if (!window.player || !window.player.playbackContext) return;
-
-        const context = window.player.playbackContext;
-        // Only refresh if we're playing this specific playlist
-        if (context.type !== 'playlist' || context.id !== playlistId) return;
-
-        // Get current song to preserve position
-        const currentSong = window.player.getCurrentSong();
-        if (!currentSong) return;
-
-        // Fetch the updated playlist
         try {
+            // Early exit checks - be very defensive
+            if (!window.player) return;
+            if (!window.player.playbackContext) return;
+            if (!playlistId) return;
+
+            const context = window.player.playbackContext;
+            // Only refresh if we're playing this specific playlist
+            if (context.type !== 'playlist' || context.id !== playlistId) return;
+
+            // Get current song to preserve position
+            const currentSong = window.player.getCurrentSong();
+            if (!currentSong) return;
+
+            // Fetch the updated playlist
             const data = await usePlaylistService().fetch(playlistId);
             if (data.error || !data.value || !data.value.songs) return;
 
@@ -1708,7 +1819,46 @@ export class RainyApp {
                 console.log('Current song removed from playlist, queue updated');
             }
         } catch (e) {
+            // Silently ignore errors - this is a non-critical operation
             console.warn('Failed to refresh player queue:', e);
+        }
+    }
+
+    /**
+     * Refresh the player queue when playing from library and library is reloaded
+     * This updates the queue to include newly added songs
+     */
+    refreshLibraryQueue() {
+        try {
+            if (!window.player) return;
+            if (!window.player.playbackContext) return;
+            if (window.player.playbackContext.type !== 'library') return;
+
+            // Get current song to preserve position
+            const currentSong = window.player.getCurrentSong();
+            if (!currentSong) return;
+
+            // Use the updated library songs
+            const newQueue = this.songs;
+            if (!newQueue || !newQueue.length) return;
+
+            // Find current song in new queue
+            const newIndex = newQueue.findIndex(s => s.id === currentSong.id);
+
+            if (newIndex >= 0) {
+                // Update the player's playlist while preserving current playback
+                window.player.playlist = newQueue;
+                window.player.currentIndex = newIndex;
+
+                // Update fullscreen queue if visible
+                if (window.player.fsQueueList) {
+                    window.player.renderFullscreenQueue();
+                }
+
+                console.log('Library queue refreshed, now contains', newQueue.length, 'songs');
+            }
+        } catch (e) {
+            console.warn('Failed to refresh library queue:', e);
         }
     }
 
@@ -1723,14 +1873,15 @@ export class RainyApp {
         if (!state || !state.songId) return;
 
         let queue = null;
+        let hasOperations = false;
 
-        // Determine which queue to use based on context
+        // First, get the base queue based on context
         if (state.context && state.context.type === 'playlist' && state.context.id) {
             // Fetch the playlist to get its songs
             try {
                 const data = await usePlaylistService().fetch(state.context.id);
                 if (!data.error && data.value && data.value.songs) {
-                    queue = data.value.songs;
+                    queue = [...data.value.songs]; // Clone to allow modifications
                 }
             } catch (e) {
                 console.warn('Failed to fetch playlist for restore:', e);
@@ -1739,7 +1890,35 @@ export class RainyApp {
 
         // Fallback to library if playlist fetch failed or context is library
         if (!queue) {
-            queue = this.songs;
+            queue = [...this.songs]; // Clone to allow modifications
+        }
+
+        // Apply queue operations if they exist
+        if (state.queueOperations && state.queueOperations.length > 0) {
+            queue = this.applyQueueOperations(queue, state.queueOperations);
+            if (queue) {
+                hasOperations = true;
+                window.player.queueModified = true;
+                window.player.queueOperations = [...state.queueOperations]; // Restore operations
+            }
+        }
+        // Legacy support: check for old queueSongIds format
+        else if (state.queueSongIds && state.queueSongIds.length > 0) {
+            queue = this.reconstructQueueFromIds(state.queueSongIds);
+            if (queue && queue.length > 0) {
+                window.player.queueModified = true;
+            } else {
+                queue = [...this.songs];
+            }
+        }
+        // Legacy support: check for old modifiedQueue format
+        else if (state.modifiedQueue && state.modifiedQueue.length > 0) {
+            queue = state.modifiedQueue;
+            window.player.queueModified = true;
+        }
+
+        if (!queue || !queue.length) {
+            queue = [...this.songs];
         }
 
         // Validate that the song still exists in the queue
@@ -1753,7 +1932,77 @@ export class RainyApp {
         // Restore the playback state (without auto-playing)
         window.player.restoreFromState(state, queue, false);
 
-        console.log('Restored last played song:', state.songId);
+        console.log('Restored last played song:', state.songId, hasOperations ? `(with ${state.queueOperations.length} operations)` : '');
+    }
+
+    /**
+     * Reconstruct a queue from an array of song IDs
+     * @param {Array<number>} songIds - Array of song IDs
+     * @returns {Array|null} - Array of song objects, or null if failed
+     */
+    reconstructQueueFromIds(songIds) {
+        if (!songIds || !songIds.length) return null;
+        if (!this.songs || !this.songs.length) return null;
+
+        // Create a map for fast lookup
+        const songMap = new Map();
+        this.songs.forEach(s => songMap.set(s.id, s));
+
+        // Reconstruct queue in the correct order
+        const queue = [];
+        for (const id of songIds) {
+            const song = songMap.get(id);
+            if (song) {
+                queue.push(song);
+            }
+            // If song not found, skip it (may have been deleted)
+        }
+
+        return queue.length > 0 ? queue : null;
+    }
+
+    /**
+     * Apply queue operations to a base queue to reconstruct the modified queue
+     * @param {Array} baseQueue - The original queue (playlist or library songs)
+     * @param {Array} operations - Array of operations to apply
+     * @returns {Array|null} - The modified queue, or null if failed
+     */
+    applyQueueOperations(baseQueue, operations) {
+        if (!baseQueue || !baseQueue.length) return null;
+        if (!operations || !operations.length) return baseQueue;
+
+        // Clone the base queue
+        const queue = [...baseQueue];
+
+        // Create a map for fast song lookup
+        const songMap = new Map();
+        this.songs.forEach(s => songMap.set(s.id, s));
+
+        // Apply each operation in order
+        for (const op of operations) {
+            if (op.action === 'add') {
+                const song = songMap.get(op.songId);
+                if (song) {
+                    // Insert at position (or end if position is out of bounds)
+                    const pos = Math.min(op.position, queue.length);
+                    queue.splice(pos, 0, song);
+                }
+            } else if (op.action === 'remove') {
+                // Find and remove the song at approximately the right position
+                // We search around the position since prior operations may have shifted indices
+                const searchStart = Math.max(0, op.position - 5);
+                const searchEnd = Math.min(queue.length, op.position + 5);
+
+                for (let i = searchStart; i < searchEnd; i++) {
+                    if (queue[i] && queue[i].id === op.songId) {
+                        queue.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return queue.length > 0 ? queue : null;
     }
 
     // User Settings & Theming Methods
