@@ -354,18 +354,6 @@ export class RainyApp {
             modal.show();
         });
 
-        document.getElementById('close-playlist-modal')?.addEventListener('click', () => {
-            document.getElementById('create-playlist-modal').classList.add('hidden');
-        });
-
-        document.getElementById('cancel-playlist-btn')?.addEventListener('click', () => {
-            document.getElementById('create-playlist-modal').classList.add('hidden');
-        });
-
-        document.getElementById('save-playlist-btn')?.addEventListener('click', () => {
-            this.createPlaylist();
-        });
-
         document.getElementById('nav-library')?.addEventListener('click', (e) => {
             e.preventDefault();
             this.switchToLibraryView();
@@ -816,31 +804,6 @@ export class RainyApp {
         this.renderListView();
     }
 
-    async removeSong() {
-        if (!this.selectedSong) return;
-        const { id, title, artist } = this.selectedSong;
-
-        // FIXME: Use Dialog with actions (cancel, confirm)
-        if (!confirm(`Remove "${title}" by ${artist}?\n\nThis will permanently delete the song file.`)) {
-            return;
-        }
-
-        const currentSong = window.player.getCurrentSong();
-        if (currentSong && currentSong.id === id) {
-            window.player.audio.pause();
-            window.player.audio.src = '';
-        }
-
-        const data = await useMusicService().delete(id);
-        // FIXME: Add toast notification
-        if (data.error) return console.error(data.error);
-
-        const result = data.value;
-        if (!result) return console.error('unreachable');
-
-        this.loadLibrary();
-    }
-
     showToast(message, type = 'success', duration = 3000) {
         return Utils.showToast(message, type, duration);
     }
@@ -967,15 +930,6 @@ export class RainyApp {
         );
     }
 
-    openCreatePlaylistModal() {
-        document.getElementById('create-playlist-modal').classList.remove('hidden');
-        document.getElementById('playlist-name-input').value = '';
-        document.getElementById('playlist-name-input').focus();
-
-        // Initialize icon picker with preview
-        this.initIconPicker('playlist-icon-picker', 'playlist-icon-color', 'playlist-color-presets', 'music-note', '#888888', 'playlist-preview-icon');
-    }
-
     initIconPicker(pickerContainerId, colorInputId, colorPresetsId, selectedIcon = 'music-note', selectedColor = '#888888', previewContainerId = null) {
         const iconPicker = document.getElementById(pickerContainerId);
         const colorInput = document.getElementById(colorInputId);
@@ -1078,25 +1032,6 @@ export class RainyApp {
         const iconColor = colorInput?.value || '#fa586a';
 
         return { icon, iconColor };
-    }
-
-    async createPlaylist() {
-        const nameInput = document.getElementById('playlist-name-input');
-        const name = nameInput.value.trim();
-        if (!name) return;
-
-        const { icon, iconColor } = this.getSelectedIconData('playlist-icon-picker', 'playlist-icon-color');
-
-        const data = await usePlaylistService().create(name, icon, iconColor);
-        if (data.error) {
-            console.error(data.error);
-            this.showToast('Failed to create playlist', 'error');
-            return;
-        }
-
-        document.getElementById('create-playlist-modal').classList.add('hidden');
-        await this.loadPlaylists();
-        this.showToast('Playlist created', 'success');
     }
 
     openEditPlaylistIconModal() {
@@ -1251,35 +1186,6 @@ export class RainyApp {
         document.getElementById('search-input').value = '';
 
         this.renderSections();
-    }
-
-    /**
-     * Remove selected song from the current playlist
-     */
-    async removeFromPlaylist() {
-        if (!this.selectedSong || !this.currentPlaylistId) {
-            this.showToast('Cannot remove song from playlist', 'error');
-            return;
-        }
-
-        const data = await usePlaylistService().removeSong(this.currentPlaylistId, this.selectedSong.id);
-        if (data.error) {
-            console.error(data.error);
-            this.showToast('Failed to remove song from playlist', 'error');
-            return;
-        }
-
-        // Find playlist name for toast
-        const playlist = this.playlists.find(p => p.id === this.currentPlaylistId);
-        const playlistName = playlist ? playlist.name : 'playlist';
-
-        this.showToast(`Removed from "${playlistName}"`, 'success');
-
-        // Refresh the current playlist view
-        await this.openPlaylist(this.currentPlaylistId);
-
-        // Also refresh player queue if we're playing this playlist
-        await this.refreshPlayerQueueIfNeeded(this.currentPlaylistId);
     }
 
     /**
