@@ -14,6 +14,11 @@ export class AudioPlayer {
         this.isBuffering = false;
         this.lastDisplayedTime = 0;
 
+        // Playback context tracking
+        this.playbackContext = { type: 'library', id: null };
+        this.lastSaveTime = 0;
+        this.saveThrottleMs = 5000; // Save every 5 seconds
+
         this.init();
     }
 
@@ -174,9 +179,14 @@ export class AudioPlayer {
         this.fsVolumeSlider.style.setProperty('--volume-percent', `${percent}%`);
     }
 
-    playSong(index, playlist = null) {
+    playSong(index, playlist = null, context = null) {
         if (playlist) {
             this.playlist = playlist;
+        }
+
+        // Update playback context if provided
+        if (context) {
+            this.playbackContext = context;
         }
 
         if (index < 0 || index >= this.playlist.length) {
@@ -192,6 +202,9 @@ export class AudioPlayer {
 
         // Update now playing info
         this.updateNowPlaying(song);
+
+        // Save playback state immediately on song change
+        this.savePlaybackState();
 
         // Play
         this.audio.play().catch(err => {
@@ -386,6 +399,13 @@ export class AudioPlayer {
             // Fullscreen bar
             if (this.fsProgressFill) this.fsProgressFill.style.width = `${percent}%`;
             if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(this.audio.currentTime);
+
+            // Throttled save of playback state
+            const now = Date.now();
+            if (now - this.lastSaveTime > this.saveThrottleMs) {
+                this.savePlaybackState();
+                this.lastSaveTime = now;
+            }
         }
     }
 
@@ -670,5 +690,96 @@ export class AudioPlayer {
                 activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 100);
         }
+    }
+
+    /**
+     * Save current playback state to localStorage
+     * Only stores essential data (song ID, context, time) - not the full queue
+     */
+    savePlaybackState() {
+        if (this.currentIndex < 0 || !this.playlist.length) return;
+
+        const song = this.playlist[this.currentIndex];
+        if (!song) return;
+
+        const state = {
+            songId: song.id,
+            currentTime: this.audio.currentTime || 0,
+            context: this.playbackContext
+        };
+
+        try {
+            localStorage.setItem('rainy_playback_state', JSON.stringify(state));
+        } catch (e) {
+            console.warn('Failed to save playback state:', e);
+        }
+    }
+
+    /**
+     * Restore playback state from localStorage
+     * @returns {Object|null} The restored state object, or null if none exists
+     */
+    getStoredPlaybackState() {
+        try {
+            const stored = localStorage.getItem('rainy_playback_state');
+            if (stored) {
+                return JSON.parse(stored);
+            }
+        } catch (e) {
+            console.warn('Failed to restore playback state:', e);
+        }
+        return null;
+    }
+
+    /**
+     * Restore a song from saved state (does not auto-play)
+     * @param {Object} state - The playback state object (songId, currentTime, context)
+     * @param {Array} queue - The queue/playlist to use
+     * @param {boolean} autoPlay - Whether to auto-play the song
+     */
+    restoreFromState(state, queue, autoPlay = false) {
+        if (!state || !state.songId || !queue || !queue.length) return;
+
+        this.playlist = queue;
+        this.playbackContext = state.context || { type: 'library', id: null };
+
+        // Find the song index in the queue
+        const songIndex = queue.findIndex(s => s.id === state.songId);
+        if (songIndex === -1) return; // Song not found in queue
+
+        this.currentIndex = songIndex;
+        const song = this.playlist[this.currentIndex];
+
+        // Set up audio source
+        const streamUrl = `/api/music/stream/${song.id}`;
+        this.audio.src = streamUrl;
+
+        // Restore position when metadata is loaded
+        const savedTime = state.currentTime || 0;
+        if (savedTime > 0) {
+            const onLoadedMetadata = () => {
+                if (savedTime < this.audio.duration) {
+                    this.audio.currentTime = savedTime;
+                }
+                this.audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+            };
+            this.audio.addEventListener('loadedmetadata', onLoadedMetadata);
+        }
+
+        // Update UI
+        this.updateNowPlaying(song);
+
+        if (autoPlay) {
+            this.audio.play().catch(err => {
+                console.log('Auto-play blocked, waiting for user interaction');
+            });
+        }
+    }
+
+    /**
+     * Clear saved playback state
+     */
+    clearPlaybackState() {
+        localStorage.removeItem('rainy_playback_state');
     }
 }

@@ -321,6 +321,11 @@ export class RainyApp {
             this.removeSong();
         });
 
+        document.getElementById('context-remove-from-playlist')?.addEventListener('click', () => {
+            this.hideContextMenu();
+            this.removeFromPlaylist();
+        });
+
         // Metadata modal
         document.getElementById('close-metadata-modal')?.addEventListener('click', () => {
             this.closeMetadataModal();
@@ -614,6 +619,9 @@ export class RainyApp {
             this.renderSections();
             this.updateStats();
 
+            // Restore last played song after library loads
+            this.restorePlaybackState();
+
             return;
         }
 
@@ -662,7 +670,10 @@ export class RainyApp {
                 if (e.target.closest('.song-menu-btn')) return;
                 const index = parseInt(card.dataset.index);
                 if (index >= 0) {
-                    window.player.playSong(index, this.songs);
+                    const context = this.currentViewType === 'playlist'
+                        ? { type: 'playlist', id: this.currentPlaylistId }
+                        : { type: 'library', id: null };
+                    window.player.playSong(index, this.songs, context);
                 }
             });
         });
@@ -722,7 +733,8 @@ export class RainyApp {
                 // Don't play if clicking menu button
                 if (e.target.closest('.song-menu-btn')) return;
                 const index = parseInt(card.dataset.index);
-                window.player.playSong(index, this.filteredSongs);
+                const context = { type: 'search', id: null };
+                window.player.playSong(index, this.filteredSongs, context);
             });
         });
 
@@ -759,7 +771,12 @@ export class RainyApp {
                 // Don't play if clicking menu button
                 if (e.target.closest('.song-menu-btn')) return;
                 const index = parseInt(row.dataset.index);
-                window.player.playSong(index, this.filteredSongs);
+                const context = this.currentViewType === 'playlist'
+                    ? { type: 'playlist', id: this.currentPlaylistId }
+                    : this.currentViewType === 'library'
+                        ? { type: 'library', id: null }
+                        : { type: 'search', id: null };
+                window.player.playSong(index, this.filteredSongs, context);
             });
         });
 
@@ -1172,6 +1189,16 @@ export class RainyApp {
             artist: songData.songArtist,
             path: fullSong?.path || songData.songId  // Fallback to songId if not found
         };
+
+        // Toggle playlist-only items based on current view
+        const removeFromPlaylistItem = document.getElementById('context-remove-from-playlist');
+        if (removeFromPlaylistItem) {
+            if (this.currentViewType === 'playlist' && this.currentPlaylistId) {
+                removeFromPlaylistItem.classList.remove('hidden');
+            } else {
+                removeFromPlaylistItem.classList.add('hidden');
+            }
+        }
 
         // Position the menu
         const x = event.clientX;
@@ -1602,6 +1629,131 @@ export class RainyApp {
 
         this.hideContextMenu();
         this.showToast(`Added to "${playlistName}"`, 'success');
+
+        // Refresh player queue if we're playing this playlist
+        await this.refreshPlayerQueueIfNeeded(playlistId); // FIXME: This seems to cause errors after adding new songs to the system and playing music from the all songs section
+    }
+
+    /**
+     * Remove selected song from the current playlist
+     */
+    async removeFromPlaylist() {
+        if (!this.selectedSong || !this.currentPlaylistId) {
+            this.showToast('Cannot remove song from playlist', 'error');
+            return;
+        }
+
+        const data = await usePlaylistService().removeSong(this.currentPlaylistId, this.selectedSong.id);
+        if (data.error) {
+            console.error(data.error);
+            this.showToast('Failed to remove song from playlist', 'error');
+            return;
+        }
+
+        // Find playlist name for toast
+        const playlist = this.playlists.find(p => p.id === this.currentPlaylistId);
+        const playlistName = playlist ? playlist.name : 'playlist';
+
+        this.showToast(`Removed from "${playlistName}"`, 'success');
+
+        // Refresh the current playlist view
+        await this.openPlaylist(this.currentPlaylistId);
+
+        // Also refresh player queue if we're playing this playlist
+        await this.refreshPlayerQueueIfNeeded(this.currentPlaylistId);
+    }
+
+    /**
+     * Refresh the player queue if we're currently playing a specific playlist
+     * Called when songs are added/removed from a playlist
+     * @param {number} playlistId - The playlist that was modified
+     */
+    async refreshPlayerQueueIfNeeded(playlistId) {
+        if (!window.player || !window.player.playbackContext) return;
+
+        const context = window.player.playbackContext;
+        // Only refresh if we're playing this specific playlist
+        if (context.type !== 'playlist' || context.id !== playlistId) return;
+
+        // Get current song to preserve position
+        const currentSong = window.player.getCurrentSong();
+        if (!currentSong) return;
+
+        // Fetch the updated playlist
+        try {
+            const data = await usePlaylistService().fetch(playlistId);
+            if (data.error || !data.value || !data.value.songs) return;
+
+            const newQueue = data.value.songs;
+
+            // Find current song in new queue
+            const newIndex = newQueue.findIndex(s => s.id === currentSong.id);
+
+            if (newIndex >= 0) {
+                // Update the player's playlist while preserving current playback
+                window.player.playlist = newQueue;
+                window.player.currentIndex = newIndex;
+
+                // Update fullscreen queue if visible
+                if (window.player.fsQueueList) {
+                    window.player.renderFullscreenQueue();
+                }
+
+                console.log('Player queue refreshed for playlist:', playlistId);
+            } else {
+                // Current song was removed - let it finish, queue will use new songs for next
+                window.player.playlist = newQueue;
+                // Reset index to 0 if current song no longer exists
+                window.player.currentIndex = 0;
+                console.log('Current song removed from playlist, queue updated');
+            }
+        } catch (e) {
+            console.warn('Failed to refresh player queue:', e);
+        }
+    }
+
+    /**
+     * Restore playback state from localStorage
+     * Called after library is loaded to resume last played song
+     */
+    async restorePlaybackState() {
+        if (!window.player) return;
+
+        const state = window.player.getStoredPlaybackState();
+        if (!state || !state.songId) return;
+
+        let queue = null;
+
+        // Determine which queue to use based on context
+        if (state.context && state.context.type === 'playlist' && state.context.id) {
+            // Fetch the playlist to get its songs
+            try {
+                const data = await usePlaylistService().fetch(state.context.id);
+                if (!data.error && data.value && data.value.songs) {
+                    queue = data.value.songs;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch playlist for restore:', e);
+            }
+        }
+
+        // Fallback to library if playlist fetch failed or context is library
+        if (!queue) {
+            queue = this.songs;
+        }
+
+        // Validate that the song still exists in the queue
+        const songExists = queue.some(s => s.id === state.songId);
+        if (!songExists) {
+            // Song no longer exists, clear the state
+            window.player.clearPlaybackState();
+            return;
+        }
+
+        // Restore the playback state (without auto-playing)
+        window.player.restoreFromState(state, queue, false);
+
+        console.log('Restored last played song:', state.songId);
     }
 
     // User Settings & Theming Methods
