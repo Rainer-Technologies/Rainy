@@ -19,6 +19,7 @@
 @import url('./components/fullscreen.css');
 @import url('./components/toast.css');
 @import url('./components/context-menu.css');
+@import url('./components/settings-page.css');
 
 /* Pages */
 @import url('./pages/setup.css');

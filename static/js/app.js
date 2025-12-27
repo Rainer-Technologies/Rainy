@@ -48,21 +48,21 @@ export class RainyApp {
         document.getElementById('app-view').classList.add('hidden');
 
         let data = await useSetupService().status();
-        if(data.error) return console.error(data.error);
+        if (data.error) return console.error(data.error);
 
         const setup = data.value;
-        if(!setup) return console.error('unreachable');
-        if(setup.needs_setup) return Router.navigate(new View('setup'), this);
+        if (!setup) return console.error('unreachable');
+        if (setup.needs_setup) return Router.navigate(new View('setup'), this);
 
         /** @type {Result<import('../services/auth.js').UserModel, import('../services/auth.js').ErrorModel | ResponseError>} */
         data = await useAuthService().me();
-        if(data.error) {
-            if('authenticated' in data.error) return Router.navigate(new View('login'), this);
+        if (data.error) {
+            if ('authenticated' in data.error) return Router.navigate(new View('login'), this);
             return console.error(data.error);;
         }
 
         const user = data.value;
-        if(!user) return console.error('unreachable');
+        if (!user) return console.error('unreachable');
 
         this.user = user;
         this.applyThemeFromPreferences();
@@ -71,32 +71,43 @@ export class RainyApp {
     }
 
     bindEvents() {
-        // User Settings Modal
-        document.getElementById('menu-user-settings')?.addEventListener('click', () => {
+        // Discord-style Settings Page
+        document.getElementById('menu-settings')?.addEventListener('click', () => {
             this.closeDropdown();
-            this.openUserSettings();
+            this.openSettings('appearance');
         });
 
-        document.getElementById('close-user-settings')?.addEventListener('click', () => {
-            this.closeUserSettings();
+        document.getElementById('settings-close')?.addEventListener('click', () => {
+            this.closeSettings();
         });
 
-        document.getElementById('user-settings-modal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'user-settings-modal') {
-                this.closeUserSettings();
+        // Close settings with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const settingsPage = document.getElementById('settings-page');
+                if (settingsPage && !settingsPage.classList.contains('hidden')) {
+                    this.closeSettings();
+                }
             }
         });
-        
-        // User Settings tabs
-        document.querySelectorAll('.settings-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                this.switchSettingsTab(tab.dataset.tab);
+
+        // Settings sidebar navigation
+        document.querySelectorAll('.settings-nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const section = item.dataset.section;
+                if (section) this.switchSettingsSection(section);
             });
         });
-        
+
+        // Settings search functionality
+        document.getElementById('settings-search-input')?.addEventListener('input', (e) => {
+            this.handleSettingsSearch(e.target.value);
+        });
+
         // Color Picker Logic
         const colorInput = document.getElementById('settings-accent-color');
-        
+
         // Real-time preview
         colorInput?.addEventListener('input', (e) => {
             const color = e.target.value;
@@ -108,9 +119,9 @@ export class RainyApp {
         colorInput?.addEventListener('change', (e) => {
             this.savePreferences({ theme_color: e.target.value });
         });
-        
-        // Color Presets
-        document.querySelectorAll('.color-preset-btn').forEach(btn => {
+
+        // Color Presets (new Discord-style presets)
+        document.querySelectorAll('.settings-color-preset').forEach(btn => {
             btn.addEventListener('click', () => {
                 const color = btn.dataset.color;
                 if (colorInput) colorInput.value = color;
@@ -128,33 +139,40 @@ export class RainyApp {
             this.applyTheme(defaultColor);
             this.savePreferences({ theme_color: defaultColor });
         });
-        
-        // Fullscreen Mode Setting
-        document.getElementById('settings-fullscreen-mode')?.addEventListener('change', (e) => {
-            this.savePreferences({ fullscreen_mode: e.target.value });
+
+        // Fullscreen Mode Setting (Discord radio button style)
+        document.querySelectorAll('.settings-radio-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const group = item.closest('.settings-radio-group');
+                group.querySelectorAll('.settings-radio-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                const value = item.dataset.value;
+                this.savePreferences({ fullscreen_mode: value });
+            });
         });
+
         document.getElementById('settings-fullscreen-swap')?.addEventListener('change', (e) => {
             this.savePreferences({ fullscreen_swap_sides: e.target.checked });
         });
-        
+
         // Change Password
         document.getElementById('change-password-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const currentPass = document.getElementById('current-password').value;
             const newPass = document.getElementById('new-password').value;
             const confirmPass = document.getElementById('confirm-password').value;
-            
+
             if (newPass !== confirmPass) {
                 this.showToast('New passwords do not match', 'error');
                 return;
             }
-            
+
             const data = await useAuthService().changePassword(currentPass, newPass);
             if (data.error) {
                 this.showToast(data.error.error || 'Failed to change password', 'error');
                 return;
             }
-            
+
             this.showToast('Password updated successfully', 'success');
             document.getElementById('change-password-form').reset();
         });
@@ -200,25 +218,9 @@ export class RainyApp {
         // Dropdown menu items
         // User settings listener is already added at the top
 
-        document.getElementById('menu-server-settings')?.addEventListener('click', () => {
-            this.closeDropdown();
-            this.openServerSettings();
-        });
-
         document.getElementById('menu-logout')?.addEventListener('click', () => {
             this.closeDropdown();
             this.handleLogout();
-        });
-
-        // Server Settings Modal
-        document.getElementById('close-server-settings')?.addEventListener('click', () => {
-            this.closeServerSettings();
-        });
-
-        document.getElementById('server-settings-modal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'server-settings-modal') {
-                this.closeServerSettings();
-            }
         });
 
         // View toggle
@@ -356,10 +358,10 @@ export class RainyApp {
             }
         });
 
-        // Add Music tabs
-        document.querySelectorAll('.add-music-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                this.switchAddMusicTab(tab.dataset.tab);
+        // Add Music method selection
+        document.querySelectorAll('.add-music-method').forEach(method => {
+            method.addEventListener('click', () => {
+                this.switchAddMusicMethod(method.dataset.method);
             });
         });
 
@@ -502,36 +504,28 @@ export class RainyApp {
         }
     }
 
+    // Settings page is now unified - these methods redirect to the new settings page
     async openServerSettings() {
-        const modal = document.getElementById('server-settings-modal');
-        modal?.classList.remove('hidden');
-
-        // Reset scan result display
-        document.getElementById('scan-progress')?.classList.add('hidden');
-        document.getElementById('scan-result')?.classList.add('hidden');
-
-        // Load current scan status
-        await this.loadScanStatus();
+        this.openSettings('library');
     }
 
     closeServerSettings() {
-        const modal = document.getElementById('server-settings-modal');
-        modal?.classList.add('hidden');
+        this.closeSettings();
     }
 
     async loadScanStatus() {
         const data = await useScanService().status();
-        if(data.error) return console.error(data.error);
+        if (data.error) return console.error(data.error);
 
         const status = data.value;
-        if(!status) return console.error('unreachable');
+        if (!status) return console.error('unreachable');
 
         const libraryCount = document.querySelector('#library-count');
         const lastScanTime = document.querySelector('#last-scan-time');
 
-        if(libraryCount) libraryCount.textContent = `${status.library_total || 0} songs`;
-        if(lastScanTime && status.has_scan) {
-            if(status.scan.status === 'running') {
+        if (libraryCount) libraryCount.textContent = `${status.library_total || 0} songs`;
+        if (lastScanTime && status.has_scan) {
+            if (status.scan.status === 'running') {
                 lastScanTime.textContent = 'In progress...';
                 return;
             }
@@ -556,7 +550,7 @@ export class RainyApp {
         const data = await (fullScan
             ? useScanService().full()
             : useScanService().quick());
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             scanProgress?.classList.add('hidden');
 
@@ -567,12 +561,12 @@ export class RainyApp {
         }
 
         const scan = data.value;
-        if(!scan) return console.error('unreachable');
+        if (!scan) return console.error('unreachable');
 
         scanProgress?.classList.add('hidden');
         scanResult?.classList.remove('hidden');
 
-        if(scan.stats) {
+        if (scan.stats) {
             document.getElementById('scan-files-found').textContent = scan.stats.files_found || 0;
             document.getElementById('scan-files-added').textContent = scan.stats.files_added || 0;
             document.getElementById('scan-files-updated').textContent = scan.stats.files_updated || 0;
@@ -581,7 +575,7 @@ export class RainyApp {
 
         await this.loadScanStatus();
         this.loadLibrary();
-            
+
         quickScanBtn.disabled = false;
         fullScanBtn.disabled = false;
     }
@@ -597,7 +591,7 @@ export class RainyApp {
         document.getElementById('songs-list-content').innerHTML = '';
 
         const data = await useMusicService().library();
-        if(data.error) {
+        if (data.error) {
             console.error('Failed to load music libary!', data.error);
             loadingState.classList.add('hidden');
             emptyState.classList.remove('hidden');
@@ -606,11 +600,11 @@ export class RainyApp {
         }
 
         const library = data.value;
-        if(!library) throw new Error('unreachable');
+        if (!library) throw new Error('unreachable');
         loadingState.classList.add('hidden');
 
         const allSongs = library.all_songs;
-        if(allSongs && allSongs.length > 0) {
+        if (allSongs && allSongs.length > 0) {
             this.songs = allSongs;
             this.librarySongs = [...this.songs];
             this.currentViewType = 'library';
@@ -622,7 +616,7 @@ export class RainyApp {
 
             return;
         }
-            
+
         emptyState.classList.remove('hidden');
     }
 
@@ -918,17 +912,17 @@ export class RainyApp {
         }
 
         const currentSong = window.player.getCurrentSong();
-        if(currentSong && currentSong.id === id) {
+        if (currentSong && currentSong.id === id) {
             window.player.audio.pause();
             window.player.audio.src = '';
         }
 
         const data = await useMusicService().delete(id);
         // FIXME: Add toast notification
-        if(data.error) return console.error(data.error);
+        if (data.error) return console.error(data.error);
 
         const result = data.value;
-        if(!result) return console.error('unreachable');
+        if (!result) return console.error('unreachable');
 
         this.loadLibrary();
     }
@@ -949,16 +943,21 @@ export class RainyApp {
         document.getElementById('add-music-modal')?.classList.add('hidden');
     }
 
-    switchAddMusicTab(tabName) {
-        // Update tab buttons
-        document.querySelectorAll('.add-music-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === tabName);
+    switchAddMusicMethod(methodName) {
+        // Update method cards
+        document.querySelectorAll('.add-music-method').forEach(method => {
+            method.classList.toggle('active', method.dataset.method === methodName);
         });
-        // Update tab content
-        document.querySelectorAll('.add-music-tab-content').forEach(content => {
+        // Update content sections
+        document.querySelectorAll('.add-music-content').forEach(content => {
             content.classList.remove('active');
         });
-        document.getElementById(`${tabName}-tab`)?.classList.add('active');
+        document.getElementById(`${methodName}-content`)?.classList.add('active');
+    }
+
+    // Legacy alias for backward compatibility
+    switchAddMusicTab(tabName) {
+        this.switchAddMusicMethod(tabName);
     }
 
     async uploadFiles(files) {
@@ -1050,23 +1049,25 @@ export class RainyApp {
         }, 500);
 
         const data = await useMusicService().YouTube.import(url);
-        if(data.error) {
+        clearInterval(progressInterval);
+
+        if (data.error) {
             console.error(data.error);
 
             importBtn.disabled = false;
+            status.classList.add('hidden');
             progressFill.style.width = '0%';
-            statusText.textContent = error.message || 'Import failed. Please try again.';
-            setTimeout(() => {
-                status.classList.add('hidden');
-            }, 3000);
+
+            // Show error toast notification
+            const errorMessage = data.error.error || data.error.message || 'Failed to import from YouTube. Please check the URL and try again.';
+            this.showToast(errorMessage, 'error', 5000);
 
             return;
         }
 
         const result = data.value;
-        if(!result) return console.error('unreachable');
+        if (!result) return console.error('unreachable');
 
-        clearInterval(progressInterval);
         updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
         setTimeout(() => {
             this.closeAddMusicModal();
@@ -1241,7 +1242,7 @@ export class RainyApp {
         noResults.classList.add('hidden');
 
         const data = await useMetadataService().search(query);
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             loading.classList.add('hidden');
             noResults.classList.remove('hidden');
@@ -1252,8 +1253,8 @@ export class RainyApp {
         loading.classList.add('hidden');
 
         const matches = data.value;
-        if(!matches) return console.error('unreachable');
-        if(matches.results.length === 0) {
+        if (!matches) return console.error('unreachable');
+        if (matches.results.length === 0) {
             noResults.classList.remove('hidden');
             return;
         }
@@ -1303,9 +1304,9 @@ export class RainyApp {
         const applyButtons = document.querySelectorAll('.apply-metadata-btn');
         applyButtons.forEach(btn => btn.disabled = true);
 
-        const data = await useMetadataService().apply(songId, 
+        const data = await useMetadataService().apply(songId,
             metadata.title, metadata.artist, metadata.album, metadata.year, metadata.genre, metadata.cover_url);
-        if(data.error) {
+        if (data.error) {
             console.log(data.error);
             applyButtons.forEach(btn => btn.disabled = false);
 
@@ -1313,7 +1314,7 @@ export class RainyApp {
         }
 
         const result = data.value;
-        if(!result) return console.error('unreachable');
+        if (!result) return console.error('unreachable');
         this.closeMetadataModal();
 
         const updatedSong = result.song;
@@ -1398,10 +1399,10 @@ export class RainyApp {
     async loadPlaylists() {
         const data = await usePlaylistService().all();
         // FIXME: Show toast notification
-        if(data.error) return console.error(data.error);
+        if (data.error) return console.error(data.error);
 
         const playlists = data.value;
-        if(!Array.isArray(playlists)) return console.error('unreachable');
+        if (!Array.isArray(playlists)) return console.error('unreachable');
 
         this.playlists = playlists;
         this.renderSidebarPlaylists();
@@ -1432,7 +1433,7 @@ export class RainyApp {
         if (!name) return;
 
         const data = await usePlaylistService().create(name);
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             this.showToast('Failed to create playlist', 'error');
             return;
@@ -1457,10 +1458,10 @@ export class RainyApp {
     async performRenamePlaylist() {
         const input = document.getElementById('rename-playlist-input');
         const newName = input.value.trim();
-        if(!newName) return this.showToast('Playlist name cannot be empty', 'error');
+        if (!newName) return this.showToast('Playlist name cannot be empty', 'error');
 
         const data = await usePlaylistService().rename(this.currentPlaylistId, newName);
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             this.showToast('Failed to rename playlist', 'error');
 
@@ -1484,7 +1485,7 @@ export class RainyApp {
 
     async performDeletePlaylist() {
         const data = await usePlaylistService().delete(this.currentPlaylistId);
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             this.showToast('Failed to delete playlist', 'error');
 
@@ -1503,10 +1504,10 @@ export class RainyApp {
     async openPlaylist(playlistId) {
         const data = await usePlaylistService().fetch(playlistId);
         // FIXME: Show toast notification
-        if(data.error) return console.error(data.error);
+        if (data.error) return console.error(data.error);
 
         const playlist = data.value;
-        if(!playlist) return console.error('unreachable');
+        if (!playlist) return console.error('unreachable');
 
         this.currentViewType = 'playlist';
         this.currentPlaylistId = playlistId;
@@ -1585,11 +1586,11 @@ export class RainyApp {
     }
 
     async addToPlaylist(playlistId, event) {
-        if(event) event.stopPropagation();
-        if(!this.selectedSong) return;
+        if (event) event.stopPropagation();
+        if (!this.selectedSong) return;
 
         const data = await usePlaylistService().addSong(playlistId, this.selectedSong.id);
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             this.showToast('Failed to add song to playlist', 'error');
 
@@ -1604,7 +1605,7 @@ export class RainyApp {
     }
 
     // User Settings & Theming Methods
-    
+
     applyTheme(color) {
         if (!color) return;
         const root = document.documentElement;
@@ -1614,6 +1615,8 @@ export class RainyApp {
         root.style.setProperty('--accent-gradient', `linear-gradient(135deg, ${color} 0%, ${color} 100%)`);
         // Calculate glow (hex + opacity)
         root.style.setProperty('--accent-glow', `${color}4D`); // ~30% opacity
+        // Calculate subtle bg (hex + opacity)
+        root.style.setProperty('--accent-bg-subtle', `${color}14`); // ~8% opacity
     }
 
     applyThemeFromPreferences() {
@@ -1633,79 +1636,206 @@ export class RainyApp {
         }
     }
 
-    openUserSettings() {
-        const modal = document.getElementById('user-settings-modal');
-        modal?.classList.remove('hidden');
-        
-        // Reset form
-        document.getElementById('change-password-form').reset();
-        
+    // Discord-style Settings Page Methods
+    openSettings(section = 'appearance') {
+        const settingsPage = document.getElementById('settings-page');
+        settingsPage?.classList.remove('hidden');
+
+        // Update user profile in settings sidebar
+        if (this.user) {
+            const avatar = document.getElementById('settings-user-avatar');
+            const username = document.getElementById('settings-username');
+            const role = document.getElementById('settings-user-role');
+            if (avatar) avatar.textContent = this.user.username?.charAt(0).toUpperCase() || 'U';
+            if (username) username.textContent = this.user.username || 'User';
+            if (role) role.textContent = this.user.role === 'sysadmin' ? 'Administrator' : 'User';
+
+            // Show/hide server settings for sysadmin
+            const serverCategory = document.getElementById('settings-nav-server-category');
+            const libraryNav = document.getElementById('settings-nav-library');
+            if (this.user.role === 'sysadmin') {
+                serverCategory?.classList.remove('hidden');
+                libraryNav?.classList.remove('hidden');
+            } else {
+                serverCategory?.classList.add('hidden');
+                libraryNav?.classList.add('hidden');
+            }
+        }
+
+        // Reset password form
+        document.getElementById('change-password-form')?.reset();
+
         // Set current color in picker
-        let currentColor = '#fa586a'; // default
+        let currentColor = '#fa586a';
+        let currentFsMode = 'standard';
+        let swap = false;
+
         if (this.user && this.user.preferences) {
             let prefs = this.user.preferences;
-             if (typeof prefs === 'string') {
+            if (typeof prefs === 'string') {
                 try {
                     prefs = JSON.parse(prefs);
                 } catch (e) { }
             }
-            if (prefs && prefs.theme_color) {
-                currentColor = prefs.theme_color;
+            if (prefs) {
+                if (prefs.theme_color) currentColor = prefs.theme_color;
+                if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
+                if (typeof prefs.fullscreen_swap_sides !== 'undefined') swap = !!prefs.fullscreen_swap_sides;
             }
         }
-        
+
+        // Set color picker
         const colorInput = document.getElementById('settings-accent-color');
         const colorValue = document.getElementById('settings-accent-color-value');
         if (colorInput) colorInput.value = currentColor;
         if (colorValue) colorValue.textContent = currentColor;
 
-        // Set fullscreen mode
-        const fsModeSelect = document.getElementById('settings-fullscreen-mode');
-        let currentFsMode = 'standard';
-        if (this.user && this.user.preferences) {
-            let prefs = this.user.preferences;
-            if (typeof prefs === 'string') {
-                try {
-                    prefs = JSON.parse(prefs);
-                } catch (e) { }
-            }
-            if (prefs && prefs.fullscreen_mode) {
-                currentFsMode = prefs.fullscreen_mode;
-            }
-        }
-        if (fsModeSelect) fsModeSelect.value = currentFsMode;
-        
+        // Set fullscreen mode radio buttons
+        document.querySelectorAll('.settings-radio-item').forEach(item => {
+            item.classList.toggle('selected', item.dataset.value === currentFsMode);
+        });
+
+        // Set swap toggle
         const fsSwapToggle = document.getElementById('settings-fullscreen-swap');
-        let swap = false;
-        if (this.user && this.user.preferences) {
-            let prefs = this.user.preferences;
-            if (typeof prefs === 'string') {
-                try {
-                    prefs = JSON.parse(prefs);
-                } catch (e) { }
-            }
-            if (prefs && typeof prefs.fullscreen_swap_sides !== 'undefined') {
-                swap = !!prefs.fullscreen_swap_sides;
-            }
-        }
         if (fsSwapToggle) fsSwapToggle.checked = swap;
-        
-        // Default to Appearance tab
-        this.switchSettingsTab('appearance');
+
+        // Load scan status if going to library section
+        if (section === 'library') {
+            this.loadScanStatus();
+        }
+
+        // Switch to the requested section
+        this.switchSettingsSection(section);
+    }
+
+    closeSettings() {
+        const settingsPage = document.getElementById('settings-page');
+        if (settingsPage) {
+            settingsPage.classList.add('closing');
+            setTimeout(() => {
+                settingsPage.classList.add('hidden');
+                settingsPage.classList.remove('closing');
+            }, 200);
+        }
+    }
+
+    switchSettingsSection(sectionName) {
+        // Update navigation active state
+        document.querySelectorAll('.settings-nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.section === sectionName);
+        });
+
+        // Update title
+        const titleMap = {
+            'appearance': 'Appearance',
+            'player': 'Player',
+            'account': 'Account',
+            'library': 'Library Scanning'
+        };
+        const title = document.getElementById('settings-page-title');
+        if (title) title.textContent = titleMap[sectionName] || 'Settings';
+
+        // Show/hide sections
+        document.querySelectorAll('.settings-section').forEach(section => {
+            section.classList.remove('active');
+        });
+        document.getElementById(`settings-section-${sectionName}`)?.classList.add('active');
+
+        // Load scan status when switching to library section
+        if (sectionName === 'library') {
+            this.loadScanStatus();
+        }
+    }
+
+    handleSettingsSearch(query) {
+        const searchTerm = query.toLowerCase().trim();
+        const navItems = document.querySelectorAll('.settings-nav-item');
+
+        // Define searchable content for each section
+        const sectionKeywords = {
+            'appearance': ['appearance', 'theme', 'color', 'accent', 'color picker', 'preset', 'reset', 'style', 'look'],
+            'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
+            'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
+            'library': ['library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'server']
+        };
+
+        if (!searchTerm) {
+            // Reset - show all nav items and remove highlights
+            navItems.forEach(item => {
+                if (!item.classList.contains('sysadmin-only') ||
+                    (this.user && this.user.role === 'sysadmin')) {
+                    item.style.display = '';
+                }
+            });
+            document.querySelectorAll('.settings-nav-category').forEach(cat => {
+                if (!cat.classList.contains('sysadmin-only') ||
+                    (this.user && this.user.role === 'sysadmin')) {
+                    cat.style.display = '';
+                }
+            });
+            // Remove any search highlights
+            document.querySelectorAll('.settings-search-highlight').forEach(el => {
+                el.classList.remove('settings-search-highlight');
+            });
+            return;
+        }
+
+        let firstMatch = null;
+        let hasUserMatch = false;
+        let hasServerMatch = false;
+
+        // Filter nav items based on search
+        navItems.forEach(item => {
+            const section = item.dataset.section;
+            const keywords = sectionKeywords[section] || [];
+            const itemText = item.textContent.toLowerCase();
+
+            const matches = keywords.some(kw => kw.includes(searchTerm)) ||
+                itemText.includes(searchTerm);
+
+            // Check if sysadmin-only section
+            const isSysadminOnly = item.classList.contains('sysadmin-only');
+            const canShow = !isSysadminOnly || (this.user && this.user.role === 'sysadmin');
+
+            if (matches && canShow) {
+                item.style.display = '';
+                if (!firstMatch) firstMatch = section;
+                if (section === 'library') {
+                    hasServerMatch = true;
+                } else {
+                    hasUserMatch = true;
+                }
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        // Show/hide category headers based on matches
+        const userCategory = document.querySelector('.settings-nav-category:not(.sysadmin-only)');
+        const serverCategory = document.getElementById('settings-nav-server-category');
+
+        if (userCategory) userCategory.style.display = hasUserMatch ? '' : 'none';
+        if (serverCategory && this.user?.role === 'sysadmin') {
+            serverCategory.style.display = hasServerMatch ? '' : 'none';
+        }
+
+        // Navigate to first matching section
+        if (firstMatch) {
+            this.switchSettingsSection(firstMatch);
+        }
+    }
+
+    // Legacy methods for backward compatibility
+    openUserSettings() {
+        this.openSettings('appearance');
     }
 
     closeUserSettings() {
-        document.getElementById('user-settings-modal')?.classList.add('hidden');
+        this.closeSettings();
     }
-    
+
     switchSettingsTab(tabName) {
-        document.querySelectorAll('.settings-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === tabName);
-        });
-        document.querySelectorAll('.settings-tab-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        document.getElementById(`settings-tab-${tabName}`)?.classList.add('active');
+        this.switchSettingsSection(tabName);
     }
 
     async savePreferences(newPrefs) {
@@ -1713,20 +1843,20 @@ export class RainyApp {
         let currentPrefs = {};
         if (this.user) {
             if (this.user.preferences) {
-                 if (typeof this.user.preferences === 'string') {
+                if (typeof this.user.preferences === 'string') {
                     try {
                         currentPrefs = JSON.parse(this.user.preferences);
-                    } catch (e) {}
+                    } catch (e) { }
                 } else {
                     currentPrefs = this.user.preferences;
                 }
             }
-            
+
             const updatedPrefs = { ...currentPrefs, ...newPrefs };
-            
+
             // Update local user object immediately
             this.user.preferences = updatedPrefs;
-            
+
             // Save to server
             await useAuthService().updatePreferences(updatedPrefs);
         }

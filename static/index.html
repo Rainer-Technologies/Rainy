@@ -156,19 +156,12 @@
                             <span>Add Music</span>
                         </div>
                         <div class="dropdown-divider"></div>
-                        <div class="dropdown-item" id="menu-user-settings">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path
-                                    d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                            </svg>
-                            <span>User Settings</span>
-                        </div>
-                        <div class="dropdown-item sysadmin-only hidden" id="menu-server-settings">
+                        <div class="dropdown-item" id="menu-settings">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                             </svg>
-                            <span>Server Settings</span>
+                            <span>Settings</span>
                         </div>
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-item logout" id="menu-logout">
@@ -392,164 +385,257 @@
         </div>
     </div>
 
-    <!-- Server Settings Modal -->
-    <div class="modal-overlay hidden" id="server-settings-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Server Settings</h2>
-                <button class="modal-close" id="close-server-settings">
+    <!-- Discord-Style Settings Page -->
+    <div class="settings-page hidden" id="settings-page">
+        <!-- Settings Sidebar -->
+        <div class="settings-sidebar">
+            <!-- User Profile -->
+            <div class="settings-user-profile">
+                <div class="settings-user-avatar" id="settings-user-avatar">U</div>
+                <div class="settings-user-info">
+                    <span class="settings-username" id="settings-username">Username</span>
+                    <span class="settings-user-role" id="settings-user-role">User</span>
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="settings-search">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                </svg>
+                <input type="text" id="settings-search-input" placeholder="Search settings...">
+            </div>
+
+            <!-- Navigation -->
+            <nav class="settings-nav">
+                <div class="settings-nav-category">User Settings</div>
+                <a class="settings-nav-item active" data-section="appearance">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                    </svg>
+                    <span>Appearance</span>
+                </a>
+                <a class="settings-nav-item" data-section="player">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                    <span>Player</span>
+                </a>
+                <a class="settings-nav-item" data-section="account">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                    <span>Account</span>
+                </a>
+
+                <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category">Server
+                    Settings</div>
+                <a class="settings-nav-item sysadmin-only hidden" data-section="library" id="settings-nav-library">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 16h8V4h-2v6l-2.5-1.5L11 10V4h-1v12z" />
+                    </svg>
+                    <span>Library Scanning</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Settings Main Content -->
+        <div class="settings-main">
+            <div class="settings-header">
+                <h1 class="settings-title" id="settings-page-title">Appearance</h1>
+                <button class="settings-close" id="settings-close">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
                 </button>
             </div>
-            <div class="modal-body">
-                <!-- Library Scanning Section -->
-                <div class="settings-section">
-                    <h3>Library Scanning</h3>
-                    <p class="settings-description">Scan your music library to update the database with new files.</p>
 
-                    <div class="scan-status" id="scan-status">
-                        <div class="scan-status-info">
-                            <span class="scan-status-label">Library Status:</span>
-                            <span class="scan-status-value" id="library-count">-- songs</span>
-                        </div>
-                        <div class="scan-status-info">
-                            <span class="scan-status-label">Last Scan:</span>
-                            <span class="scan-status-value" id="last-scan-time">Never</span>
-                        </div>
-                    </div>
+            <div class="settings-content">
+                <!-- Section: Appearance -->
+                <div class="settings-section active" id="settings-section-appearance">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Theme</div>
+                        <div class="settings-group-description">Customize the look and feel of Rainy.</div>
 
-                    <div class="scan-actions">
-                        <button class="btn btn-secondary" id="quick-scan-btn">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path
-                                    d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-                            </svg>
-                            <span>Quick Scan</span>
-                        </button>
-                        <button class="btn btn-warning" id="full-scan-btn">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path
-                                    d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
-                            </svg>
-                            <span>Full Rescan</span>
-                        </button>
-                    </div>
-
-                    <div class="scan-progress hidden" id="scan-progress">
-                        <div class="progress-bar-container">
-                            <div class="progress-bar-fill" id="scan-progress-bar"></div>
-                        </div>
-                        <p class="scan-progress-text" id="scan-progress-text">Scanning...</p>
-                    </div>
-
-                    <div class="scan-result hidden" id="scan-result">
-                        <div class="scan-result-stats">
-                            <div class="stat"><span id="scan-files-found">0</span> files found</div>
-                            <div class="stat"><span id="scan-files-added">0</span> added</div>
-                            <div class="stat"><span id="scan-files-updated">0</span> updated</div>
-                            <div class="stat"><span id="scan-files-removed">0</span> removed</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- User Settings Modal -->
-    <div class="modal-overlay hidden" id="user-settings-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>User Settings</h2>
-                <button class="modal-close" id="close-user-settings">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="settings-tabs">
-                    <button class="settings-tab active" data-tab="appearance">Appearance</button>
-                    <button class="settings-tab" data-tab="player">Player</button>
-                    <button class="settings-tab" data-tab="account">Account</button>
-                </div>
-
-                <div class="settings-tab-content active" id="settings-tab-appearance">
-                    <div class="settings-section">
-                        <h3>Appearance</h3>
-                        <p class="settings-description">Customize the look and feel of Rainy.</p>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Accent Color</label>
-                            <div class="settings-inline">
-                                <input type="color" id="settings-accent-color" value="#fa586a">
-                                <span id="settings-accent-color-value">#fa586a</span>
-                                <button class="btn btn-secondary btn-sm" id="reset-theme-btn">Reset to Default</button>
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Accent Color</div>
+                                    <div class="settings-row-hint">Choose a color that matches your style</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <div class="settings-color-picker">
+                                        <input type="color" class="settings-color-input" id="settings-accent-color"
+                                            value="#fa586a">
+                                        <span class="settings-color-value"
+                                            id="settings-accent-color-value">#fa586a</span>
+                                        <div class="settings-color-presets">
+                                            <button class="settings-color-preset" data-color="#fa586a"
+                                                style="background-color: #fa586a;" title="Red (Default)"></button>
+                                            <button class="settings-color-preset" data-color="#007aff"
+                                                style="background-color: #007aff;" title="Blue"></button>
+                                            <button class="settings-color-preset" data-color="#34c759"
+                                                style="background-color: #34c759;" title="Green"></button>
+                                            <button class="settings-color-preset" data-color="#af52de"
+                                                style="background-color: #af52de;" title="Purple"></button>
+                                            <button class="settings-color-preset" data-color="#ff9500"
+                                                style="background-color: #ff9500;" title="Orange"></button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="color-presets">
-                                <button class="color-preset-btn" data-color="#fa586a" title="Red (Default)"></button>
-                                <button class="color-preset-btn" data-color="#007aff" title="Blue"></button>
-                                <button class="color-preset-btn" data-color="#34c759" title="Green"></button>
-                                <button class="color-preset-btn" data-color="#af52de" title="Purple"></button>
-                                <button class="color-preset-btn" data-color="#ff9500" title="Orange"></button>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Reset Theme</div>
+                                    <div class="settings-row-hint">Restore the default accent color</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="reset-theme-btn">Reset to
+                                        Default</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="settings-tab-content" id="settings-tab-player">
-                    <div class="settings-section">
-                        <h3>Player</h3>
-                        <p class="settings-description">Control player behavior and fullscreen experience.</p>
-
-                        <div class="form-group">
-                            <label class="form-label" for="settings-fullscreen-mode">Fullscreen Mode</label>
-                            <div class="select-wrapper">
-                                <select id="settings-fullscreen-mode" class="form-input">
-                                    <option value="standard">Standard (Default)</option>
-                                    <option value="modern">Modern</option>
-                                </select>
-                                <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
-                            </div>
-                            <p class="form-hint">Standard keeps the player bar visible. Modern uses a dedicated full-screen player.</p>
+                <!-- Section: Player -->
+                <div class="settings-section" id="settings-section-player">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Fullscreen Player</div>
+                        <div class="settings-group-description">Control how the fullscreen player looks and behaves.
                         </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Swap image and queue</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="settings-fullscreen-swap">
-                                <span class="toggle-slider"></span>
-                            </label>
+
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Fullscreen Mode
+                            </div>
+                            <div class="settings-radio-group">
+                                <div class="settings-radio-item selected" data-value="standard">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Standard</div>
+                                        <div class="settings-radio-description">Keeps the player bar visible at the
+                                            bottom</div>
+                                    </div>
+                                </div>
+                                <div class="settings-radio-item" data-value="modern">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Modern</div>
+                                        <div class="settings-radio-description">Uses a dedicated full-screen player
+                                            experience</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Swap image and queue</div>
+                                    <div class="settings-row-hint">Switch the positions of album art and up next queue
+                                    </div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-fullscreen-swap">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="settings-tab-content" id="settings-tab-account">
-                    <div class="settings-section">
-                        <h3>Change Password</h3>
-                        <p class="settings-description">Update your login password.</p>
-                        
-                        <form id="change-password-form">
-                            <div class="form-group">
-                                <label class="form-label" for="current-password">Current Password</label>
-                                <input type="password" id="current-password" class="form-input" required placeholder="Enter current password">
+                <!-- Section: Account -->
+                <div class="settings-section" id="settings-section-account">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Change Password</div>
+                        <div class="settings-group-description">Update your login password to keep your account secure.
+                        </div>
+
+                        <div class="settings-card">
+                            <form id="change-password-form">
+                                <div class="form-group">
+                                    <label class="form-label" for="current-password">Current Password</label>
+                                    <input type="password" id="current-password" class="form-input" required
+                                        placeholder="Enter current password">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="new-password">New Password</label>
+                                    <input type="password" id="new-password" class="form-input" required minlength="6"
+                                        placeholder="Enter new password">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="confirm-password">Confirm New Password</label>
+                                    <input type="password" id="confirm-password" class="form-input" required
+                                        minlength="6" placeholder="Confirm new password">
+                                </div>
+                                <div class="modal-actions">
+                                    <button type="submit" class="btn btn-primary">Update Password</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Library Scanning (Server Settings) -->
+                <div class="settings-section" id="settings-section-library">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Library Scanning</div>
+                        <div class="settings-group-description">Scan your music library to update the database with new
+                            files.</div>
+
+                        <div class="settings-card">
+                            <div class="settings-scan-status" id="scan-status">
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">Library Status:</span>
+                                    <span class="settings-scan-value" id="library-count">-- songs</span>
+                                </div>
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">Last Scan:</span>
+                                    <span class="settings-scan-value" id="last-scan-time">Never</span>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label" for="new-password">New Password</label>
-                                <input type="password" id="new-password" class="form-input" required minlength="6" placeholder="Enter new password">
+
+                            <div class="settings-scan-actions">
+                                <button class="btn btn-secondary" id="quick-scan-btn">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                        <path
+                                            d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                                    </svg>
+                                    <span>Quick Scan</span>
+                                </button>
+                                <button class="btn btn-warning" id="full-scan-btn">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                        <path
+                                            d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
+                                    </svg>
+                                    <span>Full Rescan</span>
+                                </button>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label" for="confirm-password">Confirm New Password</label>
-                                <input type="password" id="confirm-password" class="form-input" required minlength="6" placeholder="Confirm new password">
+
+                            <div class="scan-progress hidden" id="scan-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="scan-progress-bar"></div>
+                                </div>
+                                <p class="scan-progress-text" id="scan-progress-text">Scanning...</p>
                             </div>
-                            <div class="modal-actions">
-                                <button type="submit" class="btn btn-primary">Update Password</button>
+
+                            <div class="scan-result hidden" id="scan-result">
+                                <div class="scan-result-stats">
+                                    <div class="stat"><span id="scan-files-found">0</span> files found</div>
+                                    <div class="stat"><span id="scan-files-added">0</span> added</div>
+                                    <div class="stat"><span id="scan-files-updated">0</span> updated</div>
+                                    <div class="stat"><span id="scan-files-removed">0</span> removed</div>
+                                </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -629,7 +715,18 @@
     <div class="modal-overlay hidden" id="add-music-modal">
         <div class="modal-content add-music-modal-content">
             <div class="modal-header">
-                <h2>Add Music</h2>
+                <div class="modal-header-info">
+                    <div class="modal-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>Add Music</h2>
+                        <p class="modal-subtitle">Import songs to your library</p>
+                    </div>
+                </div>
                 <button class="modal-close" id="close-add-music-modal">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -638,57 +735,120 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="add-music-tabs">
-                    <button class="add-music-tab active" data-tab="upload">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
-                        </svg>
-                        Upload Files
-                    </button>
-                    <button class="add-music-tab" data-tab="youtube">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z" />
-                        </svg>
-                        YouTube Import
-                    </button>
+                <!-- Method Selection Cards -->
+                <div class="add-music-methods">
+                    <div class="add-music-method active" data-method="upload">
+                        <div class="method-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+                            </svg>
+                        </div>
+                        <div class="method-info">
+                            <span class="method-title">Upload Files</span>
+                        </div>
+                        <div class="method-check">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="add-music-method" data-method="youtube">
+                        <div class="method-icon youtube">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z" />
+                            </svg>
+                        </div>
+                        <div class="method-info">
+                            <span class="method-title">YouTube Import</span>
+                        </div>
+                        <div class="method-check">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                            </svg>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Upload Tab -->
-                <div class="add-music-tab-content active" id="upload-tab">
-                    <div class="upload-dropzone" id="upload-dropzone">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                        </svg>
-                        <p class="dropzone-text">Drag & drop audio files here</p>
-                        <p class="dropzone-subtext">or click to browse</p>
+                <!-- Upload Content -->
+                <div class="add-music-content active" id="upload-content">
+                    <div class="upload-dropzone-modern" id="upload-dropzone">
+                        <div class="dropzone-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                            </svg>
+                            <div class="dropzone-icon-glow"></div>
+                        </div>
+                        <div class="dropzone-text-group">
+                            <p class="dropzone-title">Drop your audio files here</p>
+                            <p class="dropzone-subtitle">or <span class="dropzone-browse">browse</span> to choose files
+                            </p>
+                        </div>
+                        <div class="dropzone-formats">
+                            <span class="format-tag">MP3</span>
+                            <span class="format-tag">FLAC</span>
+                            <span class="format-tag">WAV</span>
+                            <span class="format-tag">OGG</span>
+                        </div>
                         <input type="file" id="file-upload-input" accept="audio/*" multiple hidden>
                     </div>
-                    <div class="upload-progress hidden" id="upload-progress">
-                        <div class="upload-progress-bar">
-                            <div class="upload-progress-fill" id="upload-progress-fill"></div>
+                    <div class="upload-progress-modern hidden" id="upload-progress">
+                        <div class="progress-info">
+                            <svg viewBox="0 0 24 24" fill="currentColor" class="progress-icon spinning">
+                                <path
+                                    d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
+                            </svg>
+                            <span id="upload-status">Uploading...</span>
                         </div>
-                        <p class="upload-status" id="upload-status">Uploading...</p>
+                        <div class="progress-bar-modern">
+                            <div class="progress-fill-modern" id="upload-progress-fill"></div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- YouTube Tab -->
-                <div class="add-music-tab-content" id="youtube-tab">
-                    <div class="youtube-input-group">
-                        <input type="text" id="youtube-url-input" placeholder="Paste YouTube or YouTube Music URL...">
-                        <button class="btn btn-primary" id="youtube-import-btn">
+                <!-- YouTube Content -->
+                <div class="add-music-content" id="youtube-content">
+                    <div class="youtube-input-wrapper">
+                        <div class="youtube-input-field">
+                            <svg viewBox="0 0 24 24" fill="currentColor" class="input-icon-svg">
+                                <path
+                                    d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
+                            </svg>
+                            <input type="text" id="youtube-url-input"
+                                placeholder="Paste YouTube or YouTube Music URL...">
+                        </div>
+                        <button class="btn btn-primary youtube-import-btn" id="youtube-import-btn">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M5 4v2h14V4H5zm0 10h4v6h6v-6h4l-7-7-7 7z" />
                             </svg>
                             Import
                         </button>
                     </div>
-                    <div class="youtube-status hidden" id="youtube-status">
-                        <div class="youtube-progress-bar">
-                            <div class="youtube-progress-fill" id="youtube-progress-fill"></div>
+                    <div class="youtube-status-modern hidden" id="youtube-status">
+                        <div class="status-card">
+                            <div class="status-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor" class="spinning">
+                                    <path
+                                        d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
+                                </svg>
+                            </div>
+                            <div class="status-info">
+                                <span class="status-title" id="youtube-status-text">Importing from YouTube...</span>
+                                <div class="progress-bar-modern">
+                                    <div class="progress-fill-modern" id="youtube-progress-fill"></div>
+                                </div>
+                            </div>
                         </div>
-                        <p id="youtube-status-text">Importing from YouTube...</p>
+                    </div>
+                    <div class="youtube-tips">
+                        <div class="tip-item">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                            </svg>
+                            <span>Supports YouTube and YouTube Music URLs</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -778,12 +938,15 @@
         </div>
         <button id="fs-volume-btn" title="Volume">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor" />
+                <path
+                    d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"
+                    fill="currentColor" />
             </svg>
         </button>
         <button id="fs-close-btn" title="Close Fullscreen">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    fill="none" />
             </svg>
         </button>
         <div id="fs-volume-popover" class="hidden">

@@ -196,12 +196,12 @@
     transition: transform var(--transition-fast);
 }
 
-.toggle-switch input:checked + .toggle-slider {
+.toggle-switch input:checked+.toggle-slider {
     background: var(--accent-primary);
     border-color: var(--accent-primary);
 }
 
-.toggle-switch input:checked + .toggle-slider::before {
+.toggle-switch input:checked+.toggle-slider::before {
     transform: translate(25px, -50%);
 }
 
@@ -466,55 +466,421 @@
    ============================================ */
 
 .add-music-modal-content {
-    max-width: 500px;
+    max-width: 520px;
 }
 
-.add-music-tabs {
+/* Modal Header with Icon */
+.modal-header-info {
     display: flex;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-xl);
+    align-items: center;
+    gap: var(--spacing-md);
 }
 
-.add-music-tab {
-    flex: 1;
+.modal-icon {
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--spacing-sm);
+    background: var(--accent-gradient);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.modal-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: white;
+}
+
+.modal-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    margin-top: 2px;
+}
+
+/* Method Selection Cards */
+.add-music-methods {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.add-music-method {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
     padding: var(--spacing-md);
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
     cursor: pointer;
     transition: all var(--transition-fast);
 }
 
-.add-music-tab svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
+.add-music-method:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
 }
 
-.add-music-tab:hover {
+.add-music-method.active {
+    border-color: var(--accent-primary);
+    background: var(--accent-bg-subtle, rgba(250, 88, 106, 0.08));
+}
+
+.method-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.add-music-method.active .method-icon {
+    background: var(--accent-gradient);
+}
+
+.add-music-method.active .method-icon svg {
+    fill: white;
+}
+
+.method-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--text-secondary);
+}
+
+.method-icon.youtube svg {
+    fill: #ff0000;
+}
+
+.method-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.method-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
     color: var(--text-primary);
 }
 
-.add-music-tab.active {
-    background: var(--accent-gradient);
-    border-color: transparent;
-    color: white;
+.method-check {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
 }
 
-.add-music-tab-content {
+.add-music-method.active .method-check {
+    opacity: 1;
+}
+
+.method-check svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--accent-primary);
+}
+
+/* Content Sections */
+.add-music-content {
     display: none;
 }
 
-.add-music-tab-content.active {
+.add-music-content.active {
     display: block;
+    animation: contentFadeIn 0.2s ease;
+}
+
+@keyframes contentFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Modern Dropzone */
+.upload-dropzone-modern {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-2xl);
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: center;
+}
+
+.upload-dropzone-modern:hover,
+.upload-dropzone-modern.dragover {
+    border-color: var(--accent-primary);
+    background: var(--accent-bg-subtle, rgba(250, 88, 106, 0.05));
+}
+
+.upload-dropzone-modern:hover .dropzone-icon-glow,
+.upload-dropzone-modern.dragover .dropzone-icon-glow {
+    opacity: 1;
+}
+
+.dropzone-icon-wrapper {
+    position: relative;
+    margin-bottom: var(--spacing-lg);
+}
+
+.dropzone-icon-wrapper svg {
+    width: 56px;
+    height: 56px;
+    fill: var(--accent-primary);
+    position: relative;
+    z-index: 1;
+}
+
+.dropzone-icon-glow {
+    position: absolute;
+    inset: -8px;
+    background: var(--accent-primary);
+    filter: blur(20px);
+    opacity: 0.2;
+    border-radius: var(--radius-full);
+    transition: opacity var(--transition-fast);
+}
+
+.dropzone-text-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.dropzone-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.dropzone-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+}
+
+.dropzone-browse {
+    color: var(--accent-primary);
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.dropzone-browse:hover {
+    text-decoration: underline;
+}
+
+.dropzone-formats {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.format-tag {
+    padding: 4px 10px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-tertiary);
+}
+
+/* Modern Progress */
+.upload-progress-modern {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.progress-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.progress-icon {
+    width: 18px;
+    height: 18px;
+    fill: var(--accent-primary);
+}
+
+.progress-info span {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.progress-bar-modern {
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-fill-modern {
+    height: 100%;
+    background: var(--accent-gradient);
+    border-radius: var(--radius-full);
+    width: 0%;
+    transition: width 100ms linear;
+}
+
+/* Spinning Animation */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+/* YouTube Input Wrapper */
+.youtube-input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.youtube-input-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast);
+}
+
+.youtube-input-field:focus-within {
+    border-color: var(--accent-primary);
+}
+
+.input-icon-svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--text-tertiary);
+    flex-shrink: 0;
+}
+
+.youtube-input-field input {
+    flex: 1;
+    padding: var(--spacing-md) 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    min-width: 0;
+}
+
+.youtube-input-field input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.youtube-import-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-md) var(--spacing-lg);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.youtube-import-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+/* YouTube Status Modern */
+.youtube-status-modern {
+    margin-top: var(--spacing-lg);
+}
+
+.status-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.status-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.status-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--accent-primary);
+}
+
+.status-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.status-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: var(--spacing-xs);
+}
+
+/* YouTube Tips */
+.youtube-tips {
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.tip-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+}
+
+.tip-item svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--text-tertiary);
+    flex-shrink: 0;
 }
 
 /* Upload Dropzone */
@@ -638,11 +1004,25 @@
     transform: scale(1.06);
 }
 
-.color-preset-btn[data-color="#fa586a"] { background-color: #fa586a; }
-.color-preset-btn[data-color="#007aff"] { background-color: #007aff; }
-.color-preset-btn[data-color="#34c759"] { background-color: #34c759; }
-.color-preset-btn[data-color="#af52de"] { background-color: #af52de; }
-.color-preset-btn[data-color="#ff9500"] { background-color: #ff9500; }
+.color-preset-btn[data-color="#fa586a"] {
+    background-color: #fa586a;
+}
+
+.color-preset-btn[data-color="#007aff"] {
+    background-color: #007aff;
+}
+
+.color-preset-btn[data-color="#34c759"] {
+    background-color: #34c759;
+}
+
+.color-preset-btn[data-color="#af52de"] {
+    background-color: #af52de;
+}
+
+.color-preset-btn[data-color="#ff9500"] {
+    background-color: #ff9500;
+}
 
 .select-wrapper {
     position: relative;
