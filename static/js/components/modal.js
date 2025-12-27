@@ -2,9 +2,6 @@ import { Component, html } from "./index.js";
 
 export class Modal extends Component {
     created() {
-        this.shadowRoot.append(html(this)`<link rel='stylesheet' href='/css/components/modals.css'>`);
-        this.shadowRoot.append(html(this)`<link rel='stylesheet' href='/css/base.css'>`);
-
         this.set('hidden', true);
         this.watch('hidden', (_path, _oldValue, newValue) => {
             if(newValue === true) this.root.classList.add('hidden');
@@ -25,11 +22,21 @@ export class Modal extends Component {
     }
 
     render() {
-        const hiddenAttr = (this.get('hidden') ? 'hidden' : '')
+        const hiddenAttr = (this.get('hidden') ? 'hidden' : '');
         return html(this)`<div class='modal-overlay ${hiddenAttr}'>
             <div class='modal-content'>
                 <div class='modal-header'>
-                    <slot name='header'></slot>
+                    <div class='modal-header-info'>
+                        <div class='modal-icon'>
+                            <slot name='header-icon'></slot>
+                        </div>
+                        <div>
+                            <slot name='header-title'></slot>
+                            <p class='modal-subtitle'>
+                                <slot name='header-subtitle'></slot>
+                            </p>
+                        </div>
+                    </div>
                     <button class='modal-close' :click=${this.hide}>
                         <svg viewBox='0 0 24 24' fill='currentColor'>
                             <path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z' />

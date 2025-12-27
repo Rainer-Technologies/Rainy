@@ -1,10 +1,11 @@
+import { PLAYLIST_ICONS, PLAYLIST_ICON_COLORS } from './data/playlist-icons.js';
+import { useContext } from './helper/context.js';
 import { ResponseError } from './helper/request.js';
 import { Result } from './helper/result.js';
 import { Router, View } from './helper/router.js';
 import { Library } from './modules/library.js';
 import { Playlists } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
-import { PLAYLIST_ICONS, PLAYLIST_ICON_COLORS } from './data/playlist-icons.js';
 import { useAuthService } from "./services/auth.js";
 import { useMetadataService } from './services/metadata.js';
 import { useMusicService } from "./services/music.js";
@@ -26,6 +27,8 @@ export class RainyApp {
         this.currentSort = 'default';
         this.coverVersion = {};
         this.coverOverride = {};
+
+        useContext().set('app', this);
 
         Router.register('login', LoginView.handle);
         Router.register('app', AppView.handle);
@@ -438,7 +441,11 @@ export class RainyApp {
         // Playlist events
         document.getElementById('sidebar-new-playlist')?.addEventListener('click', (e) => {
             e.stopPropagation(); // prevent triggering nav section collapse if we had that
-            this.openCreatePlaylistModal();
+
+            /** @type {import('./components/newPlaylistModal.js').NewPlaylistModal} */
+            const modal = document.querySelector('rainy-new-playlist-modal');
+            if(!modal) return;
+            modal.show();
         });
 
         document.getElementById('close-playlist-modal')?.addEventListener('click', () => {
@@ -514,9 +521,14 @@ export class RainyApp {
 
             document.getElementById('context-new-playlist')?.addEventListener('click', (e) => {
                 e.stopPropagation();
+
                 // Close context menu
                 document.getElementById('song-context-menu').classList.add('hidden');
-                this.openCreatePlaylistModal();
+
+                /** @type {import('./components/newPlaylistModal.js').NewPlaylistModal} */
+                const modal = document.querySelector('rainy-new-playlist-modal');
+                if(!modal) return;
+                modal.show();
             });
         }
 
