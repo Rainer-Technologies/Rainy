@@ -64,7 +64,7 @@ export class PlaylistService extends Service {
             method: 'DELETE'
         }));
 
-        if (data.error) return error;
+        if (data.error) return data;
         return Ok(true);
     }
 
@@ -78,7 +78,7 @@ export class PlaylistService extends Service {
             body: { name }
         }));
 
-        if (data.error) return error;
+        if (data.error) return data;
         return Ok(true);
     }
 
@@ -93,7 +93,7 @@ export class PlaylistService extends Service {
             body: { song_id: songId }
         }));
 
-        if (data.error) return error;
+        if (data.error) return data;
         return Ok(true);
     }
 
@@ -107,7 +107,7 @@ export class PlaylistService extends Service {
             method: 'DELETE'
         }));
 
-        if (data.error) return error;
+        if (data.error) return data;
         return Ok(true);
     }
 
@@ -124,7 +124,7 @@ export class PlaylistService extends Service {
             body: { icon, icon_color: iconColor }
         }));
 
-        if (data.error) return error;
+        if (data.error) return data;
         return Ok(true);
     }
 };
