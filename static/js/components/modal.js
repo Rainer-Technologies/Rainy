@@ -4,7 +4,7 @@ export class Modal extends Component {
     static componentName = 'rainy-modal';
 
     created() {
-        this.set('hidden', true);
+        this.set('hidden', true, { silent: true });
         this.watch('hidden', (_path, _oldValue, newValue) => {
             if(newValue === true) this.root.classList.add('hidden');
             else this.root.classList.remove('hidden');

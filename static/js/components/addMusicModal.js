@@ -6,7 +6,7 @@ export class AddMusicModal extends Component {
     static componentName = 'rainy-add-music-modal';
 
     created() {
-        this.set('current-method', 'upload');
+        this.set('current-method', 'upload', { silent: true });
 
         this.watch('current-method', (_path, _oldValue, methodName) => {
             const methods = this.root.querySelectorAll('.add-music-method');

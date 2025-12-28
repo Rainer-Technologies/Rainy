@@ -15,7 +15,7 @@ export class SongContextMenu extends Component {
     static componentName = 'rainy-song-context-menu';
 
     created() {
-        this.set('current-song', null);
+        this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
             const root = this.root.querySelector('#remove-current-song-from-playlist');
             if(!root) return;

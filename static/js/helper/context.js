@@ -59,17 +59,19 @@ export class Context {
     /**
      * @param {string} path
      * @param {any} value
+     * @param {{
+     *  silent: boolean;
+     * }} config
      */
-    set(path, value) {
+    set(path, value, config = { silent: false }) {
         const key = path.split('.').pop();
         const { parent, value: oldValue } = this._resolve(path);
         if(!parent) return;
 
-        console.log('set', path, 'to', value, `(${oldValue})`)
-
         if(oldValue !== value) {
             parent[key] = value;
-            this._emit(path, oldValue, value);
+            if(!config.silent) 
+                this._emit(path, oldValue, value);
         }
     }
 

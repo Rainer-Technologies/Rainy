@@ -10,8 +10,8 @@ export class ContextSubMenu extends Component {
     static componentName = 'rainy-context-sub-menu';
 
     created() {
-        this.set('hidden', true);
-        this.set('position', 'right');
+        this.set('hidden', true, { silent: true });
+        this.set('position', 'right', { silent: true });
 
         this.watch('hidden', (_path, _oldValue, newValue) => {
             if(newValue === true) this.root.classList.add('hidden');

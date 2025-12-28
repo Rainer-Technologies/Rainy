@@ -7,8 +7,8 @@ export class NewPlaylistModal extends Component {
     static componentName = 'rainy-new-playlist-modal';
 
     created() {
-        this.set('current-icon', 'music-note');
-        this.set('current-color', '#888888');
+        this.set('current-icon', 'music-note', { silent: true });
+        this.set('current-color', '#888888', { silent: true });
 
         this.watch('current-icon', () => {
             this._renderIconPreview();

@@ -20,19 +20,36 @@ export class Component extends HTMLElement {
         if(this.created) this.created();
     }
 
+    /** @returns {Component} */
     static new() {
         if(!this.componentName) return;
         return document.createElement(this.componentName);
     }
 
+    /**
+     * @param {string} path 
+     * @returns {any}
+     */
     get(path) {
         return this._ctx.get(path);
     }
 
-    set(path, value) {
-        this._ctx.set(path, value);
+    /**
+     * @param {string} path 
+     * @param {any} value
+     * @param {{
+     *  silent: boolean;
+     * }} config
+     */
+    set(path, value, config = { silent: false }) {
+        this._ctx.set(path, value, config);
     }
 
+    /**
+     * @param {string} path 
+     * @param {import('../helper/context.js').ListenerCallback} callback 
+     * @param {boolean} deep 
+     */
     watch(path, callback, deep = false) {
         const unsub = this._ctx.listen(path, callback, deep);
         this._unsubscribers.push(unsub);
@@ -72,6 +89,14 @@ export class Component extends HTMLElement {
     _render() {
         if(!this._mounted) return;
         if(!this.render) return;
+
+        for(const attrName of this.getAttributeNames()) {
+            const attr = this.getAttributeNode(attrName);
+            if(attrName.startsWith('&')) {
+                this.set(attrName.slice(1), attr.value);
+                this.removeAttributeNode(attr);
+            }
+        }
 
         const root = this.render();
         if(!root) return;
@@ -131,12 +156,13 @@ function _resolve(el, values, userdata) {
                     child.addEventListener(eventName, (ev) => handler.call(userdata, ev));
                 } else if(attrName.startsWith('&')) {
                     const match = attr.value.match(/#__rainy__(\d+)/g);
-                    if(!match) continue;
-
-                    const idx = match[0].slice(PLACEHOLDER_PREFIX.length);
+                    let value = attr.value; if(match) {
+                        const idx = match[0].slice(PLACEHOLDER_PREFIX.length);
+                        value = values[idx];
+                    }
 
                     child.removeAttributeNode(attr);
-                    child.set(attrName.slice(1), values[idx]);
+                    child.set(attrName.slice(1), value);
                 } else {
                     attr.value = attr.value.replace(/#__rainy__(\d+)/, (_, idx) =>
                         (values[parseInt(idx)].toString()));

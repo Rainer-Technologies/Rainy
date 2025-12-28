@@ -7,10 +7,10 @@ export class MetadataModal extends Component {
     static componentName = 'rainy-metadata-modal';
 
     created() {
-        this.set('loading', false);
-        this.set('songs', []);
-        this.set('current-song', null);
-        this.set('applying', false);
+        this.set('loading', false, { silent: true });
+        this.set('songs', [], { silent: true });
+        this.set('current-song', null, { silent: true });
+        this.set('applying', false, { silent: true });
 
         this.watch('loading', (_path, _oldValue, newValue) => {
             const root = this.root.querySelector('.metadata-loading');
