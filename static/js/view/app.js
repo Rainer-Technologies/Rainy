@@ -1,10 +1,12 @@
+import { Logger } from '../helper/logger.js';
+
 /** 
  * @param {import('../services/auth.js').UserModel} data 
  * @param {import('../app').RainyApp} userdata
  */
 export function handle(data, userdata) {
     const viewElement = document.getElementById('app-view');
-    if(!viewElement) return console.error('app-view is missing!');
+    if(!viewElement) return Logger.error('app-view is missing!');
 
     document.getElementById('login-view')?.classList.add('hidden');
     document.getElementById('setup-view')?.classList.add('hidden');

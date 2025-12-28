@@ -1,5 +1,6 @@
 import { PLAYLIST_ICON_COLORS, PLAYLIST_ICONS } from "../data/playlist-icons.js";
 import { useContext } from "../helper/context.js";
+import { Logger } from "../helper/logger.js";
 import { usePlaylistService } from "../services/playlist.js";
 import { Component, html } from "./index.js";
 
@@ -124,7 +125,7 @@ export class NewPlaylistModal extends Component {
 
         const data = await usePlaylistService().create(name, currentIcon, currentColor);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             app.showToast('Failed to create playlist', 'error');
             return;
         }

@@ -2,6 +2,7 @@
  * Rainy Music Player - Audio Player Controller
  * Handles audio playback, progress, volume, queue, and reactions
  */
+import { Logger } from './helper/logger.js';
 import { usePlaylistService } from './services/playlist.js';
 
 export class AudioPlayer {
@@ -251,7 +252,7 @@ export class AudioPlayer {
 
         // Play
         this.audio.play().catch(err => {
-            console.error('Playback error:', err);
+            Logger.error('Playback error:', err);
         });
     }
 
@@ -338,7 +339,7 @@ export class AudioPlayer {
         if (this.isPlaying) {
             this.audio.pause();
         } else {
-            this.audio.play().catch(err => console.error('Play error:', err));
+            this.audio.play().catch(err => Logger.error('Play error:', err));
         }
     }
 
@@ -484,10 +485,8 @@ export class AudioPlayer {
 
     updateReactionButtons() {
         const songId = this.currentSong?.id;
-        console.log(songId, 'updateReactionButtons');
         const isLiked = songId && this.likedSongIds.has(songId);
         const isDisliked = songId && this.dislikedSongIds.has(songId);
-        console.log(isLiked, isDisliked);
 
         const setBtnState = (btn, activeColor, active) => {
             if (!btn) return;
@@ -581,14 +580,14 @@ export class AudioPlayer {
     }
 
     handleError(e) {
-        console.error('Audio error:', e);
+        Logger.error('Audio error:', e);
         this.isBuffering = false;
     }
 
     handleWaiting() {
         // Audio is waiting for data (buffering)
         this.isBuffering = true;
-        console.log('Audio buffering...');
+        Logger.log('Audio buffering...');
         this.nowPlayingArtwork.classList.add('buffering');
         // Show loading spinner, hide play/pause icons
         this.iconPlay.classList.add('hidden');
@@ -1057,7 +1056,7 @@ export class AudioPlayer {
         // Re-render the queue
         this.renderFullscreenQueue();
 
-        console.log(`Moved song from position ${fromIndex} to ${toIndex}`);
+        Logger.log(`Moved song from position ${fromIndex} to ${toIndex}`);
     }
 
     /**
@@ -1068,7 +1067,7 @@ export class AudioPlayer {
         if (index < 0 || index >= this.playlist.length) return;
         if (this.playlist.length <= 1) {
             // Don't remove the last song
-            console.warn('Cannot remove the only song in queue');
+            Logger.warn('Cannot remove the only song in queue');
             return;
         }
 
@@ -1107,7 +1106,7 @@ export class AudioPlayer {
         // Re-render the queue
         this.renderFullscreenQueue();
 
-        console.log('Removed song at index', index, 'from queue');
+        Logger.log('Removed song at index', index, 'from queue');
     }
 
     /**
@@ -1136,7 +1135,7 @@ export class AudioPlayer {
         try {
             localStorage.setItem('rainy_playback_state', JSON.stringify(state));
         } catch (e) {
-            console.warn('Failed to save playback state:', e);
+            Logger.warn('Failed to save playback state:', e);
         }
     }
 
@@ -1151,7 +1150,7 @@ export class AudioPlayer {
                 return JSON.parse(stored);
             }
         } catch (e) {
-            console.warn('Failed to restore playback state:', e);
+            Logger.warn('Failed to restore playback state:', e);
         }
         return null;
     }
@@ -1209,7 +1208,7 @@ export class AudioPlayer {
 
         if (autoPlay) {
             this.audio.play().catch(err => {
-                console.log('Auto-play blocked, waiting for user interaction');
+                Logger.log('Auto-play blocked, waiting for user interaction');
             });
         }
     }

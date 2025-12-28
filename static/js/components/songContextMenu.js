@@ -1,4 +1,5 @@
 import { useContext } from "../helper/context.js";
+import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
 import { usePlaylistService } from "../services/playlist.js";
@@ -50,10 +51,10 @@ export class SongContextMenu extends Component {
 
         useMusicService().delete(song.id)
             .then((data) => {
-                if(data.error) return console.error(data.error);
+                if(data.error) return Logger.error(data.error);
 
                 const result = data.value;
-                if(!result) return console.error('unreachable');
+                if(!result) return Logger.error('unreachable');
 
                 const currentSong = window.player.getCurrentSong();
                 if (currentSong && currentSong.id === song.id) {
@@ -82,7 +83,7 @@ export class SongContextMenu extends Component {
 
         const data = await usePlaylistService().addSong(playlist.id, currentSong.id);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             app.showToast('Failed to add song to playlist', 'error');
 
             return;
@@ -104,7 +105,7 @@ export class SongContextMenu extends Component {
         
         const data = await usePlaylistService().removeSong(app.currentPlaylistId, currentSong.id);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             app.showToast('Failed to remove song from playlist', 'error');
             return;
         }
@@ -129,7 +130,7 @@ export class SongContextMenu extends Component {
                         window.app.loadPlaylists();
                     }
                 }
-            } catch (e) { console.error(e) }
+            } catch (e) { Logger.error(e) }
         }
     }
 
@@ -139,10 +140,10 @@ export class SongContextMenu extends Component {
 
         const data = await usePlaylistService().all();
         // FIXME: Add toast notification
-        if(data.error) return console.error(data.error);
+        if(data.error) return Logger.error(data.error);
         
         const playlists = (data.value || []).filter(p => (p.name || '').toLowerCase() !== 'liked music');
-        if(!playlists) return console.error('unreachable');
+        if(!playlists) return Logger.error('unreachable');
 
         for(const playlist of playlists) {
             root.append(html(this)`<rainy-context-menu-item :click=${() => this.addCurrentSongToPlaylist(playlist)}>

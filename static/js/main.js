@@ -4,13 +4,14 @@
  */
 
 import { RainyApp } from './app.js';
-import { AudioPlayer } from './player.js';
-import { initSetup, initLogin } from './setup.js';
+import { Logger } from './helper/logger.js';
 import { Utils } from './modules/utils.js';
+import { AudioPlayer } from './player.js';
+import { initLogin, initSetup } from './setup.js';
 
 // Document ready handler
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🎵 Rainy Music Player - Initializing...');
+    Logger.log('🎵 Rainy Music Player - Initializing...');
 
     // Make utility functions globally available (for inline HTML event handlers)
     window.Utils = Utils;
@@ -29,5 +30,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initSetup();
     initLogin();
 
-    console.log('🎵 Rainy Music Player - Ready');
+    Logger.log('🎵 Rainy Music Player - Ready');
 });

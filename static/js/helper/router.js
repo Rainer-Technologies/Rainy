@@ -1,3 +1,5 @@
+import { Logger } from "./logger.js";
+
 export class View {
     /**
      * @template T
@@ -31,7 +33,7 @@ export class Router {
      * @param {any} userdata
      */
     static navigate(view, userdata) {
-        console.log('[Router] navigate to', view);
+        Logger.log('[Router] navigate to', view);
 
         const handler = this.views[view.path];
         if(!handler) return;

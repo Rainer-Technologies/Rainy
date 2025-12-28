@@ -2,6 +2,7 @@
  * Rainy Music Player - Setup Wizard & Login
  * Handles first-time setup and user authentication
  */
+import { Logger } from "./helper/logger.js";
 
 export function initSetup() {
     const setupForm = document.getElementById('setup-form');
@@ -60,7 +61,7 @@ export function initSetup() {
                 setupSubmit.innerHTML = '<span>Complete Setup</span>';
             }
         } catch (error) {
-            console.error('Setup error:', error);
+            Logger.error('Setup error:', error);
             showError(setupError, 'Connection error. Please try again.');
             setupSubmit.disabled = false;
             setupSubmit.innerHTML = '<span>Complete Setup</span>';
@@ -113,7 +114,7 @@ export function initLogin() {
                 loginSubmit.innerHTML = '<span>Sign In</span>';
             }
         } catch (error) {
-            console.error('Login error:', error);
+            Logger.error('Login error:', error);
             showError(loginError, 'Connection error. Please try again.');
             loginSubmit.disabled = false;
             loginSubmit.innerHTML = '<span>Sign In</span>';

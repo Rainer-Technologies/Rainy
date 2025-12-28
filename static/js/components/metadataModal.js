@@ -1,4 +1,5 @@
 import { useContext } from "../helper/context.js";
+import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMetadataService } from "../services/metadata.js";
 import { Component, html } from "./index.js";
@@ -121,14 +122,14 @@ export class MetadataModal extends Component {
         const data = await useMetadataService().apply(currentSong.id,
             song.title, song.artist, song.album, song.year, song.genre, song.cover_url);
         if (data.error) {
-            console.log(data.error);
+            Logger.log(data.error);
             this.set('applying', false);
 
             return;
         }
 
         const result = data.value;
-        if (!result) return console.error('unreachable');
+        if (!result) return Logger.error('unreachable');
         this.hide();
 
         /** @type {import('../app.js').RainyApp} */
@@ -221,7 +222,7 @@ export class MetadataModal extends Component {
 
         const data = await useMetadataService().search(query);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             this.set('loading', false);
             this.set('songs', []);
 
@@ -231,7 +232,7 @@ export class MetadataModal extends Component {
         this.set('loading', false);
 
         const matches = data.value;
-        if(!matches) return console.error('unreachable');
+        if(!matches) return Logger.error('unreachable');
         this.set('songs', matches.results);
     }
 

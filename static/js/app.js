@@ -1,5 +1,6 @@
 import { PLAYLIST_ICONS, PLAYLIST_ICON_COLORS } from './data/playlist-icons.js';
 import { useContext } from './helper/context.js';
+import { Logger } from "./helper/logger.js";
 import { ResponseError } from './helper/request.js';
 import { Result } from './helper/result.js';
 import { Router, View } from './helper/router.js';
@@ -55,21 +56,21 @@ export class RainyApp {
         document.getElementById('app-view').classList.add('hidden');
 
         let data = await useSetupService().status();
-        if (data.error) return console.error(data.error);
+        if (data.error) return Logger.error(data.error);
 
         const setup = data.value;
-        if (!setup) return console.error('unreachable');
+        if (!setup) return Logger.error('unreachable');
         if (setup.needs_setup) return Router.navigate(new View('setup'), this);
 
         /** @type {Result<import('../services/auth.js').UserModel, import('../services/auth.js').ErrorModel | ResponseError>} */
         data = await useAuthService().me();
         if (data.error) {
             if ('authenticated' in data.error) return Router.navigate(new View('login'), this);
-            return console.error(data.error);;
+            return Logger.error(data.error);
         }
 
         const user = data.value;
-        if (!user) return console.error('unreachable');
+        if (!user) return Logger.error('unreachable');
 
         this.user = user;
         this.applyThemeFromPreferences();
@@ -397,10 +398,10 @@ export class RainyApp {
 
     async loadScanStatus() {
         const data = await useScanService().status();
-        if (data.error) return console.error(data.error);
+        if (data.error) return Logger.error(data.error);
 
         const status = data.value;
-        if (!status) return console.error('unreachable');
+        if (!status) return Logger.error('unreachable');
 
         const libraryCount = document.querySelector('#library-count');
         const lastScanTime = document.querySelector('#last-scan-time');
@@ -433,7 +434,7 @@ export class RainyApp {
             ? useScanService().full()
             : useScanService().quick());
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             scanProgress?.classList.add('hidden');
 
             quickScanBtn.disabled = false;
@@ -443,7 +444,7 @@ export class RainyApp {
         }
 
         const scan = data.value;
-        if (!scan) return console.error('unreachable');
+        if (!scan) return Logger.error('unreachable');
 
         scanProgress?.classList.add('hidden');
         scanResult?.classList.remove('hidden');
@@ -474,7 +475,7 @@ export class RainyApp {
 
         const data = await useMusicService().library();
         if (data.error) {
-            console.error('Failed to load music libary!', data.error);
+            Logger.error('Failed to load music libary!', data.error);
             loadingState.classList.add('hidden');
             emptyState.classList.remove('hidden');
 
@@ -908,10 +909,10 @@ export class RainyApp {
     async loadPlaylists() {
         const data = await usePlaylistService().all();
         // FIXME: Show toast notification
-        if (data.error) return console.error(data.error);
+        if (data.error) return Logger.error(data.error);
 
         const playlists = data.value;
-        if (!Array.isArray(playlists)) return console.error('unreachable');
+        if (!Array.isArray(playlists)) return Logger.error('unreachable');
 
         this.playlists = playlists;
         this.renderSidebarPlaylists();
@@ -1096,7 +1097,7 @@ export class RainyApp {
 
         const data = await usePlaylistService().updateAppearance(this.currentPlaylistId, icon, iconColor);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             this.showToast('Failed to update playlist icon', 'error');
             return;
         }
@@ -1124,7 +1125,7 @@ export class RainyApp {
 
         const data = await usePlaylistService().rename(this.currentPlaylistId, newName);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             this.showToast('Failed to rename playlist', 'error');
 
             return;
@@ -1148,7 +1149,7 @@ export class RainyApp {
     async performDeletePlaylist() {
         const data = await usePlaylistService().delete(this.currentPlaylistId);
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
             this.showToast('Failed to delete playlist', 'error');
 
             return;
@@ -1166,10 +1167,10 @@ export class RainyApp {
     async openPlaylist(playlistId) {
         const data = await usePlaylistService().fetch(playlistId);
         // FIXME: Show toast notification
-        if (data.error) return console.error(data.error);
+        if (data.error) return Logger.error(data.error);
 
         const playlist = data.value;
-        if (!playlist) return console.error('unreachable');
+        if (!playlist) return Logger.error('unreachable');
 
         useContext().set('current-view-type', 'playlist');
         this.currentPlaylistId = playlistId;
@@ -1287,17 +1288,17 @@ export class RainyApp {
                     window.player.renderFullscreenQueue();
                 }
 
-                console.log('Player queue refreshed for playlist:', playlistId);
+                Logger.log('Player queue refreshed for playlist:', playlistId);
             } else {
                 // Current song was removed - let it finish, queue will use new songs for next
                 window.player.playlist = newQueue;
                 // Reset index to 0 if current song no longer exists
                 window.player.currentIndex = 0;
-                console.log('Current song removed from playlist, queue updated');
+                Logger.log('Current song removed from playlist, queue updated');
             }
         } catch (e) {
             // Silently ignore errors - this is a non-critical operation
-            console.warn('Failed to refresh player queue:', e);
+            Logger.warn('Failed to refresh player queue:', e);
         }
     }
 
@@ -1332,10 +1333,10 @@ export class RainyApp {
                     window.player.renderFullscreenQueue();
                 }
 
-                console.log('Library queue refreshed, now contains', newQueue.length, 'songs');
+                Logger.log('Library queue refreshed, now contains', newQueue.length, 'songs');
             }
         } catch (e) {
-            console.warn('Failed to refresh library queue:', e);
+            Logger.warn('Failed to refresh library queue:', e);
         }
     }
 
@@ -1361,7 +1362,7 @@ export class RainyApp {
                     queue = [...data.value.songs]; // Clone to allow modifications
                 }
             } catch (e) {
-                console.warn('Failed to fetch playlist for restore:', e);
+                Logger.warn('Failed to fetch playlist for restore:', e);
             }
         }
 
@@ -1409,7 +1410,7 @@ export class RainyApp {
         // Restore the playback state (without auto-playing)
         window.player.restoreFromState(state, queue, false);
 
-        console.log('Restored last played song:', state.songId, hasOperations ? `(with ${state.queueOperations.length} operations)` : '');
+        Logger.log('Restored last played song:', state.songId, hasOperations ? `(with ${state.queueOperations.length} operations)` : '');
     }
 
     /**
@@ -1513,7 +1514,7 @@ export class RainyApp {
                 try {
                     prefs = JSON.parse(prefs);
                 } catch (e) {
-                    console.error('Failed to parse preferences', e);
+                    Logger.error('Failed to parse preferences', e);
                     return;
                 }
             }

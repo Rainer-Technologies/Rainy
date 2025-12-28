@@ -3,7 +3,8 @@
  * Handles playlist operations
  */
 
-import { PLAYLIST_ICONS, getPlaylistIconSvg } from '../data/playlist-icons.js';
+import { PLAYLIST_ICONS } from '../data/playlist-icons.js';
+import { Logger } from '../helper/logger.js';
 
 export const Playlists = {
     /**
@@ -15,7 +16,7 @@ export const Playlists = {
         try {
             return await api('/api/playlists');
         } catch (error) {
-            console.error('Error loading playlists:', error);
+            Logger.error('Error loading playlists:', error);
             return [];
         }
     },

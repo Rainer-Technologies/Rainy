@@ -1,3 +1,4 @@
+import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
 import { Component, html } from "./index.js";
@@ -119,7 +120,7 @@ export class AddMusicModal extends Component {
                 window.app?.loadLibrary();
             }, 1500);
         } catch (error) {
-            console.error('Upload error:', error);
+            Logger.error('Upload error:', error);
             statusText.textContent = 'Upload failed. Please try again.';
         } finally {
             setTimeout(() => {
@@ -172,7 +173,7 @@ export class AddMusicModal extends Component {
         clearInterval(progressInterval);
 
         if (data.error) {
-            console.error(data.error);
+            Logger.error(data.error);
 
             importBtn.disabled = false;
             status.classList.add('hidden');
@@ -185,7 +186,7 @@ export class AddMusicModal extends Component {
         }
 
         const result = data.value;
-        if (!result) return console.error('unreachable');
+        if (!result) return Logger.error('unreachable');
 
         updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
         setTimeout(() => {
