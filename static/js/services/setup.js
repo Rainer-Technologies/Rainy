@@ -1,5 +1,5 @@
 import { RequestHelper, ResponseError } from "../helper/request.js";
-import { Result } from "../helper/result.js";
+import { Ok, Result } from "../helper/result.js";
 import { Service } from "./index.js";
 
 /**
