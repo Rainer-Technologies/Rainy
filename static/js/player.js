@@ -1,7 +1,8 @@
 /**
  * Rainy Music Player - Audio Player Controller
- * Handles audio playback, progress, volume, and queue
+ * Handles audio playback, progress, volume, queue, and reactions
  */
+import { usePlaylistService } from './services/playlist.js';
 
 export class AudioPlayer {
     constructor() {
@@ -20,6 +21,12 @@ export class AudioPlayer {
         this.saveThrottleMs = 5000; // Save every 5 seconds
         this.queueModified = false; // Track if queue has been manually modified
         this.queueOperations = []; // Track add/remove operations for efficient storage
+
+        // Likes / Dislikes
+        this.likedPlaylistId = null;
+        this.likedSongIds = new Set();
+        this.likedInitDone = false;
+        this.dislikedSongIds = new Set();
 
         this.init();
     }
@@ -52,6 +59,8 @@ export class AudioPlayer {
         this.nowPlayingArtist = document.getElementById('now-playing-artist');
         this.nowPlayingArtwork = document.getElementById('now-playing-artwork');
         this.nowPlayingContainer = document.querySelector('.now-playing');
+        this.likeBtn = document.getElementById('like-btn');
+        this.dislikeBtn = document.getElementById('dislike-btn');
 
         // Fullscreen Player
         this.fsContainer = document.getElementById('fullscreen-player');
@@ -81,6 +90,12 @@ export class AudioPlayer {
         this.fsVolumeBtn = document.getElementById('fs-volume-btn');
         this.fsVolumePopover = document.getElementById('fs-volume-popover');
         this.fsVolumeSlider = document.getElementById('fs-volume-slider');
+        this.fsMenuBtn = document.getElementById('fs-menu-btn');
+        this.fsActionsDropdown = document.getElementById('fs-actions-dropdown');
+        this.fsActionLike = document.getElementById('fs-action-like');
+        this.fsActionDislike = document.getElementById('fs-action-dislike');
+        this.fsLikeBtn = document.getElementById('fs-like-btn');
+        this.fsDislikeBtn = document.getElementById('fs-dislike-btn');
 
         // Icons
         this.iconPlay = this.playPauseBtn.querySelector('.icon-play');
@@ -111,6 +126,8 @@ export class AudioPlayer {
         this.nextBtn.addEventListener('click', () => this.playNext());
         this.shuffleBtn.addEventListener('click', () => this.toggleShuffle());
         this.repeatBtn.addEventListener('click', () => this.toggleRepeat());
+        if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
+        if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
 
         // Fullscreen events
         if (this.nowPlayingContainer) {
@@ -136,6 +153,11 @@ export class AudioPlayer {
         if (this.fsProgressBar) this.fsProgressBar.addEventListener('click', (e) => this.handleProgressClick(e, this.fsProgressBar));
         if (this.fsVolumeBtn) this.fsVolumeBtn.addEventListener('click', () => this.toggleFsVolumePopover());
         if (this.fsVolumeSlider) this.fsVolumeSlider.addEventListener('input', (e) => this.handleFsVolumeChange(e));
+        if (this.fsLikeBtn) this.fsLikeBtn.addEventListener('click', () => this.toggleLike());
+        if (this.fsDislikeBtn) this.fsDislikeBtn.addEventListener('click', () => this.toggleDislike());
+        if (this.fsMenuBtn) this.fsMenuBtn.addEventListener('click', () => this.toggleFsActionsDropdown());
+        if (this.fsActionLike) this.fsActionLike.addEventListener('click', () => { this.toggleLike(); this.hideFsActionsDropdown(); });
+        if (this.fsActionDislike) this.fsActionDislike.addEventListener('click', () => { this.toggleDislike(); this.hideFsActionsDropdown(); });
 
         // Progress bar
         this.progressBar.addEventListener('click', (e) => this.handleProgressClick(e));
@@ -151,6 +173,11 @@ export class AudioPlayer {
             if (!this.fsVolumePopover || this.fsVolumePopover.classList.contains('hidden')) return;
             if (target.closest('#fs-volume-popover') || target.closest('#fs-volume-btn')) return;
             this.fsVolumePopover.classList.add('hidden');
+            if (this.fsActionsDropdown && !this.fsActionsDropdown.classList.contains('hidden')) {
+                if (!(target.closest('#fs-actions-dropdown') || target.closest('#fs-menu-btn'))) {
+                    this.fsActionsDropdown.classList.add('hidden');
+                }
+            }
         });
     }
 
@@ -169,6 +196,17 @@ export class AudioPlayer {
             this.fsVolumeSlider.value = this.volumeSlider.value;
             this.updateFsVolumeGradient();
         }
+
+        // Load disliked songs from localStorage
+        try {
+            const dislikedRaw = localStorage.getItem('rainy_disliked_song_ids');
+            if (dislikedRaw) {
+                const arr = JSON.parse(dislikedRaw);
+                if (Array.isArray(arr)) {
+                    this.dislikedSongIds = new Set(arr);
+                }
+            }
+        } catch (e) { }
     }
 
     updateVolumeGradient() {
@@ -249,6 +287,9 @@ export class AudioPlayer {
         if (window.app) {
             window.app.updatePlayingState(song.id);
         }
+
+        // Init liked data once and update like/dislike UI
+        this.ensureLikedDataInitialized().then(() => this.updateReactionButtons());
     }
 
     checkOverflow(element) {
@@ -414,6 +455,94 @@ export class AudioPlayer {
         }
     }
 
+    async ensureLikedDataInitialized() {
+        if (this.likedInitDone) return;
+        try {
+            const data = await usePlaylistService().all();
+            if (data.error || !Array.isArray(data.value)) return;
+            const playlists = data.value;
+            const liked = playlists.find(p => typeof p.name === 'string' && p.name.toLowerCase() === 'liked music');
+            if (liked) {
+                this.likedPlaylistId = liked.id;
+            } else {
+                const created = await usePlaylistService().create('Liked Music', 'like', '#fa586a', true);
+                if (created.error) return;
+                this.likedPlaylistId = created.value?.id;
+                if (window.app) {
+                    window.app.loadPlaylists?.();
+                }
+            }
+            if (this.likedPlaylistId) {
+                const likedDetail = await usePlaylistService().fetch(this.likedPlaylistId);
+                if (!likedDetail.error && likedDetail.value && Array.isArray(likedDetail.value.songs)) {
+                    this.likedSongIds = new Set(likedDetail.value.songs.map(s => s.id));
+                }
+            }
+            this.likedInitDone = true;
+        } catch (e) { }
+    }
+
+    updateReactionButtons() {
+        const songId = this.currentSong?.id;
+        console.log(songId, 'updateReactionButtons');
+        const isLiked = songId && this.likedSongIds.has(songId);
+        const isDisliked = songId && this.dislikedSongIds.has(songId);
+        console.log(isLiked, isDisliked);
+
+        const setBtnState = (btn, activeColor, active) => {
+            if (!btn) return;
+            const svg = btn.querySelector('svg');
+            if (!svg) return;
+            svg.style.fill = active ? activeColor : '';
+        };
+
+        setBtnState(this.likeBtn, 'var(--accent-primary)', !!isLiked);
+        setBtnState(this.fsLikeBtn, 'var(--accent-primary)', !!isLiked);
+        setBtnState(this.dislikeBtn, 'var(--error)', !!isDisliked);
+        setBtnState(this.fsDislikeBtn, 'var(--error)', !!isDisliked);
+    }
+
+    async toggleLike() {
+        const song = this.getCurrentSong();
+        if (!song) return;
+        await this.ensureLikedDataInitialized();
+        if (!this.likedPlaylistId) return;
+
+        const isLiked = this.likedSongIds.has(song.id);
+        try {
+            if (isLiked) {
+                const res = await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
+                if (res.error) return;
+                this.likedSongIds.delete(song.id);
+                window.showToast?.('Removed from Liked Music', 'success');
+            } else {
+                const res = await usePlaylistService().addSong(this.likedPlaylistId, song.id);
+                if (res.error) return;
+                this.likedSongIds.add(song.id);
+                window.showToast?.('Added to Liked Music', 'success');
+            }
+            this.updateReactionButtons();
+            if (window.app) window.app.loadPlaylists?.();
+        } catch (e) { }
+    }
+
+    toggleDislike() {
+        const song = this.getCurrentSong();
+        if (!song) return;
+        const isDisliked = this.dislikedSongIds.has(song.id);
+        if (isDisliked) {
+            this.dislikedSongIds.delete(song.id);
+            window.showToast?.('Removed dislike', 'success');
+        } else {
+            this.dislikedSongIds.add(song.id);
+            window.showToast?.('Marked as disliked', 'success');
+        }
+        try {
+            localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
+        } catch (e) { }
+        this.updateReactionButtons();
+    }
+
     handleMetadataLoaded() {
         const timeStr = this.formatTime(this.audio.duration);
         this.totalTimeEl.textContent = timeStr;
@@ -568,6 +697,20 @@ export class AudioPlayer {
         this.volumeSlider.value = e.target.value;
         this.updateVolumeGradient();
     }
+    
+    toggleFsActionsDropdown() {
+        if (!this.fsActionsDropdown) return;
+        const isHidden = this.fsActionsDropdown.classList.contains('hidden');
+        if (isHidden) {
+            this.fsActionsDropdown.classList.remove('hidden');
+            if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
+        } else {
+            this.fsActionsDropdown.classList.add('hidden');
+        }
+    }
+    hideFsActionsDropdown() {
+        if (this.fsActionsDropdown) this.fsActionsDropdown.classList.add('hidden');
+    }
 
     formatTime(seconds) {
         if (isNaN(seconds)) return '0:00';
@@ -616,6 +759,7 @@ export class AudioPlayer {
             void this.fsContainer.offsetWidth;
             this.fsContainer.classList.add('active');
             if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
+            this.hideFsActionsDropdown();
             this.updateFullscreenView();
         } else {
             this.fsContainer.classList.remove('active');
@@ -627,6 +771,7 @@ export class AudioPlayer {
                 this.fsContainer.classList.remove('layout-swapped');
             }, 300);
             if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
+            this.hideFsActionsDropdown();
         }
     }
 

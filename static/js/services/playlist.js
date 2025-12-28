@@ -38,10 +38,10 @@ export class PlaylistService extends Service {
      *  icon_color: string;
      * }, ErrorModel | ResponseError>>} 
      */
-    create(name, icon = 'music-note', iconColor = '#fa586a') {
+    create(name, icon = 'music-note', iconColor = '#fa586a', privateFlag = false) {
         return this.wrap(RequestHelper.request(this.url('/'), {
             method: 'POST',
-            body: { name, icon, icon_color: iconColor }
+            body: { name, icon, icon_color: iconColor, private: !!privateFlag }
         }));
     }
 

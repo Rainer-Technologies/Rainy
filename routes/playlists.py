@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from models.playlist import PlaylistModel
 from routes.auth import require_auth
 
@@ -8,7 +8,8 @@ playlists_bp = Blueprint('playlists', __name__)
 @require_auth
 def get_playlists():
     """Get all playlists."""
-    playlists = PlaylistModel.get_all_playlists()
+    user_id = session.get('user_id')
+    playlists = PlaylistModel.get_all_playlists_for_user(user_id)
     return jsonify(playlists or [])
 
 @playlists_bp.route('/', methods=['POST'])
@@ -21,15 +22,18 @@ def create_playlist():
     
     icon = data.get('icon', 'music-note')
     icon_color = data.get('icon_color', '#888888')
+    private = bool(data.get('private', False))
+    owner_user_id = session.get('user_id') if private else None
     
     try:
-        playlist_id = PlaylistModel.create_playlist(data['name'], icon, icon_color)
+        playlist_id = PlaylistModel.create_playlist(data['name'], icon, icon_color, owner_user_id)
         return jsonify({
             'success': True, 
             'id': playlist_id,
             'name': data['name'],
             'icon': icon,
-            'icon_color': icon_color
+            'icon_color': icon_color,
+            'owner_user_id': owner_user_id
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -41,6 +45,10 @@ def get_playlist(playlist_id):
     playlist = PlaylistModel.get_playlist_by_id(playlist_id)
     if not playlist:
         return jsonify({'error': 'Playlist not found'}), 404
+    
+    # Ownership check: if private, only owner can access
+    if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        return jsonify({'error': 'Forbidden'}), 403
         
     raw_songs = PlaylistModel.get_playlist_songs(playlist_id)
     
@@ -88,18 +96,27 @@ def update_playlist(playlist_id):
         return jsonify({'error': 'No data provided'}), 400
         
     try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        # Ownership check: only owner can modify private playlist
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
+        
         # Update name if provided
         if 'name' in data:
             PlaylistModel.update_playlist_name(playlist_id, data['name'])
         
         # Update appearance if provided
         if 'icon' in data or 'icon_color' in data:
-            playlist = PlaylistModel.get_playlist_by_id(playlist_id)
-            if not playlist:
-                return jsonify({'error': 'Playlist not found'}), 404
             icon = data.get('icon', playlist.get('icon', 'music-note'))
             icon_color = data.get('icon_color', playlist.get('icon_color', '#fa586a'))
             PlaylistModel.update_playlist_appearance(playlist_id, icon, icon_color)
+        
+        # Update privacy if provided
+        if 'private' in data:
+            owner_user_id = session.get('user_id') if bool(data.get('private')) else None
+            PlaylistModel.update_playlist_privacy(playlist_id, owner_user_id)
         
         return jsonify({'success': True})
     except Exception as e:
@@ -109,11 +126,16 @@ def update_playlist(playlist_id):
 @require_auth
 def add_song(playlist_id):
     """Add a song to a playlist."""
-    data = request.get_json()
+    data = request_get_json = request.get_json()
     if not data or 'song_id' not in data:
         return jsonify({'error': 'Song ID is required'}), 400
         
     try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
         PlaylistModel.add_song_to_playlist(playlist_id, data['song_id'])
         return jsonify({'success': True})
     except Exception as e:
@@ -126,6 +148,11 @@ def add_song(playlist_id):
 def remove_song(playlist_id, song_id):
     """Remove a song from a playlist."""
     try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
         PlaylistModel.remove_song_from_playlist(playlist_id, song_id)
         return jsonify({'success': True})
     except Exception as e:

@@ -2,16 +2,20 @@ from .database import Database
 
 class PlaylistModel:
     @staticmethod
-    def create_playlist(name, icon='music-note', icon_color='#888888'):
-        """Create a new playlist with optional icon and color."""
-        query = "INSERT INTO playlists (name, icon, icon_color) VALUES (%s, %s, %s)"
-        return Database.execute_query(query, (name, icon, icon_color))
+    def create_playlist(name, icon='music-note', icon_color='#888888', owner_user_id=None):
+        """Create a new playlist with optional icon, color, and owner."""
+        if owner_user_id is None:
+            query = "INSERT INTO playlists (name, icon, icon_color) VALUES (%s, %s, %s)"
+            return Database.execute_query(query, (name, icon, icon_color))
+        else:
+            query = "INSERT INTO playlists (name, icon, icon_color, owner_user_id) VALUES (%s, %s, %s, %s)"
+            return Database.execute_query(query, (name, icon, icon_color, owner_user_id))
     
     @staticmethod
-    def get_all_playlists():
-        """Get all playlists ordered by name."""
-        query = "SELECT * FROM playlists ORDER BY name"
-        return Database.execute_query(query, fetch_all=True)
+    def get_all_playlists_for_user(user_id):
+        """Get playlists visible to a user: public or owned by user."""
+        query = "SELECT * FROM playlists WHERE owner_user_id IS NULL OR owner_user_id = %s ORDER BY name"
+        return Database.execute_query(query, (user_id,), fetch_all=True)
     
     @staticmethod
     def get_playlist_by_id(playlist_id):
@@ -36,6 +40,16 @@ class PlaylistModel:
         """Update a playlist's icon and color."""
         query = "UPDATE playlists SET icon = %s, icon_color = %s WHERE id = %s"
         return Database.execute_query(query, (icon, icon_color, playlist_id))
+    
+    @staticmethod
+    def update_playlist_privacy(playlist_id, owner_user_id):
+        """Set playlist owner; if None, make public, else private to owner."""
+        if owner_user_id is None:
+            query = "UPDATE playlists SET owner_user_id = NULL WHERE id = %s"
+            return Database.execute_query(query, (playlist_id,))
+        else:
+            query = "UPDATE playlists SET owner_user_id = %s WHERE id = %s"
+            return Database.execute_query(query, (owner_user_id, playlist_id))
     
     @staticmethod
     def add_song_to_playlist(playlist_id, track_id):

@@ -72,6 +72,16 @@
     animation: bufferingPulse 1s ease-in-out infinite;
 }
 
+/* Now Playing - Actions (Like/Dislike) */
+.now-playing-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+.now-playing-actions .control-btn {
+    padding: 6px;
+}
+
 @keyframes artworkPulse {
 
     0%,

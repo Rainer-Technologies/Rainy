@@ -928,6 +928,48 @@ export class RainyApp {
             Utils.escapeHtml,
             (id) => this.openPlaylist(id)
         );
+
+        // Render "Liked Music" under the Library section (not in playlists list)
+        const liked = (this.playlists || []).find(p => (p.name || '').toLowerCase() === 'liked music');
+        const navLibrary = document.getElementById('nav-library');
+        const existingLiked = document.getElementById('nav-liked');
+        if(liked && navLibrary) {
+            const iconId = liked.icon || 'like';
+            const iconColor = liked.icon_color || '#fa586a';
+            const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['like'];
+            if(!existingLiked) {
+                const a = document.createElement('a');
+                a.className = 'nav-item';
+                a.id = 'nav-liked';
+                a.dataset.id = String(liked.id);
+                a.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="${iconColor}">
+                        <path d="${icon.path}" />
+                    </svg>
+                    <span>Liked Music</span>
+                `;
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.openPlaylist(liked.id);
+                });
+                navLibrary.parentElement?.insertBefore(a, navLibrary.nextSibling);
+            } else {
+                existingLiked.dataset.id = String(liked.id);
+                const svg = existingLiked.querySelector('svg');
+                const path = existingLiked.querySelector('path');
+                if (svg) svg.setAttribute('fill', iconColor);
+                if (path) path.setAttribute('d', icon.path);
+            }
+            // Active state
+            if(useContext().get('current-view-type') === 'playlist' && this.currentPlaylistId === liked.id) {
+                existingLiked ? existingLiked.classList.add('active') : null;
+                navLibrary.classList.remove('active');
+            } else {
+                existingLiked ? existingLiked.classList.remove('active') : null;
+            }
+        } else if(existingLiked) {
+            existingLiked.remove();
+        }
     }
 
     initIconPicker(pickerContainerId, colorInputId, colorPresetsId, selectedIcon = 'music-note', selectedColor = '#888888', previewContainerId = null) {
@@ -1152,6 +1194,24 @@ export class RainyApp {
 
         document.getElementById('search-input').value = '';
         this.renderSections();
+
+        // Disable playlist actions for "Liked Music"
+        const isLiked = (playlist.name || '').toLowerCase() === 'liked music';
+        const dropdown = document.getElementById('playlist-settings-dropdown');
+        const actionEdit = document.getElementById('action-edit-playlist-icon');
+        const actionRename = document.getElementById('action-rename-playlist');
+        const actionDelete = document.getElementById('action-delete-playlist');
+        if(dropdown) {
+            if(isLiked) {
+                actionEdit?.classList.add('hidden');
+                actionRename?.classList.add('hidden');
+                actionDelete?.classList.add('hidden');
+            } else {
+                actionEdit?.classList.remove('hidden');
+                actionRename?.classList.remove('hidden');
+                actionDelete?.classList.remove('hidden');
+            }
+        }
     }
 
     switchToLibraryView() {

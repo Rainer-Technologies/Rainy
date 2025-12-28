@@ -1,5 +1,6 @@
 import mysql.connector
 from mysql.connector import pooling
+from flask import g, has_app_context
 from config import Config
 
 class Database:
@@ -10,7 +11,7 @@ class Database:
         if cls._pool is None:
             cls._pool = pooling.MySQLConnectionPool(
                 pool_name="rainy_pool",
-                pool_size=5,
+                pool_size=20,
                 host=Config.MYSQL_HOST,
                 port=Config.MYSQL_PORT,
                 user=Config.MYSQL_USER,
@@ -114,6 +115,7 @@ class Database:
                 name VARCHAR(255) NOT NULL,
                 icon VARCHAR(50) DEFAULT 'music-note',
                 icon_color VARCHAR(7) DEFAULT '#888888',
+                owner_user_id INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -135,6 +137,24 @@ class Database:
         result = cursor.fetchone()
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE playlists ADD COLUMN icon_color VARCHAR(7) DEFAULT '#888888'")
+        
+        # Migration: Add owner_user_id column if it doesn't exist
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'owner_user_id'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE playlists ADD COLUMN owner_user_id INT NULL")
+            # Optional: add foreign key constraint if users table exists
+            try:
+                cursor.execute("""
+                    ALTER TABLE playlists 
+                    ADD CONSTRAINT fk_playlists_owner 
+                    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL
+                """)
+            except mysql.connector.Error:
+                pass
         
         
         # Playlist Songs table (linking table)
@@ -173,7 +193,17 @@ class Database:
     @classmethod
     def execute_query(cls, query, params=None, fetch_one=False, fetch_all=False):
         """Execute a query and return results."""
-        conn = cls.get_connection()
+        conn = None
+        should_close = True
+
+        if has_app_context():
+            if 'db_conn' not in g:
+                g.db_conn = cls.get_connection()
+            conn = g.db_conn
+            should_close = False
+        else:
+            conn = cls.get_connection()
+
         cursor = conn.cursor(dictionary=True)
         
         try:
@@ -190,4 +220,11 @@ class Database:
             return result
         finally:
             cursor.close()
+            if should_close:
+                conn.close()
+
+    @classmethod
+    def close_db(cls, e=None):
+        conn = g.pop('db_conn', None)
+        if conn is not None:
             conn.close()

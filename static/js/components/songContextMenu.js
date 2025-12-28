@@ -115,6 +115,22 @@ export class SongContextMenu extends Component {
         app.showToast(`Removed from "${playlistName}"`, 'success');
         await app.openPlaylist(app.currentPlaylistId);
         await app.refreshPlayerQueueIfNeeded(app.currentPlaylistId);
+
+        // If removing from Liked Music, also update player like state
+        if(playlist && (playlist.name || '').toLowerCase() === 'liked music' && window.player) {
+            try {
+                await window.player.ensureLikedDataInitialized();
+
+                const songId = parseInt(currentSong.id);
+                if(window.player.likedSongIds && window.player.likedSongIds.has(songId)) {
+                    window.player.likedSongIds.delete(songId);
+                    window.player.updateReactionButtons();
+                    if(window.app && typeof window.app.loadPlaylists === 'function') {
+                        window.app.loadPlaylists();
+                    }
+                }
+            } catch (e) { console.error(e) }
+        }
     }
 
     async _renderPlaylists() {
@@ -125,7 +141,7 @@ export class SongContextMenu extends Component {
         // FIXME: Add toast notification
         if(data.error) return console.error(data.error);
         
-        const playlists = data.value;
+        const playlists = (data.value || []).filter(p => (p.name || '').toLowerCase() !== 'liked music');
         if(!playlists) return console.error('unreachable');
 
         for(const playlist of playlists) {

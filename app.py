@@ -27,6 +27,10 @@ def serve_static(path):
     """Serve static files."""
     return send_from_directory('static', path)
 
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    Database.close_db(exception)
+
 def init_app():
     """Initialize the application."""
     print("🎵 Rainy Music Server")

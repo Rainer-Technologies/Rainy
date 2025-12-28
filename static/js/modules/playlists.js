@@ -97,7 +97,8 @@ export const Playlists = {
     renderSidebar(container, playlists, currentPlaylistId, currentViewType, escapeHtml, onOpenPlaylist) {
         if (!container) return;
 
-        container.innerHTML = (playlists || []).map(playlist => {
+        const visiblePlaylists = (playlists || []).filter(p => (p.name || '').toLowerCase() !== 'liked music');
+        container.innerHTML = visiblePlaylists.map(playlist => {
             const iconId = playlist.icon || 'music-note';
             const iconColor = playlist.icon_color || '#888888';
             const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
@@ -129,7 +130,8 @@ export const Playlists = {
     renderSubmenu(container, playlists, escapeHtml, onAddToPlaylist) {
         if (!container) return;
 
-        container.innerHTML = (playlists || []).map(playlist => {
+        const visiblePlaylists = (playlists || []).filter(p => (p.name || '').toLowerCase() !== 'liked music');
+        container.innerHTML = visiblePlaylists.map(playlist => {
             const iconId = playlist.icon || 'music-note';
             const iconColor = playlist.icon_color || '#888888';
             const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
