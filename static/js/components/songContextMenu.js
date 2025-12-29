@@ -58,11 +58,9 @@ export class SongContextMenu extends Component {
             h.h2(a.slot('header-title'), `Delete song`),
             h.p(a.slot('body'), 'Are you sure you want to delete this song? This action cannot be undone.'),
             h.button(a.slot('action'), a.class('btn btn-secondary'), on.click(() => {
-                this.hide();
                 dialog.remove();
             }), 'Cancel'),
             h.button(a.slot('action'), a.class('btn btn-danger'), on.click(async () => {
-                this.hide();
                 dialog.remove();
 
                 const data = await useMusicService().delete(song.id)
