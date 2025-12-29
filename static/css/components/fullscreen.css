@@ -104,28 +104,6 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
-#fs-menu-btn {
-    position: absolute;
-    top: 20px;
-    right: 130px;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: var(--text-primary);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background var(--transition-fast);
-}
-
-#fs-menu-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
 #fs-volume-popover {
     position: absolute;
     top: 70px;
@@ -140,29 +118,6 @@
     width: 220px;
 }
 
-#fs-actions-dropdown {
-    position: absolute;
-    top: 70px;
-    right: 130px;
-    z-index: 10;
-    background: var(--bg-glass);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 6px;
-    min-width: 180px;
-    box-shadow: var(--shadow-lg);
-}
-
-#fs-actions-dropdown.hidden {
-    display: none;
-}
-
-#fullscreen-player.mode-standard #fs-menu-btn,
-#fullscreen-player.mode-standard #fs-actions-dropdown {
-    display: none;
-}
 #fullscreen-player.mode-modern .fs-like-group {
     display: none;
 }
@@ -554,6 +509,22 @@
 
 .fs-queue-menu-item.danger:hover {
     background: rgba(var(--danger-rgb, 239, 68, 68), 0.15);
+}
+
+.fs-queue-menu-item.active.liked {
+    color: var(--accent-primary);
+}
+
+.fs-queue-menu-item.active.liked:hover {
+    background: rgba(var(--accent-primary-rgb, 250, 88, 106), 0.15);
+}
+
+.fs-queue-menu-item.active.disliked {
+    color: var(--error);
+}
+
+.fs-queue-menu-item.active.disliked:hover {
+    background: rgba(var(--error-rgb, 239, 68, 68), 0.15);
 }
 
 /* Right Side: Current Song */

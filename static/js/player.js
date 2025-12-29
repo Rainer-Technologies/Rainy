@@ -91,10 +91,6 @@ export class AudioPlayer {
         this.fsVolumeBtn = document.getElementById('fs-volume-btn');
         this.fsVolumePopover = document.getElementById('fs-volume-popover');
         this.fsVolumeSlider = document.getElementById('fs-volume-slider');
-        this.fsMenuBtn = document.getElementById('fs-menu-btn');
-        this.fsActionsDropdown = document.getElementById('fs-actions-dropdown');
-        this.fsActionLike = document.getElementById('fs-action-like');
-        this.fsActionDislike = document.getElementById('fs-action-dislike');
         this.fsLikeBtn = document.getElementById('fs-like-btn');
         this.fsDislikeBtn = document.getElementById('fs-dislike-btn');
 
@@ -156,9 +152,6 @@ export class AudioPlayer {
         if (this.fsVolumeSlider) this.fsVolumeSlider.addEventListener('input', (e) => this.handleFsVolumeChange(e));
         if (this.fsLikeBtn) this.fsLikeBtn.addEventListener('click', () => this.toggleLike());
         if (this.fsDislikeBtn) this.fsDislikeBtn.addEventListener('click', () => this.toggleDislike());
-        if (this.fsMenuBtn) this.fsMenuBtn.addEventListener('click', () => this.toggleFsActionsDropdown());
-        if (this.fsActionLike) this.fsActionLike.addEventListener('click', () => { this.toggleLike(); this.hideFsActionsDropdown(); });
-        if (this.fsActionDislike) this.fsActionDislike.addEventListener('click', () => { this.toggleDislike(); this.hideFsActionsDropdown(); });
 
         // Progress bar
         this.progressBar.addEventListener('click', (e) => this.handleProgressClick(e));
@@ -174,11 +167,6 @@ export class AudioPlayer {
             if (!this.fsVolumePopover || this.fsVolumePopover.classList.contains('hidden')) return;
             if (target.closest('#fs-volume-popover') || target.closest('#fs-volume-btn')) return;
             this.fsVolumePopover.classList.add('hidden');
-            if (this.fsActionsDropdown && !this.fsActionsDropdown.classList.contains('hidden')) {
-                if (!(target.closest('#fs-actions-dropdown') || target.closest('#fs-menu-btn'))) {
-                    this.fsActionsDropdown.classList.add('hidden');
-                }
-            }
         });
     }
 
@@ -508,6 +496,8 @@ export class AudioPlayer {
         if (!this.likedPlaylistId) return;
 
         const isLiked = this.likedSongIds.has(song.id);
+        const isDisliked = this.dislikedSongIds.has(song.id);
+
         try {
             if (isLiked) {
                 const res = await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
@@ -515,10 +505,16 @@ export class AudioPlayer {
                 this.likedSongIds.delete(song.id);
                 window.showToast?.('Removed from Liked Music', 'success');
             } else {
+                if (isDisliked) {
+                    this.dislikedSongIds.delete(song.id);
+                }
                 const res = await usePlaylistService().addSong(this.likedPlaylistId, song.id);
                 if (res.error) return;
                 this.likedSongIds.add(song.id);
-                window.showToast?.('Added to Liked Music', 'success');
+                window.showToast?.(isDisliked ? 'Added to Liked Music and removed dislike' : 'Added to Liked Music', 'success');
+            }
+            if (isDisliked) {
+                localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
             }
             this.updateReactionButtons();
             if (window.app) window.app.loadPlaylists?.();
@@ -529,17 +525,82 @@ export class AudioPlayer {
         const song = this.getCurrentSong();
         if (!song) return;
         const isDisliked = this.dislikedSongIds.has(song.id);
-        if (isDisliked) {
-            this.dislikedSongIds.delete(song.id);
-            window.showToast?.('Removed dislike', 'success');
-        } else {
-            this.dislikedSongIds.add(song.id);
-            window.showToast?.('Marked as disliked', 'success');
-        }
+        const isLiked = this.likedSongIds.has(song.id);
+
         try {
+            if (isDisliked) {
+                this.dislikedSongIds.delete(song.id);
+                window.showToast?.('Removed dislike', 'success');
+            } else {
+                if (isLiked) {
+                    this.likedSongIds.delete(song.id);
+                    if (this.likedPlaylistId) {
+                        usePlaylistService().removeSong(this.likedPlaylistId, song.id);
+                    }
+                }
+                this.dislikedSongIds.add(song.id);
+                window.showToast?.(isLiked ? 'Marked as disliked and removed from Liked Music' : 'Marked as disliked', 'success');
+            }
             localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
         } catch (e) { }
         this.updateReactionButtons();
+        if (window.app) window.app.loadPlaylists?.();
+    }
+
+    async toggleLikeForSong(song) {
+        if (!song) return;
+        await this.ensureLikedDataInitialized();
+        if (!this.likedPlaylistId) return;
+
+        const isLiked = this.likedSongIds.has(song.id);
+        const isDisliked = this.dislikedSongIds.has(song.id);
+
+        try {
+            if (isLiked) {
+                const res = await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
+                if (res.error) return;
+                this.likedSongIds.delete(song.id);
+                window.showToast?.('Removed from Liked Music', 'success');
+            } else {
+                if (isDisliked) {
+                    this.dislikedSongIds.delete(song.id);
+                }
+                const res = await usePlaylistService().addSong(this.likedPlaylistId, song.id);
+                if (res.error) return;
+                this.likedSongIds.add(song.id);
+                window.showToast?.(isDisliked ? 'Added to Liked Music and removed dislike' : 'Added to Liked Music', 'success');
+            }
+            if (isDisliked) {
+                localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
+            }
+            this.updateReactionButtons();
+            if (window.app) window.app.loadPlaylists?.();
+        } catch (e) { }
+    }
+
+    toggleDislikeForSong(song) {
+        if (!song) return;
+        const isDisliked = this.dislikedSongIds.has(song.id);
+        const isLiked = this.likedSongIds.has(song.id);
+
+        try {
+            if (isDisliked) {
+                this.dislikedSongIds.delete(song.id);
+                window.showToast?.('Removed dislike', 'success');
+            } else {
+                if (isLiked) {
+                    this.likedSongIds.delete(song.id);
+                    if (this.likedPlaylistId) {
+                        usePlaylistService().removeSong(this.likedPlaylistId, song.id);
+                    }
+                }
+                this.dislikedSongIds.add(song.id);
+                window.showToast?.(isLiked ? 'Marked as disliked and removed from Liked Music' : 'Marked as disliked', 'success');
+            }
+            localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
+        } catch (e) { }
+        this.updateReactionButtons();
+        if (window.app) window.app.loadPlaylists?.();
     }
 
     handleMetadataLoaded() {
@@ -696,20 +757,6 @@ export class AudioPlayer {
         this.volumeSlider.value = e.target.value;
         this.updateVolumeGradient();
     }
-    
-    toggleFsActionsDropdown() {
-        if (!this.fsActionsDropdown) return;
-        const isHidden = this.fsActionsDropdown.classList.contains('hidden');
-        if (isHidden) {
-            this.fsActionsDropdown.classList.remove('hidden');
-            if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
-        } else {
-            this.fsActionsDropdown.classList.add('hidden');
-        }
-    }
-    hideFsActionsDropdown() {
-        if (this.fsActionsDropdown) this.fsActionsDropdown.classList.add('hidden');
-    }
 
     formatTime(seconds) {
         if (isNaN(seconds)) return '0:00';
@@ -758,7 +805,6 @@ export class AudioPlayer {
             void this.fsContainer.offsetWidth;
             this.fsContainer.classList.add('active');
             if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
-            this.hideFsActionsDropdown();
             this.updateFullscreenView();
         } else {
             this.fsContainer.classList.remove('active');
@@ -770,7 +816,6 @@ export class AudioPlayer {
                 this.fsContainer.classList.remove('layout-swapped');
             }, 300);
             if (this.fsVolumePopover) this.fsVolumePopover.classList.add('hidden');
-            this.hideFsActionsDropdown();
         }
     }
 
@@ -936,13 +981,14 @@ export class AudioPlayer {
      * @param {number} index - Index of the song in the queue
      */
     showQueueContextMenu(e, index) {
-        // Remove any existing context menu
         this.hideQueueContextMenu();
 
         const song = this.playlist[index];
         if (!song) return;
 
-        // Create context menu
+        const isLiked = this.likedSongIds.has(song.id);
+        const isDisliked = this.dislikedSongIds.has(song.id);
+
         const menu = document.createElement('div');
         menu.id = 'fs-queue-context-menu';
         menu.className = 'fs-queue-context-menu';
@@ -953,6 +999,18 @@ export class AudioPlayer {
                 </svg>
                 <span>Play Now</span>
             </div>
+            <div class="fs-queue-menu-item ${isLiked ? 'active liked' : ''}" data-action="like" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
+                </svg>
+                <span>${isLiked ? 'Unlike' : 'Like'}</span>
+            </div>
+            <div class="fs-queue-menu-item ${isDisliked ? 'active disliked' : ''}" data-action="dislike" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
+                </svg>
+                <span>${isDisliked ? 'Undislike' : 'Dislike'}</span>
+            </div>
             <div class="fs-queue-menu-item danger" data-action="remove" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13H5v-2h14v2z"/>
@@ -961,7 +1019,6 @@ export class AudioPlayer {
             </div>
         `;
 
-        // Position the menu
         menu.style.position = 'fixed';
         menu.style.left = `${e.clientX}px`;
         menu.style.top = `${e.clientY}px`;
@@ -969,7 +1026,6 @@ export class AudioPlayer {
 
         document.body.appendChild(menu);
 
-        // Adjust if menu goes off screen
         const rect = menu.getBoundingClientRect();
         if (rect.right > window.innerWidth) {
             menu.style.left = `${window.innerWidth - rect.width - 10}px`;
@@ -978,14 +1034,18 @@ export class AudioPlayer {
             menu.style.top = `${window.innerHeight - rect.height - 10}px`;
         }
 
-        // Bind menu item clicks
         menu.querySelectorAll('.fs-queue-menu-item').forEach(item => {
             item.addEventListener('click', () => {
                 const action = item.dataset.action;
                 const idx = parseInt(item.dataset.index);
+                const songItem = this.playlist[idx];
 
                 if (action === 'play') {
                     this.playSong(idx);
+                } else if (action === 'like') {
+                    this.toggleLikeForSong(songItem);
+                } else if (action === 'dislike') {
+                    this.toggleDislikeForSong(songItem);
                 } else if (action === 'remove') {
                     this.removeFromQueue(idx);
                 }
@@ -994,7 +1054,6 @@ export class AudioPlayer {
             });
         });
 
-        // Close menu on click outside
         setTimeout(() => {
             document.addEventListener('click', this.hideQueueContextMenu.bind(this), { once: true });
         }, 10);
