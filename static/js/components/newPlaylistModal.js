@@ -2,6 +2,7 @@ import { PLAYLIST_ICON_COLORS, PLAYLIST_ICONS } from "../data/playlist-icons.js"
 import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { usePlaylistService } from "../services/playlist.js";
+import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, s, useRef } from "./index.js";
 import { Modal } from "./modal.js";
 
@@ -144,9 +145,7 @@ export class NewPlaylistModal extends Component {
 
     render() {
         const root = this.root = H.of(Modal,
-            s.svg(a.slot('header-icon'), a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                s.path(a.d('M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'))
-            ),
+            I.Plus('currentColor', a.slot('header-icon')),
             h.h2(a.slot('header-title'), 'New Playlist'),
             h.p(a.slot('header-subtitle'), 'Create a personalized playlist'),
             h.div(a.slot('body'), a.class('playlist-preview-section'),

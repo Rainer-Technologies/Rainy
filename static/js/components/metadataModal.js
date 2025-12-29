@@ -2,7 +2,8 @@ import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMetadataService } from "../services/metadata.js";
-import { a, Component, H, h, on, Ref, s, useRef } from "./index.js";
+import { I } from "./icon.js";
+import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
 
 export class MetadataModal extends Component {
@@ -88,9 +89,7 @@ export class MetadataModal extends Component {
             return h.img(a.src(song.cover_url), a.alt('song_cover'), a.loading('lazy'));
         }
 
-        return s.svg(a.viewBox('0 0 24 24'),
-            s.path(a.d('M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'))
-        );
+        return I.Note();
     }
 
     /**
@@ -243,9 +242,7 @@ export class MetadataModal extends Component {
 
     render() {
         return H.of(Modal,
-            s.svg(a.slot('header-icon'), a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                s.path(a.d('M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'))
-            ),
+            I.Magnifier('currentColor', a.slot('header-icon')),
             h.h2(a.slot('header-title'), 'Find Metadata'),
             h.div(a.slot('body'), a.class('metadata-current-song'),
                 h.span(a.class('label'), 'Searching for:'),
@@ -254,9 +251,7 @@ export class MetadataModal extends Component {
             h.div(a.slot('body'), a.class('metadata-search-bar'),
                 h.input(this._queryInput, a.type('text'), a.placeholder('Search YouTube Music...')),
                 h.button(a.class('btn', 'btn-primary'), on.click(() => this.search((this._queryInput.value).value)),
-                    s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                        s.path(a.d('M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'))
-                    )
+                    I.Magnifier()
                 )
             ),
             h.div(this._loading, a.slot('body'), a.class('metadata-loading', 'hidden'),

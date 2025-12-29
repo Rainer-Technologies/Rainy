@@ -4,6 +4,7 @@ import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
 import { usePlaylistService } from "../services/playlist.js";
 import { ContextMenu, ContextMenuItem, ContextSubMenu } from "./contextMenu.js";
+import { I } from "./icon.js";
 import { a, Component, h, H, on, p, Ref, s, useRef } from "./index.js";
 
 /**
@@ -255,16 +256,12 @@ export class SongContextMenu extends Component {
 
     render() {
         return H.of(ContextMenu,
-            H.of(ContextMenuItem, a.hasSubmenu('true'),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z'))
-                ),
+            H.of(ContextMenuItem, a.hasSubmenu(),
+                I.ListWithPlus(),
                 h.span('Add to Playlist'),
                 H.of(ContextSubMenu, p.onOpen(() => this._renderPlaylists()),
                     H.of(ContextMenuItem, on.click(() => this.newPlaylist()),
-                        s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                            s.path(a.d('M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'))
-                        ),
+                        I.Plus(),
                         h.span('New Playlist'),
                     ),
                     h.div(a.class('dropdown-divider')),
@@ -272,33 +269,23 @@ export class SongContextMenu extends Component {
                 )
             ),
             H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'))
-                ),
+                I.Bin(),
                 h.span('Remove from Playlist'),
             ),
             H.of(ContextMenuItem, on.click(() => this.playCurrentSongAsNext()),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z'))
-                ),
+                I.Next(),
                 h.span('Play Next'),
             ),
             H.of(ContextMenuItem, on.click(() => this.addCurrentSongToQueue()),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zm11.5-4.33v6.67L21 15l-6.5-3.33z'))
-                ),
+                I.ListWithPlay(),
                 h.span('Add to Queue'),
             ),
             H.of(ContextMenuItem, on.click(() => this.findMetadataForCurrentSong()),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'))
-                ),
+                I.Magnifier(),
                 h.span('Find Metadata'),
             ),
             H.of(ContextMenuItem, a.danger(), on.click(() => this.deleteCurrentSong()),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'))
-                ),
+                I.Bin(),
                 h.span('Remove Song'),
             ),
         );

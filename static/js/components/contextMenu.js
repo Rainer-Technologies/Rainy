@@ -1,4 +1,5 @@
-import { a, Component, h, on, s } from "./index.js";
+import { I } from "./icon.js";
+import { a, Component, h, on } from "./index.js";
 
 /**
  * @typedef {Object} Position
@@ -91,9 +92,7 @@ export class ContextMenuItem extends Component {
         return h.div(a.class('context-menu-item', hasSubMenuCls, isDangerousCls), on.mouseenter(() => this.showSubMenu()), on.mouseleave(() => this.hideSubMenu()),
             h.slot(),
             this.hasAttribute('has-submenu')
-                ? s.svg(a.class('submenu-arrow'), a.viewBox('0 0 24 24'), a.fill('currentColor'),
-                    s.path(a.d('M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z'))
-                )
+                ? I.ArrowHeadRight()
                 : null
         );
     }
