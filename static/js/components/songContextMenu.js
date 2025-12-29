@@ -1,3 +1,4 @@
+import { Modal } from "../components/modal.js";
 import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
@@ -51,13 +52,20 @@ export class SongContextMenu extends Component {
         const song = this.get('current-song');
         if(!song) return;
 
-        // FIXME: Use Dialog with actions (cancel, confirm)
-        if (!confirm(`Remove "${song.title}" by ${song.artist}?\n\nThis will permanently delete the song file.`)) {
-            return;
-        }
+        /** @type {Modal} */
+        const dialog = H.of(Modal,
+            I.Bin('currentColor', a.slot('header-icon')),
+            h.h2(a.slot('header-title'), `Delete song`),
+            h.p(a.slot('body'), 'Are you sure you want to delete this song? This action cannot be undone.'),
+            h.button(a.slot('action'), a.class('btn btn-secondary'), on.click(() => {
+                this.hide();
+                dialog.remove();
+            }), 'Cancel'),
+            h.button(a.slot('action'), a.class('btn btn-danger'), on.click(async () => {
+                this.hide();
+                dialog.remove();
 
-        useMusicService().delete(song.id)
-            .then((data) => {
+                const data = await useMusicService().delete(song.id)
                 if(data.error) return Logger.error(data.error);
 
                 const result = data.value;
@@ -72,7 +80,8 @@ export class SongContextMenu extends Component {
                 /** @type {import('../app.js').RainyApp} */
                 const app = useContext().get('app');
                 app.loadLibrary();
-            });
+            }), 'Delete'),
+        ); document.body.append(dialog); dialog.show();
     }
 
     /** 
