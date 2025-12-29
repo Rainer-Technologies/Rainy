@@ -252,9 +252,9 @@ export class AddMusicModal extends Component {
             h.div(a.slot('body'), a.class('add-music-content', uploadActive), a.dataMethod('upload'), a.id('upload-content'),
                 h.div(this._dropzone, a.class('upload-dropzone-modern'), a.id('upload-dropzone'),
                     on.click(() => this._onDropzoneClick()),
-                    on.dragover(() => this._onDragOver()),
+                    on.dragover((ev) => this._onDragOver(ev)),
                     on.dragleave(() => this._onDragLeave()),
-                    on.drop(() => this._onDrop()),
+                    on.drop((ev) => this._onDrop(ev)),
                     h.div(a.class('dropzone-icon-wrapper'),
                         I.Note(),
                         h.div(a.class('dropzone-icon-glow'))
@@ -273,7 +273,7 @@ export class AddMusicModal extends Component {
                         h.span(a.class('format-tag'), 'WAV'),
                         h.span(a.class('format-tag'), 'OGG'),
                     ),
-                    h.input(this._fileInput, a.type('file'), a.id('file-upload-input'), a.accept('audio/*'), a.multiple(''), a.hidden(''), on.change(() => this._onFileChange()))
+                    h.input(this._fileInput, a.type('file'), a.id('file-upload-input'), a.accept('audio/*'), a.multiple(''), a.hidden(''), on.change((ev) => this._onFileChange(ev)))
                 ),
                 h.div(this._uploadProgress, a.class('upload-progress-modern', 'hidden'), a.id('upload-progress'),
                     h.div(a.class('progress-info'),
@@ -289,7 +289,7 @@ export class AddMusicModal extends Component {
                 h.div(a.class('youtube-input-wrapper'),
                     h.div(a.class('youtube-input-field'),
                         I.Share('currentColor', a.class('input-icon-svg')),
-                        h.input(this._youtubeInput, a.type('text'), a.id('youtube-url-input'), a.placeholder('Paste YouTube or YouTube Music URL...'), on.keypress(() => this._onYouTubeKeyPress()))
+                        h.input(this._youtubeInput, a.type('text'), a.id('youtube-url-input'), a.placeholder('Paste YouTube or YouTube Music URL...'), on.keypress((ev) => this._onYouTubeKeyPress(ev)))
                     ),
                     h.button(this._youtubeImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('youtube-import-btn'), on.click(() => this.importFromYouTube()),
                         I.Import(),
