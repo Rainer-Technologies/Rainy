@@ -1198,20 +1198,11 @@ export class RainyApp {
 
         // Disable playlist actions for "Liked Music"
         const isLiked = (playlist.name || '').toLowerCase() === 'liked music';
-        const dropdown = document.getElementById('playlist-settings-dropdown');
-        const actionEdit = document.getElementById('action-edit-playlist-icon');
-        const actionRename = document.getElementById('action-rename-playlist');
-        const actionDelete = document.getElementById('action-delete-playlist');
-        if(dropdown) {
-            if(isLiked) {
-                actionEdit?.classList.add('hidden');
-                actionRename?.classList.add('hidden');
-                actionDelete?.classList.add('hidden');
-            } else {
-                actionEdit?.classList.remove('hidden');
-                actionRename?.classList.remove('hidden');
-                actionDelete?.classList.remove('hidden');
-            }
+        const container = document.getElementById('playlist-menu-container');
+        if(isLiked && container) {
+            container?.classList.add('hidden');
+        } else {
+            container?.classList.remove('hidden');
         }
     }
 
