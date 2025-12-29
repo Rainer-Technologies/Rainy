@@ -1,16 +1,31 @@
 **Purpose**
-- Explain how to interact with Rainy’s frontend using its Component and Context systems.
-- Provide practical patterns and examples for adding UI, wiring events, and managing state without introducing external libraries.
+- Explain how to build UI in Rainy using its Component and Context systems.
+- Show practical patterns with the modern element builders (H/h/s), attributes (a), events (on), props (p), and refs.
+
+**AI Agent Quickstart**
+- Identify the target component(s) and read their imports to mirror patterns and style.
+- Prefer H.of/h/s for element creation, a for attributes, on for events, p for child props, and useRef for element handles.
+- Drive dynamic UI via this.watch; avoid wholesale re-rendering.
+- Use useContext for app-wide state; keep transient UI state local in components.
+- Return exactly one root element from render and use slots for composition.
+- Verify changes by scanning for runtime errors and aligning with existing components’ structure.
 
 **Core Concepts**
 - Components: Custom elements subclassing a base Component with lifecycle and state helpers. See [index.js](static/js/components/index.js).
 - Context: Lightweight key-path state store with get, set, and watch APIs. See [context.js](static/js/helper/context.js).
-- Templates: html(userdata) tagged template function that builds DOM and binds events/values via placeholders. See [index.js](static/js/components/index.js#L169-L193).
+- Element builders:
+  - H.of(Component|tag, ...): create elements or registered components.
+  - h.tag(...): HTML tags via proxy.
+  - s.tag(...): SVG tags via proxy.
+  - a.attr(value): attributes via proxy.
+  - on.event(listener): event bindings via proxy.
+  - p.name(value): pass props into child components (maps to child.set, silent).
+  - Refs via useRef to capture element handles.
 
 **Component Model**
 - Extend Component and define static componentName.
 - Implement created for initial state and watchers.
-- Implement render to return a single root element built via html(this).
+- Implement render to return one root element built via H.of/h/s.
 - Register with customElements.define(Class.componentName, Class).
 - Lifecycle:
   - created runs in constructor before mount.
@@ -19,45 +34,51 @@
   - Use connectedMoveCallback to avoid re-mount on DOM moves.
 
 **Context API**
-- Per-component context is available as this.get(path), this.set(path, value), this.watch(path, callback, deep?).
+- Per-component context: this.get(path), this.set(path, value, { silent? }), this.watch(path, callback, deep?).
 - Paths are dot-separated, resolved relative to the component’s internal store.
 - set emits only when oldValue !== newValue and parent exists.
-- watch receives (path, oldValue, newValue); with deep=true it also triggers for child paths of listener.path.
+- watch receives (path, oldValue, newValue); with deep=true it triggers for child paths of listener.path.
 - Global singleton via useContext() for cross-app state (e.g., current view). Example usage in [app.js:L39-L47](static/js/app.js#L39-L47).
 
-**Templating and Binding**
-- Use html(this) to create DOM from template strings.
-- Event binding: add attributes prefixed with :event and pass a function value.
-  - Example: :click=${this.hide} adds a click listener and binds this to userdata passed to html (typically the component).
-- Property-to-child-context binding: use attributes prefixed with &path to call child.set(path, value).
-  - Example: &title=${song.title} calls child.set('title', song.title) when the child is a Component.
-- Plain attributes/text: placeholders are replaced with stringified values; passing HTMLElements or arrays inserts them into the DOM.
+**Templating and Binding (Modern API)**
+- Create elements:
+  - Use H.of(Component, ...) to instantiate a child component.
+  - Use h.div(...), h.button(...), etc. for HTML; s.svg(...) for SVG.
+- Attributes and events:
+  - a.class('btn', 'primary') sets class.
+  - a.id('x'), a['data-role']('play') for data-attrs.
+  - on.click(() => ...) for event handlers.
+- Props to child components:
+  - p.title(value) maps to child.set('title', value, { silent: true }).
+  - Names are converted to kebab-case (onOpen -> on-open). See [index.js](static/js/components/index.js#L232-L240).
+- Refs:
+  - const ref = useRef(null); pass ref to H.of/h/s to capture the element; then use ref.value in code.
 - Slots:
-  - Put <slot> elements in render output.
-  - Children of the component are projected into matching slots by name; unnamed slots receive un-slotted children.
+  - Put h.slot(a.name('slot-name')) in a component’s render. Children passed to H.of(Component) can declare a.slot('slot-name') attributes to place into slots.
 
 **Minimal Component Example**
 
 ```javascript
-import { Component, html } from './static/js/components/index.js';
+import { a, Component, h, on, useRef } from './static/js/components/index.js';
 
 export class Counter extends Component {
   static componentName = 'rainy-counter';
 
   created() {
     this.set('count', 0);
+    this._valueEl = useRef(null);
     this.watch('count', (_path, _old, v) => {
-      this.root.querySelector('.value').textContent = String(v);
+      this._valueEl.value.textContent = String(v);
     });
   }
 
   increment = () => this.set('count', this.get('count') + 1);
 
   render() {
-    return html(this)`<div class="counter">
-      <span class="value">${this.get('count')}</span>
-      <button :click=${this.increment}>Inc</button>
-    </div>`;
+    return h.div(a.class('counter'),
+      h.span(this._valueEl, a.class('value'), String(this.get('count'))),
+      h.button(a.class('btn'), on.click(this.increment), 'Inc')
+    );
   }
 }
 
@@ -67,7 +88,8 @@ customElements.define(Counter.componentName, Counter);
 **Passing State to Child Components**
 
 ```javascript
-import { Component, html } from './static/js/components/index.js';
+import { a, Component, H, p } from './static/js/components/index.js';
+import { Child } from './static/js/components/child.js';
 
 export class Parent extends Component {
   static componentName = 'rainy-parent';
@@ -77,10 +99,7 @@ export class Parent extends Component {
   }
 
   render() {
-    // &title forwards value to child.set('title', value)
-    return html(this)`<div>
-      <rainy-child &title=${this.get('title')}></rainy-child>
-    </div>`;
+    return H.of(Child, p.title(this.get('title')));
   }
 }
 
@@ -88,32 +107,54 @@ customElements.define(Parent.componentName, Parent);
 ```
 
 **Patterns and Practices**
-- Render once, update via watchers: _render is called on mount; dynamic UI changes should be driven by this.watch handlers rather than re-rendering wholesale.
+- Render once, update via watchers: dynamic UI changes should be driven by this.watch handlers; avoid wholesale re-render.
 - Always return a single root element from render.
-- Bind events via :event to ensure handler ‘this’ refers to the component.
-- Forward state to children via &path; avoid inventing custom attributes unless they map to child.set.
-- Prefer useContext for app-wide flags (e.g., current-view-type) and per-component context for local state.
-- Register elements where they are defined; see [modal.js](static/js/components/modal.js) and [contextMenu.js](static/js/components/contextMenu.js) for examples.
+- Bind events via on.* so handler ‘this’ refers to the component.
+- Forward state to children via p.* props; avoid ad-hoc attributes that don’t map to child.set.
+- Prefer useContext for app-wide flags and keep complex UI state local to components.
+- Use Refs for frequently accessed elements to avoid repeated querySelector calls.
 
 **Real Examples in Codebase**
 - Modal:
-  - Component setup, hidden state, :click binding for close button. See [modal.js](static/js/components/modal.js#L1-L61).
+  - Hidden state with watchers, slots for header/body/actions. See [modal.js](static/js/components/modal.js#L1-L60).
 - Context Menu:
-  - Multiple components, position logic, show/hide via context. See [contextMenu.js](static/js/components/contextMenu.js).
-- Metadata Modal:
-  - Stateful UI, data-driven rendering with watchers and slot usage. See [metadataModal.js](static/js/components/metadataModal.js).
-- Global state:
-  - Set current view via useContext().set(...). See [app.js:L39-L47](static/js/app.js#L39-L47).
+  - Position logic, show/hide, submenu positioning, and p.onOpen callbacks. See [contextMenu.js](static/js/components/contextMenu.js).
+- New Playlist Modal:
+  - Uses H.of(Modal), Refs, and props. See [newPlaylistModal.js](static/js/components/newPlaylistModal.js).
+- Song Context Menu:
+  - Uses Refs, global useContext, and dynamic submenu rendering. See [songContextMenu.js](static/js/components/songContextMenu.js).
 
 **Integration Checklist**
 - Define a Component subclass and static componentName.
-- Initialize state with this.set in created and react via this.watch.
-- Implement render using html(this) and return one root element with slots as needed.
+- Initialize state in created via this.set and set watchers with this.watch.
+- Implement render using H.of/h/s and return one root element; use slots as needed.
 - Register the element with customElements.define.
-- Wire events using :event and pass functions; forward state to children using &path.
-- Use useContext for cross-view or global flags; keep complex UI state local to components.
+- Wire events using on.* and forward state to children with p.*.
+- Use useContext for cross-view or global flags; keep complex UI state local.
 
 **Gotchas**
 - set is a no-op if path parent doesn’t exist; initialize keys first via this.set in created.
-- watch triggers only when oldValue !== newValue; mutating objects in place may not fire. Replace with new objects when needed.
-- Attribute placeholder replacement is designed for single placeholder per attribute; prefer one value per attribute or assemble strings in JS before binding.
+- watch triggers only when oldValue !== newValue; mutate with new objects if you need emissions.
+- Props names are converted to kebab-case; ensure you reference the same name in child.get/watch.
+
+**Agent Editing Rules**
+- Prefer updating existing files; create new files only if required for functionality.
+- Mirror naming and structural conventions of nearby components before introducing new patterns.
+- Use Refs for frequently accessed nodes; avoid repeated querySelector unless unavoidable.
+- Forward state via p.* and bind events via on.*; do not introduce ad-hoc attributes that do not map to child.set.
+- Avoid adding external libraries; implement with the existing helper system and services.
+- Do not log or expose secrets; keep user data safe.
+
+**Agent Search Strategy**
+- Start broad (feature or flow name), then narrow (component or service) to gather full context.
+- Inspect imports and their implementations to understand dependencies and patterns.
+- Confirm usage across real examples: modal, context menu, playlist modal, metadata modal.
+- Keep exploring until confident the change aligns with the app’s conventions.
+
+**Common Tasks**
+- Add a button/state to an existing modal:
+  - Create a Ref for the element; add on.click; update visual state via a watcher.
+- Add a context menu item:
+  - Use H.of(ContextMenuItem) with on.click; if submenu, add ContextSubMenu and use p.onOpen where needed.
+- Update UI based on global view:
+  - Listen to useContext().listen('current-view-type', ...) and toggle visibility via class changes or component state.
