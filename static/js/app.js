@@ -387,15 +387,6 @@ export class RainyApp {
         }
     }
 
-    // Settings page is now unified - these methods redirect to the new settings page
-    async openServerSettings() {
-        this.openSettings('library');
-    }
-
-    closeServerSettings() {
-        this.closeSettings();
-    }
-
     async loadScanStatus() {
         const data = await useScanService().status();
         if (data.error) return Logger.error(data.error);
@@ -807,68 +798,6 @@ export class RainyApp {
 
     showToast(message, type = 'success', duration = 3000) {
         return Utils.showToast(message, type, duration);
-    }
-
-    handleCoverError(img) {
-        if (!img) return;
-
-        // Helper to create the fallback SVG
-        const createFallback = () => {
-            const div = document.createElement('div');
-            div.innerHTML = `
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="cover-placeholder">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                </svg>
-            `;
-            return div.querySelector('svg');
-        };
-
-        // Try to reload the image up to 3 times
-        const retries = parseInt(img.dataset.retries || '0');
-
-        if (retries < 3) {
-            img.dataset.retries = retries + 1;
-
-            // Should show placeholder while retrying?
-            // Hide the broken image (removes alt text)
-            img.style.display = 'none';
-
-            // Check if we already have a placeholder next to it
-            let placeholder = null;
-            if (img.nextElementSibling && img.nextElementSibling.classList.contains('cover-placeholder')) {
-                placeholder = img.nextElementSibling;
-            } else {
-                placeholder = createFallback();
-                if (placeholder && img.parentNode) {
-                    img.parentNode.insertBefore(placeholder, img.nextSibling);
-                }
-            }
-
-            // Setup success handler to revert
-            img.onload = () => {
-                img.style.display = ''; // Show image
-                if (placeholder) placeholder.remove();
-                img.onload = null; // cleanup
-            };
-
-            setTimeout(() => {
-                const src = img.src.split('?')[0];
-                img.src = `${src}?retry=${Date.now()}`;
-            }, 1000 * (retries + 1));
-            return;
-        }
-
-        // Final failure: Replace with SVG permanently
-        if (img.parentNode) {
-            const svgElement = createFallback();
-            if (svgElement) {
-                // If we had a temporary placeholder, remove it first
-                if (img.nextElementSibling && img.nextElementSibling.classList.contains('cover-placeholder')) {
-                    img.nextElementSibling.remove();
-                }
-                img.parentNode.replaceChild(svgElement, img);
-            }
-        }
     }
 
     // Method to update song playing state
@@ -1702,19 +1631,6 @@ export class RainyApp {
         if (firstMatch) {
             this.switchSettingsSection(firstMatch);
         }
-    }
-
-    // Legacy methods for backward compatibility
-    openUserSettings() {
-        this.openSettings('appearance');
-    }
-
-    closeUserSettings() {
-        this.closeSettings();
-    }
-
-    switchSettingsTab(tabName) {
-        this.switchSettingsSection(tabName);
     }
 
     async savePreferences(newPrefs) {
