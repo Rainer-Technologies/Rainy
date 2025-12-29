@@ -51,7 +51,9 @@ export class Context {
                 path === listener.path 
                 || (listener.deep && path.startsWith(listener.path + '.'))
             ) {
-                listener.callback(path, oldValue, newValue);
+                try {
+                    listener.callback(path, oldValue, newValue);
+                } catch {};
             }
         }
     }
