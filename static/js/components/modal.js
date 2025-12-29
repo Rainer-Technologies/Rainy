@@ -1,4 +1,4 @@
-import { Component, html } from "./index.js";
+import { a, Component, h, on, s } from "./index.js";
 
 export class Modal extends Component {
     static componentName = 'rainy-modal';
@@ -24,37 +24,36 @@ export class Modal extends Component {
     }
 
     render() {
-        const hiddenAttr = (this.get('hidden') ? 'hidden' : '');
-        return html(this)`<div class='modal-overlay ${hiddenAttr}'>
-            <div class='modal-content'>
-                <div class='modal-header'>
-                    <div class='modal-header-info'>
-                        <div class='modal-icon'>
-                            <slot name='header-icon'></slot>
-                        </div>
-                        <div>
-                            <slot name='header-title'></slot>
-                            <p class='modal-subtitle'>
-                                <slot name='header-subtitle'></slot>
-                            </p>
-                        </div>
-                    </div>
-                    <button class='modal-close' :click=${this.hide}>
-                        <svg viewBox='0 0 24 24' fill='currentColor'>
-                            <path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z' />
-                        </svg>
-                    </button>
-                </div>
-                <div class='modal-body'>
-                    <slot name='body'></slot>
-                    ${this.hasActions()
-                        ? html(this)`<div class='modal-actions'>
-                            <slot name='action'></slot>
-                        </div>`
-                        : ''}
-                </div>
-            </div>
-        </div>`;
+        return h.div(a.class('modal-overlay', (this.get('hidden') ? 'hidden' : '')),
+            h.div(a.class('modal-content'),
+                h.div(a.class('modal-header'),
+                    h.div(a.class('modal-header-info'),
+                        h.div(a.class('modal-icon'),
+                            h.slot(a.name('header-icon'))
+                        ),
+                        h.div(a.class('modal-header-title'),
+                            h.slot(a.name('header-title')),
+                            h.p(a.class('modal-subtitle'),
+                                h.slot(a.name('header-subtitle'))
+                            )
+                        )
+                    ),
+                    h.button(a.class('modal-close'), on.click(() => this.hide()),
+                        s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                            s.path(a.d('M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'))
+                        )
+                    )
+                ),
+                h.div(a.class('modal-body'),
+                    h.slot(a.name('body')),
+                    this.hasActions()
+                        ? h.div(a.class('modal-actions'),
+                            h.slot(a.name('action'))
+                        )
+                        : null
+                )
+            )
+        );
     }
 };
 

@@ -2,12 +2,22 @@ import { PLAYLIST_ICON_COLORS, PLAYLIST_ICONS } from "../data/playlist-icons.js"
 import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { usePlaylistService } from "../services/playlist.js";
-import { Component, html } from "./index.js";
+import { a, Component, H, h, on, Ref, s, useRef } from "./index.js";
+import { Modal } from "./modal.js";
 
 export class NewPlaylistModal extends Component {
     static componentName = 'rainy-new-playlist-modal';
 
     created() {
+        /** @type {Ref<HTMLDivElement>} */
+        this._previewIcon = useRef();
+        /** @type {Ref<HTMLDivElement>} */
+        this._iconPicker = useRef();
+        /** @type {Ref<HTMLDivElement>} */
+        this._colorPresets = useRef();
+        /** @type {Ref<HTMLInputElement>} */
+        this._nameInput = useRef();
+
         this.set('current-icon', 'music-note', { silent: true });
         this.set('current-color', '#888888', { silent: true });
 
@@ -40,9 +50,9 @@ export class NewPlaylistModal extends Component {
      */
     _renderIcon(iconId, color) {
         const icon = this._getIcon(iconId);
-        return html(this)`<svg viewBox='0 0 24 24' style='fill: ${color}'>
-            <path d='${icon.path}' />
-        </svg>`;
+        return s.svg(a.viewBox('0 0 24 24'), a.fill(color),
+            s.path(a.d(icon.path))
+        );
     }
 
     show() {
@@ -75,9 +85,8 @@ export class NewPlaylistModal extends Component {
         const currentIcon = this.get('current-icon');
         const currentColor = this.get('current-color');
 
-        const root = this.root.querySelector('.playlist-preview-icon');
-        root.innerHTML = '';
-
+        const root = this._previewIcon.value;
+        root.firstElementChild?.remove();
         root.append(this._renderIcon(currentIcon, currentColor));
     }
 
@@ -85,30 +94,28 @@ export class NewPlaylistModal extends Component {
         const currentIcon = this.get('current-icon');
         const currentColor = this.get('current-color');
 
-        const root = this.root.querySelector('.icon-picker');
-        root.innerHTML = '';
+        const root = this._iconPicker.value;
+        Array.from(root.children).forEach(el => el.remove());
 
         for(const icon of Object.keys(PLAYLIST_ICONS)) {
-            root.append(html(this)`<button 
-                type='button' 
-                class='icon-picker-btn ${(icon === currentIcon) ? 'selected' : ''}' 
-                :click=${() => this.changeIcon(icon)}>
-                ${this._renderIcon(icon, currentColor)}
-            </button>`);
+            root.append(h.button(a.type('button'),
+                a.class('icon-picker-btn', (icon === currentIcon) ? 'selected' : ''),
+                on.click(() => this.changeIcon(icon)),
+                this._renderIcon(icon, currentColor)
+            ));
         }
     }
 
     _renderColorPresets() {
         const currentColor = this.get('current-color');
-        const root = this.root.querySelector('.color-presets');
-        root.innerHTML = '';
+        const root = this._colorPresets.value;
+        Array.from(root.children).forEach(el => el.remove());
 
         for(const color of PLAYLIST_ICON_COLORS) {
-            root.append(html(this)`<button 
-                type='button' 
-                class='color-preset ${(color === currentColor) ? 'selected' : ''}' 
-                style='background-color: ${color};' 
-                :click=${() => this.changeColor(color)}></button>`);
+            root.append(h.button(a.type('button'), 
+                a.class('color-preset', (color === currentColor) ? 'selected' : ''), 
+                a.style(`background-color: ${color};`), 
+                on.click(() => this.changeColor(color))));
         }
     }
 
@@ -116,8 +123,7 @@ export class NewPlaylistModal extends Component {
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
 
-        const input = this.root.querySelector('.playlist-name-input-styled');
-        const name = input.value;
+        const name = (this._nameInput.value).value;
         if(!name) return;
 
         const currentIcon = this.get('current-icon');
@@ -137,36 +143,36 @@ export class NewPlaylistModal extends Component {
     }
 
     render() {
-        const root = this.root = html(this)`<rainy-modal>
-            <svg slot='header-icon' viewBox='0 0 24 24' fill='currentColor'>
-                <path d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z' />
-            </svg>
-            <h2 slot='header-title'>New Playlist</h2>
-            <p slot='header-subtitle'>Create a personalized playlist</p>
-            <div slot='body' class='playlist-preview-section'>
-                <div class='playlist-preview-icon'></div>
-                <input type='text' class='playlist-name-input-styled' placeholder='Playlist name'>
-            </div>
-            <div slot='body' class='playlist-customize-section'>
-                <div class='customize-row'>
-                    <div class='customize-group'>
-                        <label class='form-label'>Choose Icon</label>
-                        <div class='icon-picker'></div>
-                    </div>
-                </div>
-                <div class='customize-row'>
-                    <div class='customize-group'>
-                        <label class='form-label'>Choose Color</label>
-                        <div class='color-picker-row'>
-                            <input type='color' class='color-input' value='#888888'>
-                            <div class='color-presets'></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <button slot='action' class='btn btn-secondary' :click=${this.hide}>Cancel</button>
-            <button slot='action' class='btn btn-primary' :click=${this.createPlaylist}>Create Playlist</button>
-        </rainy-modal>`;
+        const root = this.root = H.of(Modal,
+            s.svg(a.slot('header-icon'), a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                s.path(a.d('M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'))
+            ),
+            h.h2(a.slot('header-title'), 'New Playlist'),
+            h.p(a.slot('header-subtitle'), 'Create a personalized playlist'),
+            h.div(a.slot('body'), a.class('playlist-preview-section'),
+                h.div(this._previewIcon, a.class('playlist-preview-icon')),
+                h.input(this._nameInput, a.type('text'), a.class('playlist-name-input-styled'), a.placeholder('Playlist name'))
+            ),
+            h.div(a.slot('body'), a.class('playlist-customize-section'),
+                h.div(a.class('customize-row'),
+                    h.div(a.class('customize-group'),
+                        h.label(a.class('form-label'), 'Choose Icon'),
+                        h.div(this._iconPicker, a.class('icon-picker'))
+                    )
+                ),
+                h.div(a.class('customize-row'),
+                    h.div(a.class('customize-group'),
+                        h.label(a.class('form-label'), 'Choose Color'),
+                        h.div(a.class('color-picker-row'),
+                            h.input(a.type('color'), a.class('color-input'), a.value('#888888')),
+                            h.div(this._colorPresets, a.class('color-presets'))
+                        )
+                    )
+                )
+            ),
+            h.button(a.slot('action'), a.class('btn', 'btn-secondary'), on.click(() => this.hide()), 'Cancel'),
+            h.button(a.slot('action'), a.class('btn', 'btn-primary'), on.click(() => this.createPlaylist()), 'Create Playlist')
+        );
 
         this._renderIconPreview();
         this._renderIconPickers();

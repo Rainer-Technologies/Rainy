@@ -2,33 +2,45 @@ import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMetadataService } from "../services/metadata.js";
-import { Component, html } from "./index.js";
+import { a, Component, H, h, on, Ref, s, useRef } from "./index.js";
+import { Modal } from "./modal.js";
 
 export class MetadataModal extends Component {
     static componentName = 'rainy-metadata-modal';
 
     created() {
+        /** @type {Ref<HTMLInputElement>} */
+        this._queryInput = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._noResults = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._loading = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._results = useRef(null);
+        /** @type {Ref<HTMLSpanElement>} */
+        this._songName = useRef(null);
+
         this.set('loading', false, { silent: true });
         this.set('songs', [], { silent: true });
         this.set('current-song', null, { silent: true });
         this.set('applying', false, { silent: true });
 
         this.watch('loading', (_path, _oldValue, newValue) => {
-            const root = this.root.querySelector('.metadata-loading');
+            const root = this._loading.value;
             if(newValue === true) root.classList.remove('hidden');
             else root.classList.add('hidden');
         });
 
         this.watch('songs', (_path, _oldValue, newValue) => {
-            const noResults = this.root.querySelector('.metadata-no-results');
+            const noResults = this._noResults.value;
             if(newValue.length === 0) {
                 noResults.classList.remove('hidden');
                 return;
             }
 
             noResults.classList.add('hidden');
-            const results = this.root.querySelector('.metadata-results');
-            results.innerHTML = '';
+            const results = this._results.value;
+            Array.from(results.children).forEach(el => el.remove());
             
             for(const song of newValue) {
                 results.append(this._renderSong(song));
@@ -37,18 +49,10 @@ export class MetadataModal extends Component {
 
         this.watch('current-song', (_path, _oldValue, newValue) => {
             const query = `${newValue.title} ${newValue.artist}`;
-
-            const noResults = this.root.querySelector('.metadata-no-results');
-            const results = this.root.querySelector('.metadata-results');
-
-            noResults.classList.add('hidden');
-            results.innerHTML = '';
-
-            const songName = this.root.querySelector('.song-name');
-            songName.textContent = `${newValue.title} - ${newValue.artist}`;
-
-            const searchInput = this.root.querySelector('#metadata-search-input');
-            searchInput.value = query;
+            (this._noResults.value).classList.add('hidden');
+            Array.from((this._results.value).children).forEach(el => el.remove());
+            (this._songName.value).textContent = `${newValue.title} - ${newValue.artist}`;
+            (this._queryInput.value).value = query;
 
             this.search(query);
         });
@@ -81,12 +85,12 @@ export class MetadataModal extends Component {
      */
     _renderSongCover(song) {
         if(song.cover_url) {
-            return html(this)`<img src='${song.cover_url}' alt='song_cover' loading='lazy'>`;
+            return h.img(a.src(song.cover_url), a.alt('song_cover'), a.loading('lazy'));
         }
 
-        return html(this)`<svg viewBox='0 0 24 24'>
-            <path d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z' />
-        </svg>`;
+        return s.svg(a.viewBox('0 0 24 24'),
+            s.path(a.d('M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'))
+        );
     }
 
     /**
@@ -94,20 +98,20 @@ export class MetadataModal extends Component {
      * @returns {HTMLElement}
      */
     _renderSong(song) {
-        return html(this)`<div class='metadata-result-card'>
-            <div class='metadata-result-cover'>
-                ${this._renderSongCover(song)}
-            </div>
-            <div class='metadata-result-info'>
-                <div class='metadata-result-title'>${Utils.escapeHtml(song.title)}</div>
-                <div class='metadata-result-artist'>${Utils.escapeHtml(song.artist)}</div>
-                <div class='metadata-result-album'>${Utils.escapeHtml(song.album)}</div>
-                <div class='metadata-result-duration'>${song.duration_text || Utils.formatDuration(song.duration)}</div>
-            </div>
-            <div class='metadata-result-action'>
-                <button class='btn btn-primary apply-metadata-btn' :click=${() => this.apply(song)}>Apply</button>
-            </div>
-        </div>`
+        return h.div(a.class('metadata-result-card'),
+            h.div(a.class('metadata-result-cover'),
+                this._renderSongCover(song)
+            ),
+            h.div(a.class('metadata-result-info'),
+                h.div(a.class('metadata-result-title'), Utils.escapeHtml(song.title)),
+                h.div(a.class('metadata-result-artist'), Utils.escapeHtml(song.artist)),
+                h.div(a.class('metadata-result-album'), Utils.escapeHtml(song.album)),
+                h.div(a.class('metadata-result-duration'), song.duration_text || Utils.formatDuration(song.duration))
+            ),
+            h.div(a.class('metadata-result-action'),
+                h.button(a.class('btn', 'btn-primary', 'apply-metadata-btn'), on.click(() => this.apply(song)), 'Apply')
+            )
+        );
     }
 
     /**
@@ -219,6 +223,7 @@ export class MetadataModal extends Component {
     async search(query) {
         if(query.length === 0) return;
         this.set('loading', true);
+        Array.from((this._results.value).children).forEach(el => el.remove());
 
         const data = await useMetadataService().search(query);
         if (data.error) {
@@ -237,32 +242,32 @@ export class MetadataModal extends Component {
     }
 
     render() {
-        return html(this)`<rainy-modal>
-            <svg slot='header-icon' viewBox='0 0 24 24' fill='currentColor'>
-                <path d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z' />
-            </svg>
-            <h2 slot='header-title'>Find Metadata</h2>
-            <div slot='body' class='metadata-current-song'>
-                <span class='label'>Searching for:</span>
-                <span class='song-name'>Song Name</span>
-            </div>
-            <div slot='body' class='metadata-search-bar'>
-                <input type='text' id='metadata-search-input' placeholder='Search YouTube Music...'>
-                <button class='btn btn-primary' :click=${() => this.search(this.root.querySelector('#metadata-search-input').value)}>
-                    <svg viewBox='0 0 24 24' fill='currentColor'>
-                        <path d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z' />
-                    </svg>
-                </button>
-            </div>
-            <div slot='body' class='metadata-loading hidden'>
-                <div class='loading-spinner'></div>
-                <p>Searching...</p>
-            </div>
-            <div slot='body' class='metadata-results'></div>
-            <div slot='body' class='metadata-no-results hidden'>
-                <p>No results found. Try a different search term.</p>
-            </div>
-        </rainy-modal>`;
+        return H.of(Modal,
+            s.svg(a.slot('header-icon'), a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                s.path(a.d('M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'))
+            ),
+            h.h2(a.slot('header-title'), 'Find Metadata'),
+            h.div(a.slot('body'), a.class('metadata-current-song'),
+                h.span(a.class('label'), 'Searching for:'),
+                h.span(this._songName, a.class('song-name'), 'Song Name')
+            ),
+            h.div(a.slot('body'), a.class('metadata-search-bar'),
+                h.input(this._queryInput, a.type('text'), a.placeholder('Search YouTube Music...')),
+                h.button(a.class('btn', 'btn-primary'), on.click(() => this.search((this._queryInput.value).value)),
+                    s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                        s.path(a.d('M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'))
+                    )
+                )
+            ),
+            h.div(this._loading, a.slot('body'), a.class('metadata-loading', 'hidden'),
+                h.div(a.class('loading-spinner')),
+                h.p('Searching...')
+            ),
+            h.div(this._results, a.slot('body'), a.class('metadata-results')),
+            h.div(this._noResults, a.slot('body'), a.class('metadata-no-results', 'hidden'),
+                h.p('No results found. Try a different search term.')
+            )
+        );
     }
 };
 

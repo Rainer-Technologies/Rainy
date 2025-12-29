@@ -3,7 +3,8 @@ import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
 import { usePlaylistService } from "../services/playlist.js";
-import { Component, html } from "./index.js";
+import { ContextMenu, ContextMenuItem, ContextSubMenu } from "./contextMenu.js";
+import { a, Component, h, H, on, p, Ref, s, useRef } from "./index.js";
 
 /**
  * @typedef {Object} SongModel
@@ -16,13 +17,18 @@ export class SongContextMenu extends Component {
     static componentName = 'rainy-song-context-menu';
 
     created() {
+        /** @type {Ref<HTMLDivElement>} */
+        this._removeFromPlaylist = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._playlistList = useRef(null);
+
         this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
-            const root = this.root.querySelector('#remove-current-song-from-playlist');
-            if(!root) return;
+            if(!this._removeFromPlaylist.value) return;
+            const item = this._removeFromPlaylist.value;
 
-            if(newValue === 'playlist') root.style.display = 'block';
-            else root.style.display = 'none';
+            if(newValue === 'playlist') item.style.display = 'block';
+            else item.style.display = 'none';
         }));
     }
 
@@ -135,8 +141,8 @@ export class SongContextMenu extends Component {
     }
 
     async _renderPlaylists() {
-        const root = this.root.querySelector('#playlist-list');
-        root.innerHTML = '';
+        const item = this._playlistList.value;
+        Array.from(item.children).forEach(el => el.remove());
 
         const data = await usePlaylistService().all();
         // FIXME: Add toast notification
@@ -146,12 +152,12 @@ export class SongContextMenu extends Component {
         if(!playlists) return Logger.error('unreachable');
 
         for(const playlist of playlists) {
-            root.append(html(this)`<rainy-context-menu-item :click=${() => this.addCurrentSongToPlaylist(playlist)}>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z' />
-                </svg>
-                <span>${Utils.escapeHtml(playlist.name)}</span>
-            </rainy-context-menu-item>`);
+            item.append(H.of(ContextMenuItem, on.click(() => this.addCurrentSongToPlaylist(playlist)),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z'))
+                ),
+                h.span(Utils.escapeHtml(playlist.name))
+            ));
         }
     }
 
@@ -248,54 +254,54 @@ export class SongContextMenu extends Component {
     }
 
     render() {
-        return html(this)`<rainy-context-menu>
-            <rainy-context-menu-item has-submenu>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z' />
-                </svg>
-                <span>Add to Playlist</span>
-                <rainy-context-sub-menu &on-open=${() => this._renderPlaylists()}>
-                    <rainy-context-menu-item :click=${() => this.newPlaylist()}>
-                        <svg viewBox='0 0 24 24' fill='currentColor'>
-                            <path d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z' />
-                        </svg>
-                        <span>New Playlist</span>
-                    </rainy-context-menu-item>
-                    <div class='dropdown-divider'></div>
-                    <div id='playlist-list'></div>
-                </rainy-context-sub-menu>
-            </rainy-context-menu-item>
-            <rainy-context-menu-item danger :click=${this.removeCurrentSongFromPlaylist} id='remove-current-song-from-playlist'>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' />
-                </svg>
-                <span>Remove from playlist</span>
-            </rainy-context-menu-item>
-            <rainy-context-menu-item :click=${this.playCurrentSongAsNext}>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z' />
-                </svg>
-                <span>Play Next</span>
-            </rainy-context-menu-item>
-            <rainy-context-menu-item :click=${this.addCurrentSongToQueue}>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zm11.5-4.33v6.67L21 15l-6.5-3.33z' />
-                </svg>
-                <span>Add to Queue</span>
-            </rainy-context-menu-item>
-            <rainy-context-menu-item :click=${this.findMetadataForCurrentSong}>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z' />
-                </svg>
-                <span>Find Metadata</span>
-            </rainy-context-menu-item>
-            <rainy-context-menu-item danger :click=${this.deleteCurrentSong}>
-                <svg viewBox='0 0 24 24' fill='currentColor'>
-                    <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' />
-                </svg>
-                <span>Remove Song</span>
-            </rainy-context-menu-item>
-        </rainy-context-menu>`;
+        return H.of(ContextMenu,
+            H.of(ContextMenuItem, a.hasSubmenu('true'),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z'))
+                ),
+                h.span('Add to Playlist'),
+                H.of(ContextSubMenu, p.onOpen(() => this._renderPlaylists()),
+                    H.of(ContextMenuItem, on.click(() => this.newPlaylist()),
+                        s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                            s.path(a.d('M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'))
+                        ),
+                        h.span('New Playlist'),
+                    ),
+                    h.div(a.class('dropdown-divider')),
+                    h.div(this._playlistList)
+                )
+            ),
+            H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'))
+                ),
+                h.span('Remove from Playlist'),
+            ),
+            H.of(ContextMenuItem, on.click(() => this.playCurrentSongAsNext()),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z'))
+                ),
+                h.span('Play Next'),
+            ),
+            H.of(ContextMenuItem, on.click(() => this.addCurrentSongToQueue()),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zm11.5-4.33v6.67L21 15l-6.5-3.33z'))
+                ),
+                h.span('Add to Queue'),
+            ),
+            H.of(ContextMenuItem, on.click(() => this.findMetadataForCurrentSong()),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'))
+                ),
+                h.span('Find Metadata'),
+            ),
+            H.of(ContextMenuItem, a.danger(), on.click(() => this.deleteCurrentSong()),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'))
+                ),
+                h.span('Remove Song'),
+            ),
+        );
     }
 };
 

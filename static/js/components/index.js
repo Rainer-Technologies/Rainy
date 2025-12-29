@@ -49,10 +49,12 @@ export class Component extends HTMLElement {
      * @param {string} path 
      * @param {import('../helper/context.js').ListenerCallback} callback 
      * @param {boolean} deep 
+     * @returns {() => boolean}
      */
     watch(path, callback, deep = false) {
         const unsub = this._ctx.listen(path, callback, deep);
         this._unsubscribers.push(unsub);
+        return unsub;
     }
 
     connectedCallback() {
@@ -107,7 +109,7 @@ export class Component extends HTMLElement {
             const assigned = [];
 
             for(const node of this._children) {
-                if (node.nodeType !== Node.ELEMENT_NODE && name) continue;
+                if(node.nodeType !== Node.ELEMENT_NODE && name) continue;
                 const slotName = node.nodeType === Node.ELEMENT_NODE
                     ? node.getAttribute('slot')
                     : null;
@@ -116,7 +118,6 @@ export class Component extends HTMLElement {
                     assigned.push(node);
                 }
             }
-
             if(assigned.length > 0) {
                 for(const node of assigned) slot.before(node);
                 slot.remove();
@@ -126,94 +127,174 @@ export class Component extends HTMLElement {
             }
         }
 
+        if(this.root) this.root.remove();
         this.root = root;
         this.append(this.root);
     }
 };
 
-const PLACEHOLDER_PREFIX = '#__rainy__';
-
-/** 
- * @param {HTMLElement} el
- * @param {Array<any>} values
- * @param {any} userdata
+/**
+ * Converts camelCase to kebab-case
+ * @param {string} camelCase
  */
-function _resolve(el, values, userdata) {
-    for(const child of el.childNodes) {
-        if(child.nodeType === Node.ELEMENT_NODE) {
-            for(const attrName of child.getAttributeNames()) {
-                const attr = child.getAttributeNode(attrName);
-                
-                if(attrName.startsWith(':')) {
-                    const match = attr.value.match(/#__rainy__(\d+)/g);
-                    if(!match) continue;
+function toKebabCase(camelCase) {
+    return camelCase
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .toLowerCase();
+}
 
-                    const idx = match[0].slice(PLACEHOLDER_PREFIX.length);
-                    const eventName = attrName.slice(1);
-                    const handler = values[idx];
+/**
+ * @template T
+ */
+export class Ref {
+    /**
+     * @param {T} value
+     */
+    constructor(value) {
+        this.value = value;
+    }
+};
 
-                    child.removeAttributeNode(attr);
-                    child.addEventListener(eventName, (ev) => handler.call(userdata, ev));
-                } else if(attrName.startsWith('&')) {
-                    const match = attr.value.match(/#__rainy__(\d+)/g);
-                    let value = attr.value; if(match) {
-                        const idx = match[0].slice(PLACEHOLDER_PREFIX.length);
-                        value = values[idx];
-                    }
+/**
+ * @template T
+ * @param {T} value 
+ * @returns {Ref<T>}
+ */
+export function useRef(value) {
+    return new Ref(value);
+}
 
-                    child.removeAttributeNode(attr);
-                    child.set(attrName.slice(1), value);
-                } else {
-                    attr.value = attr.value.replace(/#__rainy__(\d+)/, (_, idx) =>
-                        (values[parseInt(idx)].toString()));
-                }
-            }
-        
-            _resolve(child, values, userdata);
-        } else if(child.nodeType === Node.TEXT_NODE) {
-            child.textContent = child.textContent.replace(/#__rainy__(\d+)/, (_, idx) => {
-                const value = values[parseInt(idx)];
-                if(Array.isArray(value)) {
-                    for(const item of value) {
-                        if(item instanceof HTMLElement || item instanceof SVGElement) {
-                            child.parentElement.insertBefore(item, child.nextSibling);
-                        }
-                    }
+export class Attr {
+    /**
+     * @param {string} name 
+     * @param {any} value 
+     */
+    constructor(name, value) {
+        this.name = name;
+        this.value = value;
+    }
 
-                    return '';
-                } else if(value instanceof HTMLElement || value instanceof SVGElement) {
-                    child.parentElement.insertBefore(value, child.nextSibling);
-                    return '';
-                }
+    /**
+     * @param {string} name 
+     * @param {any} value 
+     * @returns {Attr}
+     */
+    static of(name, value) {
+        return new Attr(name, value);
+    }
+};
 
-                return values[parseInt(idx)].toString();
-            });
+/**
+ * @type {Record<string, (...attrValue: any) => Attr}
+ */
+export const a = new Proxy({}, {
+    get: (_, attrName) => (...attrValue) => new Attr(attrName, attrValue.join(' ')),
+});
+
+/**
+ * @typedef {Object} Event
+ * @property {boolean} __event
+ * @property {string} typ
+ * @property {(ev: Event) => void} listener
+ * @property {{
+ *  capture?: boolean;
+ *  once?: boolean;
+ *  passive?: boolean;
+ *  signal?: AbortSignal
+ * }?} options
+ */
+
+/**
+ * @type {Record<string, (listener: Event['listener'], options?: Event['options']) => Event}
+ */
+export const on = new Proxy({}, {
+    get: (_, typ) => (listener, options) => ({
+        __event: true,
+        typ,
+        listener,
+        options: options ?? null
+    })
+});
+
+/**
+ * @typedef {Object} Prop
+ * @property {boolean} __prop
+ * @property {string} name
+ * @property {any} value
+ */
+
+/**
+ * @type {Record<string, (value: any) => Prop}
+ */
+export const prop = new Proxy({}, {
+    get: (_, name) => (value) => ({
+        __prop: true,
+        name,
+        value
+    })
+});
+
+export const p = prop;
+
+/**
+ * @param {string | Component} tag
+ * @param {string?} ns
+ * @param {...(Attr | Event | Prop | Element)} rest
+ * @returns {HTMLElement}
+ */
+export function _html(tag, ns, ...rest) {
+    const isComponent = (typeof tag === 'function' && ('componentName' in tag));
+    const el = isComponent 
+        ? tag.new() 
+        : ns
+            ? document.createElementNS(ns, tag)
+            : document.createElement(tag);
+    const n = ns
+        ? r => r
+        : toKebabCase;
+
+    for(const item of rest) {
+        if(item === null || item === undefined) continue;
+        if(item instanceof Attr) {
+            el.setAttribute(n(item.name), item.value);
+        } else if(isComponent && typeof item === 'object' && '__prop' in item) {
+            el.set(n(item.name), item.value, { silent: true });
+        } else if(typeof item === 'object' && '__event' in item) {
+            el.addEventListener(n(item.typ), (ev) => item.listener(ev), item.options ?? null);
+        } else if(item instanceof Ref) {
+            item.value = el;
+        } else if(item instanceof HTMLElement || item instanceof SVGElement) {
+            el.appendChild(item);
+        } else if(typeof item === 'string') {
+            el.appendChild(document.createTextNode(item));
         }
     }
-}
 
-/**
- * @typedef {(strings: TemplateStringsArray, values: ...any) => void} Transform
- */
+    return el;
+};
 
-/**
- * @param {any} userdata 
- * @returns {Transform}
- */
-export function html(userdata) {
-    return (strings, ...values) => {
-        const tmpl = strings.reduce((acc, str, i) => 
-            acc + str + (values[i] ? `${PLACEHOLDER_PREFIX}${i}` : ''), '');
-
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = tmpl.trim();
-
-        _resolve(
-            wrapper, 
-            values, 
-            userdata
-        );
-
-        return wrapper.firstElementChild;
+export class H {
+    /**
+     * @param {string | Component} tag 
+     * @param {...(Attr | Event | Prop | Element)} rest 
+     * @returns {HTMLElement}
+     */
+    static of(tag, ...rest) {
+        return _html(tag, null, ...rest);
     }
-}
+};
+
+/**
+ * @type {Record<string, (...rest: (Attr | Event | Prop | Element)) => HTMLElement}
+ */
+export const h = new Proxy({}, {
+    get: (_, tag) => (...rest) => _html(tag, null, ...rest),
+});
+
+/**
+ * @type {Record<string, (...rest: (Attr | Event | Prop | Element)) => HTMLElement}
+ */
+export const s = new Proxy({}, {
+    get: (_, tag) => (...rest) => _html(tag, 'http://www.w3.org/2000/svg', ...rest),
+});

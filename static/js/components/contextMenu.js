@@ -1,4 +1,4 @@
-import { Component, html } from "./index.js";
+import { a, Component, h, on, s } from "./index.js";
 
 /**
  * @typedef {Object} Position
@@ -35,10 +35,10 @@ export class ContextSubMenu extends Component {
     }
 
     render() {
-        const hiddenAttr = (this.get('hidden') ? 'hidden' : '');
-        return html(this)`<div class='context-submenu ${hiddenAttr}'>
-            <slot></slot>
-        </div>`
+        const hiddenCls = (this.get('hidden') ? 'hidden' : '');
+        return h.div(a.class('context-submenu', hiddenCls),
+            h.slot()
+        );
     }
 };
 
@@ -86,16 +86,16 @@ export class ContextMenuItem extends Component {
     }
 
     render() {
-        const hasSubMenuAttr = (this.hasAttribute('has-submenu') ? 'has-submenu' : '');
-        const isDangerousAttr = (this.hasAttribute('danger') ? 'danger' : '');
-        return html(this)`<div class='context-menu-item ${hasSubMenuAttr} ${isDangerousAttr}' :mouseenter=${this.showSubMenu} :mouseleave=${this.hideSubMenu}>
-            <slot></slot>
-            ${this.hasAttribute('has-submenu')
-                ? html(this)`<svg viewBox='0 0 24 24' fill='currentColor' class='submenu-arrow'>
-                    <path d='M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z' />
-                </svg>`
-                : ''}
-        </div>`;
+        const hasSubMenuCls = (this.hasAttribute('has-submenu') ? 'has-submenu' : '');
+        const isDangerousCls = (this.hasAttribute('danger') ? 'danger' : '');
+        return h.div(a.class('context-menu-item', hasSubMenuCls, isDangerousCls), on.mouseenter(() => this.showSubMenu()), on.mouseleave(() => this.hideSubMenu()),
+            h.slot(),
+            this.hasAttribute('has-submenu')
+                ? s.svg(a.class('submenu-arrow'), a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                    s.path(a.d('M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z'))
+                )
+                : null
+        );
     }
 };
 
@@ -140,10 +140,10 @@ export class ContextMenu extends Component {
     }
 
     render() {
-        const hiddenAttr = (this.get('hidden') ? 'hidden' : '');
-        return html(this)`<div class='context-menu ${hiddenAttr}'>
-            <slot></slot>
-        </div>`;
+        const hiddenCls = (this.get('hidden') ? 'hidden' : '');
+        return h.div(a.class('context-menu', hiddenCls),
+            h.slot()
+        );
     }
 };
 
