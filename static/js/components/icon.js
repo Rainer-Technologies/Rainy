@@ -68,7 +68,7 @@ export class Icon extends Component {
         const attrs = Object.entries({
             ...(variant === 'dislike'
                 ? {
-                    'transform': 'rotate(180 12 12)'
+                    'transform': 'rotate(180)'
                 }
                 : {}),
             ...(variant === 'times'
