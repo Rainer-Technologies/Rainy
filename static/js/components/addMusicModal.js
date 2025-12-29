@@ -227,7 +227,7 @@ export class AddMusicModal extends Component {
             h.h2(a.slot('header-title'), 'Add Music'),
             h.p(a.slot('header-subtitle'), a.class('modal-subtitle'), 'Import songs to your library'),
             h.div(a.slot('body'), a.class('add-music-methods'),
-                h.div(a.class('add-music-method', uploadActive), on.click(() => this.switchMethod('upload')),
+                h.div(a.class('add-music-method', uploadActive), a.dataMethod('upload'), on.click(() => this.switchMethod('upload')),
                     h.div(a.class('method-icon'),
                         s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
                             s.path(a.d('M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z'))
@@ -242,7 +242,7 @@ export class AddMusicModal extends Component {
                         )
                     )
                 ),
-                h.div(a.class('add-music-method', youtubeActive), on.click(() => this.switchMethod('youtube')),
+                h.div(a.class('add-music-method', youtubeActive), a.dataMethod('youtube'), on.click(() => this.switchMethod('youtube')),
                     h.div(a.class('method-icon', 'youtube'),
                         s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
                             s.path(a.d('M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z'))
@@ -258,7 +258,7 @@ export class AddMusicModal extends Component {
                     )
                 )
             ),
-            h.div(a.slot('body'), a.class('add-music-content', uploadActive), a.id('upload-content'),
+            h.div(a.slot('body'), a.class('add-music-content', uploadActive), a.dataMethod('upload'), a.id('upload-content'),
                 h.div(this._dropzone, a.class('upload-dropzone-modern'), a.id('upload-dropzone'),
                     on.click(() => this._onDropzoneClick()),
                     on.dragover(() => this._onDragOver()),
@@ -298,7 +298,7 @@ export class AddMusicModal extends Component {
                     )
                 )
             ),
-            h.div(a.slot('body'), a.class('add-music-content', youtubeActive), a.id('youtube-content'),
+            h.div(a.slot('body'), a.class('add-music-content', youtubeActive), a.dataMethod('youtube'), a.id('youtube-content'),
                 h.div(a.class('youtube-input-wrapper'),
                     h.div(a.class('youtube-input-field'),
                         s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'), a.class('input-icon-svg'),
