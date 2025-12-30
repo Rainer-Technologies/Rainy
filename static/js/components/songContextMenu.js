@@ -272,7 +272,7 @@ export class SongContextMenu extends Component {
                         h.span('New Playlist'),
                     ),
                     h.div(a.class('dropdown-divider')),
-                    h.div(this._playlistList)
+                    h.div(this._playlistList, a.style('overflow-y: auto;', 'max-height: 200px;'))
                 )
             ),
             H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
