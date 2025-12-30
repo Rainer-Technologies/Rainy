@@ -1035,7 +1035,6 @@
 .color-presets {
     display: flex;
     gap: var(--spacing-md);
-    margin-top: var(--spacing-md);
 }
 
 .color-preset-btn {
@@ -1378,6 +1377,5 @@
 
 .color-preset.selected {
     border-color: var(--text-primary);
-    box-shadow: 0 0 0 3px var(--bg-primary), 0 0 0 5px var(--text-primary);
     transform: scale(1.1);
 }
