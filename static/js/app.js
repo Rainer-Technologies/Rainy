@@ -569,6 +569,30 @@ export class RainyApp {
                 this.applySortFilter(e.target.value);
             });
         }
+
+        this.bindRightClickEvents(songsGrid);
+    }
+
+    bindRightClickEvents(container) {
+        if (!container) return;
+
+        container.addEventListener('contextmenu', (e) => {
+            const songElement = e.target.closest('.song-card, .song-card-horizontal, .song-row');
+            if (!songElement) return;
+
+            if (e.target.closest('.song-menu-btn')) return;
+
+            e.preventDefault();
+
+            const menuBtn = songElement.querySelector('.song-menu-btn');
+            const songData = menuBtn ? menuBtn.dataset : {
+                songId: songElement.dataset.id,
+                songTitle: songElement.querySelector('.song-title')?.textContent || '',
+                songArtist: songElement.querySelector('.song-artist')?.textContent || ''
+            };
+
+            this.showContextMenu(e, songData);
+        });
     }
 
     renderSongs() {
@@ -621,6 +645,8 @@ export class RainyApp {
                 this.showContextMenu(e, btn.dataset);
             });
         });
+
+        this.bindRightClickEvents(songsGrid);
     }
 
     renderListView() {
@@ -664,6 +690,8 @@ export class RainyApp {
                 this.showContextMenu(e, btn.dataset);
             });
         });
+
+        this.bindRightClickEvents(listContent);
     }
 
     setViewMode(mode) {
