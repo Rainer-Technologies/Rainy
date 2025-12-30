@@ -41,16 +41,45 @@ class YouTubeDownloader:
             
             title = info.get('title', 'Unknown Title')
             artist = info.get('artist') or info.get('uploader', 'Unknown Artist')
-            thumbnail_url = info.get('thumbnail')
             
-            # Clean filename
+            # Extract video ID and construct thumbnail URL (more reliable than info.get('thumbnail'))
+            video_id = self._extract_video_id(url)
+            thumbnail_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg" if video_id else None
+            
+            # Clean filename - include artist in filename
             safe_title = self._sanitize_filename(title)
-            output_path = os.path.join(self.music_path, f"{safe_title}.mp3")
+            safe_artist = self._sanitize_filename(artist)
+            base_filename = f"{safe_title} - {safe_artist}"
+            output_path = os.path.join(self.music_path, f"{base_filename}.mp3")
+            
+            # Check if file already exists (duplicate detection)
+            if os.path.exists(output_path):
+                return {
+                    'success': True,
+                    'already_exists': True,
+                    'file_path': output_path,
+                    'title': title,
+                    'artist': artist,
+                    'message': f'Song "{title}" by {artist} already exists in your library'
+                }
+            
+            # Also check for other audio formats
+            for ext in ['.m4a', '.webm', '.opus', '.flac']:
+                check_path = os.path.join(self.music_path, f"{base_filename}{ext}")
+                if os.path.exists(check_path):
+                    return {
+                        'success': True,
+                        'already_exists': True,
+                        'file_path': check_path,
+                        'title': title,
+                        'artist': artist,
+                        'message': f'Song "{title}" by {artist} already exists in your library'
+                    }
             
             # Download thumbnail to covers folder
             cover_path = None
             if thumbnail_url:
-                cover_path = self._download_thumbnail(thumbnail_url, safe_title)
+                cover_path = self._download_thumbnail(thumbnail_url, base_filename)
             
             # Configure yt-dlp options for audio download
             ydl_opts = {
@@ -60,7 +89,7 @@ class YouTubeDownloader:
                     'preferredcodec': 'mp3',
                     'preferredquality': '320',
                 }],
-                'outtmpl': os.path.join(self.music_path, f"{safe_title}.%(ext)s"),
+                'outtmpl': os.path.join(self.music_path, f"{base_filename}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
             }
@@ -87,7 +116,7 @@ class YouTubeDownloader:
             else:
                 # Try to find the downloaded file with different extensions
                 for ext in ['.mp3', '.m4a', '.webm', '.opus']:
-                    check_path = os.path.join(self.music_path, f"{safe_title}{ext}")
+                    check_path = os.path.join(self.music_path, f"{base_filename}{ext}")
                     if os.path.exists(check_path):
                         return {
                             'success': True,
@@ -175,7 +204,8 @@ class YouTubeDownloader:
                         'file_path': song_result['file_path'],
                         'title': song_result.get('title'),
                         'artist': song_result.get('artist'),
-                        'cover_path': song_result.get('cover_path')
+                        'cover_path': song_result.get('cover_path'),
+                        'already_exists': song_result.get('already_exists', False)
                     })
             
             if not downloaded_songs:
@@ -207,11 +237,34 @@ class YouTubeDownloader:
             thumbnail_url = info.get('thumbnail')
             
             safe_title = self._sanitize_filename(title)
-            output_path = os.path.join(self.music_path, f"{safe_title}.mp3")
+            safe_artist = self._sanitize_filename(artist)
+            base_filename = f"{safe_title} - {safe_artist}"
+            output_path = os.path.join(self.music_path, f"{base_filename}.mp3")
+            
+            # Check if file already exists (duplicate detection)
+            existing_path = None
+            if os.path.exists(output_path):
+                existing_path = output_path
+            else:
+                # Also check for other audio formats
+                for ext in ['.m4a', '.webm', '.opus', '.flac']:
+                    check_path = os.path.join(self.music_path, f"{base_filename}{ext}")
+                    if os.path.exists(check_path):
+                        existing_path = check_path
+                        break
+            
+            if existing_path:
+                return {
+                    'success': True,
+                    'already_exists': True,
+                    'file_path': existing_path,
+                    'title': title,
+                    'artist': artist
+                }
             
             cover_path = None
             if thumbnail_url:
-                cover_path = self._download_thumbnail(thumbnail_url, safe_title)
+                cover_path = self._download_thumbnail(thumbnail_url, base_filename)
             
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -220,7 +273,7 @@ class YouTubeDownloader:
                     'preferredcodec': 'mp3',
                     'preferredquality': '320',
                 }],
-                'outtmpl': os.path.join(self.music_path, f"{safe_title}.%(ext)s"),
+                'outtmpl': os.path.join(self.music_path, f"{base_filename}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
             }
@@ -247,7 +300,7 @@ class YouTubeDownloader:
                 }
             
             for ext in ['.mp3', '.m4a', '.webm', '.opus']:
-                check_path = os.path.join(self.music_path, f"{safe_title}{ext}")
+                check_path = os.path.join(self.music_path, f"{base_filename}{ext}")
                 if os.path.exists(check_path):
                     return {
                         'success': True,
@@ -275,11 +328,13 @@ class YouTubeDownloader:
             thumbnail_url = info.get('thumbnail')
             
             safe_title = self._sanitize_filename(title)
-            output_path = os.path.join(self.music_path, f"{safe_title}.mp3")
+            safe_artist = self._sanitize_filename(artist)
+            base_filename = f"{safe_title} - {safe_artist}"
+            output_path = os.path.join(self.music_path, f"{base_filename}.mp3")
             
             cover_path = None
             if thumbnail_url:
-                cover_path = self._download_thumbnail(thumbnail_url, safe_title)
+                cover_path = self._download_thumbnail(thumbnail_url, base_filename)
             
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -288,7 +343,7 @@ class YouTubeDownloader:
                     'preferredcodec': 'mp3',
                     'preferredquality': '320',
                 }],
-                'outtmpl': os.path.join(self.music_path, f"{safe_title}.%(ext)s"),
+                'outtmpl': os.path.join(self.music_path, f"{base_filename}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
             }
@@ -311,7 +366,7 @@ class YouTubeDownloader:
                 }
             
             for ext in ['.mp3', '.m4a', '.webm', '.opus']:
-                check_path = os.path.join(self.music_path, f"{safe_title}{ext}")
+                check_path = os.path.join(self.music_path, f"{base_filename}{ext}")
                 if os.path.exists(check_path):
                     return {
                         'success': True,
@@ -425,7 +480,8 @@ class YouTubeDownloader:
     def _extract_video_id(self, url):
         """Extract video ID from URL (video or thumbnail)."""
         # Try to extract from thumbnail URL like https://i.ytimg.com/vi/VIDEO_ID/...
-        match = re.search(r'/vi/([a-zA-Z0-9_-]+)/', url)
+        # Also handles vi_webp format: https://i.ytimg.com/vi_webp/VIDEO_ID/...
+        match = re.search(r'/vi(?:_webp)?/([a-zA-Z0-9_-]+)/', url)
         if match:
             return match.group(1)
             

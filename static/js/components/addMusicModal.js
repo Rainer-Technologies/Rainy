@@ -79,9 +79,9 @@ export class AddMusicModal extends Component {
         this.root.show();
         this.set('current-method', 'upload');
         this.set('youtube-tab', 'song');
-        if(this._youtubeInput.value) this._youtubeInput.value.value = '';
-        if(this._fileInput.value) this._fileInput.value.value = '';
-        if(this._playlistInput.value) this._playlistInput.value.value = '';
+        if (this._youtubeInput.value) this._youtubeInput.value.value = '';
+        if (this._fileInput.value) this._fileInput.value.value = '';
+        if (this._playlistInput.value) this._playlistInput.value.value = '';
         this._uploadProgress.value?.classList.add('hidden');
         this._youtubeStatus.value?.classList.add('hidden');
         this._playlistStatus.value?.classList.add('hidden');
@@ -248,6 +248,19 @@ export class AddMusicModal extends Component {
 
         const result = data.value;
         if (!result) return Logger.error('unreachable');
+
+        // Check if song already existed
+        if (result.already_exists) {
+            updateProgress(100, `Song already in library`);
+            window.Utils.showToast(result.message || `"${result.title}" by ${result.artist} already exists`, 'error', 4000);
+            setTimeout(() => {
+                status.classList.add('hidden');
+                progressFill.style.width = '0%';
+                urlInput.value = '';
+            }, 1500);
+            importBtn.disabled = false;
+            return;
+        }
 
         updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
         setTimeout(() => {

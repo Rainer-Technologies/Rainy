@@ -554,7 +554,17 @@ def youtube_import():
         result = downloader.download(url)
         
         if result.get('success'):
-            # Add to database
+            # Check if song already exists (don't re-add to database)
+            if result.get('already_exists'):
+                return jsonify({
+                    'success': True,
+                    'already_exists': True,
+                    'title': result.get('title'),
+                    'artist': result.get('artist'),
+                    'message': result.get('message', 'Song already exists in library')
+                })
+            
+            # Add to database (new song)
             if result.get('file_path'):
                 scanner = MusicScanner(music_path)
                 metadata = scanner.scan_single_file(result['file_path'])
@@ -690,15 +700,30 @@ def youtube_playlist_import():
                     file_path = song.get('file_path')
                     if file_path:
                         try:
-                            scanner = MusicScanner(music_path)
-                            metadata = scanner.scan_single_file(file_path)
+                            song_id = None
                             
-                            if metadata and metadata.get('id'):
-                                PlaylistModel.add_song_to_playlist(created_playlist_id, metadata['id'])
-                                added_count += 1
+                            # Check if song already existed (wasn't downloaded)
+                            if song.get('already_exists'):
+                                # Look up existing song by file path
+                                relative_path = os.path.relpath(file_path, music_path)
+                                existing_song = SongModel.get_song_by_path(relative_path)
+                                if existing_song:
+                                    song_id = existing_song['id']
+                            else:
+                                # New song - add to database
+                                scanner = MusicScanner(music_path)
+                                metadata = scanner.scan_single_file(file_path)
                                 
-                                if song.get('cover_path') and metadata:
-                                    SongModel.update_song_metadata(metadata['path'], {'cover_path': song['cover_path']})
+                                if metadata and metadata.get('id'):
+                                    song_id = metadata['id']
+                                    
+                                    if song.get('cover_path') and metadata:
+                                        SongModel.update_song_metadata(metadata['path'], {'cover_path': song['cover_path']})
+                            
+                            # Add to playlist if we have a song ID
+                            if song_id:
+                                PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)
+                                added_count += 1
                         except Exception as e:
                             print(f"Error adding song to playlist: {e}")
                             continue
