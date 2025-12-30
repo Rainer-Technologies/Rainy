@@ -4,6 +4,7 @@
  */
 import { Logger } from './helper/logger.js';
 import { usePlaylistService } from './services/playlist.js';
+import { useContext } from './helper/context.js';
 
 export class AudioPlayer {
     constructor() {
@@ -471,6 +472,14 @@ export class AudioPlayer {
         } catch (e) { }
     }
 
+    async refreshLikedViewIfNeeded() {
+        if (!window.app || !this.likedPlaylistId) return;
+        const viewType = useContext().get('current-view-type');
+        if (viewType === 'playlist' && window.app.currentPlaylistId === this.likedPlaylistId) {
+            await window.app.openPlaylist(this.likedPlaylistId);
+        }
+    }
+
     updateReactionButtons() {
         const songId = this.currentSong?.id;
         const isLiked = songId && this.likedSongIds.has(songId);
@@ -518,10 +527,11 @@ export class AudioPlayer {
             }
             this.updateReactionButtons();
             if (window.app) window.app.loadPlaylists?.();
+            await this.refreshLikedViewIfNeeded();
         } catch (e) { }
     }
 
-    toggleDislike() {
+    async toggleDislike() {
         const song = this.getCurrentSong();
         if (!song) return;
         const isDisliked = this.dislikedSongIds.has(song.id);
@@ -535,7 +545,7 @@ export class AudioPlayer {
                 if (isLiked) {
                     this.likedSongIds.delete(song.id);
                     if (this.likedPlaylistId) {
-                        usePlaylistService().removeSong(this.likedPlaylistId, song.id);
+                        await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
                     }
                 }
                 this.dislikedSongIds.add(song.id);
@@ -545,6 +555,7 @@ export class AudioPlayer {
         } catch (e) { }
         this.updateReactionButtons();
         if (window.app) window.app.loadPlaylists?.();
+        this.refreshLikedViewIfNeeded();
     }
 
     async toggleLikeForSong(song) {
@@ -575,10 +586,11 @@ export class AudioPlayer {
             }
             this.updateReactionButtons();
             if (window.app) window.app.loadPlaylists?.();
+            await this.refreshLikedViewIfNeeded();
         } catch (e) { }
     }
 
-    toggleDislikeForSong(song) {
+    async toggleDislikeForSong(song) {
         if (!song) return;
         const isDisliked = this.dislikedSongIds.has(song.id);
         const isLiked = this.likedSongIds.has(song.id);
@@ -591,7 +603,7 @@ export class AudioPlayer {
                 if (isLiked) {
                     this.likedSongIds.delete(song.id);
                     if (this.likedPlaylistId) {
-                        usePlaylistService().removeSong(this.likedPlaylistId, song.id);
+                        await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
                     }
                 }
                 this.dislikedSongIds.add(song.id);
@@ -601,6 +613,7 @@ export class AudioPlayer {
         } catch (e) { }
         this.updateReactionButtons();
         if (window.app) window.app.loadPlaylists?.();
+        this.refreshLikedViewIfNeeded();
     }
 
     handleMetadataLoaded() {
