@@ -120,6 +120,14 @@ export class NewPlaylistModal extends Component {
         }
     }
 
+    /** @param {InputEvent} ev */
+    _changeColor(ev) {
+        const originalTarget = ev.originalTarget;
+        if(!originalTarget) return;
+        const color = originalTarget.value;
+        this.set('current-color', color);
+    }
+
     async createPlaylist() {
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
@@ -163,7 +171,7 @@ export class NewPlaylistModal extends Component {
                     h.div(a.class('customize-group'),
                         h.label(a.class('form-label'), 'Choose Color'),
                         h.div(a.class('color-picker-row'),
-                            h.input(a.type('color'), a.class('color-input'), a.value('#888888')),
+                            h.input(a.type('color'), a.class('color-input'), a.value('#888888'), on.change((ev) => this._changeColor(ev))),
                             h.div(this._colorPresets, a.class('color-presets'))
                         )
                     )
