@@ -578,3 +578,159 @@ def youtube_import():
         return jsonify({'error': 'yt-dlp not installed. Please install it with: pip install yt-dlp'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/youtube-playlist-import', methods=['POST'])
+@require_auth
+def youtube_playlist_import():
+    """Import a playlist from YouTube/YouTube Music (Streaming response)."""
+    try:
+        from utils.youtube import YouTubeDownloader
+        from models.playlist import PlaylistModel
+        from flask import Response, stream_with_context
+        import json
+        
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            return jsonify({'error': 'Music path not configured'}), 400
+        
+        data = request.get_json()
+        url = data.get('url', '').strip()
+        
+        if not url:
+            return jsonify({'error': 'No URL provided'}), 400
+
+        def generate():
+            import threading
+            import queue
+            
+            q = queue.Queue()
+            
+            def on_progress(current, total, message):
+                percent = 0
+                if total > 0:
+                    percent = int((current / total) * 90) # Leave 10% for DB operations
+                
+                q.put(json.dumps({
+                    'type': 'progress',
+                    'percent': percent,
+                    'message': message
+                }) + '\n')
+
+            def worker():
+                try:
+                    downloader = YouTubeDownloader(music_path)
+                    result = downloader.download_playlist(url, progress_callback=on_progress)
+                    q.put({'type': 'result_obj', 'data': result})
+                except Exception as e:
+                    q.put({'type': 'error_obj', 'error': str(e)})
+                finally:
+                    q.put(None) # Sentinel
+
+            t = threading.Thread(target=worker)
+            t.start()
+            
+            playlist_result = None
+            
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                
+                if isinstance(item, dict):
+                    if item.get('type') == 'result_obj':
+                        playlist_result = item['data']
+                    elif item.get('type') == 'error_obj':
+                        yield json.dumps({
+                            'type': 'error',
+                            'error': item['error']
+                        }) + '\n'
+                        return
+                else:
+                    yield item
+            
+            t.join()
+            
+            if not playlist_result:
+                # Should have been handled by error_obj
+                return
+
+            result = playlist_result
+            if result.get('success'):
+                songs = result.get('songs', [])
+                playlist_name = result.get('playlist_name', 'Imported Playlist')
+                
+                yield json.dumps({
+                    'type': 'progress',
+                    'percent': 90,
+                    'message': 'Creating playlist and updating library...'
+                }) + '\n'
+                
+                if not songs:
+                    yield json.dumps({
+                        'type': 'error',
+                        'error': 'No songs were downloaded from the playlist'
+                    }) + '\n'
+                    return
+                
+                created_playlist_id = None
+                try:
+                    created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+                except Exception as e:
+                    yield json.dumps({
+                        'type': 'error',
+                        'error': f'Failed to create playlist: {str(e)}'
+                    }) + '\n'
+                    return
+                
+                added_count = 0
+                total_songs = len(songs)
+                
+                for i, song in enumerate(songs):
+                    file_path = song.get('file_path')
+                    if file_path:
+                        try:
+                            scanner = MusicScanner(music_path)
+                            metadata = scanner.scan_single_file(file_path)
+                            
+                            if metadata and metadata.get('id'):
+                                PlaylistModel.add_song_to_playlist(created_playlist_id, metadata['id'])
+                                added_count += 1
+                                
+                                if song.get('cover_path') and metadata:
+                                    SongModel.update_song_metadata(metadata['path'], {'cover_path': song['cover_path']})
+                        except Exception as e:
+                            print(f"Error adding song to playlist: {e}")
+                            continue
+                    
+                    # Report DB progress (90% -> 100%)
+                    current_percent = 90 + int(((i + 1) / total_songs) * 10)
+                    yield json.dumps({
+                        'type': 'progress',
+                        'percent': min(current_percent, 99),
+                        'message': f'Adding to library: {song.get("title", "Unknown")}'
+                    }) + '\n'
+                
+                yield json.dumps({
+                    'type': 'result',
+                    'data': {
+                        'success': True,
+                        'playlist_name': playlist_name,
+                        'playlist_id': created_playlist_id,
+                        'song_count': added_count
+                    }
+                }) + '\n'
+            else:
+                yield json.dumps({
+                    'type': 'error',
+                    'error': result.get('error', 'Download failed')
+                }) + '\n'
+
+        return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+        
+    except ImportError:
+        return jsonify({'error': 'yt-dlp not installed. Please install it with: pip install yt-dlp'}), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

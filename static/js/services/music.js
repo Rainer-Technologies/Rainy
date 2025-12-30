@@ -1,5 +1,5 @@
 import { RequestHelper, ResponseError } from "../helper/request.js";
-import { Result } from "../helper/result.js";
+import { Err, Ok, Result } from "../helper/result.js";
 import { Service } from "./index.js";
 
 /**
@@ -92,6 +92,98 @@ export class MusicService extends Service {
                 method: 'POST',
                 body: { url }
             }));
+        },
+        /**
+         * @param {string} url 
+         * @param {function(object): void} onProgress Callback for progress events
+         * @returns {Promise<Result<{
+         *  success: boolean;
+         *  playlist_name: string;
+         *  playlist_id: number;
+         *  song_count: number;
+         * }, ErrorModel | ResponseError>>}
+         */
+        importPlaylist: async (url, onProgress) => {
+            try {
+                const response = await fetch(this.url('/youtube-playlist-import'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ url })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+                    return Err(error);
+                }
+
+                if (!response.body) {
+                    return Err({ error: 'No response body' });
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let finalResult = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    
+                    // Keep the last incomplete line in the buffer
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        
+                        try {
+                            const event = JSON.parse(line);
+                            
+                            if (event.type === 'progress') {
+                                if (onProgress) {
+                                    onProgress(event);
+                                }
+                            } else if (event.type === 'result') {
+                                finalResult = event.data;
+                            } else if (event.type === 'error') {
+                                return Err({ error: event.error });
+                            }
+                        } catch (e) {
+                            console.error('Error parsing stream:', e);
+                        }
+                    }
+                }
+
+                const remaining = buffer.trim();
+                if (!finalResult && remaining) {
+                    try {
+                        const event = JSON.parse(remaining);
+                        if (event?.type === 'result') {
+                            finalResult = event.data;
+                        } else if (event?.type === 'error') {
+                            return Err({ error: event.error });
+                        } else if (event?.success) {
+                            finalResult = event;
+                        }
+                    } catch {
+                        return Err({ error: 'Stream ended without valid result' });
+                    }
+                }
+
+                if (finalResult) {
+                    return Ok(finalResult);
+                } else {
+                    return Err({ error: 'Stream ended without result' });
+                }
+
+            } catch (e) {
+                return Err({ error: e?.message ?? String(e) });
+            }
         }
     }
 };

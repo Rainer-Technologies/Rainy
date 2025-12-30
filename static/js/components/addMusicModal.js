@@ -31,7 +31,19 @@ export class AddMusicModal extends Component {
         /** @type {Ref<HTMLDivElement>} */
         this._youtubeProgressFill = useRef(null);
 
+        /** @type {Ref<HTMLInputElement>} */
+        this._playlistInput = useRef(null);
+        /** @type {Ref<HTMLButtonElement>} */
+        this._playlistImportBtn = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._playlistStatus = useRef(null);
+        /** @type {Ref<HTMLSpanElement>} */
+        this._playlistStatusText = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._playlistProgressFill = useRef(null);
+
         this.set('current-method', 'upload', { silent: true });
+        this.set('youtube-tab', 'song', { silent: true });
 
         this.watch('current-method', (_path, _oldValue, methodName) => {
             const methods = this.root.querySelectorAll('.add-music-method');
@@ -44,15 +56,35 @@ export class AddMusicModal extends Component {
             const active = this.root.querySelector(`#${methodName}-content`);
             if (active) active.classList.add('active');
         });
+
+        this.watch('youtube-tab', (_path, _oldValue, tabName) => {
+            const songTab = this.root.querySelector('.youtube-tab-song');
+            const playlistTab = this.root.querySelector('.youtube-tab-playlist');
+            const songContent = this.root.querySelector('.youtube-song-content');
+            const playlistContent = this.root.querySelector('.youtube-playlist-content');
+
+            if (songTab && playlistTab) {
+                songTab.classList.toggle('active', tabName === 'song');
+                playlistTab.classList.toggle('active', tabName === 'playlist');
+            }
+
+            if (songContent && playlistContent) {
+                songContent.classList.toggle('hidden', tabName !== 'song');
+                playlistContent.classList.toggle('hidden', tabName !== 'playlist');
+            }
+        });
     }
 
     show() {
         this.root.show();
         this.set('current-method', 'upload');
+        this.set('youtube-tab', 'song');
         if(this._youtubeInput.value) this._youtubeInput.value.value = '';
         if(this._fileInput.value) this._fileInput.value.value = '';
+        if(this._playlistInput.value) this._playlistInput.value.value = '';
         this._uploadProgress.value?.classList.add('hidden');
         this._youtubeStatus.value?.classList.add('hidden');
+        this._playlistStatus.value?.classList.add('hidden');
     }
 
     hide() {
@@ -66,6 +98,16 @@ export class AddMusicModal extends Component {
     switchMethod(methodName) {
         this.set('current-method', methodName);
     }
+
+    switchYouTubeTab(tabName) {
+        this.set('youtube-tab', tabName);
+    }
+
+    _onPlaylistKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            this.importPlaylistFromYouTube();
+        }
+    };
 
     _onDropzoneClick = () => {
         const fileInput = this.root.querySelector('#file-upload-input');
@@ -216,6 +258,60 @@ export class AddMusicModal extends Component {
         importBtn.disabled = false;
     }
 
+    async importPlaylistFromYouTube() {
+        const urlInput = this._playlistInput.value;
+        const importBtn = this._playlistImportBtn.value;
+        const status = this._playlistStatus.value;
+        const statusText = this._playlistStatusText.value;
+        const progressFill = this._playlistProgressFill.value;
+
+        const url = urlInput.value.trim();
+        if (!url) {
+            urlInput.focus();
+            return;
+        }
+
+        importBtn.disabled = true;
+        status.classList.remove('hidden');
+        progressFill.style.width = '0%';
+
+        const updateProgress = (percent, message) => {
+            progressFill.style.width = `${percent}%`;
+            statusText.textContent = message;
+        };
+
+        updateProgress(5, 'Fetching playlist...');
+
+        const data = await useMusicService().YouTube.importPlaylist(url, (event) => {
+            updateProgress(event.percent, event.message);
+        });
+
+        if (data.error) {
+            Logger.error(data.error);
+
+            importBtn.disabled = false;
+            status.classList.add('hidden');
+            progressFill.style.width = '0%';
+
+            const errorMessage = data.error.error || data.error.message || 'Failed to import playlist. Please check the URL and try again.';
+            Utils.showToast(errorMessage, 'error', 5000);
+
+            return;
+        }
+
+        const result = data.value;
+        if (!result) return Logger.error('unreachable');
+
+        updateProgress(100, `✓ Imported: ${result.song_count} songs to "${result.playlist_name}"`);
+        setTimeout(() => {
+            this.hide();
+            window.app?.loadLibrary();
+            window.app?.loadPlaylists();
+        }, 2000);
+
+        importBtn.disabled = false;
+    }
+
     render() {
         const isUpload = this.get('current-method') === 'upload';
         const uploadActive = isUpload ? 'active' : '';
@@ -286,33 +382,74 @@ export class AddMusicModal extends Component {
                 )
             ),
             h.div(a.slot('body'), a.class('add-music-content', youtubeActive), a.dataMethod('youtube'), a.id('youtube-content'),
-                h.div(a.class('youtube-input-wrapper'),
-                    h.div(a.class('youtube-input-field'),
-                        I.Share('currentColor', a.class('input-icon-svg')),
-                        h.input(this._youtubeInput, a.type('text'), a.id('youtube-url-input'), a.placeholder('Paste YouTube or YouTube Music URL...'), on.keypress((ev) => this._onYouTubeKeyPress(ev)))
+                h.div(a.class('youtube-tabs'),
+                    h.div(a.class('youtube-tab', 'youtube-tab-song', 'active'), on.click(() => this.switchYouTubeTab('song')),
+                        h.span(a.class('tab-label'), 'Song')
                     ),
-                    h.button(this._youtubeImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('youtube-import-btn'), on.click(() => this.importFromYouTube()),
-                        I.Import(),
-                        'Import'
+                    h.div(a.class('youtube-tab', 'youtube-tab-playlist'), on.click(() => this.switchYouTubeTab('playlist')),
+                        h.span(a.class('tab-label'), 'Playlist')
                     )
                 ),
-                h.div(this._youtubeStatus, a.class('youtube-status-modern', 'hidden'), a.id('youtube-status'),
-                    h.div(a.class('status-card'),
-                        h.div(a.class('status-icon'),
-                            I.Refresh('currentColor', a.class('spinning'))
+                h.div(a.class('youtube-song-content'),
+                    h.div(a.class('youtube-input-wrapper'),
+                        h.div(a.class('youtube-input-field'),
+                            I.Share('currentColor', a.class('input-icon-svg')),
+                            h.input(this._youtubeInput, a.type('text'), a.id('youtube-url-input'), a.placeholder('Paste YouTube or YouTube Music URL...'), on.keypress((ev) => this._onYouTubeKeyPress(ev)))
                         ),
-                        h.div(a.class('status-info'),
-                            h.span(this._youtubeStatusText, a.class('status-title'), a.id('youtube-status-text'), 'Importing from YouTube...'),
-                            h.div(a.class('progress-bar-modern'),
-                                h.div(this._youtubeProgressFill, a.class('progress-fill-modern'), a.id('youtube-progress-fill'))
+                        h.button(this._youtubeImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('youtube-import-btn'), on.click(() => this.importFromYouTube()),
+                            I.Import(),
+                            'Import'
+                        )
+                    ),
+                    h.div(this._youtubeStatus, a.class('youtube-status-modern', 'hidden'), a.id('youtube-status'),
+                        h.div(a.class('status-card'),
+                            h.div(a.class('status-icon'),
+                                I.Refresh('currentColor', a.class('spinning'))
+                            ),
+                            h.div(a.class('status-info'),
+                                h.span(this._youtubeStatusText, a.class('status-title'), a.id('youtube-status-text'), 'Importing from YouTube...'),
+                                h.div(a.class('progress-bar-modern'),
+                                    h.div(this._youtubeProgressFill, a.class('progress-fill-modern'), a.id('youtube-progress-fill'))
+                                )
                             )
+                        )
+                    ),
+                    h.div(a.class('youtube-tips'),
+                        h.div(a.class('tip-item'),
+                            I.Info(),
+                            h.span('Supports YouTube and YouTube Music URLs')
                         )
                     )
                 ),
-                h.div(a.class('youtube-tips'),
-                    h.div(a.class('tip-item'),
-                        I.Info(),
-                        h.span('Supports YouTube and YouTube Music URLs')
+                h.div(a.class('youtube-playlist-content', 'hidden'),
+                    h.div(a.class('youtube-input-wrapper'),
+                        h.div(a.class('youtube-input-field'),
+                            I.Share('currentColor', a.class('input-icon-svg')),
+                            h.input(this._playlistInput, a.type('text'), a.id('playlist-url-input'), a.placeholder('Paste YouTube Music playlist URL...'), on.keypress((ev) => this._onPlaylistKeyPress(ev)))
+                        ),
+                        h.button(this._playlistImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('playlist-import-btn'), on.click(() => this.importPlaylistFromYouTube()),
+                            I.Import(),
+                            'Import Playlist'
+                        )
+                    ),
+                    h.div(this._playlistStatus, a.class('youtube-status-modern', 'hidden'), a.id('playlist-status'),
+                        h.div(a.class('status-card'),
+                            h.div(a.class('status-icon'),
+                                I.Refresh('currentColor', a.class('spinning'))
+                            ),
+                            h.div(a.class('status-info'),
+                                h.span(this._playlistStatusText, a.class('status-title'), a.id('playlist-status-text'), 'Importing playlist...'),
+                                h.div(a.class('progress-bar-modern'),
+                                    h.div(this._playlistProgressFill, a.class('progress-fill-modern'), a.id('playlist-progress-fill'))
+                                )
+                            )
+                        )
+                    ),
+                    h.div(a.class('youtube-tips'),
+                        h.div(a.class('tip-item'),
+                            I.Info(),
+                            h.span('Creates a new playlist with all songs from the YouTube Music playlist')
+                        )
                     )
                 )
             )

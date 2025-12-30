@@ -254,8 +254,9 @@ class MusicScanner:
         metadata['file_size'] = file_size
         metadata['file_modified'] = file_modified
         
-        # Add to database
-        SongModel.add_song(metadata)
+        # Add to database and get the song ID
+        song_id = SongModel.add_song(metadata)
+        metadata['id'] = song_id
         
         return metadata
     
