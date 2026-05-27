@@ -186,6 +186,20 @@ class Database:
             )
         """)
         
+        # Song ratings table - stores user likes/dislikes with timestamps
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_ratings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                song_id INT NOT NULL,
+                rating ENUM('like', 'dislike') NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_song (user_id, song_id),
+                INDEX idx_user_rating (user_id, rating),
+                INDEX idx_created_at (created_at)
+            )
+        """)
+        
         conn.commit()
         cursor.close()
         conn.close()

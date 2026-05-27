@@ -52,8 +52,34 @@ class PlaylistModel:
             return Database.execute_query(query, (owner_user_id, playlist_id))
     
     @staticmethod
+    def remove_duplicate_entries(playlist_id):
+        """
+        Remove duplicate songs from a playlist, keeping only the first occurrence.
+        Returns the number of duplicates removed.
+        """
+        # Find duplicates: keep the entry with the lowest id for each track_id
+        query = """
+            DELETE pe1 FROM playlist_entries pe1
+            INNER JOIN playlist_entries pe2
+            WHERE pe1.playlist_id = %s
+            AND pe1.track_id = pe2.track_id
+            AND pe1.playlist_id = pe2.playlist_id
+            AND pe1.id > pe2.id
+        """
+        cursor = Database.get_connection().cursor()
+        cursor.execute(query, (playlist_id,))
+        deleted_count = cursor.rowcount
+        cursor.close()
+        return deleted_count
+    
+    @staticmethod
     def add_song_to_playlist(playlist_id, track_id):
-        """Add a song to a playlist. Automatically sets order_num to be last."""
+        # Check if song already exists in playlist first
+        check_query = "SELECT id FROM playlist_entries WHERE playlist_id = %s AND track_id = %s"
+        existing = Database.execute_query(check_query, (playlist_id, track_id), fetch_one=True)
+        if existing:
+            return  # Skip if already in playlist
+        
         # Get next order number
         order_query = "SELECT MAX(order_num) as max_order FROM playlist_entries WHERE playlist_id = %s"
         result = Database.execute_query(order_query, (playlist_id,), fetch_one=True)

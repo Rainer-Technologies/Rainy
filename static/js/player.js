@@ -4,6 +4,7 @@
  */
 import { Logger } from './helper/logger.js';
 import { usePlaylistService } from './services/playlist.js';
+import { useRatingService } from './services/rating.js';
 import { useContext } from './helper/context.js';
 
 export class AudioPlayer {
@@ -187,16 +188,8 @@ export class AudioPlayer {
             this.updateFsVolumeGradient();
         }
 
-        // Load disliked songs from localStorage
-        try {
-            const dislikedRaw = localStorage.getItem('rainy_disliked_song_ids');
-            if (dislikedRaw) {
-                const arr = JSON.parse(dislikedRaw);
-                if (Array.isArray(arr)) {
-                    this.dislikedSongIds = new Set(arr);
-                }
-            }
-        } catch (e) { }
+        // Dislikes are now loaded from database via rating service
+        // No localStorage loading needed
     }
 
     updateVolumeGradient() {
@@ -278,8 +271,13 @@ export class AudioPlayer {
             window.app.updatePlayingState(song.id);
         }
 
-        // Init liked data once and update like/dislike UI
-        this.ensureLikedDataInitialized().then(() => this.updateReactionButtons());
+        // Update reaction buttons (init if needed, then update)
+        this.ensureLikedDataInitialized().then(() => {
+            this.updateReactionButtons();
+        }).catch(() => {
+            // Even on error, try to update buttons with whatever state we have
+            this.updateReactionButtons();
+        });
     }
 
     checkOverflow(element) {
@@ -446,30 +444,74 @@ export class AudioPlayer {
     }
 
     async ensureLikedDataInitialized() {
-        if (this.likedInitDone) return;
+        if (this.likedInitDone) {
+            // If already initialized but Sets are empty, reload (edge case)
+            if (this.likedSongIds.size === 0 && this.dislikedSongIds.size === 0) {
+                Logger.log('ensureLikedDataInitialized: Sets are empty, reloading...');
+                this.likedInitDone = false;
+            } else {
+                return;
+            }
+        }
         try {
-            const data = await usePlaylistService().all();
-            if (data.error || !Array.isArray(data.value)) return;
-            const playlists = data.value;
+            Logger.log('ensureLikedDataInitialized: Loading from API...');
+            
+            // Load liked and disliked songs from ratings API (source of truth)
+            const [likedData, dislikedData] = await Promise.all([
+                useRatingService().getLikedIds(),
+                useRatingService().getDislikedIds()
+            ]);
+
+            Logger.log('ensureLikedDataInitialized: likedData:', likedData);
+            Logger.log('ensureLikedDataInitialized: dislikedData:', dislikedData);
+
+            if (!likedData.error && likedData.value && likedData.value.song_ids) {
+                // Ensure song_ids are numbers
+                this.likedSongIds = new Set(likedData.value.song_ids.map(id => Number(id)));
+                Logger.log(`Loaded ${this.likedSongIds.size} liked songs`);
+            }
+            if (!dislikedData.error && dislikedData.value && dislikedData.value.song_ids) {
+                // Ensure song_ids are numbers
+                this.dislikedSongIds = new Set(dislikedData.value.song_ids.map(id => Number(id)));
+                Logger.log(`Loaded ${this.dislikedSongIds.size} disliked songs`);
+            }
+
+            // Also ensure Liked Music playlist exists for UI compatibility
+            const playlistData = await usePlaylistService().all();
+            if (playlistData.error || !Array.isArray(playlistData.value)) {
+                this.likedInitDone = true;
+                return;
+            }
+            const playlists = playlistData.value;
             const liked = playlists.find(p => typeof p.name === 'string' && p.name.toLowerCase() === 'liked music');
             if (liked) {
                 this.likedPlaylistId = liked.id;
             } else {
                 const created = await usePlaylistService().create('Liked Music', 'like', '#fa586a', true);
-                if (created.error) return;
+                if (created.error) {
+                    this.likedInitDone = true;
+                    return;
+                }
                 this.likedPlaylistId = created.value?.id;
                 if (window.app) {
                     window.app.loadPlaylists?.();
                 }
             }
-            if (this.likedPlaylistId) {
-                const likedDetail = await usePlaylistService().fetch(this.likedPlaylistId);
-                if (!likedDetail.error && likedDetail.value && Array.isArray(likedDetail.value.songs)) {
-                    this.likedSongIds = new Set(likedDetail.value.songs.map(s => s.id));
-                }
-            }
+
             this.likedInitDone = true;
-        } catch (e) { }
+            Logger.log('ensureLikedDataInitialized: Done, likedInitDone=true');
+        } catch (e) {
+            Logger.error('Failed to initialize liked data:', e);
+        }
+    }
+
+    /**
+     * Refresh liked/disliked data from server (useful after playlist changes)
+     */
+    async refreshLikedData() {
+        this.likedInitDone = false;
+        await this.ensureLikedDataInitialized();
+        this.updateReactionButtons();
     }
 
     async refreshLikedViewIfNeeded() {
@@ -481,7 +523,7 @@ export class AudioPlayer {
     }
 
     updateReactionButtons() {
-        const songId = this.currentSong?.id;
+        const songId = this.currentSong ? Number(this.currentSong.id) : null;
         const isLiked = songId && this.likedSongIds.has(songId);
         const isDisliked = songId && this.dislikedSongIds.has(songId);
 
@@ -504,58 +546,135 @@ export class AudioPlayer {
         await this.ensureLikedDataInitialized();
         if (!this.likedPlaylistId) return;
 
-        const isLiked = this.likedSongIds.has(song.id);
-        const isDisliked = this.dislikedSongIds.has(song.id);
+        // Ensure consistent number type for comparison
+        const songId = Number(song.id);
+        const isLiked = this.likedSongIds.has(songId);
+        const isDisliked = this.dislikedSongIds.has(songId);
+
+        Logger.log(`toggleLike: songId=${songId}, isLiked=${isLiked}, isDisliked=${isDisliked}`);
 
         try {
             if (isLiked) {
-                const res = await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
-                if (res.error) return;
-                this.likedSongIds.delete(song.id);
+                // Optimistically update UI
+                this.likedSongIds.delete(songId);
+                this.updateReactionButtons();
+                
+                // API call - remove from playlist
+                Logger.log('Calling playlist.removeSong...');
+                const res = await usePlaylistService().removeSong(this.likedPlaylistId, songId);
+                if (res.error) {
+                    Logger.error('Playlist remove failed:', res.error);
+                    // Revert on error
+                    this.likedSongIds.add(songId);
+                    this.updateReactionButtons();
+                    return;
+                }
+                
+                // Sync to ratings table
+                Logger.log('Calling ratingService.setRating(null)...');
+                const ratingRes = await useRatingService().setRating(songId, null);
+                if (ratingRes.error) {
+                    Logger.error('Rating removal failed:', ratingRes.error);
+                } else {
+                    Logger.log('Rating removed successfully');
+                }
                 window.showToast?.('Removed from Liked Music', 'success');
             } else {
+                // Optimistically update UI
                 if (isDisliked) {
-                    this.dislikedSongIds.delete(song.id);
+                    this.dislikedSongIds.delete(songId);
                 }
-                const res = await usePlaylistService().addSong(this.likedPlaylistId, song.id);
-                if (res.error) return;
-                this.likedSongIds.add(song.id);
+                this.likedSongIds.add(songId);
+                this.updateReactionButtons();
+                
+                // API call - add to playlist
+                Logger.log('Calling playlist.addSong...');
+                const res = await usePlaylistService().addSong(this.likedPlaylistId, songId);
+                if (res.error) {
+                    Logger.error('Playlist add failed:', res.error);
+                    // Revert on error
+                    this.likedSongIds.delete(songId);
+                    if (isDisliked) {
+                        this.dislikedSongIds.add(songId);
+                    }
+                    this.updateReactionButtons();
+                    return;
+                }
+                
+                // Sync to ratings table
+                Logger.log('Calling ratingService.setRating(like)...');
+                const ratingRes = await useRatingService().setRating(songId, 'like');
+                if (ratingRes.error) {
+                    Logger.error('Rating set failed:', ratingRes.error);
+                } else {
+                    Logger.log('Rating set successfully');
+                }
                 window.showToast?.(isDisliked ? 'Added to Liked Music and removed dislike' : 'Added to Liked Music', 'success');
             }
-            if (isDisliked) {
-                localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
-            }
-            this.updateReactionButtons();
+            
             if (window.app) window.app.loadPlaylists?.();
             await this.refreshLikedViewIfNeeded();
-        } catch (e) { }
+        } catch (e) {
+            Logger.error('Toggle like error:', e);
+            // Refresh state from server on error
+            await this.ensureLikedDataInitialized();
+            this.updateReactionButtons();
+        }
     }
 
     async toggleDislike() {
         const song = this.getCurrentSong();
         if (!song) return;
-        const isDisliked = this.dislikedSongIds.has(song.id);
-        const isLiked = this.likedSongIds.has(song.id);
+        await this.ensureLikedDataInitialized();
+        
+        // Ensure consistent number type for comparison
+        const songId = Number(song.id);
+        const isDisliked = this.dislikedSongIds.has(songId);
+        const isLiked = this.likedSongIds.has(songId);
+
+        Logger.log(`toggleDislike: songId=${songId}, isDisliked=${isDisliked}, isLiked=${isLiked}`);
 
         try {
             if (isDisliked) {
-                this.dislikedSongIds.delete(song.id);
+                // Optimistically update UI
+                this.dislikedSongIds.delete(songId);
+                this.updateReactionButtons();
+                
+                // API call - remove rating
+                Logger.log('Calling ratingService.removeRating...');
+                await useRatingService().removeRating(songId);
+                Logger.log('Dislike removed successfully');
                 window.showToast?.('Removed dislike', 'success');
             } else {
+                // Optimistically update UI
                 if (isLiked) {
-                    this.likedSongIds.delete(song.id);
-                    if (this.likedPlaylistId) {
-                        await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
-                    }
+                    this.likedSongIds.delete(songId);
                 }
-                this.dislikedSongIds.add(song.id);
+                this.dislikedSongIds.add(songId);
+                this.updateReactionButtons();
+                
+                // API call - set dislike rating
+                Logger.log('Calling ratingService.setRating(dislike)...');
+                await useRatingService().setRating(songId, 'dislike');
+                Logger.log('Dislike set successfully');
+                
+                // Also remove from playlist if liked
+                if (isLiked && this.likedPlaylistId) {
+                    Logger.log('Also removing from liked playlist...');
+                    await usePlaylistService().removeSong(this.likedPlaylistId, songId);
+                }
+                
                 window.showToast?.(isLiked ? 'Marked as disliked and removed from Liked Music' : 'Marked as disliked', 'success');
             }
-            localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
-        } catch (e) { }
-        this.updateReactionButtons();
-        if (window.app) window.app.loadPlaylists?.();
-        this.refreshLikedViewIfNeeded();
+            
+            if (window.app) window.app.loadPlaylists?.();
+            this.refreshLikedViewIfNeeded();
+        } catch (e) {
+            Logger.error('Toggle dislike error:', e);
+            // Refresh state from server on error
+            await this.ensureLikedDataInitialized();
+            this.updateReactionButtons();
+        }
     }
 
     async toggleLikeForSong(song) {
@@ -563,57 +682,113 @@ export class AudioPlayer {
         await this.ensureLikedDataInitialized();
         if (!this.likedPlaylistId) return;
 
-        const isLiked = this.likedSongIds.has(song.id);
-        const isDisliked = this.dislikedSongIds.has(song.id);
+        const songId = Number(song.id);
+        const isLiked = this.likedSongIds.has(songId);
+        const isDisliked = this.dislikedSongIds.has(songId);
 
         try {
             if (isLiked) {
-                const res = await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
-                if (res.error) return;
-                this.likedSongIds.delete(song.id);
+                // Optimistically update UI
+                this.likedSongIds.delete(songId);
+                this.updateReactionButtons();
+                
+                // API call
+                const res = await usePlaylistService().removeSong(this.likedPlaylistId, songId);
+                if (res.error) {
+                    // Revert on error
+                    this.likedSongIds.add(songId);
+                    this.updateReactionButtons();
+                    return;
+                }
+                
+                // Sync to ratings table
+                const ratingRes = await useRatingService().setRating(songId, null);
+                if (ratingRes.error) {
+                    Logger.error('Failed to sync rating removal:', ratingRes.error);
+                }
                 window.showToast?.('Removed from Liked Music', 'success');
             } else {
+                // Optimistically update UI
                 if (isDisliked) {
-                    this.dislikedSongIds.delete(song.id);
+                    this.dislikedSongIds.delete(songId);
                 }
-                const res = await usePlaylistService().addSong(this.likedPlaylistId, song.id);
-                if (res.error) return;
-                this.likedSongIds.add(song.id);
+                this.likedSongIds.add(songId);
+                this.updateReactionButtons();
+                
+                // API call
+                const res = await usePlaylistService().addSong(this.likedPlaylistId, songId);
+                if (res.error) {
+                    // Revert on error
+                    this.likedSongIds.delete(songId);
+                    if (isDisliked) {
+                        this.dislikedSongIds.add(songId);
+                    }
+                    this.updateReactionButtons();
+                    return;
+                }
+                
+                // Sync to ratings table
+                const ratingRes = await useRatingService().setRating(songId, 'like');
+                if (ratingRes.error) {
+                    Logger.error('Failed to sync rating:', ratingRes.error);
+                }
                 window.showToast?.(isDisliked ? 'Added to Liked Music and removed dislike' : 'Added to Liked Music', 'success');
             }
-            if (isDisliked) {
-                localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
-            }
-            this.updateReactionButtons();
+            
             if (window.app) window.app.loadPlaylists?.();
             await this.refreshLikedViewIfNeeded();
-        } catch (e) { }
+        } catch (e) {
+            Logger.error('Toggle like for song error:', e);
+            // Refresh state from server on error
+            await this.ensureLikedDataInitialized();
+            this.updateReactionButtons();
+        }
     }
 
     async toggleDislikeForSong(song) {
         if (!song) return;
-        const isDisliked = this.dislikedSongIds.has(song.id);
-        const isLiked = this.likedSongIds.has(song.id);
+        await this.ensureLikedDataInitialized();
+        
+        const songId = Number(song.id);
+        const isDisliked = this.dislikedSongIds.has(songId);
+        const isLiked = this.likedSongIds.has(songId);
 
         try {
             if (isDisliked) {
-                this.dislikedSongIds.delete(song.id);
+                // Optimistically update UI
+                this.dislikedSongIds.delete(songId);
+                this.updateReactionButtons();
+                
+                // API call
+                await useRatingService().removeRating(songId);
                 window.showToast?.('Removed dislike', 'success');
             } else {
+                // Optimistically update UI
                 if (isLiked) {
-                    this.likedSongIds.delete(song.id);
-                    if (this.likedPlaylistId) {
-                        await usePlaylistService().removeSong(this.likedPlaylistId, song.id);
-                    }
+                    this.likedSongIds.delete(songId);
                 }
-                this.dislikedSongIds.add(song.id);
+                this.dislikedSongIds.add(songId);
+                this.updateReactionButtons();
+                
+                // API call
+                await useRatingService().setRating(songId, 'dislike');
+                
+                // Also remove from playlist if liked
+                if (isLiked && this.likedPlaylistId) {
+                    await usePlaylistService().removeSong(this.likedPlaylistId, songId);
+                }
+                
                 window.showToast?.(isLiked ? 'Marked as disliked and removed from Liked Music' : 'Marked as disliked', 'success');
             }
-            localStorage.setItem('rainy_disliked_song_ids', JSON.stringify(Array.from(this.dislikedSongIds)));
-        } catch (e) { }
-        this.updateReactionButtons();
-        if (window.app) window.app.loadPlaylists?.();
-        this.refreshLikedViewIfNeeded();
+            
+            if (window.app) window.app.loadPlaylists?.();
+            this.refreshLikedViewIfNeeded();
+        } catch (e) {
+            Logger.error('Toggle dislike for song error:', e);
+            // Refresh state from server on error
+            await this.ensureLikedDataInitialized();
+            this.updateReactionButtons();
+        }
     }
 
     handleMetadataLoaded() {
@@ -999,8 +1174,9 @@ export class AudioPlayer {
         const song = this.playlist[index];
         if (!song) return;
 
-        const isLiked = this.likedSongIds.has(song.id);
-        const isDisliked = this.dislikedSongIds.has(song.id);
+        const songId = Number(song.id);
+        const isLiked = this.likedSongIds.has(songId);
+        const isDisliked = this.dislikedSongIds.has(songId);
 
         const menu = document.createElement('div');
         menu.id = 'fs-queue-context-menu';
