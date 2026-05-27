@@ -163,6 +163,14 @@ export class RainyApp {
             this.savePreferences({ fullscreen_swap_sides: e.target.checked });
         });
 
+        document.getElementById('settings-disable-lasers')?.addEventListener('change', (e) => {
+            this.savePreferences({ disable_lasers: e.target.checked });
+        });
+
+        document.getElementById('settings-show-bg-blur')?.addEventListener('change', (e) => {
+            this.savePreferences({ show_bg_blur: e.target.checked });
+        });
+
         // Change Password
         document.getElementById('change-password-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1505,6 +1513,8 @@ export class RainyApp {
         let currentColor = '#fa586a';
         let currentFsMode = 'standard';
         let swap = false;
+        let disableLasers = false;
+        let showBgBlur = false;
 
         if (this.user && this.user.preferences) {
             let prefs = this.user.preferences;
@@ -1517,6 +1527,8 @@ export class RainyApp {
                 if (prefs.theme_color) currentColor = prefs.theme_color;
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
                 if (typeof prefs.fullscreen_swap_sides !== 'undefined') swap = !!prefs.fullscreen_swap_sides;
+                if (typeof prefs.disable_lasers !== 'undefined') disableLasers = !!prefs.disable_lasers;
+                if (typeof prefs.show_bg_blur !== 'undefined') showBgBlur = !!prefs.show_bg_blur;
             }
         }
 
@@ -1534,6 +1546,13 @@ export class RainyApp {
         // Set swap toggle
         const fsSwapToggle = document.getElementById('settings-fullscreen-swap');
         if (fsSwapToggle) fsSwapToggle.checked = swap;
+
+        // Set show animation toggles
+        const disableLasersToggle = document.getElementById('settings-disable-lasers');
+        if (disableLasersToggle) disableLasersToggle.checked = disableLasers;
+
+        const showBgBlurToggle = document.getElementById('settings-show-bg-blur');
+        if (showBgBlurToggle) showBgBlurToggle.checked = showBgBlur;
 
         // Load scan status if going to library section
         if (section === 'library') {

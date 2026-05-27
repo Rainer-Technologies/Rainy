@@ -171,6 +171,94 @@
     display: none;
 }
 
+/* Light Show Button & Canvas styles */
+#fs-lightshow-btn {
+    position: absolute;
+    top: 20px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+#fs-lightshow-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+#fs-lightshow-btn:active {
+    transform: scale(0.95);
+}
+
+#fs-lightshow-btn.active {
+    background: var(--accent-primary);
+    color: white;
+    box-shadow: 0 0 15px var(--accent-primary);
+}
+
+#fs-lightshow-btn svg {
+    display: block;
+}
+
+#fs-lightshow-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+#fs-lightshow-canvas.hidden {
+    opacity: 0;
+}
+
+/* Positioning based on standard vs modern mode */
+#fullscreen-player.mode-standard #fs-lightshow-btn {
+    left: 30px;
+    right: auto;
+}
+
+#fullscreen-player.mode-modern #fs-lightshow-btn {
+    right: 80px;
+    left: auto;
+}
+
+#fullscreen-player.mode-modern #fs-volume-btn {
+    right: 130px;
+}
+
+#fullscreen-player.mode-modern #fs-volume-popover {
+    right: 80px;
+}
+
+/* Swapped layout support for modern mode */
+#fullscreen-player.layout-swapped.mode-modern #fs-lightshow-btn {
+    left: 80px;
+    right: auto;
+}
+
+#fullscreen-player.layout-swapped.mode-modern #fs-volume-btn {
+    left: 30px;
+    right: auto;
+}
+
+#fullscreen-player.layout-swapped.mode-modern #fs-volume-popover {
+    left: 30px;
+    right: auto;
+}
+
+
 #fs-close-btn:hover {
     background: rgba(255, 255, 255, 0.2);
 }
@@ -743,6 +831,57 @@
         width: 32px;
         height: 32px;
         font-size: 1.5rem;
+    }
+
+    #fs-lightshow-btn {
+        top: 10px;
+        width: 32px;
+        height: 32px;
+    }
+    #fs-lightshow-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+    
+    #fullscreen-player.mode-standard #fs-lightshow-btn {
+        left: 10px;
+        right: auto;
+    }
+    
+    #fullscreen-player.mode-modern #fs-lightshow-btn {
+        right: 50px;
+        left: auto;
+    }
+    
+    #fullscreen-player.mode-modern #fs-volume-btn {
+        top: 10px;
+        right: 90px;
+        width: 32px;
+        height: 32px;
+    }
+    
+    #fullscreen-player.mode-modern #fs-volume-popover {
+        top: 50px;
+        right: 10px;
+    }
+    
+    #fullscreen-player.layout-swapped.mode-modern #fs-lightshow-btn {
+        left: 50px;
+        right: auto;
+    }
+    
+    #fullscreen-player.layout-swapped.mode-modern #fs-volume-btn {
+        top: 10px;
+        left: 10px;
+        right: auto;
+        width: 32px;
+        height: 32px;
+    }
+    
+    #fullscreen-player.layout-swapped.mode-modern #fs-volume-popover {
+        top: 50px;
+        left: 10px;
+        right: auto;
     }
 
     .fs-brand {

@@ -66,11 +66,16 @@ class PlaylistModel:
             AND pe1.playlist_id = pe2.playlist_id
             AND pe1.id > pe2.id
         """
-        cursor = Database.get_connection().cursor()
-        cursor.execute(query, (playlist_id,))
-        deleted_count = cursor.rowcount
-        cursor.close()
-        return deleted_count
+        conn = Database.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query, (playlist_id,))
+            conn.commit()
+            deleted_count = cursor.rowcount
+            cursor.close()
+            return deleted_count
+        finally:
+            conn.close()
     
     @staticmethod
     def add_song_to_playlist(playlist_id, track_id):
