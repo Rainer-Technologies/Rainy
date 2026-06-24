@@ -815,6 +815,16 @@ export class AudioPlayer {
         this.iconPause.classList.remove('hidden');
         this.nowPlayingArtwork.classList.add('playing');
 
+        // Pause discover preview audio if it exists and is playing
+        const discoverPreviewAudio = document.getElementById('discover-preview-audio');
+        if (discoverPreviewAudio && !discoverPreviewAudio.paused) {
+            discoverPreviewAudio.pause();
+            const previewPlayBtn = document.getElementById('preview-play-btn');
+            if (previewPlayBtn) {
+                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+            }
+        }
+
         // Fullscreen update
         if (this.fsIconPlay) this.fsIconPlay.classList.add('hidden');
         if (this.fsIconPause) this.fsIconPause.classList.remove('hidden');

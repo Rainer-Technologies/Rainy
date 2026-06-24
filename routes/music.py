@@ -759,3 +759,100 @@ def youtube_playlist_import():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/download/<int:song_id>', methods=['GET'])
+@require_auth
+def download_song(song_id):
+    """Download an audio file directly from the server."""
+    try:
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            return jsonify({'error': 'Music path not configured'}), 400
+        
+        song = SongModel.get_song_by_id(song_id)
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+        
+        relative_path = song['file_path']
+        full_path = os.path.normpath(os.path.join(music_path, relative_path))
+        
+        if not full_path.startswith(os.path.normpath(music_path)):
+            return jsonify({'error': 'Invalid path'}), 403
+        
+        if not os.path.isfile(full_path):
+            return jsonify({'error': 'File not found'}), 404
+            
+        filename = os.path.basename(full_path)
+        return send_file(full_path, as_attachment=True, download_name=filename)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/discover/search', methods=['GET'])
+@require_auth
+def discover_search():
+    """Search for songs on YouTube Music."""
+    try:
+        query = request.args.get('q', '').strip()
+        if not query:
+            return jsonify([])
+            
+        from utils.metadata import MetadataSearcher
+        searcher = MetadataSearcher()
+        results = searcher.search(query)
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/discover/preview/<video_id>', methods=['GET'])
+@require_auth
+def discover_preview(video_id):
+    """Proxy the audio stream from YouTube for previewing."""
+    try:
+        import yt_dlp
+        import requests
+        from flask import Response, stream_with_context
+        
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'no_warnings': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            stream_url = info.get('url')
+            
+        if not stream_url:
+            return jsonify({'error': 'Failed to extract stream URL'}), 404
+            
+        # Set request headers for streaming
+        req_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        }
+        if 'Range' in request.headers:
+            req_headers['Range'] = request.headers['Range']
+            
+        r = requests.get(stream_url, headers=req_headers, stream=True, timeout=15)
+        
+        res_headers = {}
+        for h in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges']:
+            if h in r.headers:
+                res_headers[h] = r.headers[h]
+                
+        def generate():
+            for chunk in r.iter_content(chunk_size=4096):
+                yield chunk
+                
+        return Response(
+            stream_with_context(generate()),
+            status=r.status_code,
+            headers=res_headers
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

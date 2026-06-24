@@ -186,6 +186,35 @@ export class MusicService extends Service {
             }
         }
     }
+
+    discover = {
+        /**
+         * @param {string} query 
+         * @returns {Promise<Result<Array<{
+         *  videoId: string;
+         *  title: string;
+         *  artist: string;
+         *  album: string;
+         *  year: string;
+         *  duration: number;
+         *  duration_text: string;
+         *  cover_url: string;
+         * }>, ErrorModel | ResponseError>>}
+         */
+        search: (query) => {
+            return this.wrap(RequestHelper.request(this.url(`/discover/search?q=${encodeURIComponent(query)}`)));
+        },
+        /**
+         * @param {string} videoId 
+         * @returns {Promise<Result<{
+         *  success: boolean;
+         *  stream_url: string;
+         * }, ErrorModel | ResponseError>>}
+         */
+        preview: (videoId) => {
+            return this.wrap(RequestHelper.request(this.url(`/discover/preview/${videoId}`)));
+        }
+    };
 };
 
 const __singleton = new MusicService();

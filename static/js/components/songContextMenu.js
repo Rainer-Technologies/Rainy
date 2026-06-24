@@ -243,6 +243,16 @@ export class SongContextMenu extends Component {
         modal.show(currentSong);
     }
 
+    downloadCurrentSong() {
+        this.hide();
+
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        window.location.href = `/api/music/download/${song.id}`;
+    }
+
     /**
      * @param {import('./contextMenu.js').Position} pos 
      */
@@ -290,6 +300,10 @@ export class SongContextMenu extends Component {
             H.of(ContextMenuItem, on.click(() => this.findMetadataForCurrentSong()),
                 I.Magnifier(),
                 h.span('Find Metadata'),
+            ),
+            H.of(ContextMenuItem, on.click(() => this.downloadCurrentSong()),
+                I.Download(),
+                h.span('Download Song'),
             ),
             H.of(ContextMenuItem, a.danger(), on.click(() => this.deleteCurrentSong()),
                 I.Bin(),

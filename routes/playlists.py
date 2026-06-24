@@ -157,3 +157,59 @@ def remove_song(playlist_id, song_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/download', methods=['GET'])
+@require_auth
+def download_playlist(playlist_id):
+    """Download all songs in a playlist as a zip file."""
+    try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        
+        # Ownership check: if private, only owner can access
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
+            
+        songs = PlaylistModel.get_playlist_songs(playlist_id)
+        if not songs:
+            return jsonify({'error': 'Playlist is empty'}), 400
+            
+        from models.settings import SettingsModel
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            return jsonify({'error': 'Music path not configured'}), 400
+            
+        import io
+        import zipfile
+        import os
+        import re
+        from flask import send_file
+        
+        memory_file = io.BytesIO()
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for song in songs:
+                relative_path = song['file_path']
+                full_path = os.path.normpath(os.path.join(music_path, relative_path))
+                if full_path.startswith(os.path.normpath(music_path)) and os.path.isfile(full_path):
+                    filename = os.path.basename(full_path)
+                    zf.write(full_path, arcname=filename)
+                    
+        memory_file.seek(0)
+        playlist_name = playlist['name']
+        safe_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', playlist_name)
+        if not safe_name:
+            safe_name = f"playlist_{playlist_id}"
+        zip_filename = f"{safe_name}.zip"
+        
+        return send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=zip_filename
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

@@ -16,6 +16,8 @@ import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
 
+const DEFAULT_COVER_BASE64 = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nIzZlNmU2ZSc+PHBhdGggZD0nTTEyIDN2MTAuNTVjLS41OS0uMzQtMS4yNy0uNTUtMi0uNTUtMi4yMSAwLTQgMS43OS00IDRzMS43OSA0IDQgNCA0LTEuNzkgNC00VjdoNFYzaC02eicvPjwvc3ZnPg==`;
+
 export class RainyApp {
     constructor() {
         this.user = null;
@@ -372,6 +374,22 @@ export class RainyApp {
         document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
             this.toggleSidebar();
         });
+
+        // Playlist Settings action download
+        document.getElementById('action-download-playlist')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            if (this.currentPlaylistId) {
+                window.location.href = `/api/playlists/${this.currentPlaylistId}/download`;
+            }
+        });
+
+        // Discover Music click
+        document.getElementById('nav-discover')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToDiscoverView();
+        });
+
+        this.initDiscoverView();
     }
 
     closeDropdown() {
@@ -513,6 +531,10 @@ export class RainyApp {
     }
 
     renderSections() {
+        if (useContext().get('current-view-type') === 'discover') {
+            return;
+        }
+
         const songsGrid = document.getElementById('songs-grid');
         const songsList = document.getElementById('songs-list');
 
@@ -1140,6 +1162,10 @@ export class RainyApp {
         useContext().set('current-view-type', 'playlist');
         this.currentPlaylistId = playlistId;
 
+        // Hide discover view and reset
+        document.getElementById('discover-view')?.classList.add('hidden');
+        document.querySelector('.view-toggle')?.classList.remove('hidden');
+
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
         this.renderSidebarPlaylists();
 
@@ -1168,6 +1194,381 @@ export class RainyApp {
             container?.classList.add('hidden');
         } else {
             container?.classList.remove('hidden');
+        }
+    }
+
+    switchToLibraryView() {
+        if (useContext().get('current-view-type') === 'library') return;
+
+        useContext().set('current-view-type', 'library')
+        this.currentPlaylistId = null;
+
+        // Hide discover view and reset
+        document.getElementById('discover-view')?.classList.add('hidden');
+        document.querySelector('.view-toggle')?.classList.remove('hidden');
+
+        // Update Sidebar UI
+        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-library').classList.add('active');
+        this.renderSidebarPlaylists(); // Remove active state from playlist items
+
+        // Restore Library Content
+        this.songs = [...(this.librarySongs || [])];
+        this.sections = JSON.parse(JSON.stringify(this.librarySections || []));
+        this.filteredSongs = [...this.songs];
+
+        // Update Header
+        document.querySelector('.section-title').textContent = 'Your Library';
+        const totalSongs = this.songs.length;
+        document.getElementById('library-subtitle').textContent = 'All your music in one place';
+
+        // Hide playlist settings menu
+        document.getElementById('playlist-menu-container').classList.add('hidden');
+
+        // Show Stats
+        document.getElementById('library-stats').classList.remove('hidden');
+        document.getElementById('stat-songs').textContent = totalSongs;
+
+        // Clear search
+        document.getElementById('search-input').value = '';
+
+        this.renderSections();
+    }
+
+    switchToDiscoverView() {
+        if (useContext().get('current-view-type') === 'discover') return;
+
+        // Pause discover audio preview if it exists
+        const previewAudio = document.getElementById('discover-preview-audio');
+        if (previewAudio) {
+            previewAudio.pause();
+            previewAudio.src = '';
+            document.getElementById('discover-preview-bar')?.classList.add('hidden');
+        }
+
+        useContext().set('current-view-type', 'discover');
+        this.currentPlaylistId = null;
+
+        // Update Sidebar UI
+        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-discover').classList.add('active');
+        this.renderSidebarPlaylists(); // Remove active state from playlist items
+
+        // Update Header
+        document.querySelector('.section-title').textContent = 'Discover Music';
+        document.getElementById('library-subtitle').textContent = 'Search and preview music from YouTube';
+
+        // Hide elements
+        document.getElementById('playlist-menu-container').classList.add('hidden');
+        document.getElementById('library-stats').classList.add('hidden');
+        document.querySelector('.view-toggle')?.classList.add('hidden');
+        document.getElementById('songs-grid').classList.add('hidden');
+        document.getElementById('songs-list').classList.add('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('loading-state').classList.add('hidden');
+
+        // Show Discover view
+        document.getElementById('discover-view').classList.remove('hidden');
+    }
+
+    initDiscoverView() {
+        const searchInput = document.getElementById('discover-search-input');
+        const searchBtn = document.getElementById('discover-search-btn');
+        const loading = document.getElementById('discover-loading');
+        const empty = document.getElementById('discover-empty');
+        const resultsList = document.getElementById('discover-results');
+
+        // Preview Bar Elements
+        const previewBar = document.getElementById('discover-preview-bar');
+        const previewCover = document.getElementById('preview-cover');
+        const previewTitle = document.getElementById('preview-title');
+        const previewArtist = document.getElementById('preview-artist');
+        const previewPlayBtn = document.getElementById('preview-play-btn');
+        const previewCurrentTime = document.getElementById('preview-current-time');
+        const previewDuration = document.getElementById('preview-duration');
+        const previewProgressBar = document.getElementById('preview-progress-bar');
+        const previewProgressFill = document.getElementById('preview-progress-fill');
+        const previewCloseBtn = document.getElementById('preview-close-btn');
+        const previewAudio = document.getElementById('discover-preview-audio');
+
+        const performSearch = async () => {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            resultsList.innerHTML = '';
+            empty.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            const data = await useMusicService().discover.search(query);
+            loading.classList.add('hidden');
+
+            if (data.error) {
+                Logger.error(data.error);
+                this.showToast('Search failed: ' + (data.error.error || 'Unknown error'), 'error');
+                return;
+            }
+
+            const results = data.value || [];
+            if (results.length === 0) {
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            results.forEach(song => {
+                const item = document.createElement('div');
+                const matchedLibrarySong = this.isSongInLibrary(song);
+                const alreadyDownloaded = matchedLibrarySong !== null;
+                item.className = alreadyDownloaded ? 'discover-item in-library' : 'discover-item';
+                
+                const info = document.createElement('div');
+                info.className = 'discover-item-info';
+
+                const cover = document.createElement('img');
+                cover.className = 'discover-item-cover';
+                cover.referrerPolicy = 'no-referrer';
+                cover.onerror = () => {
+                    cover.onerror = null;
+                    cover.src = DEFAULT_COVER_BASE64;
+                };
+                cover.src = song.cover_url || DEFAULT_COVER_BASE64;
+
+                const meta = document.createElement('div');
+                meta.className = 'discover-item-meta';
+
+                const title = document.createElement('span');
+                title.className = 'discover-item-title';
+                title.textContent = song.title;
+
+                const artistAlbum = document.createElement('span');
+                artistAlbum.className = 'discover-item-artist-album';
+                
+                const artistSpan = document.createElement('span');
+                artistSpan.className = 'discover-clickable-artist';
+                artistSpan.textContent = song.artist;
+                artistSpan.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    searchInput.value = song.artist;
+                    performSearch();
+                });
+                
+                artistAlbum.appendChild(artistSpan);
+                artistAlbum.appendChild(document.createTextNode(` • ${song.album || 'Single'}`));
+
+                meta.appendChild(title);
+                meta.appendChild(artistAlbum);
+                info.appendChild(cover);
+                info.appendChild(meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'discover-item-actions';
+
+                const duration = document.createElement('span');
+                duration.className = 'discover-item-duration';
+                duration.textContent = song.duration_text || Utils.formatDuration(song.duration);
+
+                const previewBtn = document.createElement('button');
+                previewBtn.className = 'discover-btn discover-btn-preview';
+                previewBtn.textContent = alreadyDownloaded ? 'Play' : 'Preview';
+                previewBtn.addEventListener('click', () => {
+                    const currentMatch = this.isSongInLibrary(song);
+                    if (currentMatch) {
+                        // Play local song in main player
+                        if (window.player) {
+                            if (previewAudio && !previewAudio.paused) {
+                                previewAudio.pause();
+                                previewAudio.src = '';
+                                previewBar.classList.add('hidden');
+                            }
+                            window.player.playSong(0, [currentMatch], { type: 'library', id: 'library' });
+                        }
+                    } else {
+                        this.playDiscoverPreview(song);
+                    }
+                });
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'discover-btn discover-btn-download';
+                if (alreadyDownloaded) {
+                    downloadBtn.textContent = 'In Library';
+                    downloadBtn.disabled = true;
+                } else {
+                    downloadBtn.textContent = 'Download';
+                }
+                downloadBtn.addEventListener('click', () => {
+                    this.downloadDiscoverSong(song, downloadBtn);
+                });
+
+                actions.appendChild(duration);
+                actions.appendChild(previewBtn);
+                actions.appendChild(downloadBtn);
+
+                item.appendChild(info);
+                item.appendChild(actions);
+
+                resultsList.appendChild(item);
+            });
+        };
+
+        searchBtn?.addEventListener('click', performSearch);
+        searchInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        // Preview Player audio handlers
+        if (previewAudio) {
+            previewAudio.addEventListener('timeupdate', () => {
+                const cur = previewAudio.currentTime;
+                const dur = previewAudio.duration || 0;
+                previewCurrentTime.textContent = Utils.formatDuration(cur);
+                if (dur > 0) {
+                    previewProgressFill.style.width = `${(cur / dur) * 100}%`;
+                }
+            });
+
+            previewAudio.addEventListener('loadedmetadata', () => {
+                previewDuration.textContent = Utils.formatDuration(previewAudio.duration);
+            });
+
+            previewAudio.addEventListener('ended', () => {
+                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+            });
+        }
+
+        previewPlayBtn?.addEventListener('click', () => {
+            if (previewAudio.paused) {
+                // Pause main player if playing
+                if (window.player && !window.player.audio.paused) {
+                    window.player.audio.pause();
+                    window.player.updatePlayButton();
+                }
+                previewAudio.play();
+                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+            } else {
+                previewAudio.pause();
+                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+            }
+        });
+
+        previewProgressBar?.addEventListener('click', (e) => {
+            const rect = previewProgressBar.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            if (previewAudio.duration) {
+                previewAudio.currentTime = pos * previewAudio.duration;
+            }
+        });
+
+        previewCloseBtn?.addEventListener('click', () => {
+            previewAudio.pause();
+            previewAudio.src = '';
+            previewBar.classList.add('hidden');
+        });
+    }
+
+    async playDiscoverPreview(song) {
+        const previewBar = document.getElementById('discover-preview-bar');
+        const previewCover = document.getElementById('preview-cover');
+        const previewTitle = document.getElementById('preview-title');
+        const previewArtist = document.getElementById('preview-artist');
+        const previewPlayBtn = document.getElementById('preview-play-btn');
+        const previewAudio = document.getElementById('discover-preview-audio');
+
+        if (!previewBar || !previewAudio) return;
+
+        // Set metadata
+        previewTitle.textContent = song.title;
+        previewArtist.textContent = song.artist;
+        previewCover.referrerPolicy = 'no-referrer';
+        previewCover.onerror = () => {
+            previewCover.onerror = null;
+            previewCover.src = DEFAULT_COVER_BASE64;
+        };
+        previewCover.src = song.cover_url || DEFAULT_COVER_BASE64;
+
+        previewBar.classList.remove('hidden');
+        previewPlayBtn.innerHTML = '<svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="40 40" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>';
+        
+        // Pause main player
+        if (window.player && !window.player.audio.paused) {
+            window.player.audio.pause();
+            window.player.updatePlayButton();
+        }
+
+        previewAudio.src = `/api/music/discover/preview/${song.videoId}`;
+        previewAudio.play().then(() => {
+            previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+        }).catch(err => {
+            Logger.error(err);
+            previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+        });
+    }
+
+    isSongInLibrary(discoverSong) {
+        if (!this.librarySongs || this.librarySongs.length === 0) return null;
+        
+        const normalize = (str) => {
+            if (!str) return '';
+            return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
+        
+        const discTitle = normalize(discoverSong.title);
+        const discArtist = normalize(discoverSong.artist);
+        
+        return this.librarySongs.find(libSong => {
+            const libTitle = normalize(libSong.title);
+            const libArtist = normalize(libSong.artist);
+            
+            if (libTitle === discTitle) {
+                if (libArtist === discArtist || libArtist.includes(discArtist) || discArtist.includes(libArtist)) {
+                    return true;
+                }
+            }
+            return false;
+        }) || null;
+    }
+
+    async downloadDiscoverSong(song, btn) {
+        btn.disabled = true;
+        btn.textContent = 'Downloading...';
+        this.showToast(`Starting download: "${song.title}"`, 'info');
+
+        const youtubeUrl = `https://www.youtube.com/watch?v=${song.videoId}`;
+        const data = await useMusicService().YouTube.import(youtubeUrl);
+
+        if (data.error) {
+            btn.disabled = false;
+            btn.textContent = 'Download';
+            Logger.error(data.error);
+            this.showToast('Download failed: ' + (data.error.error || 'Unknown error'), 'error');
+            return;
+        }
+
+        const result = data.value;
+        if (result?.success) {
+            if (result.already_exists) {
+                this.showToast(result.message || `"${song.title}" already exists in library`, 'info');
+            } else {
+                this.showToast(`Downloaded: "${song.title}" successfully!`, 'success');
+            }
+            btn.disabled = true;
+            btn.textContent = 'In Library';
+            const item = btn.closest('.discover-item');
+            if (item) {
+                item.classList.add('in-library');
+                const previewBtn = item.querySelector('.discover-btn-preview');
+                if (previewBtn) {
+                    previewBtn.textContent = 'Play';
+                }
+            }
+            
+            // Reload library in background silently to update the local cache
+            const libraryData = await useMusicService().library();
+            if (libraryData && libraryData.value && libraryData.value.all_songs) {
+                this.librarySongs = [...libraryData.value.all_songs];
+            }
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Download';
+            this.showToast('Download failed: ' + (result?.message || 'unknown error'), 'error');
         }
     }
 

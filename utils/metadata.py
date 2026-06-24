@@ -9,6 +9,32 @@ import os
 import hashlib
 
 
+
+def resize_google_cover(url, size=544):
+    """
+    Resize Google-hosted cover art URLs (googleusercontent.com/ggpht.com).
+    Leaves standard YouTube/ytimg.com URLs intact.
+    """
+    if not url:
+        return url
+    if 'googleusercontent.com' not in url and 'ggpht.com' not in url:
+        return url
+        
+    import re
+    if '=' in url:
+        # Split at first '=' and append size modifier
+        base = url.split('=', 1)[0]
+        return f"{base}=w{size}-h{size}-rj"
+        
+    # Match modifiers like -w120-h120 or -s120 at the end of the URL
+    pattern = r'-[ws]\d+(?:-h\d+)?(?:-[a-zA-Z0-9-]+)*$'
+    if re.search(pattern, url):
+        base = re.sub(pattern, '', url)
+        return f"{base}=w{size}-h{size}-rj"
+        
+    return f"{url}=w{size}-h{size}-rj"
+
+
 class MetadataSearcher:
     def __init__(self):
         """Initialize the YouTube Music API client."""
@@ -45,18 +71,9 @@ class MetadataSearcher:
                 thumbnails = result.get('thumbnails', [])
                 cover_url = None
                 if thumbnails:
-                    # Get the last (largest) thumbnail URL
                     base_url = thumbnails[-1].get('url')
                     if base_url:
-                        # YouTube Music thumbnails can be resized by modifying the URL
-                        # Replace size parameters to get higher resolution (up to 1200x1200)
-                        # URLs typically look like: ...=w60-h60-... or ...=w120-h120-...
-                        import re
-                        # Replace width and height parameters with larger values
-                        cover_url = re.sub(r'=w\d+-h\d+', '=w1200-h1200', base_url)
-                        # If no size params found, try appending them
-                        if '=w' not in cover_url:
-                            cover_url = base_url + '=w1200-h1200'
+                        cover_url = resize_google_cover(base_url, size=544)
                 
                 # Extract duration
                 duration_text = result.get('duration', '0:00')
@@ -112,12 +129,7 @@ class MetadataSearcher:
         try:
             # Ensure we're downloading high-resolution images
             # Modify YouTube Music thumbnail URLs to request larger size
-            import re
-            download_url = re.sub(r'=w\d+-h\d+', '=w1200-h1200', url)
-            if '=w' not in download_url and 'googleusercontent.com' in download_url:
-                download_url = url + '=w1200-h1200'
-            else:
-                download_url = url
+            download_url = resize_google_cover(url, size=1200)
             
             # Create covers directory if it doesn't exist
             covers_dir = os.path.join(save_dir, 'covers')
