@@ -249,7 +249,8 @@
     border-radius: var(--radius-full);
     position: relative;
     cursor: pointer;
-    overflow: hidden;
+    overflow: visible;
+    transition: height var(--transition-fast);
 }
 
 .progress-bar:hover {
@@ -262,6 +263,7 @@
     border-radius: var(--radius-full);
     width: 0%;
     transition: width 100ms linear;
+    position: relative;
 }
 
 .progress-bar:hover .progress-fill::after {
@@ -275,6 +277,11 @@
     background: white;
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-sm);
+    z-index: 10;
+}
+
+.progress-bar.dragging .progress-fill {
+    transition: none !important;
 }
 
 /* Volume Controls */

@@ -7,6 +7,7 @@ from ytmusicapi import YTMusic
 import requests
 import os
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 
 
 
@@ -35,10 +36,21 @@ def resize_google_cover(url, size=544):
     return f"{url}=w{size}-h{size}-rj"
 
 
+_ytm_client = None
+
+
+def _get_ytm():
+    """Return a process-wide YTMusic client (it does a network call on init)."""
+    global _ytm_client
+    if _ytm_client is None:
+        _ytm_client = YTMusic()
+    return _ytm_client
+
+
 class MetadataSearcher:
     def __init__(self):
         """Initialize the YouTube Music API client."""
-        self.ytmusic = YTMusic()
+        self.ytmusic = _get_ytm()
     
     def search(self, query, limit=10):
         """
@@ -98,7 +110,88 @@ class MetadataSearcher:
         except Exception as e:
             print(f"Error searching YouTube Music: {e}")
             return []
-    
+
+    def get_artist_info(self, artist_name):
+        """
+        Look up an artist on YouTube Music and return a description + image.
+
+        Picks the best single match (exact case-insensitive name, otherwise first hit).
+        Returns None when nothing usable is found.
+        """
+        try:
+            candidates = self.search_artist_candidates(artist_name, limit=5)
+            if not candidates:
+                return None
+            name = (artist_name or '').strip().lower()
+            best = next(
+                (c for c in candidates if (c.get('name') or '').lower() == name),
+                candidates[0],
+            )
+            return {
+                'description': best.get('description') or '',
+                'image_url': best.get('image_url') or '',
+                'source_title': best.get('name') or '',
+                'source_url': best.get('source_url') or '',
+            }
+        except Exception as e:
+            print(f"Error fetching artist info from YouTube Music: {e}")
+            return None
+
+    def search_artist_candidates(self, artist_name, limit=5):
+        """
+        Search YouTube Music for an artist and return the top candidates, each with
+        its full description and thumbnail pre-fetched in parallel.
+
+        Returns a list of dicts:
+            [{name, channel_id, image_url, description, source_url}, ...]
+        Returns [] when there are no results.
+        """
+        try:
+            ytm = _get_ytm()
+            name = (artist_name or '').strip()
+            if not name:
+                return []
+
+            results = ytm.search(name, filter="artists", limit=limit) or []
+            if not results:
+                return []
+
+            def fetch_candidate(r):
+                channel_id = (r.get('browseId') or '').strip()
+                if not channel_id:
+                    return None
+                thumbs = r.get('thumbnails') or []
+                candidate = {
+                    'name': (r.get('artist') or '').strip(),
+                    'channel_id': channel_id,
+                    'image_url': (thumbs[-1].get('url') if thumbs else '') or '',
+                    'description': '',
+                    'source_url': f"https://music.youtube.com/channel/{channel_id}",
+                }
+                try:
+                    page = ytm.get_artist(channel_id) or {}
+                    desc = (page.get('description') or '').strip()
+                    if desc:
+                        paras = [p.strip() for p in desc.split('\n') if p.strip()]
+                        candidate['description'] = '\n\n'.join(paras[:3])
+                    if not candidate['image_url'] and page.get('thumbnails'):
+                        candidate['image_url'] = page['thumbnails'][-1].get('url') or ''
+                    if not candidate['name'] and page.get('name'):
+                        candidate['name'] = page['name'].strip()
+                except Exception as e:
+                    print(f"Could not enrich artist candidate {channel_id}: {e}")
+                return candidate
+
+            candidates = []
+            with ThreadPoolExecutor(max_workers=max(1, min(limit, 5))) as ex:
+                for c in ex.map(fetch_candidate, results):
+                    if c:
+                        candidates.append(c)
+            return candidates
+        except Exception as e:
+            print(f"Error searching artist candidates: {e}")
+            return []
+
     def _parse_duration(self, duration_text):
         """Convert duration text (e.g., '3:45') to seconds."""
         try:

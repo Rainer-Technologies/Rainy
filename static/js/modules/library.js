@@ -43,6 +43,9 @@ export const Library = {
 
             const globalIndex = allSongs.findIndex(s => s.id === song.id);
 
+            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+            const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
+
             return `
             <div class="song-card-horizontal fade-in" data-index="${globalIndex}" data-id="${song.id}">
                 <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
@@ -62,10 +65,10 @@ export const Library = {
                 </div>
                 <div class="song-info">
                     <div class="song-title">${escapeHtml(song.title)}</div>
-                    <div class="song-artist">${escapeHtml(song.artist)}</div>
+                    <div class="song-artist">${artistLinksHtml}</div>
                 </div>
             </div>
-        `}).join('');
+            `;}).join('');
 
         return `
         <div class="library-section" data-section-id="${section.id}">
@@ -90,6 +93,9 @@ export const Library = {
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
+            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+            const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
+
             return `
             <div class="song-card fade-in" data-index="${index}" data-id="${song.id}">
                 <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
@@ -109,11 +115,11 @@ export const Library = {
                 </div>
                 <div class="song-info">
                     <div class="song-title">${escapeHtml(song.title)}</div>
-                    <div class="song-artist">${escapeHtml(song.artist)}</div>
+                    <div class="song-artist">${artistLinksHtml}</div>
                     <div class="song-duration">${formatDuration(song.duration)}</div>
                 </div>
             </div>
-        `}).join('');
+            `;}).join('');
 
         const sortFilterHtml = section.id === 'all-songs' ? `
             <div class="section-header-row">
@@ -158,6 +164,9 @@ export const Library = {
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
+            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+            const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
+
             return `
             <div class="song-row fade-in" data-index="${index}" data-id="${song.id}">
                 <span class="song-row-number">${index + 1}</span>
@@ -165,7 +174,7 @@ export const Library = {
                     <div class="song-row-artwork">${coverHtml}</div>
                     <div class="song-row-info">
                         <div class="song-row-title">${escapeHtml(song.title)}</div>
-                        <div class="song-row-artist">${escapeHtml(song.artist)}</div>
+                        <div class="song-row-artist">${artistLinksHtml}</div>
                     </div>
                 </div>
                 <span class="song-row-album">${escapeHtml(song.album || '')}</span>

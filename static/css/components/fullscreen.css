@@ -718,6 +718,10 @@
     background-color: var(--accent-primary);
 }
 
+.fs-progress-bar.dragging .fs-progress-fill {
+    transition: none !important;
+}
+
 .fs-buttons {
     display: flex;
     align-items: center;

@@ -34,7 +34,10 @@ def shutdown_session(exception=None):
 
 def init_app():
     """Initialize the application."""
-    print("🎵 Rainy Music Server")
+    try:
+        print("🎵 Rainy Music Server")
+    except UnicodeEncodeError:
+        print("Rainy Music Server")
     print("=" * 40)
     print("Initializing database...")
     Database.init_db()
@@ -43,6 +46,6 @@ def init_app():
 
 if __name__ == '__main__':
     init_app()
-    print("Starting server on http://localhost:5000")
+    print("Starting server on http://localhost:6969")
     print("=" * 40)
     app.run(host='0.0.0.0', port=6969, debug=True)

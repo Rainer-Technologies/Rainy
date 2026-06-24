@@ -856,3 +856,118 @@ def discover_preview(video_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/artists/<path:artist_name>', methods=['GET'])
+@require_auth
+def get_artist_metadata(artist_name):
+    """Retrieve bio description and custom image URL for an artist."""
+    try:
+        from models.database import Database
+        query = "SELECT description, image_url FROM artists_metadata WHERE artist_name = %s"
+        result = Database.execute_query(query, (artist_name,), fetch_one=True)
+        if result:
+            return jsonify({
+                'description': result.get('description') or '',
+                'image_url': result.get('image_url') or ''
+            })
+        return jsonify({
+            'description': '',
+            'image_url': ''
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/artists/<path:artist_name>', methods=['POST'])
+@require_auth
+def update_artist_metadata(artist_name):
+    """Save or update bio description and custom image URL for an artist."""
+    try:
+        from models.database import Database
+        data = request.get_json() or {}
+        description = data.get('description', '').strip()
+        image_url = data.get('image_url', '').strip()
+
+        # Insert or update using MySQL INSERT INTO ... ON DUPLICATE KEY UPDATE
+        query = """
+            INSERT INTO artists_metadata (artist_name, description, image_url)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE description = %s, image_url = %s
+        """
+        Database.execute_query(query, (artist_name, description, image_url, description, image_url))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/artists/<path:artist_name>/scrape', methods=['POST'])
+@require_auth
+def scrape_artist_info(artist_name):
+    """Fetch candidate artist bios/images from YouTube Music."""
+    try:
+        from utils.metadata import MetadataSearcher
+        candidates = MetadataSearcher().search_artist_candidates(artist_name, limit=5)
+        if not candidates:
+            return jsonify({'success': False, 'error': 'No YouTube Music results found for this artist'}), 404
+        return jsonify({'success': True, 'candidates': candidates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@music_bp.route('/artists/<path:artist_name>/songs', methods=['GET'])
+@require_auth
+def get_artist_songs(artist_name):
+    """Get all songs in the library and flag which ones have this artist credited."""
+    try:
+        from models.database import Database
+        query = "SELECT id, title, artist, album FROM songs ORDER BY artist, album, track_number"
+        all_songs = Database.execute_query(query, fetch_all=True)
+
+        songs_out = []
+        for s in all_songs:
+            raw = s.get('artist') or ''
+            artist_list = [a.strip() for a in raw.split(',') if a.strip()]
+            has_artist = artist_name in artist_list
+            songs_out.append({
+                'id': s['id'],
+                'title': s['title'],
+                'artist': s['artist'],
+                'album': s.get('album') or '',
+                'has_artist': has_artist
+            })
+
+        return jsonify({'success': True, 'songs': songs_out})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/artists/<path:artist_name>/songs/<int:song_id>', methods=['POST'])
+@require_auth
+def toggle_artist_on_song(artist_name, song_id):
+    """Add or remove an artist credit from a song's artist field."""
+    try:
+        from models.database import Database
+        data = request.get_json() or {}
+        action = data.get('action')  # 'add' or 'remove'
+
+        song = Database.execute_query("SELECT id, artist FROM songs WHERE id = %s", (song_id,), fetch_one=True)
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+
+        raw = song.get('artist') or ''
+        artists = [a.strip() for a in raw.split(',') if a.strip()]
+
+        if action == 'add':
+            if artist_name not in artists:
+                artists.append(artist_name)
+        elif action == 'remove':
+            artists = [a for a in artists if a != artist_name]
+        else:
+            return jsonify({'error': 'Invalid action; use "add" or "remove"'}), 400
+
+        new_artist_str = ', '.join(artists) if artists else 'Unknown Artist'
+        Database.execute_query("UPDATE songs SET artist = %s WHERE id = %s", (new_artist_str, song_id))
+        return jsonify({'success': True, 'new_artist': new_artist_str})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

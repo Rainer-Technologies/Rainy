@@ -17,6 +17,8 @@ export class AudioPlayer {
         this.repeatMode = 'none'; // 'none', 'all', 'one'
         this.isBuffering = false;
         this.lastDisplayedTime = 0;
+        this.isDraggingProgress = false;
+        this.activeProgressBar = null;
 
         // Playback context tracking
         this.playbackContext = { type: 'library', id: null };
@@ -151,15 +153,56 @@ export class AudioPlayer {
         if (this.fsNextBtn) this.fsNextBtn.addEventListener('click', () => this.playNext());
         if (this.fsShuffleBtn) this.fsShuffleBtn.addEventListener('click', () => this.toggleShuffle());
         if (this.fsRepeatBtn) this.fsRepeatBtn.addEventListener('click', () => this.toggleRepeat());
-        if (this.fsProgressBar) this.fsProgressBar.addEventListener('click', (e) => this.handleProgressClick(e, this.fsProgressBar));
+        const startDrag = (e, bar) => {
+            if (!this.audio.duration) return;
+            this.isDraggingProgress = true;
+            this.activeProgressBar = bar;
+            bar.classList.add('dragging');
+            updateDrag(e);
+            e.preventDefault();
+        };
+
+        const updateDrag = (e) => {
+            if (!this.isDraggingProgress || !this.activeProgressBar || !this.audio.duration) return;
+            const percent = this.getProgressPercent(e, this.activeProgressBar);
+            const dragTime = percent * this.audio.duration;
+            this.lastDisplayedTime = dragTime;
+
+            const fill = this.activeProgressBar.querySelector('.progress-fill') || 
+                         this.activeProgressBar.querySelector('.fs-progress-fill');
+            if (fill) fill.style.width = `${percent * 100}%`;
+
+            const timeEl = this.activeProgressBar === this.fsProgressBar ? this.fsCurrentTimeEl : this.currentTimeEl;
+            if (timeEl) timeEl.textContent = this.formatTime(dragTime);
+        };
+
+        const endDrag = (e) => {
+            if (!this.isDraggingProgress || !this.activeProgressBar || !this.audio.duration) return;
+            const percent = this.getProgressPercent(e, this.activeProgressBar);
+            this.audio.currentTime = percent * this.audio.duration;
+            this.activeProgressBar.classList.remove('dragging');
+            this.isDraggingProgress = false;
+            this.activeProgressBar = null;
+        };
+
+        this.progressBar.addEventListener('mousedown', (e) => startDrag(e, this.progressBar));
+        this.progressBar.addEventListener('touchstart', (e) => startDrag(e, this.progressBar));
+
+        if (this.fsProgressBar) {
+            this.fsProgressBar.addEventListener('mousedown', (e) => startDrag(e, this.fsProgressBar));
+            this.fsProgressBar.addEventListener('touchstart', (e) => startDrag(e, this.fsProgressBar));
+        }
+
+        window.addEventListener('mousemove', updateDrag);
+        window.addEventListener('touchmove', updateDrag);
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchend', endDrag);
+
         if (this.fsVolumeBtn) this.fsVolumeBtn.addEventListener('click', () => this.toggleFsVolumePopover());
         if (this.fsVolumeSlider) this.fsVolumeSlider.addEventListener('input', (e) => this.handleFsVolumeChange(e));
         if (this.fsLikeBtn) this.fsLikeBtn.addEventListener('click', () => this.toggleLike());
         if (this.fsDislikeBtn) this.fsDislikeBtn.addEventListener('click', () => this.toggleDislike());
         if (this.fsLightShowBtn) this.fsLightShowBtn.addEventListener('click', () => this.toggleLightShow());
-
-        // Progress bar
-        this.progressBar.addEventListener('click', (e) => this.handleProgressClick(e));
 
         // Volume
         this.volumeSlider.addEventListener('input', (e) => this.handleVolumeChange(e));
@@ -422,8 +465,8 @@ export class AudioPlayer {
     }
 
     handleTimeUpdate() {
-        // Don't update time display while buffering
-        if (this.isBuffering) return;
+        // Don't update time display while buffering or dragging progress
+        if (this.isBuffering || this.isDraggingProgress) return;
 
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
@@ -875,14 +918,21 @@ export class AudioPlayer {
         this.nowPlayingArtwork.classList.remove('buffering');
     }
 
+    getProgressPercent(e, bar) {
+        const rect = bar.getBoundingClientRect();
+        let clientX = e.clientX;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+        }
+        const offset = clientX - rect.left;
+        return Math.max(0, Math.min(1, offset / rect.width));
+    }
+
     handleProgressClick(e, progressBarElement) {
         if (!this.audio.duration) return;
 
-        // Use the passed element (for fullscreen) or default to the main progress bar
         const bar = progressBarElement || this.progressBar;
         const rect = bar.getBoundingClientRect();
-
-        // Calculate relative to the specific bar that was clicked
         const percent = (e.clientX - rect.left) / rect.width;
         this.audio.currentTime = percent * this.audio.duration;
     }
