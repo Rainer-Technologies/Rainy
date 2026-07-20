@@ -352,6 +352,14 @@ export class RainyApp {
             this.runScrapeDescriptions();
         });
 
+        document.getElementById('fetch-lyrics-btn')?.addEventListener('click', () => {
+            this.runFetchLyrics();
+        });
+
+        document.getElementById('align-lyrics-btn')?.addEventListener('click', () => {
+            this.runAlignLyrics();
+        });
+
         // Context menu
 
 
@@ -707,6 +715,96 @@ export class RainyApp {
             btn.disabled = false;
             btn.textContent = 'Run';
         }
+    }
+
+    async _runLyricsJob(endpoint, ids, emptyMsg, doneMsg) {
+        const btn = document.getElementById(ids.btn);
+        const progress = document.getElementById(ids.progress);
+        const progressBar = document.getElementById(ids.bar);
+        const progressText = document.getElementById(ids.text);
+        const result = document.getElementById(ids.result);
+
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+        progress?.classList.remove('hidden');
+        result?.classList.add('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Starting...';
+
+        try {
+            const res = await fetch(endpoint, { method: 'POST' });
+            if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try { detail = (await res.json()).error || detail; } catch (_) { }
+                progressText.textContent = 'Error: ' + detail;
+                this.showToast(detail, 'error');
+                return;
+            }
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+
+                    if (msg.type === 'start') {
+                        progressText.textContent = msg.total === 0
+                            ? emptyMsg
+                            : `Processing 0 / ${msg.total} songs...`;
+                    } else if (msg.type === 'progress') {
+                        const pct = Math.round((msg.current / msg.total) * 100);
+                        progressBar.style.width = `${pct}%`;
+                        const who = msg.title ? `${msg.title} — ${msg.artist}` : '';
+                        progressText.textContent = `Processing ${msg.current} / ${msg.total}${who ? ' — ' + who : ''}`;
+                    } else if (msg.type === 'done') {
+                        progress?.classList.add('hidden');
+                        document.getElementById(ids.stat1).textContent = msg[ids.field1];
+                        document.getElementById(ids.skipped).textContent = msg.skipped;
+                        document.getElementById(ids.failed).textContent = msg.failed;
+                        result?.classList.remove('hidden');
+                        this.showToast(doneMsg(msg), 'success');
+                    } else if (msg.type === 'error') {
+                        progressText.textContent = 'Error: ' + msg.error;
+                        this.showToast('Job failed: ' + msg.error, 'error');
+                    }
+                }
+            }
+        } catch (e) {
+            progressText.textContent = 'Error: ' + e.message;
+            this.showToast('Job failed: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Run';
+        }
+    }
+
+    runFetchLyrics() {
+        return this._runLyricsJob('/api/music/jobs/lyrics', {
+            btn: 'fetch-lyrics-btn', progress: 'fetch-lyrics-progress',
+            bar: 'fetch-lyrics-progress-bar', text: 'fetch-lyrics-progress-text',
+            result: 'fetch-lyrics-result', stat1: 'fetch-lyrics-fetched',
+            field1: 'fetched', skipped: 'fetch-lyrics-skipped', failed: 'fetch-lyrics-failed'
+        }, 'Every song already has lyrics!',
+        (m) => `Fetched lyrics for ${m.fetched} song${m.fetched === 1 ? '' : 's'}`);
+    }
+
+    runAlignLyrics() {
+        return this._runLyricsJob('/api/music/jobs/lyrics-words', {
+            btn: 'align-lyrics-btn', progress: 'align-lyrics-progress',
+            bar: 'align-lyrics-progress-bar', text: 'align-lyrics-progress-text',
+            result: 'align-lyrics-result', stat1: 'align-lyrics-aligned',
+            field1: 'aligned', skipped: 'align-lyrics-skipped', failed: 'align-lyrics-failed'
+        }, 'No songs with lyrics to align!',
+        (m) => `Aligned word timing for ${m.aligned} song${m.aligned === 1 ? '' : 's'}`);
     }
 
     async loadLibrary() {

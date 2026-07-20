@@ -1004,6 +1004,58 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Fetch Lyrics</div>
+                                    <div class="settings-row-hint">Download synced lyrics from LRCLIB for every song that
+                                        doesn't have them yet. Fast — skips songs that already have lyrics.</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="fetch-lyrics-btn">Run</button>
+                                </div>
+                            </div>
+                            <div class="scan-progress hidden" id="fetch-lyrics-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="fetch-lyrics-progress-bar"></div>
+                                </div>
+                                <p class="scan-progress-text" id="fetch-lyrics-progress-text">Starting...</p>
+                            </div>
+                            <div class="scan-result hidden" id="fetch-lyrics-result">
+                                <div class="scan-result-stats">
+                                    <div class="stat"><span id="fetch-lyrics-fetched">0</span> fetched</div>
+                                    <div class="stat"><span id="fetch-lyrics-skipped">0</span> already had lyrics</div>
+                                    <div class="stat"><span id="fetch-lyrics-failed">0</span> not found</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Align Lyrics (Word Timing)</div>
+                                    <div class="settings-row-hint">Run AI word-timing alignment for every song that has
+                                        lyrics. Heavy — run once; results are cached so viewing lyrics is instant.</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="align-lyrics-btn">Run</button>
+                                </div>
+                            </div>
+                            <div class="scan-progress hidden" id="align-lyrics-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="align-lyrics-progress-bar"></div>
+                                </div>
+                                <p class="scan-progress-text" id="align-lyrics-progress-text">Starting...</p>
+                            </div>
+                            <div class="scan-result hidden" id="align-lyrics-result">
+                                <div class="scan-result-stats">
+                                    <div class="stat"><span id="align-lyrics-aligned">0</span> aligned</div>
+                                    <div class="stat"><span id="align-lyrics-skipped">0</span> already aligned</div>
+                                    <div class="stat"><span id="align-lyrics-failed">0</span> failed</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

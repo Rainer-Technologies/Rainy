@@ -1184,17 +1184,21 @@ export class AudioPlayer {
         }
     }
 
-    _showLyricsEmpty(message) {
+    _showLyricsEmpty(message, buttonLabel = 'Retry search') {
         if (!this.fsLyricsContent) return;
         this.fsLyricsContent.innerHTML =
             `<div class="fs-lyrics-empty">${message}</div>` +
-            `<button class="fs-lyrics-retry" type="button">Retry search</button>`;
+            `<button class="fs-lyrics-retry" type="button">${buttonLabel}</button>`;
         const btn = this.fsLyricsContent.querySelector('.fs-lyrics-retry');
         if (btn) {
             btn.addEventListener('click', () => {
                 if (this.lyricsSongId != null) this.loadLyrics(this.lyricsSongId, true);
             });
         }
+    }
+
+    _showLyricsNotFetched() {
+        this._showLyricsEmpty('Lyrics haven’t been fetched yet', 'Fetch lyrics');
     }
 
     async loadLyrics(songId, refresh = false) {
@@ -1214,7 +1218,16 @@ export class AudioPlayer {
             if (this.lyricsSongId !== songId) return; // Song changed mid-request
 
             if (!res.ok) {
-                this._showLyricsEmpty('No lyrics found for this song');
+                let state = 'not_found';
+                try {
+                    const err = await res.json();
+                    if (err && err.state) state = err.state;
+                } catch (_) { }
+                if (state === 'not_fetched' && !refresh) {
+                    this._showLyricsNotFetched();
+                } else {
+                    this._showLyricsEmpty('No lyrics found for this song');
+                }
                 return;
             }
 

@@ -1037,12 +1037,6 @@ _LRCLIB_HEADERS = {
 }
 _LRCLIB_BASE = 'https://lrclib.net/api'
 
-# In-memory throttle for songs that genuinely have no lyrics, so we don't
-# hammer LRCLIB on every play. Resets on process restart, which means a
-# restart always gives previously-failed songs one fresh attempt.
-_LYRICS_MISS_COOLDOWN = {}
-_LYRICS_MISS_COOLDOWN_SECONDS = 300
-
 # Title: strip bracketed tags and trailing "feat." clauses
 _LRCLIB_BRACKETS = _re.compile(r'[\(\[].*?[\)\]]')
 _LRCLIB_FEAT = _re.compile(r'\s+(?:feat\.?|ft\.?|featuring)\b.*', _re.I)
@@ -1191,21 +1185,25 @@ def _fetch_lyrics_from_lrclib(title, artist, album, duration):
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['GET'])
 @require_auth
 def get_lyrics(song_id):
-    """Retrieve lyrics for a song, fetching and caching from LRCLIB on first request."""
+    """Return cached lyrics for a song (cache-only by default).
+
+    By default this never contacts LRCLIB — it only reads the cache, so opening
+    the lyrics panel is always instant. A 404 carries a `state` so the UI can
+    distinguish "never fetched" (show a Fetch button) from "fetched, none on
+    LRCLIB" (show a Retry). Pass ?refresh=1 to force a fetch + cache (the
+    individual Fetch / Retry actions).
+    """
     try:
         from models.database import Database
         import json
-        import time
 
         refresh = request.args.get('refresh') == '1'
 
-        # Only cached HITS short-circuit. Stored misses never block, so a song
-        # that failed under older logic always gets re-evaluated here.
         if not refresh:
             cached = Database.execute_query(
-                "SELECT synced, plain FROM song_lyrics WHERE song_id = %s AND found = 1",
+                "SELECT found, synced, plain FROM song_lyrics WHERE song_id = %s",
                 (song_id,), fetch_one=True)
-            if cached:
+            if cached and cached.get('found'):
                 return jsonify({
                     'success': True,
                     'lyrics': {
@@ -1213,36 +1211,38 @@ def get_lyrics(song_id):
                         'plain': cached.get('plain') or '',
                     }
                 })
+            # Cache-only: report why there's nothing, without fetching.
+            state = 'not_found' if cached else 'not_fetched'
+            msg = ('No lyrics found for this song' if state == 'not_found'
+                   else 'Lyrics have not been fetched for this song')
+            return jsonify({'error': msg, 'state': state}), 404
 
-            # Short in-memory throttle for confirmed no-lyrics songs
-            last_miss = _LYRICS_MISS_COOLDOWN.get(song_id)
-            if last_miss is not None and (time.time() - last_miss) < _LYRICS_MISS_COOLDOWN_SECONDS:
-                return jsonify({'error': 'No lyrics found for this song'}), 404
-
+        # Forced fetch (individual Fetch / Retry button).
         song = SongModel.get_song_by_id(song_id)
         if not song:
-            return jsonify({'error': 'Song not found'}), 404
+            return jsonify({'error': 'Song not found', 'state': 'not_found'}), 404
 
         synced, plain = _fetch_lyrics_from_lrclib(
             song.get('title'), song.get('artist'),
             song.get('album'), song.get('duration'))
 
-        if synced or plain:
-            _LYRICS_MISS_COOLDOWN.pop(song_id, None)
-            synced_json = json.dumps(synced) if synced else None
-            plain_text = plain or None
-            Database.execute_query(
-                """INSERT INTO song_lyrics (song_id, found, synced, plain)
-                   VALUES (%s, 1, %s, %s)
-                   ON DUPLICATE KEY UPDATE found = 1, synced = %s, plain = %s""",
-                (song_id, synced_json, plain_text, synced_json, plain_text))
-            return jsonify({
-                'success': True,
-                'lyrics': {'synced': synced or [], 'plain': plain or ''}
-            })
+        found = 1 if (synced or plain) else 0
+        synced_json = json.dumps(synced) if synced else None
+        plain_text = plain or None
+        Database.execute_query(
+            """INSERT INTO song_lyrics (song_id, found, synced, plain)
+               VALUES (%s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE found = %s, synced = %s, plain = %s""",
+            (song_id, found, synced_json, plain_text,
+             found, synced_json, plain_text))
 
-        _LYRICS_MISS_COOLDOWN[song_id] = time.time()
-        return jsonify({'error': 'No lyrics found for this song'}), 404
+        if not found:
+            return jsonify({'error': 'No lyrics found for this song', 'state': 'not_found'}), 404
+
+        return jsonify({
+            'success': True,
+            'lyrics': {'synced': synced or [], 'plain': plain or ''}
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1279,16 +1279,21 @@ def get_lyrics_words(song_id):
         refresh = request.args.get('refresh') == '1'
         _log(f'request (refresh={refresh})')
 
-        if not refresh:
-            cached = Database.execute_query(
-                "SELECT data FROM song_lyrics_words WHERE song_id = %s",
-                (song_id,), fetch_one=True)
-            if cached:
-                words = json.loads(cached['data'])
-                _log(f'cache HIT — {len(words)} lines (no whisper run)')
-                return jsonify({'success': True, 'words': words})
+        cached = Database.execute_query(
+            "SELECT data FROM song_lyrics_words WHERE song_id = %s",
+            (song_id,), fetch_one=True)
+        if cached:
+            words = json.loads(cached['data'])
+            _log(f'cache HIT — {len(words)} lines (no whisper run)')
+            return jsonify({'success': True, 'words': words})
 
-        _log('cache miss — will run alignment')
+        # Cache-only by default: opening the panel must never trigger the heavy
+        # Whisper run. The batch job (or ?refresh=1) does the alignment.
+        if not refresh:
+            _log('cache miss (cache-only mode) — not computing on view')
+            return jsonify({'error': 'Word timing not computed yet'}), 404
+
+        _log('cache miss (refresh) — will run alignment')
 
         song = SongModel.get_song_by_id(song_id)
         if not song:
@@ -1358,6 +1363,192 @@ def get_lyrics_words(song_id):
     except Exception as e:
         print(f'[lyrics-align] song={song_id} EXCEPTION: {e}', flush=True)
         return jsonify({'error': str(e)}), 500
+
+
+# Re-entrancy guards so the heavy batch jobs can't be double-triggered.
+_lyrics_fetch_job_running = False
+_lyrics_align_job_running = False
+
+
+@music_bp.route('/jobs/lyrics', methods=['POST'])
+@require_auth
+def job_fetch_lyrics():
+    """Batch job: pull LRCLIB lyrics for every song that doesn't have them yet.
+
+    Streams NDJSON progress. Skips songs whose lyrics are already cached
+    (found=1) so re-runs are cheap.
+    """
+    global _lyrics_fetch_job_running
+    from flask import Response, stream_with_context
+    from models.database import Database
+    import json
+
+    if _lyrics_fetch_job_running:
+        return jsonify({'error': 'A lyrics fetch job is already running'}), 409
+
+    def generate():
+        global _lyrics_fetch_job_running
+        _lyrics_fetch_job_running = True
+        try:
+            all_songs = Database.execute_query(
+                "SELECT id, title, artist, album, duration FROM songs ORDER BY id",
+                fetch_all=True)
+            have = {r['song_id'] for r in Database.execute_query(
+                "SELECT song_id FROM song_lyrics WHERE found = 1", fetch_all=True)}
+
+            total = len(all_songs)
+            yield json.dumps({'type': 'start', 'total': total}) + '\n'
+            if total == 0:
+                yield json.dumps({'type': 'done', 'fetched': 0, 'skipped': 0, 'failed': 0}) + '\n'
+                return
+
+            fetched = skipped = failed = 0
+            for i, row in enumerate(all_songs, 1):
+                yield json.dumps({
+                    'type': 'progress', 'current': i, 'total': total,
+                    'title': row['title'], 'artist': row['artist']
+                }) + '\n'
+
+                if row['id'] in have:
+                    skipped += 1
+                    continue
+
+                try:
+                    synced, plain = _fetch_lyrics_from_lrclib(
+                        row['title'], row['artist'], row['album'], row['duration'])
+                    found = 1 if (synced or plain) else 0
+                    synced_json = json.dumps(synced) if synced else None
+                    plain_text = plain or None
+                    Database.execute_query(
+                        """INSERT INTO song_lyrics (song_id, found, synced, plain)
+                           VALUES (%s, %s, %s, %s)
+                           ON DUPLICATE KEY UPDATE found = %s, synced = %s, plain = %s""",
+                        (row['id'], found, synced_json, plain_text,
+                         found, synced_json, plain_text))
+                    if found:
+                        fetched += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    print(f'[lyrics-job] fetch failed song={row["id"]}: {e}', flush=True)
+                    failed += 1
+
+            yield json.dumps({
+                'type': 'done', 'fetched': fetched, 'skipped': skipped, 'failed': failed
+            }) + '\n'
+        except Exception as e:
+            print(f'[lyrics-job] fetch EXCEPTION: {e}', flush=True)
+            yield json.dumps({'type': 'error', 'error': str(e)}) + '\n'
+        finally:
+            _lyrics_fetch_job_running = False
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
+@music_bp.route('/jobs/lyrics-words', methods=['POST'])
+@require_auth
+def job_align_lyrics():
+    """Batch job: run forced word-timing alignment for every song that has lyrics.
+
+    Streams NDJSON progress. This is the expensive (Whisper) job — run it once
+    and the per-song view becomes instant from cache. Skips already-aligned
+    songs so re-runs only process new ones.
+    """
+    global _lyrics_align_job_running
+    from flask import Response, stream_with_context
+    from models.database import Database
+    import json
+
+    if _lyrics_align_job_running:
+        return jsonify({'error': 'A lyrics alignment job is already running'}), 409
+
+    def _lines_from_row(r):
+        lines = []
+        if r.get('synced'):
+            try:
+                synced = json.loads(r['synced'])
+                lines = [l.get('text', '') for l in synced if l.get('text') is not None]
+            except Exception:
+                lines = []
+        if not lines and r.get('plain'):
+            lines = [ln for ln in (r['plain'] or '').split('\n')]
+        return lines
+
+    def generate():
+        global _lyrics_align_job_running
+        _lyrics_align_job_running = True
+        try:
+            rows = Database.execute_query(
+                """SELECT s.id, s.title, s.artist, s.file_path, sl.synced, sl.plain
+                   FROM songs s
+                   JOIN song_lyrics sl ON sl.song_id = s.id AND sl.found = 1
+                   ORDER BY s.id""",
+                fetch_all=True)
+            have_words = {r['song_id'] for r in Database.execute_query(
+                "SELECT song_id FROM song_lyrics_words", fetch_all=True)}
+
+            music_path = SettingsModel.get_music_path()
+            norm_music = os.path.normpath(music_path) if music_path else None
+
+            total = len(rows)
+            yield json.dumps({'type': 'start', 'total': total}) + '\n'
+            if total == 0:
+                yield json.dumps({'type': 'done', 'aligned': 0, 'skipped': 0, 'failed': 0}) + '\n'
+                return
+            if not music_path:
+                yield json.dumps({'type': 'error', 'error': 'Music path not configured'}) + '\n'
+                return
+
+            from utils.lyrics_align import align_lyrics_words
+
+            aligned = skipped = failed = 0
+            for i, row in enumerate(rows, 1):
+                yield json.dumps({
+                    'type': 'progress', 'current': i, 'total': total,
+                    'title': row['title'], 'artist': row['artist']
+                }) + '\n'
+
+                if row['id'] in have_words:
+                    skipped += 1
+                    continue
+
+                lines = _lines_from_row(row)
+                rel = row.get('file_path')
+                if not lines or not rel:
+                    failed += 1
+                    continue
+                audio_path = os.path.normpath(os.path.join(music_path, rel))
+                if not audio_path.startswith(norm_music) or not os.path.isfile(audio_path):
+                    print(f'[lyrics-job] align skip song={row["id"]}: audio not found ({audio_path})', flush=True)
+                    failed += 1
+                    continue
+
+                try:
+                    words = align_lyrics_words(audio_path, lines)
+                    if not words:
+                        failed += 1
+                        continue
+                    payload = json.dumps(words)
+                    Database.execute_query(
+                        """INSERT INTO song_lyrics_words (song_id, data)
+                           VALUES (%s, %s)
+                           ON DUPLICATE KEY UPDATE data = %s""",
+                        (row['id'], payload, payload))
+                    aligned += 1
+                except Exception as e:
+                    print(f'[lyrics-job] align failed song={row["id"]}: {e}', flush=True)
+                    failed += 1
+
+            yield json.dumps({
+                'type': 'done', 'aligned': aligned, 'skipped': skipped, 'failed': failed
+            }) + '\n'
+        except Exception as e:
+            print(f'[lyrics-job] align EXCEPTION: {e}', flush=True)
+            yield json.dumps({'type': 'error', 'error': str(e)}) + '\n'
+        finally:
+            _lyrics_align_job_running = False
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
 
 
 @music_bp.route('/artists/<path:artist_name>/scrape', methods=['POST'])
