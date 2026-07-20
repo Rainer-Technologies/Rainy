@@ -24,6 +24,7 @@
     padding: var(--spacing-xl);
     padding-bottom: calc(var(--player-height) + var(--spacing-xl));
     overflow-y: auto;
+    overflow-x: hidden;
     min-width: 0;
 }
 

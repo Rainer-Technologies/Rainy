@@ -18,6 +18,31 @@ import * as SetupView from "./view/setup.js";
 
 const DEFAULT_COVER_BASE64 = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nIzZlNmU2ZSc+PHBhdGggZD0nTTEyIDN2MTAuNTVjLS41OS0uMzQtMS4yNy0uNTUtMi0uNTUtMi4yMSAwLTQgMS43OS00IDRzMS43OSA0IDQgNCA0LTEuNzkgNC00VjdoNFYzaC02eicvPjwvc3ZnPg==`;
 
+const getInitials = (name) => {
+    const parts = name.split(' ').filter(Boolean);
+    if (parts.length === 0) return '?';
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getGradientForName = (name) => {
+    const colors = [
+        ['#ec4899', '#8b5cf6'], // pink to purple
+        ['#3b82f6', '#10b981'], // blue to emerald
+        ['#f59e0b', '#ef4444'], // amber to red
+        ['#6366f1', '#a855f7'], // indigo to purple
+        ['#14b8a6', '#06b6d4'], // teal to cyan
+        ['#f43f5e', '#ec4899'], // rose to pink
+        ['#06b6d4', '#3b82f6'], // cyan to blue
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+};
+
 export class RainyApp {
     constructor() {
         this.user = null;
@@ -264,6 +289,14 @@ export class RainyApp {
             this.runScan(true);
         });
 
+        document.getElementById('scrape-artists-btn')?.addEventListener('click', () => {
+            this.runScrapeArtists();
+        });
+
+        document.getElementById('scrape-descriptions-btn')?.addEventListener('click', () => {
+            this.runScrapeDescriptions();
+        });
+
         // Context menu
 
 
@@ -497,6 +530,130 @@ export class RainyApp {
         fullScanBtn.disabled = false;
     }
 
+    async runScrapeArtists() {
+        const btn = document.getElementById('scrape-artists-btn');
+        const progress = document.getElementById('scrape-artists-progress');
+        const progressBar = document.getElementById('scrape-artists-progress-bar');
+        const progressText = document.getElementById('scrape-artists-progress-text');
+        const result = document.getElementById('scrape-artists-result');
+
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+        progress?.classList.remove('hidden');
+        result?.classList.add('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Starting...';
+
+        try {
+            const res = await fetch('/api/music/artists/scrape-all', { method: 'POST' });
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+
+                    if (msg.type === 'start') {
+                        progressText.textContent = msg.total === 0
+                            ? 'All artists already have images!'
+                            : `Scraping 0 / ${msg.total} artists...`;
+                    } else if (msg.type === 'progress') {
+                        const pct = Math.round((msg.current / msg.total) * 100);
+                        progressBar.style.width = `${pct}%`;
+                        progressText.textContent = `Scraping ${msg.current} / ${msg.total} — ${msg.artist}`;
+                    } else if (msg.type === 'done') {
+                        progress?.classList.add('hidden');
+                        document.getElementById('scrape-artists-scraped').textContent = msg.scraped;
+                        document.getElementById('scrape-artists-skipped').textContent = msg.skipped;
+                        document.getElementById('scrape-artists-failed').textContent = msg.failed;
+                        result?.classList.remove('hidden');
+                        this.showToast(`Scraped ${msg.scraped} artist image${msg.scraped === 1 ? '' : 's'}`, 'success');
+                    } else if (msg.type === 'error') {
+                        progressText.textContent = 'Error: ' + msg.error;
+                        this.showToast('Scrape failed: ' + msg.error, 'error');
+                    }
+                }
+            }
+        } catch (e) {
+            progressText.textContent = 'Error: ' + e.message;
+            this.showToast('Scrape failed: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Run';
+        }
+    }
+
+    async runScrapeDescriptions() {
+        const btn = document.getElementById('scrape-descriptions-btn');
+        const progress = document.getElementById('scrape-descriptions-progress');
+        const progressBar = document.getElementById('scrape-descriptions-progress-bar');
+        const progressText = document.getElementById('scrape-descriptions-progress-text');
+        const result = document.getElementById('scrape-descriptions-result');
+
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+        progress?.classList.remove('hidden');
+        result?.classList.add('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Starting...';
+
+        try {
+            const res = await fetch('/api/music/artists/scrape-descriptions', { method: 'POST' });
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+
+                    if (msg.type === 'start') {
+                        progressText.textContent = msg.total === 0
+                            ? 'All artists already have descriptions!'
+                            : `Scraping 0 / ${msg.total} artists...`;
+                    } else if (msg.type === 'progress') {
+                        const pct = Math.round((msg.current / msg.total) * 100);
+                        progressBar.style.width = `${pct}%`;
+                        progressText.textContent = `Scraping ${msg.current} / ${msg.total} — ${msg.artist}`;
+                    } else if (msg.type === 'done') {
+                        progress?.classList.add('hidden');
+                        document.getElementById('scrape-descriptions-scraped').textContent = msg.scraped;
+                        document.getElementById('scrape-descriptions-skipped').textContent = msg.skipped;
+                        document.getElementById('scrape-descriptions-failed').textContent = msg.failed;
+                        result?.classList.remove('hidden');
+                        this.showToast(`Scraped ${msg.scraped} artist bio${msg.scraped === 1 ? '' : 's'}`, 'success');
+                    } else if (msg.type === 'error') {
+                        progressText.textContent = 'Error: ' + msg.error;
+                        this.showToast('Scrape failed: ' + msg.error, 'error');
+                    }
+                }
+            }
+        } catch (e) {
+            progressText.textContent = 'Error: ' + e.message;
+            this.showToast('Scrape failed: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Run';
+        }
+    }
+
     async loadLibrary() {
         const loadingState = document.getElementById('loading-state');
         const emptyState = document.getElementById('empty-state');
@@ -591,6 +748,7 @@ export class RainyApp {
         songsGrid.querySelectorAll('.song-card, .song-card-horizontal').forEach(card => {
             card.addEventListener('click', (e) => {
                 if (e.target.closest('.song-menu-btn')) return;
+                if (e.target.closest('.song-artist-link')) return;
                 const index = parseInt(card.dataset.index);
                 if (index >= 0) {
                     const context = useContext().get('current-view-type') === 'playlist'
@@ -624,7 +782,7 @@ export class RainyApp {
         if (!container) return;
 
         container.addEventListener('contextmenu', (e) => {
-            const songElement = e.target.closest('.song-card, .song-card-horizontal, .song-row');
+            const songElement = e.target.closest('.song-card, .song-card-horizontal, .song-row, .artist-track-row');
             if (!songElement) return;
 
             if (e.target.closest('.song-menu-btn')) return;
@@ -634,8 +792,8 @@ export class RainyApp {
             const menuBtn = songElement.querySelector('.song-menu-btn');
             const songData = menuBtn ? menuBtn.dataset : {
                 songId: songElement.dataset.id,
-                songTitle: songElement.querySelector('.song-title')?.textContent || '',
-                songArtist: songElement.querySelector('.song-artist')?.textContent || ''
+                songTitle: songElement.querySelector('.song-title, .track-title')?.textContent || '',
+                songArtist: songElement.querySelector('.song-artist, .track-artists')?.textContent || ''
             };
 
             this.showContextMenu(e, songData);
@@ -717,8 +875,9 @@ export class RainyApp {
         // Add click listeners for play
         listContent.querySelectorAll('.song-row').forEach(row => {
             row.addEventListener('click', (e) => {
-                // Don't play if clicking menu button
+                // Don't play if clicking menu button or artist links
                 if (e.target.closest('.song-menu-btn')) return;
+                if (e.target.closest('.song-artist-link')) return;
                 const index = parseInt(row.dataset.index);
                 const currentViewType = useContext().get('current-view-type');
                 const context = currentViewType === 'playlist'
@@ -1187,9 +1346,13 @@ export class RainyApp {
         useContext().set('current-view-type', 'playlist');
         this.currentPlaylistId = playlistId;
 
-        // Hide discover view and reset
+        // Hide other views and reset
         document.getElementById('discover-view')?.classList.add('hidden');
+        document.getElementById('artists-view')?.classList.add('hidden');
         document.querySelector('.view-toggle')?.classList.remove('hidden');
+        
+        // Show section header
+        document.querySelector('.section-header')?.classList.remove('hidden');
 
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
         this.renderSidebarPlaylists();
@@ -1228,9 +1391,13 @@ export class RainyApp {
         useContext().set('current-view-type', 'library')
         this.currentPlaylistId = null;
 
-        // Hide discover view and reset
+        // Hide other views and reset
         document.getElementById('discover-view')?.classList.add('hidden');
+        document.getElementById('artists-view')?.classList.add('hidden');
         document.querySelector('.view-toggle')?.classList.remove('hidden');
+        
+        // Show section header
+        document.querySelector('.section-header')?.classList.remove('hidden');
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
@@ -1260,7 +1427,7 @@ export class RainyApp {
         this.renderSections();
     }
 
-    switchToDiscoverView() {
+    switchToDiscoverView(query = null) {
         // Pause discover audio preview if it exists
         const previewAudio = document.getElementById('discover-preview-audio');
         if (previewAudio) {
@@ -1291,7 +1458,18 @@ export class RainyApp {
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('artists-view')?.classList.add('hidden');
 
+        // Show section header
+        document.querySelector('.section-header')?.classList.remove('hidden');
+
         document.getElementById('discover-view').classList.remove('hidden');
+
+        if (query) {
+            const searchInput = document.getElementById('discover-search-input');
+            if (searchInput) {
+                searchInput.value = query;
+                document.getElementById('discover-search-btn')?.click();
+            }
+        }
     }
 
     initDiscoverView() {
@@ -1595,40 +1773,6 @@ export class RainyApp {
         }
     }
 
-    switchToLibraryView() {
-        if (useContext().get('current-view-type') === 'library') return;
-
-        useContext().set('current-view-type', 'library')
-        this.currentPlaylistId = null;
-
-        // Update Sidebar UI
-        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('nav-library').classList.add('active');
-        this.renderSidebarPlaylists(); // Remove active state from playlist items
-
-        // Restore Library Content
-        this.songs = [...(this.librarySongs || [])];
-        this.sections = JSON.parse(JSON.stringify(this.librarySections || []));
-        this.filteredSongs = [...this.songs];
-
-        // Update Header
-        document.querySelector('.section-title').textContent = 'Your Library';
-        const totalSongs = this.songs.length;
-        document.getElementById('library-subtitle').textContent = 'All your music in one place';
-
-        // Hide playlist settings menu
-        document.getElementById('playlist-menu-container').classList.add('hidden');
-
-        // Show Stats
-        document.getElementById('library-stats').classList.remove('hidden');
-        document.getElementById('stat-songs').textContent = totalSongs;
-
-        // Clear search
-        document.getElementById('search-input').value = '';
-
-        this.renderSections();
-    }
-
     /**
      * Refresh the player queue if we're currently playing a specific playlist
      * Called when songs are added/removed from a playlist
@@ -1921,12 +2065,15 @@ export class RainyApp {
             // Show/hide server settings for sysadmin
             const serverCategory = document.getElementById('settings-nav-server-category');
             const libraryNav = document.getElementById('settings-nav-library');
+            const jobsNav = document.getElementById('settings-nav-jobs');
             if (this.user.role === 'sysadmin') {
                 serverCategory?.classList.remove('hidden');
                 libraryNav?.classList.remove('hidden');
+                jobsNav?.classList.remove('hidden');
             } else {
                 serverCategory?.classList.add('hidden');
                 libraryNav?.classList.add('hidden');
+                jobsNav?.classList.add('hidden');
             }
         }
 
@@ -2009,7 +2156,8 @@ export class RainyApp {
             'appearance': 'Appearance',
             'player': 'Player',
             'account': 'Account',
-            'library': 'Library Scanning'
+            'library': 'Library Scanning',
+            'jobs': 'Jobs'
         };
         const title = document.getElementById('settings-page-title');
         if (title) title.textContent = titleMap[sectionName] || 'Settings';
@@ -2035,7 +2183,8 @@ export class RainyApp {
             'appearance': ['appearance', 'theme', 'color', 'accent', 'color picker', 'preset', 'reset', 'style', 'look'],
             'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
             'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
-            'library': ['library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'server']
+            'library': ['library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'server'],
+            'jobs': ['jobs', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata']
         };
 
         if (!searchTerm) {
@@ -2159,6 +2308,13 @@ export class RainyApp {
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('discover-view').classList.add('hidden');
 
+        // Show or hide shared section header
+        if (targetArtistName) {
+            document.querySelector('.section-header')?.classList.add('hidden');
+        } else {
+            document.querySelector('.section-header')?.classList.remove('hidden');
+        }
+
         // Show Artists view
         const artistsView = document.getElementById('artists-view');
         artistsView.classList.remove('hidden');
@@ -2171,6 +2327,8 @@ export class RainyApp {
         const gridView = document.getElementById('artists-grid-view');
         const profileView = document.getElementById('artist-profile-view');
         const gridList = document.getElementById('artists-grid-list');
+        const searchInput = document.getElementById('artists-search-input');
+        const clearBtn = document.getElementById('artists-search-clear');
 
         if (!gridView || !profileView || !gridList) return;
 
@@ -2204,54 +2362,94 @@ export class RainyApp {
         gridView.classList.remove('hidden');
         profileView.classList.add('hidden');
 
-        if (sortedArtistNames.length === 0) {
-            gridList.innerHTML = '<div class="empty-state">No artists found in library</div>';
-            return;
+        // Reset search inputs
+        if (searchInput) {
+            searchInput.value = '';
+            if (clearBtn) clearBtn.classList.add('hidden');
         }
 
-        // Simple default profile SVG for cards
-        const defaultAvatarSVG = `
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
-        `;
+        const renderGrid = (filterQuery = '') => {
+            const query = filterQuery.toLowerCase().trim();
+            const filteredNames = sortedArtistNames.filter(name => name.toLowerCase().includes(query));
 
-        gridList.innerHTML = sortedArtistNames.map(artistName => {
-            const count = artistMap[artistName].length;
-            return `
-                <div class="artist-circle-card" data-artist="${Utils.escapeHtml(artistName)}">
-                    <div class="artist-circle-avatar">
-                        ${defaultAvatarSVG}
+            // Update stats badge
+            const countEl = document.getElementById('artists-count-badge');
+            if (countEl) {
+                countEl.textContent = `${filteredNames.length} Artist${filteredNames.length === 1 ? '' : 's'}`;
+            }
+
+            if (filteredNames.length === 0) {
+                gridList.innerHTML = '<div class="empty-state">No artists found</div>';
+                return;
+            }
+
+            gridList.innerHTML = filteredNames.map(artistName => {
+                const count = artistMap[artistName].length;
+                const initials = getInitials(artistName);
+                const grad = getGradientForName(artistName);
+                const initialsStyle = `background: linear-gradient(135deg, ${grad[0]} 0%, ${grad[1]} 100%); color: #ffffff; font-weight: 700; font-size: 2.2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
+                
+                return `
+                    <div class="artist-circle-card" data-artist="${Utils.escapeHtml(artistName)}">
+                        <div class="artist-circle-avatar" style="${initialsStyle}">
+                            ${initials}
+                            <div class="artist-circle-play-overlay">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                        </div>
+                        <div class="artist-circle-name">${Utils.escapeHtml(artistName)}</div>
+                        <div class="artist-circle-meta">${count} song${count === 1 ? '' : 's'}</div>
                     </div>
-                    <div class="artist-circle-name">${Utils.escapeHtml(artistName)}</div>
-                    <div class="artist-circle-meta">${count} song${count === 1 ? '' : 's'}</div>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
 
-        // Bind click events on card and fetch images in background
-        const cards = gridList.querySelectorAll('.artist-circle-card');
-        cards.forEach(card => {
-            const artistName = card.dataset.artist;
+            // Bind click events and fetch custom images
+            const cards = gridList.querySelectorAll('.artist-circle-card');
+            cards.forEach(card => {
+                const artistName = card.dataset.artist;
 
-            // Fetch custom artist metadata (bio/image) asynchronously
-            fetch(`/api/music/artists/${encodeURIComponent(artistName)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.image_url) {
-                        const avatar = card.querySelector('.artist-circle-avatar');
-                        if (avatar) {
-                            avatar.innerHTML = `<img src="${Utils.escapeHtml(data.image_url)}" alt="${Utils.escapeHtml(artistName)}" style="width:100%; height:100%; object-fit:cover;">`;
+                // Fetch custom artist metadata (bio/image) asynchronously
+                fetch(`/api/music/artists/${encodeURIComponent(artistName)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.image_url) {
+                            const avatar = card.querySelector('.artist-circle-avatar');
+                            if (avatar) {
+                                avatar.style.background = 'none';
+                                avatar.innerHTML = `<img src="${Utils.escapeHtml(data.image_url)}" alt="${Utils.escapeHtml(artistName)}" style="width:100%; height:100%; object-fit:cover;">`;
+                            }
                         }
-                    }
-                }).catch(err => Logger.error(err));
+                    }).catch(err => Logger.error(err));
 
-            card.addEventListener('click', () => {
-                gridView.classList.add('hidden');
-                profileView.classList.remove('hidden');
-                this.renderArtistProfile(artistName, artistMap[artistName]);
+                card.addEventListener('click', () => {
+                    gridView.classList.add('hidden');
+                    profileView.classList.remove('hidden');
+                    this.renderArtistProfile(artistName, artistMap[artistName]);
+                });
             });
-        });
+        };
+
+        // Setup search input handlers
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                const val = e.target.value;
+                if (clearBtn) {
+                    if (val) clearBtn.classList.remove('hidden');
+                    else clearBtn.classList.add('hidden');
+                }
+                renderGrid(val);
+            };
+
+            if (clearBtn) {
+                clearBtn.onclick = () => {
+                    searchInput.value = '';
+                    clearBtn.classList.add('hidden');
+                    renderGrid('');
+                };
+            }
+        }
+
+        renderGrid('');
     }
 
     async renderArtistProfile(artistName, songs) {
@@ -2260,14 +2458,38 @@ export class RainyApp {
         const metaText = document.getElementById('artist-profile-meta-text');
         const heroBanner = document.getElementById('artist-hero-banner');
         const songsList = document.getElementById('artist-profile-songs-list');
+        const heroAvatar = document.getElementById('artist-hero-avatar-wrap');
+        const heroBlurBg = document.getElementById('artist-hero-blur-bg');
 
         if (!nameText || !bioText || !metaText || !heroBanner || !songsList) return;
+
+        // Hide the shared section header when viewing a specific artist profile
+        document.querySelector('.section-header')?.classList.add('hidden');
 
         // Set initial state / defaults
         nameText.textContent = artistName;
         bioText.textContent = 'No description available. Click Edit Profile to add one.';
         metaText.textContent = `${songs.length} song${songs.length === 1 ? '' : 's'} in library`;
-        heroBanner.style.backgroundImage = 'none';
+        
+        // Generate dynamic fallback gradient
+        const grad = getGradientForName(artistName);
+        const initials = getInitials(artistName);
+        
+        heroBanner.style.background = `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1]} 100%)`;
+        if (heroBlurBg) {
+            heroBlurBg.style.backgroundImage = 'none';
+        }
+        
+        if (heroAvatar) {
+            heroAvatar.style.background = `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1]} 100%)`;
+            heroAvatar.style.color = '#ffffff';
+            heroAvatar.style.fontSize = '3.5rem';
+            heroAvatar.style.fontWeight = '700';
+            heroAvatar.style.display = 'flex';
+            heroAvatar.style.alignItems = 'center';
+            heroAvatar.style.justifyContent = 'center';
+            heroAvatar.textContent = initials;
+        }
 
         // Load custom bio and image from server
         try {
@@ -2277,7 +2499,14 @@ export class RainyApp {
                 bioText.textContent = data.description;
             }
             if (data.image_url) {
-                heroBanner.style.backgroundImage = `url('${data.image_url}')`;
+                if (heroBlurBg) {
+                    heroBlurBg.style.backgroundImage = `url('${data.image_url}')`;
+                }
+                if (heroAvatar) {
+                    heroAvatar.style.background = 'none';
+                    heroAvatar.textContent = '';
+                    heroAvatar.innerHTML = `<img src="${Utils.escapeHtml(data.image_url)}" alt="${Utils.escapeHtml(artistName)}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">`;
+                }
             }
         } catch (e) {
             Logger.error(e);
@@ -2287,66 +2516,153 @@ export class RainyApp {
         const escapeHtml = Utils.escapeHtml;
         const coverOverrides = this.coverOverrides || {};
         const coverVersions = this.coverVersions || {};
+        const songsGrid = document.getElementById('artist-profile-songs-grid');
 
-        songsList.innerHTML = songs.map((song) => {
-            const overridePath = coverOverrides[song.id] || song.cover_path;
-            const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
-            const coverHtml = overridePath
-                ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+        const renderArtistList = () => {
+            songsList.classList.remove('hidden');
+            songsGrid.classList.add('hidden');
 
-            const globalIndex = this.librarySongs.findIndex(s => s.id === song.id);
+            songsList.innerHTML = songs.map((song, trackIndex) => {
+                const overridePath = coverOverrides[song.id] || song.cover_path;
+                const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
+                const coverHtml = overridePath
+                    ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
+                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
-            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
-            const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
+                const globalIndex = this.librarySongs.findIndex(s => s.id === song.id);
+                const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+                const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
-            return `
-            <div class="song-card fade-in" data-index="${globalIndex}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
-                </button>
-                <div class="song-artwork">
-                    ${coverHtml}
-                    <div class="song-artwork-overlay">
-                        <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                return `
+                <div class="artist-track-row fade-in" data-index="${globalIndex}" data-id="${song.id}">
+                    <div class="track-number-col">
+                        <span class="track-number">${trackIndex + 1}</span>
+                        <button class="track-play-btn" title="Play">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                                 <path d="M8 5v14l11-7z"/>
                             </svg>
+                        </button>
+                    </div>
+                    <div class="track-info-col">
+                        <div class="track-artwork">${coverHtml}</div>
+                        <div class="track-meta">
+                            <div class="track-title">${escapeHtml(song.title)}</div>
+                            <div class="track-artists">${artistLinksHtml}</div>
                         </div>
                     </div>
+                    <div class="track-album-col">${escapeHtml(song.album || 'Single')}</div>
+                    <div class="track-duration-col">${Utils.formatDuration(song.duration)}</div>
+                    <div class="track-actions-col">
+                        <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <div class="song-info">
-                    <div class="song-title">${escapeHtml(song.title)}</div>
-                    <div class="song-artist">${artistLinksHtml}</div>
-                    <div class="song-duration">${Utils.formatDuration(song.duration)}</div>
+                `;
+            }).join('');
+
+            songsList.querySelectorAll('.artist-track-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    if (e.target.closest('.song-menu-btn')) return;
+                    if (e.target.closest('.song-artist-link')) return;
+                    const index = parseInt(row.dataset.index);
+                    if (index >= 0) {
+                        window.player.playSong(index, this.librarySongs, { type: 'library', id: null });
+                    }
+                });
+            });
+
+            songsList.querySelectorAll('.song-menu-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showContextMenu(e, btn.dataset);
+                });
+            });
+
+            this.bindRightClickEvents(songsList);
+        };
+
+        const renderArtistGrid = () => {
+            songsGrid.classList.remove('hidden');
+            songsList.classList.add('hidden');
+
+            songsGrid.innerHTML = songs.map((song) => {
+                const overridePath = coverOverrides[song.id] || song.cover_path;
+                const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
+                const coverHtml = overridePath
+                    ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
+                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+
+                const globalIndex = this.librarySongs.findIndex(s => s.id === song.id);
+                const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+                const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
+
+                return `
+                <div class="song-card fade-in" data-index="${globalIndex}" data-id="${song.id}">
+                    <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                        </svg>
+                    </button>
+                    <div class="song-artwork">
+                        ${coverHtml}
+                        <div class="song-artwork-overlay">
+                            <div class="play-btn-overlay">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="song-info">
+                        <div class="song-title">${escapeHtml(song.title)}</div>
+                        <div class="song-artist">${artistLinksHtml}</div>
+                        <div class="song-duration">${Utils.formatDuration(song.duration)}</div>
+                    </div>
                 </div>
-            </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
 
-        // Play card action listeners
-        songsList.querySelectorAll('.song-card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('.song-menu-btn')) return;
-                if (e.target.closest('.song-artist-link')) return;
-                const index = parseInt(card.dataset.index);
-                if (index >= 0) {
-                    window.player.playSong(index, this.librarySongs, { type: 'library', id: null });
-                }
+            songsGrid.querySelectorAll('.song-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.song-menu-btn')) return;
+                    if (e.target.closest('.song-artist-link')) return;
+                    const index = parseInt(card.dataset.index);
+                    if (index >= 0) {
+                        window.player.playSong(index, this.librarySongs, { type: 'library', id: null });
+                    }
+                });
             });
-        });
 
-        // Song menu context buttons
-        songsList.querySelectorAll('.song-menu-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.showContextMenu(e, btn.dataset);
+            songsGrid.querySelectorAll('.song-menu-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showContextMenu(e, btn.dataset);
+                });
             });
-        });
 
-        this.bindRightClickEvents(songsList);
+            this.bindRightClickEvents(songsGrid);
+        };
+
+        const artistGridViewBtn = document.getElementById('artist-grid-view-btn');
+        const artistListViewBtn = document.getElementById('artist-list-view-btn');
+
+        if (artistGridViewBtn && artistListViewBtn) {
+            artistGridViewBtn.onclick = () => {
+                artistGridViewBtn.classList.add('active');
+                artistListViewBtn.classList.remove('active');
+                renderArtistGrid();
+            };
+            artistListViewBtn.onclick = () => {
+                artistListViewBtn.classList.add('active');
+                artistGridViewBtn.classList.remove('active');
+                renderArtistList();
+            };
+        }
+
+        renderArtistList();
 
         // Wire back button
         const backBtn = document.getElementById('artist-back-btn');
@@ -2356,11 +2672,44 @@ export class RainyApp {
             };
         }
 
+        // Wire play all button
+        const playAllBtn = document.getElementById('artist-play-all-btn');
+        if (playAllBtn) {
+            playAllBtn.onclick = () => {
+                if (songs.length > 0) {
+                    window.player.playSong(0, songs, { type: 'artist', id: artistName });
+                }
+            };
+        }
+
+        const discoverBtn = document.getElementById('artist-discover-btn');
+        if (discoverBtn) {
+            discoverBtn.onclick = () => {
+                this.switchToDiscoverView(artistName);
+            };
+        }
+
         // Wire edit button to open modal
         const editBtn = document.getElementById('edit-artist-profile-btn');
         if (editBtn) {
             editBtn.onclick = () => {
-                this.openEditArtistModal(artistName, bioText.textContent, heroBanner.style.backgroundImage);
+                this.openEditArtistModal(artistName, bioText.textContent, heroBanner.style.backgroundImage || '');
+            };
+        }
+
+        const bioToggle = document.getElementById('artist-bio-toggle');
+        if (bioToggle) {
+            bioText.classList.remove('expanded');
+            bioToggle.textContent = 'more';
+            bioToggle.classList.add('hidden');
+            requestAnimationFrame(() => {
+                if (bioText.scrollHeight > bioText.clientHeight + 2) {
+                    bioToggle.classList.remove('hidden');
+                }
+            });
+            bioToggle.onclick = () => {
+                const expanded = bioText.classList.toggle('expanded');
+                bioToggle.textContent = expanded ? 'less' : 'more';
             };
         }
     }

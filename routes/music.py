@@ -752,13 +752,71 @@ def youtube_playlist_import():
                 }) + '\n'
 
         return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
-        
-    except ImportError:
-        return jsonify({'error': 'yt-dlp not installed. Please install it with: pip install yt-dlp'}), 500
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/artists/scrape-descriptions', methods=['POST'])
+@require_auth
+def scrape_all_artist_descriptions():
+    """Scrape descriptions for all artists missing one. Streams NDJSON progress."""
+    from flask import Response, stream_with_context
+    from models.database import Database
+    from utils.metadata import MetadataSearcher
+    import json
+
+    def generate():
+        try:
+            all_songs = Database.execute_query("SELECT DISTINCT artist FROM songs", fetch_all=True)
+            artist_names = set()
+            for row in all_songs:
+                raw = row.get('artist') or ''
+                for name in raw.split(','):
+                    name = name.strip()
+                    if name and name != 'Unknown Artist':
+                        artist_names.add(name)
+
+            existing = Database.execute_query(
+                "SELECT artist_name FROM artists_metadata WHERE description IS NOT NULL AND description != ''",
+                fetch_all=True
+            )
+            already_done = {r['artist_name'] for r in existing}
+            to_scrape = sorted(artist_names - already_done)
+            total = len(to_scrape)
+
+            yield json.dumps({'type': 'start', 'total': total}) + '\n'
+
+            if total == 0:
+                yield json.dumps({'type': 'done', 'scraped': 0, 'skipped': 0, 'failed': 0}) + '\n'
+                return
+
+            searcher = MetadataSearcher()
+            scraped = 0
+            failed = 0
+
+            for i, name in enumerate(to_scrape):
+                yield json.dumps({'type': 'progress', 'current': i + 1, 'total': total, 'artist': name}) + '\n'
+                try:
+                    candidates = searcher.search_artist_candidates(name, limit=1)
+                    if candidates and candidates[0].get('description'):
+                        c = candidates[0]
+                        Database.execute_query(
+                            """INSERT INTO artists_metadata (artist_name, description)
+                               VALUES (%s, %s)
+                               ON DUPLICATE KEY UPDATE description = VALUES(description)""",
+                            (name, c['description'])
+                        )
+                        scraped += 1
+                    else:
+                        failed += 1
+                except Exception:
+                    failed += 1
+
+            yield json.dumps({'type': 'done', 'scraped': scraped, 'skipped': len(already_done), 'failed': failed}) + '\n'
+        except Exception as e:
+            yield json.dumps({'type': 'error', 'error': str(e)}) + '\n'
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
 
 
 @music_bp.route('/download/<int:song_id>', methods=['GET'])
@@ -901,6 +959,58 @@ def update_artist_metadata(artist_name):
         return jsonify({'error': str(e)}), 500
 
 
+@music_bp.route('/song/<int:song_id>/lightshow', methods=['GET'])
+@require_auth
+def get_lightshow(song_id):
+    """Retrieve the pregenerated light show for a song, or 404 if none exists."""
+    try:
+        from models.database import Database
+        import json
+        result = Database.execute_query(
+            "SELECT data FROM song_lightshows WHERE song_id = %s", (song_id,), fetch_one=True)
+        if not result:
+            return jsonify({'error': 'No light show for this song'}), 404
+        return jsonify({'success': True, 'lightshow': json.loads(result['data'])})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/song/<int:song_id>/lightshow', methods=['POST'])
+@require_auth
+def save_lightshow(song_id):
+    """Save or replace the pregenerated light show for a song."""
+    try:
+        from models.database import Database
+        import json
+        if not SongModel.get_song_by_id(song_id):
+            return jsonify({'error': 'Song not found'}), 404
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No light show data provided'}), 400
+        payload = json.dumps(data)
+        query = """
+            INSERT INTO song_lightshows (song_id, data)
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE data = %s
+        """
+        Database.execute_query(query, (song_id, payload, payload))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/song/<int:song_id>/lightshow', methods=['DELETE'])
+@require_auth
+def delete_lightshow(song_id):
+    """Remove the pregenerated light show for a song."""
+    try:
+        from models.database import Database
+        Database.execute_query("DELETE FROM song_lightshows WHERE song_id = %s", (song_id,))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @music_bp.route('/artists/<path:artist_name>/scrape', methods=['POST'])
 @require_auth
 def scrape_artist_info(artist_name):
@@ -913,6 +1023,70 @@ def scrape_artist_info(artist_name):
         return jsonify({'success': True, 'candidates': candidates})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@music_bp.route('/artists/scrape-all', methods=['POST'])
+@require_auth
+def scrape_all_artists():
+    """Scrape images for all artists missing one. Streams NDJSON progress."""
+    from flask import Response, stream_with_context
+    from models.database import Database
+    from utils.metadata import MetadataSearcher
+    import json
+
+    def generate():
+        try:
+            all_songs = Database.execute_query("SELECT DISTINCT artist FROM songs", fetch_all=True)
+            artist_names = set()
+            for row in all_songs:
+                raw = row.get('artist') or ''
+                for name in raw.split(','):
+                    name = name.strip()
+                    if name and name != 'Unknown Artist':
+                        artist_names.add(name)
+
+            existing = Database.execute_query(
+                "SELECT artist_name FROM artists_metadata WHERE image_url IS NOT NULL AND image_url != ''",
+                fetch_all=True
+            )
+            already_done = {r['artist_name'] for r in existing}
+            to_scrape = sorted(artist_names - already_done)
+            total = len(to_scrape)
+
+            yield json.dumps({'type': 'start', 'total': total}) + '\n'
+
+            if total == 0:
+                yield json.dumps({'type': 'done', 'scraped': 0, 'skipped': 0, 'failed': 0}) + '\n'
+                return
+
+            searcher = MetadataSearcher()
+            scraped = 0
+            failed = 0
+
+            for i, name in enumerate(to_scrape):
+                yield json.dumps({'type': 'progress', 'current': i + 1, 'total': total, 'artist': name}) + '\n'
+                try:
+                    candidates = searcher.search_artist_candidates(name, limit=1)
+                    if candidates and candidates[0].get('image_url'):
+                        c = candidates[0]
+                        Database.execute_query(
+                            """INSERT INTO artists_metadata (artist_name, description, image_url)
+                               VALUES (%s, %s, %s)
+                               ON DUPLICATE KEY UPDATE image_url = VALUES(image_url),
+                               description = CASE WHEN description IS NULL OR description = '' THEN VALUES(description) ELSE description END""",
+                            (name, c.get('description', ''), c['image_url'])
+                        )
+                        scraped += 1
+                    else:
+                        failed += 1
+                except Exception:
+                    failed += 1
+
+            yield json.dumps({'type': 'done', 'scraped': scraped, 'skipped': len(already_done), 'failed': failed}) + '\n'
+        except Exception as e:
+            yield json.dumps({'type': 'error', 'error': str(e)}) + '\n'
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
 
 
 @music_bp.route('/artists/<path:artist_name>/songs', methods=['GET'])

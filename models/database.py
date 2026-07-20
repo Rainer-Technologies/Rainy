@@ -211,6 +211,17 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         """)
+
+        # Pregenerated light show data (one JSON blob per song)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_lightshows (
+                song_id INT PRIMARY KEY,
+                data MEDIUMTEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
         
         conn.commit()
         cursor.close()

@@ -4,6 +4,8 @@ import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
 import { usePlaylistService } from "../services/playlist.js";
+import { useLightshowService } from "../services/lightshow.js";
+import { generateAndSaveLightshow, isLightshowCancel } from "../lightshowGenerator.js";
 import { ContextMenu, ContextMenuItem, ContextSubMenu } from "./contextMenu.js";
 import { I } from "./icon.js";
 import { a, Component, h, H, on, p, Ref, s, useRef } from "./index.js";
@@ -23,6 +25,8 @@ export class SongContextMenu extends Component {
         this._removeFromPlaylist = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._playlistList = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._lightshowList = useRef(null);
 
         this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
@@ -253,6 +257,148 @@ export class SongContextMenu extends Component {
         window.location.href = `/api/music/download/${song.id}`;
     }
 
+    // --------------------------------------------------------- Light show
+
+    _lightshowBiasKey(songId) {
+        return `lightshow-bias-${songId}`;
+    }
+
+    /** Lazily render the Light Show submenu each time it opens. */
+    async _renderLightshowMenu() {
+        const container = this._lightshowList.value;
+        if(!container) return;
+        Array.from(container.children).forEach(el => el.remove());
+
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        let show = null;
+        const data = await useLightshowService().get(song.id);
+        if(!data.error && data.value && data.value.lightshow) show = data.value.lightshow;
+
+        const bias = (show && show.settings && show.settings.bias)
+            || localStorage.getItem(this._lightshowBiasKey(song.id))
+            || 'balanced';
+
+        // Status line
+        container.append(h.div(a.class('context-menu-label'),
+            show
+                ? `Generated · ${Math.round(show.bpm)} BPM · ${show.sections.length} sections`
+                : 'No show generated'
+        ));
+
+        container.append(H.of(ContextMenuItem, on.click(() => this.generateLightshowForCurrentSong()),
+            I.Bolt(),
+            h.span(show ? 'Regenerate Light Show' : 'Generate Light Show'),
+        ));
+
+        if(show) {
+            container.append(H.of(ContextMenuItem, a.danger(), on.click(() => this.removeLightshowForCurrentSong()),
+                I.Bin(),
+                h.span('Remove Light Show'),
+            ));
+        }
+
+        container.append(h.div(a.class('dropdown-divider')));
+        container.append(h.div(a.class('context-menu-label'), 'Energy bias'));
+
+        for(const opt of ['chill', 'balanced', 'hype']) {
+            const label = opt.charAt(0).toUpperCase() + opt.slice(1);
+            container.append(H.of(ContextMenuItem, on.click(() => {
+                localStorage.setItem(this._lightshowBiasKey(song.id), opt);
+                this._renderLightshowMenu();
+            }),
+                bias === opt ? I.Check() : h.span(a.class('context-menu-check-spacer')),
+                h.span(label),
+            ));
+        }
+    }
+
+    async generateLightshowForCurrentSong() {
+        this.hide();
+
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+        const bias = localStorage.getItem(this._lightshowBiasKey(song.id)) || 'balanced';
+
+        let cancelled = false;
+        /** @type {Modal} */
+        const dialog = H.of(Modal,
+            I.Bolt('currentColor', a.slot('header-icon')),
+            h.h2(a.slot('header-title'), 'Generating Light Show'),
+            h.div(a.slot('body'),
+                h.p(a.class('lightshow-progress-text'), `Preparing "${song.title}"…`),
+                h.div(a.class('progress-bar-modern'),
+                    h.div(a.class('progress-fill-modern')),
+                ),
+            ),
+            h.button(a.slot('action'), a.class('btn btn-secondary'), on.click(() => {
+                cancelled = true;
+                dialog.remove();
+            }), 'Cancel'),
+        ); document.body.append(dialog); dialog.show();
+
+        const fill = dialog.querySelector('.progress-fill-modern');
+        const text = dialog.querySelector('.lightshow-progress-text');
+        const phaseLabels = {
+            download: 'Downloading song…',
+            decode: 'Decoding audio…',
+            analyze: 'Analysing rhythm & energy…',
+            save: 'Saving light show…',
+            done: 'Done!',
+        };
+
+        try {
+            const show = await generateAndSaveLightshow(song.id, { bias }, (progress) => {
+                if(text) text.textContent = phaseLabels[progress.phase] || progress.phase;
+                if(fill) fill.style.width = `${Math.round(progress.fraction * 100)}%`;
+            }, () => cancelled);
+
+            dialog.remove();
+            app.showToast(`Light show ready — ${Math.round(show.bpm)} BPM, ${show.sections.length} sections`, 'success');
+
+            // If this song is currently playing with the show on, swap to the fresh choreography
+            if(window.player && window.player.lightShow && window.player.currentSong?.id === song.id) {
+                window.player.lightShow.loadScript(song.id, true);
+            }
+        } catch(e) {
+            dialog.remove();
+            if(isLightshowCancel(e)) return;
+            Logger.error('Light show generation failed:', e);
+            app.showToast('Failed to generate light show', 'error');
+        }
+    }
+
+    async removeLightshowForCurrentSong() {
+        this.hide();
+
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+
+        const data = await useLightshowService().remove(song.id);
+        if(data.error) {
+            Logger.error(data.error);
+            app.showToast('Failed to remove light show', 'error');
+            return;
+        }
+
+        app.showToast('Light show removed', 'success');
+
+        // Fall back to the live engine if this song is currently playing
+        if(window.player && window.player.lightShow && window.player.currentSong?.id === song.id) {
+            window.player.lightShow.clearScript(song.id);
+        }
+    }
+
     /**
      * @param {import('./contextMenu.js').Position} pos 
      */
@@ -300,6 +446,13 @@ export class SongContextMenu extends Component {
             H.of(ContextMenuItem, on.click(() => this.findMetadataForCurrentSong()),
                 I.Magnifier(),
                 h.span('Find Metadata'),
+            ),
+            H.of(ContextMenuItem, a.hasSubmenu(),
+                I.Bolt(),
+                h.span('Light Show'),
+                H.of(ContextSubMenu, p.onOpen(() => this._renderLightshowMenu()),
+                    h.div(this._lightshowList)
+                )
             ),
             H.of(ContextMenuItem, on.click(() => this.downloadCurrentSong()),
                 I.Download(),

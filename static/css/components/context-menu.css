@@ -129,3 +129,24 @@
     background: var(--border-subtle);
     margin: var(--spacing-xs) 0;
 }
+
+/* Non-interactive label rows inside submenus (e.g. Light Show status/settings) */
+.context-submenu .context-menu-label {
+    padding: var(--spacing-xs) var(--spacing-lg);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary, var(--text-secondary));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+/* Keeps checkable items aligned when no checkmark is shown */
+.context-submenu .context-menu-check-spacer {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-block;
+}
