@@ -41,8 +41,13 @@ export class AudioPlayer {
         this.lyricsSongId = null;
         this.activeLyricIndex = -1;
         this.lyricsEffect = 'default';
+        this.lyricsAudioSync = false;
         this._activeWordEls = null;
         this._activeWordLit = -1;
+        this._lyricsWordTimes = null;
+        this._lyricsAnalysis = null;
+        this._lyricsAnalysisSongId = null;
+        this._lyricsAnalysisPromise = null;
 
         this.init();
     }
@@ -1089,6 +1094,9 @@ export class AudioPlayer {
                 if (prefs && prefs.lyrics_effect) {
                     this.lyricsEffect = prefs.lyrics_effect;
                 }
+                if (prefs && typeof prefs.lyrics_audio_sync !== 'undefined') {
+                    this.lyricsAudioSync = !!prefs.lyrics_audio_sync;
+                }
             }
 
             // Remove existing mode classes
@@ -1193,6 +1201,7 @@ export class AudioPlayer {
         this.lyricsSongId = songId;
         this.lyricsData = null;
         this.activeLyricIndex = -1;
+        this._lyricsWordTimes = null;
 
         if (this.fsLyricsContent) {
             this.fsLyricsContent.innerHTML = '<div class="fs-lyrics-loading">Loading lyrics…</div>';
@@ -1241,8 +1250,7 @@ export class AudioPlayer {
             const wordMode = this.lyricsEffect === 'word';
             const lineInner = (text) => {
                 if (!wordMode) return escape(text || '♪');
-                const words = (text || '♪').trim().split(/\s+/).filter(Boolean);
-                return (words.length ? words : ['♪'])
+                return this._lineWords(text)
                     .map(w => `<span class="fs-lyric-word">${escape(w)}</span>`)
                     .join(' ');
             };
@@ -1264,6 +1272,7 @@ export class AudioPlayer {
             this.activeLyricIndex = -1;
             this.updateActiveLyricLine();
             if (this.lyricsActive) this._startLyricsFillLoop();
+            this._maybeStartAudioAnalysis();
         } else if (data.plain) {
             this.fsLyricsContent.innerHTML = escape(data.plain)
                 .split('\n')
@@ -1341,7 +1350,19 @@ export class AudioPlayer {
         } else if (this.lyricsEffect === 'word') {
             const words = this._activeWordEls;
             if (!words || !words.length) return;
-            const lit = Math.min(words.length, Math.round(p * words.length));
+
+            let lit;
+            const wt = this._lyricsWordTimes && this._lyricsWordTimes[idx];
+            if (wt && wt.length === words.length) {
+                lit = 0;
+                for (let i = 0; i < wt.length; i++) {
+                    if (t >= wt[i]) lit = i + 1;
+                    else break;
+                }
+            } else {
+                lit = Math.min(words.length, Math.round(p * words.length));
+            }
+
             if (lit === this._activeWordLit) return;
             this._activeWordLit = lit;
             for (let i = 0; i < words.length; i++) {
@@ -1367,6 +1388,191 @@ export class AudioPlayer {
         if (this.lyricsActive && this.lyricsData && Array.isArray(this.lyricsData.synced)) {
             this.renderLyrics();
         }
+    }
+
+    setLyricsAudioSync(on) {
+        on = !!on;
+        if (on === this.lyricsAudioSync) return;
+        this.lyricsAudioSync = on;
+        if (!on) {
+            this._clearAudioAnalysis();
+            return;
+        }
+        this._maybeStartAudioAnalysis();
+    }
+
+    _lineWords(text) {
+        const words = (text || '').trim().split(/\s+/).filter(Boolean);
+        return words.length ? words : ['♪'];
+    }
+
+    _lineWordCount(text) {
+        return this._lineWords(text).length;
+    }
+
+    _clearAudioAnalysis() {
+        this._lyricsAnalysis = null;
+        this._lyricsAnalysisSongId = null;
+        this._lyricsAnalysisPromise = null;
+        this._lyricsWordTimes = null;
+    }
+
+    _maybeStartAudioAnalysis() {
+        if (!this.lyricsAudioSync || this.lyricsEffect !== 'word') return;
+        if (!this.currentSong || !this.lyricsData || !Array.isArray(this.lyricsData.synced)) return;
+        this._ensureAudioAnalysis();
+    }
+
+    _ensureAudioAnalysis() {
+        const id = this.currentSong && this.currentSong.id;
+        if (id == null) return;
+        if (this._lyricsAnalysisSongId === id) return;
+        if (this._lyricsAnalysisPromise) return;
+
+        this._lyricsAnalysisPromise = (async () => {
+            try {
+                // Best: server-side forced alignment (Whisper). Fallback: client envelope.
+                Logger.log(`[lyrics] song ${id}: requesting server word-times (effect=${this.lyricsEffect}, audioSync=${this.lyricsAudioSync})`);
+                const ok = await this._fetchServerWordTimes(id);
+                if (ok) {
+                    Logger.log(`[lyrics] song ${id}: using server (Whisper) word-times`);
+                } else {
+                    Logger.log(`[lyrics] song ${id}: server word-times unavailable — falling back to client envelope analyzer`);
+                    await this._fetchEnvelopeAnalysis(id);
+                }
+            } finally {
+                if (this.currentSong?.id === id) this._lyricsAnalysisSongId = id;
+                this._lyricsAnalysisPromise = null;
+            }
+        })();
+    }
+
+    async _fetchServerWordTimes(id) {
+        if (this.currentSong?.id !== id) return false;
+        try {
+            const res = await fetch(`/api/music/song/${id}/lyrics-words`);
+            if (!res.ok) {
+                Logger.log(`[lyrics] song ${id}: /lyrics-words HTTP ${res.status}`);
+                return false;
+            }
+            const data = await res.json();
+            const words = data && data.words;
+            const lines = this.lyricsData && this.lyricsData.synced;
+            if (this.currentSong?.id !== id) return false;
+            if (!Array.isArray(words) || !Array.isArray(lines) || words.length !== lines.length) {
+                Logger.log(`[lyrics] song ${id}: server shape mismatch (words=${Array.isArray(words) ? words.length : 'n/a'}, lines=${Array.isArray(lines) ? lines.length : 'n/a'})`);
+                return false;
+            }
+            this._lyricsWordTimes = words;
+            this._lyricsAnalysis = { source: 'whisper' };
+            return true;
+        } catch (err) {
+            Logger.log(`[lyrics] song ${id}: /lyrics-words fetch error:`, err && err.message ? err.message : err);
+            return false;
+        }
+    }
+
+    async _fetchEnvelopeAnalysis(id) {
+        try {
+            const res = await fetch(`/api/music/stream/${id}`);
+            if (!res.ok) throw new Error(`stream ${res.status}`);
+            const buf = await res.arrayBuffer();
+            if (this.currentSong?.id !== id) return;
+            const analysis = await this._computeEnvelope(buf);
+            if (this.currentSong?.id !== id) return;
+            this._lyricsAnalysis = analysis;
+            if (analysis) {
+                this._buildAllWordTimes();
+                Logger.log(`[lyrics] song ${id}: client envelope analyzer ready`);
+            } else {
+                Logger.log(`[lyrics] song ${id}: client envelope analyzer produced nothing`);
+            }
+        } catch (err) {
+            Logger.log('[lyrics] envelope analysis unavailable:', err && err.message ? err.message : err);
+        }
+    }
+
+    async _computeEnvelope(arrayBuffer) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        const ctx = new Ctx();
+        let audioBuffer;
+        try {
+            audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        } catch (e) {
+            try { ctx.close(); } catch (_) { }
+            return null;
+        }
+
+        const sr = audioBuffer.sampleRate;
+        const ch = audioBuffer.getChannelData(0);
+        const hop = 1024;
+        const n = Math.floor(ch.length / hop);
+        const env = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+            const off = i * hop;
+            const endP = Math.min(off + hop, ch.length);
+            let sum = 0;
+            for (let j = off; j < endP; j++) {
+                const v = ch[j];
+                sum += v * v;
+            }
+            env[i] = Math.sqrt(sum / (endP - off));
+        }
+        try { ctx.close(); } catch (_) { }
+
+        const sm = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+            let s = 0, c = 0;
+            for (let k = -1; k <= 1; k++) {
+                const ii = i + k;
+                if (ii >= 0 && ii < n) { s += env[ii]; c++; }
+            }
+            sm[i] = s / c;
+        }
+        return { env: sm, hop, sr };
+    }
+
+    _buildAllWordTimes() {
+        const lines = this.lyricsData && this.lyricsData.synced;
+        if (!this._lyricsAnalysis || !Array.isArray(lines)) {
+            this._lyricsWordTimes = null;
+            return;
+        }
+        this._lyricsWordTimes = lines.map(line =>
+            this._computeLineWordTimes(line, this._lineWordCount(line.text)));
+    }
+
+    _computeLineWordTimes(line, wordCount) {
+        const a = this._lyricsAnalysis;
+        if (!a || wordCount <= 0) return null;
+        if (wordCount === 1) return [line.time];
+
+        const { env, hop, sr } = a;
+        const end = line.end != null ? line.end : line.time + 4;
+        let i0 = Math.floor(line.time * sr / hop);
+        let i1 = Math.floor(end * sr / hop);
+        if (i0 < 0) i0 = 0;
+        if (i1 > env.length - 1) i1 = env.length - 1;
+        if (i1 <= i0) return null;
+
+        let max = 0;
+        for (let i = i0; i <= i1; i++) if (env[i] > max) max = env[i];
+        if (max <= 0) return null;
+
+        const thr = max * 0.12;
+        const voiced = [];
+        for (let i = i0; i <= i1; i++) {
+            if (env[i] >= thr) voiced.push((i * hop) / sr);
+        }
+        if (voiced.length < wordCount) return null;
+
+        const times = new Array(wordCount);
+        for (let k = 0; k < wordCount; k++) {
+            const pos = Math.round((k * (voiced.length - 1)) / (wordCount - 1));
+            times[k] = voiced[pos];
+        }
+        return times;
     }
 
     _startLyricsFillLoop() {

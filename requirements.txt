@@ -7,3 +7,5 @@ mutagen>=1.47.0
 ytmusicapi
 requests>=2.31.0
 yt-dlp
+faster-whisper
+stable-ts

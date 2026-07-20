@@ -1254,8 +1254,109 @@ def delete_lyrics(song_id):
     try:
         from models.database import Database
         Database.execute_query("DELETE FROM song_lyrics WHERE song_id = %s", (song_id,))
+        Database.execute_query("DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
         return jsonify({'success': True})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/song/<int:song_id>/lyrics-words', methods=['GET'])
+@require_auth
+def get_lyrics_words(song_id):
+    """Return forced-alignment word timestamps for a song's lyrics.
+
+    Computes them on first request (slow: runs faster-whisper) and caches the
+    result in song_lyrics_words. Pass ?refresh=1 to recompute.
+    """
+    try:
+        from models.database import Database
+        import json
+        import time as _time
+
+        def _log(msg):
+            print(f'[lyrics-align] song={song_id} {msg}', flush=True)
+
+        refresh = request.args.get('refresh') == '1'
+        _log(f'request (refresh={refresh})')
+
+        if not refresh:
+            cached = Database.execute_query(
+                "SELECT data FROM song_lyrics_words WHERE song_id = %s",
+                (song_id,), fetch_one=True)
+            if cached:
+                words = json.loads(cached['data'])
+                _log(f'cache HIT — {len(words)} lines (no whisper run)')
+                return jsonify({'success': True, 'words': words})
+
+        _log('cache miss — will run alignment')
+
+        song = SongModel.get_song_by_id(song_id)
+        if not song:
+            _log('404: song not found')
+            return jsonify({'error': 'Song not found'}), 404
+
+        lyr = Database.execute_query(
+            "SELECT synced, plain FROM song_lyrics WHERE song_id = %s AND found = 1",
+            (song_id,), fetch_one=True)
+        if not lyr:
+            _log('404: no cached lyrics with found=1')
+            return jsonify({'error': 'No lyrics available to align'}), 404
+
+        lines = []
+        source = None
+        if lyr.get('synced'):
+            try:
+                synced = json.loads(lyr['synced'])
+                lines = [l.get('text', '') for l in synced if l.get('text') is not None]
+                if lines:
+                    source = 'synced'
+            except Exception as e:
+                _log(f'warn: synced json parse failed: {e}')
+                lines = []
+        if not lines and lyr.get('plain'):
+            lines = [ln for ln in (lyr['plain'] or '').split('\n')]
+            if lines:
+                source = 'plain'
+        if not lines:
+            _log('404: lyrics had no usable lines')
+            return jsonify({'error': 'No lyrics available to align'}), 404
+        _log(f'lyrics loaded: {len(lines)} lines (source={source})')
+
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            _log('400: music path not configured')
+            return jsonify({'error': 'Music path not configured'}), 400
+
+        # file_path is stored relative to the music directory (same as /stream)
+        relative_path = song.get('file_path') or song.get('path')
+        if not relative_path:
+            _log('404: song has no file_path')
+            return jsonify({'error': 'Audio file not found for alignment'}), 404
+        audio_path = os.path.normpath(os.path.join(music_path, relative_path))
+        if not audio_path.startswith(os.path.normpath(music_path)) or not os.path.isfile(audio_path):
+            _log(f'404: resolved audio not a file: {audio_path}')
+            return jsonify({'error': 'Audio file not found for alignment'}), 404
+        _log(f'audio resolved: {audio_path}')
+
+        from utils.lyrics_align import align_lyrics_words
+        t0 = _time.time()
+        words = align_lyrics_words(audio_path, lines)
+        _log(f'align_lyrics_words returned in {_time.time() - t0:.1f}s '
+             f'-> {"OK" if words else "None"}')
+        if not words:
+            _log('500: alignment produced no result')
+            return jsonify({'error': 'Alignment produced no result'}), 500
+
+        payload = json.dumps(words)
+        Database.execute_query(
+            """INSERT INTO song_lyrics_words (song_id, data)
+               VALUES (%s, %s)
+               ON DUPLICATE KEY UPDATE data = %s""",
+            (song_id, payload, payload))
+        _log(f'cached {len(words)} lines of word times')
+        return jsonify({'success': True, 'words': words})
+    except Exception as e:
+        print(f'[lyrics-align] song={song_id} EXCEPTION: {e}', flush=True)
         return jsonify({'error': str(e)}), 500
 
 

@@ -236,6 +236,17 @@ class Database:
             )
         """)
 
+        # Forced-alignment word timestamps per song (JSON: per-line word start times)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_lyrics_words (
+                song_id INT PRIMARY KEY,
+                data MEDIUMTEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

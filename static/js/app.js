@@ -191,14 +191,20 @@ export class RainyApp {
                 const pref = group.dataset.pref || 'fullscreen_mode';
                 const value = item.dataset.value;
                 this.savePreferences({ [pref]: value });
-                if (pref === 'lyrics_effect' && window.player) {
-                    window.player.setLyricsEffect(value);
+                if (pref === 'lyrics_effect') {
+                    this._updateLyricsAudioSyncState(value);
+                    if (window.player) window.player.setLyricsEffect(value);
                 }
             });
         });
 
         document.getElementById('settings-fullscreen-swap')?.addEventListener('change', (e) => {
             this.savePreferences({ fullscreen_swap_sides: e.target.checked });
+        });
+
+        document.getElementById('settings-lyrics-audio-sync')?.addEventListener('change', (e) => {
+            this.savePreferences({ lyrics_audio_sync: e.target.checked });
+            if (window.player) window.player.setLyricsAudioSync(e.target.checked);
         });
 
         document.getElementById('settings-disable-lasers')?.addEventListener('change', (e) => {
@@ -2139,6 +2145,7 @@ export class RainyApp {
         let swap = false;
         let disableLasers = false;
         let showBgBlur = false;
+        let lyricsAudioSync = false;
 
         if (this.user && this.user.preferences) {
             let prefs = this.user.preferences;
@@ -2154,6 +2161,7 @@ export class RainyApp {
                 if (typeof prefs.fullscreen_swap_sides !== 'undefined') swap = !!prefs.fullscreen_swap_sides;
                 if (typeof prefs.disable_lasers !== 'undefined') disableLasers = !!prefs.disable_lasers;
                 if (typeof prefs.show_bg_blur !== 'undefined') showBgBlur = !!prefs.show_bg_blur;
+                if (typeof prefs.lyrics_audio_sync !== 'undefined') lyricsAudioSync = !!prefs.lyrics_audio_sync;
             }
         }
 
@@ -2177,6 +2185,11 @@ export class RainyApp {
         // Set swap toggle
         const fsSwapToggle = document.getElementById('settings-fullscreen-swap');
         if (fsSwapToggle) fsSwapToggle.checked = swap;
+
+        // Set lyrics audio-sync toggle + availability (only for Word by word)
+        const lyricsAudioSyncToggle = document.getElementById('settings-lyrics-audio-sync');
+        if (lyricsAudioSyncToggle) lyricsAudioSyncToggle.checked = lyricsAudioSync;
+        this._updateLyricsAudioSyncState(currentLyricsEffect);
 
         // Set show animation toggles
         const disableLasersToggle = document.getElementById('settings-disable-lasers');
@@ -2203,6 +2216,15 @@ export class RainyApp {
                 settingsPage.classList.remove('closing');
             }, 200);
         }
+    }
+
+    _updateLyricsAudioSyncState(effect) {
+        const row = document.getElementById('lyrics-audio-sync-row');
+        const cb = document.getElementById('settings-lyrics-audio-sync');
+        if (!row || !cb) return;
+        const available = effect === 'word';
+        row.classList.toggle('is-disabled', !available);
+        cb.disabled = !available;
     }
 
     switchSettingsSection(sectionName) {
