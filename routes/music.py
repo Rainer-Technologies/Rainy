@@ -1011,6 +1011,254 @@ def delete_lightshow(song_id):
         return jsonify({'error': str(e)}), 500
 
 
+def _parse_lrc(lrc_text):
+    """Parse an LRC string into a sorted list of {time, text} objects."""
+    import re
+    lines = []
+    stamp_re = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]')
+    for raw in (lrc_text or '').splitlines():
+        stamps = stamp_re.findall(raw)
+        if not stamps:
+            continue
+        text = stamp_re.sub('', raw).strip()
+        for minutes, seconds, frac in stamps:
+            t = int(minutes) * 60 + int(seconds)
+            if frac:
+                t += int((frac + '000')[:3]) / 1000.0
+            lines.append((round(t, 3), text))
+    lines.sort(key=lambda item: item[0])
+    return [{'time': t, 'text': txt} for t, txt in lines]
+
+
+import re as _re
+
+_LRCLIB_HEADERS = {
+    'User-Agent': 'Rainy Music Player (https://github.com/Ferripro321/Rainy)'
+}
+_LRCLIB_BASE = 'https://lrclib.net/api'
+
+# In-memory throttle for songs that genuinely have no lyrics, so we don't
+# hammer LRCLIB on every play. Resets on process restart, which means a
+# restart always gives previously-failed songs one fresh attempt.
+_LYRICS_MISS_COOLDOWN = {}
+_LYRICS_MISS_COOLDOWN_SECONDS = 300
+
+# Title: strip bracketed tags and trailing "feat." clauses
+_LRCLIB_BRACKETS = _re.compile(r'[\(\[].*?[\)\]]')
+_LRCLIB_FEAT = _re.compile(r'\s+(?:feat\.?|ft\.?|featuring)\b.*', _re.I)
+_LRCLIB_WS = _re.compile(r'\s+')
+# Artist: split on the separators people actually use between co-artists
+_LRCLIB_ARTIST_SPLIT = _re.compile(
+    r'\s*(?:,|&|;|/|\bx\b|\band\b|\bfeat\.?|\bft\.?|\bfeaturing)\s*', _re.I)
+# Artist: strip channel/brand suffixes per segment
+_LRCLIB_ARTIST_SUFFIX = _re.compile(
+    r'\s*[-–]\s*(?:topic|vevo|official(?:\s+(?:video|audio|channel))?)\s*$', _re.I)
+
+
+def _clean_title(title):
+    if not title:
+        return ''
+    t = _LRCLIB_BRACKETS.sub(' ', title)
+    t = _LRCLIB_FEAT.sub('', t)
+    return _LRCLIB_WS.sub(' ', t).strip()
+
+
+def _artist_segments(artist):
+    if not artist:
+        return []
+    out = []
+    for part in _LRCLIB_ARTIST_SPLIT.split(artist):
+        part = _LRCLIB_ARTIST_SUFFIX.sub('', part)
+        part = _LRCLIB_BRACKETS.sub('', part)
+        part = _LRCLIB_WS.sub(' ', part).strip()
+        if part:
+            out.append(part)
+    return out
+
+
+def _primary_artist(artist):
+    segs = _artist_segments(artist)
+    return segs[0] if segs else (artist or '').strip()
+
+
+def _token_similarity(a, b):
+    a = (a or '').lower().split()
+    b = (b or '').lower().split()
+    if not a or not b:
+        return 0.0
+    sa, sb = set(a), set(b)
+    return len(sa & sb) / len(sa | sb)
+
+
+def _score_record(record, title, artist, duration):
+    score = 0.0
+    rec_dur = record.get('duration') or 0
+    if duration and rec_dur:
+        score += max(0.0, 1.0 - abs(rec_dur - duration) / 30.0)
+    score += _token_similarity(record.get('trackName'), title)
+    score += _token_similarity(record.get('artistName'), artist) * 0.8
+    if record.get('syncedLyrics'):
+        score += 0.5
+    return score
+
+
+def _fetch_lyrics_from_lrclib(title, artist, album, duration):
+    """Query LRCLIB for lyrics using a laddered, normalized search with scoring.
+
+    Returns (synced_list, plain_text) or (None, None).
+    """
+    import requests
+
+    raw_title = (title or '').strip()
+    raw_artist = (artist or '').strip()
+    clean_title = _clean_title(raw_title) or raw_title
+    primary = _primary_artist(raw_artist) or raw_artist
+
+    attempts = []
+
+    def add(method, params):
+        key = (method, tuple(sorted(params.items())))
+        if not params.get('track_name') and not params.get('q'):
+            return
+        if key not in seen:
+            seen.add(key)
+            attempts.append((method, params))
+
+    seen = set()
+
+    get_params = {'track_name': clean_title, 'artist_name': primary}
+    if album and album not in ('Unknown Album', ''):
+        get_params['album_name'] = album
+    if duration:
+        get_params['duration'] = int(duration)
+    add('get', get_params)
+    add('get', {'track_name': raw_title, 'artist_name': raw_artist,
+                **({'duration': int(duration)} if duration else {})})
+
+    add('search', {'track_name': clean_title, 'artist_name': primary})
+    add('search', {'track_name': raw_title, 'artist_name': raw_artist})
+    add('search', {'q': f'{clean_title} {primary}'.strip()})
+    add('search', {'q': f'{clean_title} - {primary}'.strip()})
+    add('search', {'q': f'{primary} {clean_title}'.strip()})
+    add('search', {'q': f'{raw_artist} {raw_title}'.strip()})
+
+    best = None
+    best_score = -1.0
+    for method, params in attempts:
+        try:
+            resp = requests.get(
+                f'{_LRCLIB_BASE}/{method}', params=params,
+                headers=_LRCLIB_HEADERS, timeout=10)
+        except Exception:
+            continue
+        if resp.status_code != 200:
+            continue
+        try:
+            data = resp.json()
+        except Exception:
+            continue
+
+        candidates = []
+        if method == 'get':
+            if isinstance(data, dict) and data.get('id'):
+                candidates = [data]
+        elif isinstance(data, list):
+            candidates = data
+
+        for record in candidates:
+            if not record:
+                continue
+            if not (record.get('syncedLyrics') or record.get('plainLyrics')):
+                continue
+            sc = _score_record(record, clean_title, primary, duration)
+            if sc > best_score:
+                best_score = sc
+                best = record
+
+        if best_score >= 2.5:
+            break
+
+    if not best:
+        return None, None
+
+    synced = _parse_lrc(best.get('syncedLyrics'))
+    plain = (best.get('plainLyrics') or '').strip()
+    if not synced and not plain:
+        return None, None
+    return synced, plain
+
+
+@music_bp.route('/song/<int:song_id>/lyrics', methods=['GET'])
+@require_auth
+def get_lyrics(song_id):
+    """Retrieve lyrics for a song, fetching and caching from LRCLIB on first request."""
+    try:
+        from models.database import Database
+        import json
+        import time
+
+        refresh = request.args.get('refresh') == '1'
+
+        # Only cached HITS short-circuit. Stored misses never block, so a song
+        # that failed under older logic always gets re-evaluated here.
+        if not refresh:
+            cached = Database.execute_query(
+                "SELECT synced, plain FROM song_lyrics WHERE song_id = %s AND found = 1",
+                (song_id,), fetch_one=True)
+            if cached:
+                return jsonify({
+                    'success': True,
+                    'lyrics': {
+                        'synced': json.loads(cached['synced']) if cached.get('synced') else [],
+                        'plain': cached.get('plain') or '',
+                    }
+                })
+
+            # Short in-memory throttle for confirmed no-lyrics songs
+            last_miss = _LYRICS_MISS_COOLDOWN.get(song_id)
+            if last_miss is not None and (time.time() - last_miss) < _LYRICS_MISS_COOLDOWN_SECONDS:
+                return jsonify({'error': 'No lyrics found for this song'}), 404
+
+        song = SongModel.get_song_by_id(song_id)
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+
+        synced, plain = _fetch_lyrics_from_lrclib(
+            song.get('title'), song.get('artist'),
+            song.get('album'), song.get('duration'))
+
+        if synced or plain:
+            _LYRICS_MISS_COOLDOWN.pop(song_id, None)
+            synced_json = json.dumps(synced) if synced else None
+            plain_text = plain or None
+            Database.execute_query(
+                """INSERT INTO song_lyrics (song_id, found, synced, plain)
+                   VALUES (%s, 1, %s, %s)
+                   ON DUPLICATE KEY UPDATE found = 1, synced = %s, plain = %s""",
+                (song_id, synced_json, plain_text, synced_json, plain_text))
+            return jsonify({
+                'success': True,
+                'lyrics': {'synced': synced or [], 'plain': plain or ''}
+            })
+
+        _LYRICS_MISS_COOLDOWN[song_id] = time.time()
+        return jsonify({'error': 'No lyrics found for this song'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/song/<int:song_id>/lyrics', methods=['DELETE'])
+@require_auth
+def delete_lyrics(song_id):
+    """Clear cached lyrics so they can be re-fetched."""
+    try:
+        from models.database import Database
+        Database.execute_query("DELETE FROM song_lyrics WHERE song_id = %s", (song_id,))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @music_bp.route('/artists/<path:artist_name>/scrape', methods=['POST'])
 @require_auth
 def scrape_artist_info(artist_name):

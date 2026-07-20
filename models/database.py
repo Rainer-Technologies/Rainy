@@ -222,7 +222,20 @@ class Database:
                 FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
             )
         """)
-        
+
+        # Cached lyrics per song (synced LRC parsed to JSON + plain fallback)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_lyrics (
+                song_id INT PRIMARY KEY,
+                found TINYINT(1) NOT NULL DEFAULT 0,
+                synced MEDIUMTEXT NULL,
+                plain MEDIUMTEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

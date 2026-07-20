@@ -1170,9 +1170,18 @@
         </div>
         <div class="fs-content">
             <div class="fs-queue-container">
-                <div class="fs-queue-header">Up Next</div>
+                <div class="fs-queue-header fs-side-tabs">
+                    <button class="fs-side-tab" id="fs-tab-queue" type="button">Up Next</button>
+                    <button class="fs-side-tab" id="fs-tab-lyrics" type="button">Lyrics</button>
+                </div>
                 <div id="fs-queue-list">
                     <!-- Queue items will be populated by JS -->
+                </div>
+                <!-- Lyrics Panel -->
+                <div id="fs-lyrics-container">
+                    <div id="fs-lyrics-scroll">
+                        <div id="fs-lyrics-content"></div>
+                    </div>
                 </div>
             </div>
             <div class="fs-current-info">

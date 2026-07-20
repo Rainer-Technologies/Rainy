@@ -35,6 +35,12 @@ export class AudioPlayer {
         this.likedInitDone = false;
         this.dislikedSongIds = new Set();
 
+        // Lyrics
+        this.lyricsActive = false;
+        this.lyricsData = null;
+        this.lyricsSongId = null;
+        this.activeLyricIndex = -1;
+
         this.init();
     }
 
@@ -101,6 +107,11 @@ export class AudioPlayer {
         this.fsDislikeBtn = document.getElementById('fs-dislike-btn');
         this.fsLightShowBtn = document.getElementById('fs-lightshow-btn');
         this.fsLightShowCanvas = document.getElementById('fs-lightshow-canvas');
+        this.fsLyricsContainer = document.getElementById('fs-lyrics-container');
+        this.fsLyricsScroll = document.getElementById('fs-lyrics-scroll');
+        this.fsLyricsContent = document.getElementById('fs-lyrics-content');
+        this.fsTabQueue = document.getElementById('fs-tab-queue');
+        this.fsTabLyrics = document.getElementById('fs-tab-lyrics');
 
         // Icons
         this.iconPlay = this.playPauseBtn.querySelector('.icon-play');
@@ -206,6 +217,12 @@ export class AudioPlayer {
         if (this.fsLikeBtn) this.fsLikeBtn.addEventListener('click', () => this.toggleLike());
         if (this.fsDislikeBtn) this.fsDislikeBtn.addEventListener('click', () => this.toggleDislike());
         if (this.fsLightShowBtn) this.fsLightShowBtn.addEventListener('click', () => this.toggleLightShow());
+        if (this.fsTabQueue) this.fsTabQueue.addEventListener('click', () => {
+            if (this.lyricsActive) this.toggleLyrics();
+        });
+        if (this.fsTabLyrics) this.fsTabLyrics.addEventListener('click', () => {
+            if (!this.lyricsActive) this.toggleLyrics();
+        });
 
         // Volume
         this.volumeSlider.addEventListener('input', (e) => this.handleVolumeChange(e));
@@ -277,6 +294,11 @@ export class AudioPlayer {
 
         // Update now playing info
         this.updateNowPlaying(song);
+
+        // Refresh lyrics for the new song if the panel is open
+        if (this.lyricsActive) {
+            this.loadLyrics(song.id);
+        }
 
         // Save playback state immediately on song change
         this.savePlaybackState();
@@ -496,6 +518,9 @@ export class AudioPlayer {
             // Fullscreen bar
             if (this.fsProgressFill) this.fsProgressFill.style.width = `${percent}%`;
             if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(this.audio.currentTime);
+
+            // Lyrics sync
+            this.updateActiveLyricLine();
 
             // Throttled save of playback state
             const now = Date.now();
@@ -1121,6 +1146,139 @@ export class AudioPlayer {
                 this.fsBackdrop.style.opacity = '1';
             }
             window.showToast?.('Light show disabled', 'info');
+        }
+    }
+
+    toggleLyrics() {
+        this.lyricsActive = !this.lyricsActive;
+
+        if (this.fsContainer) this.fsContainer.classList.toggle('lyrics-active', this.lyricsActive);
+
+        if (this.lyricsActive) {
+            if (this.currentSong) {
+                if (this.lyricsSongId === this.currentSong.id && this.lyricsData) {
+                    this.renderLyrics();
+                } else {
+                    this.loadLyrics(this.currentSong.id);
+                }
+            }
+        }
+    }
+
+    _showLyricsEmpty(message) {
+        if (!this.fsLyricsContent) return;
+        this.fsLyricsContent.innerHTML =
+            `<div class="fs-lyrics-empty">${message}</div>` +
+            `<button class="fs-lyrics-retry" type="button">Retry search</button>`;
+        const btn = this.fsLyricsContent.querySelector('.fs-lyrics-retry');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                if (this.lyricsSongId != null) this.loadLyrics(this.lyricsSongId, true);
+            });
+        }
+    }
+
+    async loadLyrics(songId, refresh = false) {
+        this.lyricsSongId = songId;
+        this.lyricsData = null;
+        this.activeLyricIndex = -1;
+
+        if (this.fsLyricsContent) {
+            this.fsLyricsContent.innerHTML = '<div class="fs-lyrics-loading">Loading lyrics…</div>';
+        }
+        if (this.fsLyricsScroll) this.fsLyricsScroll.scrollTop = 0;
+
+        try {
+            const url = `/api/music/song/${songId}/lyrics${refresh ? '?refresh=1' : ''}`;
+            const res = await fetch(url);
+            if (this.lyricsSongId !== songId) return; // Song changed mid-request
+
+            if (!res.ok) {
+                this._showLyricsEmpty('No lyrics found for this song');
+                return;
+            }
+
+            const data = await res.json();
+            if (this.lyricsSongId !== songId) return;
+
+            this.lyricsData = data.lyrics || null;
+            this.renderLyrics();
+        } catch (err) {
+            Logger.error('Lyrics load error:', err);
+            if (this.lyricsSongId === songId) {
+                this._showLyricsEmpty('Could not load lyrics');
+            }
+        }
+    }
+
+    renderLyrics() {
+        if (!this.fsLyricsContent) return;
+
+        const data = this.lyricsData;
+        if (!data) return;
+
+        const escape = window.escapeHtml || ((s) => s);
+
+        if (Array.isArray(data.synced) && data.synced.length) {
+            this.fsLyricsContent.innerHTML = data.synced.map((line, i) =>
+                `<div class="fs-lyric-line" data-index="${i}" data-time="${line.time}">${escape(line.text || '♪')}</div>`
+            ).join('');
+
+            this.fsLyricsContent.querySelectorAll('.fs-lyric-line').forEach(el => {
+                el.addEventListener('click', () => {
+                    const t = parseFloat(el.dataset.time);
+                    if (!isNaN(t)) {
+                        this.audio.currentTime = t;
+                        this.audio.play().catch(() => {});
+                    }
+                });
+            });
+
+            this.activeLyricIndex = -1;
+            this.updateActiveLyricLine();
+        } else if (data.plain) {
+            this.fsLyricsContent.innerHTML = escape(data.plain)
+                .split('\n')
+                .map(line => `<div class="fs-lyric-line static">${line || '&nbsp;'}</div>`)
+                .join('');
+        } else {
+            this._showLyricsEmpty('No lyrics found for this song');
+        }
+    }
+
+    updateActiveLyricLine() {
+        if (!this.lyricsActive || !this.lyricsData || !this.fsLyricsContent) return;
+        const lines = this.lyricsData.synced;
+        if (!Array.isArray(lines) || !lines.length) return;
+
+        const t = this.audio.currentTime;
+        let lo = 0, hi = lines.length - 1, idx = -1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (lines[mid].time <= t) {
+                idx = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+
+        if (idx === this.activeLyricIndex) return;
+        this.activeLyricIndex = idx;
+
+        const els = this.fsLyricsContent.children;
+        for (let i = 0; i < els.length; i++) {
+            els[i].classList.toggle('active', i === idx);
+        }
+
+        const scrollEl = this.fsLyricsScroll;
+        const lineEl = idx >= 0 ? els[idx] : null;
+        if (scrollEl && lineEl) {
+            const scrollRect = scrollEl.getBoundingClientRect();
+            const lineRect = lineEl.getBoundingClientRect();
+            const target = scrollEl.scrollTop + (lineRect.top - scrollRect.top)
+                - scrollEl.clientHeight / 2 + lineRect.height / 2;
+            scrollEl.scrollTo({ top: target, behavior: 'smooth' });
         }
     }
 
