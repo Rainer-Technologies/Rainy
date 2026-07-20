@@ -1,0 +1,12 @@
+.env
+.git
+.gitignore
+.DS_Store
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+rainy-env/
+music/
