@@ -770,33 +770,80 @@
 }
 
 .fs-lyric-line {
+    align-self: flex-start;
+    max-width: 100%;
     font-size: var(--font-size-lg);
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1.45;
-    color: rgba(255, 255, 255, 0.32);
     padding: 5px 0;
     cursor: pointer;
-    transition: color 0.35s ease, transform 0.35s ease;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    background-color: rgba(255, 255, 255, 0.32);
+    background-image: none;
+    -webkit-background-clip: text;
+    background-clip: text;
+    transition: background-color 0.4s ease, transform 0.35s ease;
 }
 
 .fs-lyric-line:hover {
-    color: rgba(255, 255, 255, 0.6);
+    background-color: rgba(255, 255, 255, 0.6);
 }
 
 .fs-lyric-line.active {
-    color: var(--text-primary);
-    font-size: var(--font-size-xl);
     transform: translateX(6px);
+}
+
+/* Fallback when no effect class is set: behave like solid */
+#fullscreen-player:not([class*="lyrics-fx-"]) .fs-lyric-line.active {
+    background-image: none;
+    background-color: #fff;
+}
+
+/* Solid (default): whole line lights up at once */
+.lyrics-fx-default .fs-lyric-line.active {
+    background-image: none;
+    background-color: #fff;
+}
+
+/* Slide: smooth fill sweeps across the line */
+.lyrics-fx-slide .fs-lyric-line.active {
+    background-image: linear-gradient(90deg,
+            #fff 0%, #fff var(--p, 0%),
+            rgba(255, 255, 255, 0.32) var(--p, 0%), rgba(255, 255, 255, 0.32) 100%);
+}
+
+/* Word by word: each word carries its own colour */
+.lyrics-fx-word .fs-lyric-line {
+    background-color: transparent;
+    background-image: none;
+}
+
+.lyrics-fx-word .fs-lyric-word {
+    -webkit-text-fill-color: transparent;
+    background-color: rgba(255, 255, 255, 0.32);
+    -webkit-background-clip: text;
+    background-clip: text;
+    transition: background-color 0.18s ease;
+}
+
+.lyrics-fx-word .fs-lyric-line:hover .fs-lyric-word:not(.lit) {
+    background-color: rgba(255, 255, 255, 0.6);
+}
+
+.lyrics-fx-word .fs-lyric-line.active .fs-lyric-word.lit {
+    background-color: #fff;
 }
 
 .fs-lyric-line.static {
     cursor: default;
-    color: rgba(255, 255, 255, 0.75);
+    background-color: rgba(255, 255, 255, 0.78);
     font-size: var(--font-size-md);
+    font-weight: 600;
 }
 
 .fs-lyric-line.static:hover {
-    color: rgba(255, 255, 255, 0.75);
+    background-color: rgba(255, 255, 255, 0.78);
 }
 
 .fs-lyrics-loading,
@@ -1050,8 +1097,8 @@
         font-size: var(--font-size-md);
     }
 
-    .fs-lyric-line.active {
-        font-size: var(--font-size-lg);
+    .fs-lyric-line.static {
+        font-size: var(--font-size-sm);
     }
 
     .fs-side-tab {

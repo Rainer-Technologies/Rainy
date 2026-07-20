@@ -182,14 +182,18 @@ export class RainyApp {
             this.savePreferences({ theme_color: defaultColor });
         });
 
-        // Fullscreen Mode Setting (Discord radio button style)
+        // Radio button groups (Fullscreen Mode, Lyrics Effect, …)
         document.querySelectorAll('.settings-radio-item').forEach(item => {
             item.addEventListener('click', () => {
                 const group = item.closest('.settings-radio-group');
                 group.querySelectorAll('.settings-radio-item').forEach(i => i.classList.remove('selected'));
                 item.classList.add('selected');
+                const pref = group.dataset.pref || 'fullscreen_mode';
                 const value = item.dataset.value;
-                this.savePreferences({ fullscreen_mode: value });
+                this.savePreferences({ [pref]: value });
+                if (pref === 'lyrics_effect' && window.player) {
+                    window.player.setLyricsEffect(value);
+                }
             });
         });
 
@@ -2131,6 +2135,7 @@ export class RainyApp {
         // Set current color in picker
         let currentColor = '#fa586a';
         let currentFsMode = 'standard';
+        let currentLyricsEffect = 'default';
         let swap = false;
         let disableLasers = false;
         let showBgBlur = false;
@@ -2145,6 +2150,7 @@ export class RainyApp {
             if (prefs) {
                 if (prefs.theme_color) currentColor = prefs.theme_color;
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
+                if (prefs.lyrics_effect) currentLyricsEffect = prefs.lyrics_effect;
                 if (typeof prefs.fullscreen_swap_sides !== 'undefined') swap = !!prefs.fullscreen_swap_sides;
                 if (typeof prefs.disable_lasers !== 'undefined') disableLasers = !!prefs.disable_lasers;
                 if (typeof prefs.show_bg_blur !== 'undefined') showBgBlur = !!prefs.show_bg_blur;
@@ -2157,9 +2163,15 @@ export class RainyApp {
         if (colorInput) colorInput.value = currentColor;
         if (colorValue) colorValue.textContent = currentColor;
 
-        // Set fullscreen mode radio buttons
-        document.querySelectorAll('.settings-radio-item').forEach(item => {
-            item.classList.toggle('selected', item.dataset.value === currentFsMode);
+        // Set radio button groups to their saved values
+        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect };
+        document.querySelectorAll('.settings-radio-group').forEach(group => {
+            const pref = group.dataset.pref;
+            const current = radioValues[pref];
+            if (current == null) return;
+            group.querySelectorAll('.settings-radio-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.value === current);
+            });
         });
 
         // Set swap toggle
@@ -2217,10 +2229,11 @@ export class RainyApp {
         });
         document.getElementById(`settings-section-${sectionName}`)?.classList.add('active');
 
-        // Allow data-heavy sections (e.g. Users) to use the full content width
+        // Allow data-heavy / multi-column sections to use the full content width
         const settingsContent = document.querySelector('.settings-content');
         if (settingsContent) {
-            settingsContent.classList.toggle('settings-content-wide', sectionName === 'users');
+            settingsContent.classList.toggle('settings-content-wide',
+                sectionName === 'users' || sectionName === 'player');
         }
 
         // Load scan status when switching to library section

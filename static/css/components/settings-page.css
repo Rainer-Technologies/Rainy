@@ -572,6 +572,24 @@
     max-width: 1180px;
 }
 
+/* Player settings: 2-column card grid so the wide layout is filled */
+.player-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md);
+    align-items: start;
+}
+
+.player-settings-grid > .settings-card {
+    margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+    .player-settings-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .users-layout {
     display: grid;
     grid-template-columns: 1fr;

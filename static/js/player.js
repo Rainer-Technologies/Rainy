@@ -40,6 +40,9 @@ export class AudioPlayer {
         this.lyricsData = null;
         this.lyricsSongId = null;
         this.activeLyricIndex = -1;
+        this.lyricsEffect = 'default';
+        this._activeWordEls = null;
+        this._activeWordLit = -1;
 
         this.init();
     }
@@ -518,9 +521,6 @@ export class AudioPlayer {
             // Fullscreen bar
             if (this.fsProgressFill) this.fsProgressFill.style.width = `${percent}%`;
             if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(this.audio.currentTime);
-
-            // Lyrics sync
-            this.updateActiveLyricLine();
 
             // Throttled save of playback state
             const now = Date.now();
@@ -1086,12 +1086,16 @@ export class AudioPlayer {
                 if (prefs && typeof prefs.fullscreen_swap_sides !== 'undefined') {
                     swap = !!prefs.fullscreen_swap_sides;
                 }
+                if (prefs && prefs.lyrics_effect) {
+                    this.lyricsEffect = prefs.lyrics_effect;
+                }
             }
 
             // Remove existing mode classes
             this.fsContainer.classList.remove('mode-modern', 'mode-standard');
             this.fsContainer.classList.add(`mode-${mode}`);
             this.fsContainer.classList.toggle('layout-swapped', swap);
+            this._applyLyricsFxClass();
 
             this.fsContainer.classList.remove('hidden');
             // Trigger reflow
@@ -1104,8 +1108,12 @@ export class AudioPlayer {
             if (this.lightShowActive && this.lightShow) {
                 this.lightShow.resume();
             }
+
+            // Resume the lyrics karaoke fill loop if the panel is open
+            if (this.lyricsActive) this._startLyricsFillLoop();
         } else {
             this.fsContainer.classList.remove('active');
+            this._stopLyricsFillLoop();
             // Wait for transition to finish
             setTimeout(() => {
                 this.fsContainer.classList.add('hidden');
@@ -1155,6 +1163,7 @@ export class AudioPlayer {
         if (this.fsContainer) this.fsContainer.classList.toggle('lyrics-active', this.lyricsActive);
 
         if (this.lyricsActive) {
+            this._applyLyricsFxClass();
             if (this.currentSong) {
                 if (this.lyricsSongId === this.currentSong.id && this.lyricsData) {
                     this.renderLyrics();
@@ -1162,6 +1171,8 @@ export class AudioPlayer {
                     this.loadLyrics(this.currentSong.id);
                 }
             }
+        } else {
+            this._stopLyricsFillLoop();
         }
     }
 
@@ -1220,8 +1231,24 @@ export class AudioPlayer {
         const escape = window.escapeHtml || ((s) => s);
 
         if (Array.isArray(data.synced) && data.synced.length) {
-            this.fsLyricsContent.innerHTML = data.synced.map((line, i) =>
-                `<div class="fs-lyric-line" data-index="${i}" data-time="${line.time}">${escape(line.text || '♪')}</div>`
+            const synced = data.synced;
+            for (let i = 0; i < synced.length; i++) {
+                synced[i].end = i + 1 < synced.length
+                    ? synced[i + 1].time
+                    : synced[i].time + 4;
+            }
+
+            const wordMode = this.lyricsEffect === 'word';
+            const lineInner = (text) => {
+                if (!wordMode) return escape(text || '♪');
+                const words = (text || '♪').trim().split(/\s+/).filter(Boolean);
+                return (words.length ? words : ['♪'])
+                    .map(w => `<span class="fs-lyric-word">${escape(w)}</span>`)
+                    .join(' ');
+            };
+
+            this.fsLyricsContent.innerHTML = synced.map((line, i) =>
+                `<div class="fs-lyric-line" data-index="${i}" data-time="${line.time}">${lineInner(line.text)}</div>`
             ).join('');
 
             this.fsLyricsContent.querySelectorAll('.fs-lyric-line').forEach(el => {
@@ -1236,6 +1263,7 @@ export class AudioPlayer {
 
             this.activeLyricIndex = -1;
             this.updateActiveLyricLine();
+            if (this.lyricsActive) this._startLyricsFillLoop();
         } else if (data.plain) {
             this.fsLyricsContent.innerHTML = escape(data.plain)
                 .split('\n')
@@ -1271,6 +1299,12 @@ export class AudioPlayer {
             els[i].classList.toggle('active', i === idx);
         }
 
+        const activeEl = idx >= 0 ? els[idx] : null;
+        this._activeWordEls = activeEl
+            ? Array.from(activeEl.querySelectorAll('.fs-lyric-word'))
+            : null;
+        this._activeWordLit = -1;
+
         const scrollEl = this.fsLyricsScroll;
         const lineEl = idx >= 0 ? els[idx] : null;
         if (scrollEl && lineEl) {
@@ -1279,6 +1313,76 @@ export class AudioPlayer {
             const target = scrollEl.scrollTop + (lineRect.top - scrollRect.top)
                 - scrollEl.clientHeight / 2 + lineRect.height / 2;
             scrollEl.scrollTo({ top: target, behavior: 'smooth' });
+        }
+    }
+
+    updateLyricFill() {
+        if (!this.lyricsActive || !this.lyricsData || !this.fsLyricsContent) return;
+        if (this.lyricsEffect === 'default') return;
+
+        const idx = this.activeLyricIndex;
+        const lines = this.lyricsData.synced;
+        if (!Array.isArray(lines) || idx < 0 || idx >= lines.length) return;
+
+        const line = lines[idx];
+        const start = line.time;
+        const end = line.end != null ? line.end : start + 4;
+        const dur = end - start;
+        const t = this.audio.currentTime;
+        let p = dur > 0 ? (t - start) / dur : 1;
+        if (p < 0) p = 0;
+        else if (p > 1) p = 1;
+
+        const el = this.fsLyricsContent.children[idx];
+        if (!el) return;
+
+        if (this.lyricsEffect === 'slide') {
+            el.style.setProperty('--p', `${(p * 100).toFixed(2)}%`);
+        } else if (this.lyricsEffect === 'word') {
+            const words = this._activeWordEls;
+            if (!words || !words.length) return;
+            const lit = Math.min(words.length, Math.round(p * words.length));
+            if (lit === this._activeWordLit) return;
+            this._activeWordLit = lit;
+            for (let i = 0; i < words.length; i++) {
+                words[i].classList.toggle('lit', i < lit);
+            }
+        }
+    }
+
+    _applyLyricsFxClass() {
+        if (!this.fsContainer) return;
+        this.fsContainer.classList.remove('lyrics-fx-default', 'lyrics-fx-word', 'lyrics-fx-slide');
+        this.fsContainer.classList.add(`lyrics-fx-${this.lyricsEffect || 'default'}`);
+    }
+
+    setLyricsEffect(mode) {
+        const next = (mode === 'word' || mode === 'slide') ? mode : 'default';
+        if (next === this.lyricsEffect) {
+            this._applyLyricsFxClass();
+            return;
+        }
+        this.lyricsEffect = next;
+        this._applyLyricsFxClass();
+        if (this.lyricsActive && this.lyricsData && Array.isArray(this.lyricsData.synced)) {
+            this.renderLyrics();
+        }
+    }
+
+    _startLyricsFillLoop() {
+        if (this._lyricsFillRAF) return;
+        const tick = () => {
+            this.updateActiveLyricLine();
+            this.updateLyricFill();
+            this._lyricsFillRAF = requestAnimationFrame(tick);
+        };
+        this._lyricsFillRAF = requestAnimationFrame(tick);
+    }
+
+    _stopLyricsFillLoop() {
+        if (this._lyricsFillRAF) {
+            cancelAnimationFrame(this._lyricsFillRAF);
+            this._lyricsFillRAF = null;
         }
     }
 

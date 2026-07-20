@@ -730,71 +730,112 @@
                         <div class="settings-group-description">Control how the fullscreen player looks and behaves.
                         </div>
 
-                        <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Fullscreen Mode
-                            </div>
-                            <div class="settings-radio-group">
-                                <div class="settings-radio-item selected" data-value="standard">
-                                    <div class="settings-radio-circle"></div>
-                                    <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Standard</div>
-                                        <div class="settings-radio-description">Keeps the player bar visible at the
-                                            bottom</div>
+                        <div class="player-settings-grid">
+                            <div class="settings-card">
+                                <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Fullscreen
+                                    Mode
+                                </div>
+                                <div class="settings-radio-group" data-pref="fullscreen_mode">
+                                    <div class="settings-radio-item selected" data-value="standard">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content">
+                                            <div class="settings-radio-title">Standard</div>
+                                            <div class="settings-radio-description">Keeps the player bar visible at the
+                                                bottom</div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-radio-item" data-value="modern">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content">
+                                            <div class="settings-radio-title">Modern</div>
+                                            <div class="settings-radio-description">Uses a dedicated full-screen player
+                                                experience</div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="settings-radio-item" data-value="modern">
-                                    <div class="settings-radio-circle"></div>
-                                    <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Modern</div>
-                                        <div class="settings-radio-description">Uses a dedicated full-screen player
-                                            experience</div>
+                            </div>
+
+                            <div class="settings-card">
+                                <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Lyrics Effect
+                                </div>
+                                <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Choose
+                                    how
+                                    the active lyric line is highlighted while a song plays.</div>
+                                <div class="settings-radio-group" data-pref="lyrics_effect">
+                                    <div class="settings-radio-item selected" data-value="default">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content">
+                                            <div class="settings-radio-title">Solid</div>
+                                            <div class="settings-radio-description">The whole line lights up at once
+                                                (default)</div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-radio-item" data-value="word">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content">
+                                            <div class="settings-radio-title">Word by word</div>
+                                            <div class="settings-radio-description">Words light up one at a time as they
+                                                are sung</div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-radio-item" data-value="slide">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content">
+                                            <div class="settings-radio-title">Slide</div>
+                                            <div class="settings-radio-description">A smooth fill sweeps across the line
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="settings-card">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Swap image and queue</div>
-                                    <div class="settings-row-hint">Switch the positions of album art and up next queue
+                            <div class="settings-card">
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label">Swap image and queue</div>
+                                        <div class="settings-row-hint">Switch the positions of album art and up next
+                                            queue
+                                        </div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-fullscreen-swap">
+                                            <span class="toggle-slider"></span>
+                                        </label>
                                     </div>
                                 </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-fullscreen-swap">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
                             </div>
-                        </div>
 
-                        <div class="settings-group-title" style="margin-top: var(--spacing-lg); margin-bottom: var(--spacing-xs);">Show Animations</div>
-                        <div class="settings-group-description">Customize visual effects and animations during playback.</div>
-
-                        <div class="settings-card">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Disable Lasers</div>
-                                    <div class="settings-row-hint">Turn off the stage laser beam animations completely</div>
+                            <div class="settings-card">
+                                <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Show
+                                    Animations</div>
+                                <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">
+                                    Customize visual effects and animations during playback.</div>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label">Disable Lasers</div>
+                                        <div class="settings-row-hint">Turn off the stage laser beam animations
+                                            completely</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-disable-lasers">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-disable-lasers">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Blur Animated Background</div>
-                                    <div class="settings-row-hint">Apply a smooth ambient blur filter to the light show visuals</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-show-bg-blur">
-                                        <span class="toggle-slider"></span>
-                                    </label>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label">Blur Animated Background</div>
+                                        <div class="settings-row-hint">Apply a smooth ambient blur filter to the light
+                                            show visuals</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-show-bg-blur">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
