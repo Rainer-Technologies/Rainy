@@ -1,5 +1,5 @@
 import mysql.connector
-from mysql.connector import pooling
+from mysql.connector import errorcode, pooling
 from flask import g, has_app_context
 from config import Config
 
@@ -40,8 +40,15 @@ class Database:
             cursor.close()
             conn.close()
         except mysql.connector.Error as err:
-            print(f"Error creating database: {err}")
-            raise
+            # Docker Compose creates the application database before this
+            # service starts, but its non-root application user cannot create
+            # databases. It can still create and migrate tables within the
+            # pre-created database, so continue in that case.
+            if err.errno == errorcode.ER_DBACCESS_DENIED_ERROR:
+                print(f"Database already provisioned; skipping creation: {err}")
+            else:
+                print(f"Error creating database: {err}")
+                raise
         
         # Now connect to the database and create tables
         conn = cls.get_connection()
