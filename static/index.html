@@ -653,6 +653,13 @@
                     </svg>
                     <span>Jobs</span>
                 </a>
+                <a class="settings-nav-item sysadmin-only hidden" data-section="users" id="settings-nav-users">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                    </svg>
+                    <span>Users</span>
+                </a>
             </nav>
         </div>
 
@@ -943,6 +950,79 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Section: Users (Server Settings) -->
+                <div class="settings-section" id="settings-section-users">
+                    <div class="users-layout" id="users-layout">
+                        <div class="settings-group users-manage-group">
+                            <div class="settings-group-title">Manage Users</div>
+                            <div class="settings-group-description">View and manage existing accounts. Use “Add User” to
+                                create a new one.</div>
+
+                            <div class="settings-card users-card">
+                                <div class="user-list-header">
+                                    <span class="user-list-header-label">Members</span>
+                                    <div class="user-list-header-right">
+                                        <span class="user-count-badge" id="user-count">0</span>
+                                        <button type="button" class="btn btn-secondary btn-sm add-user-btn"
+                                            id="add-user-toggle-btn">
+                                            <svg viewBox="0 0 24 24">
+                                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                            </svg>
+                                            <span class="add-user-btn-label">Add User</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="user-list" id="user-list">
+                                    <!-- Users populated via JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-group users-create-group hidden" id="users-create-group">
+                            <div class="settings-group-title">Create User</div>
+
+                            <div class="settings-card">
+                                <form id="create-user-form">
+                                    <div class="users-form-grid">
+                                        <div class="form-group">
+                                            <label class="form-label" for="new-user-username">Username</label>
+                                            <input type="text" id="new-user-username" class="form-input" required
+                                                placeholder="Enter username">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="new-user-email">Email</label>
+                                            <input type="email" id="new-user-email" class="form-input" required
+                                                placeholder="Enter email address">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="new-user-password">Password</label>
+                                            <input type="password" id="new-user-password" class="form-input" required
+                                                minlength="6" placeholder="At least 6 characters">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="new-user-role">Role</label>
+                                            <div class="select-wrapper">
+                                                <select id="new-user-role" class="form-input">
+                                                    <option value="user">User</option>
+                                                    <option value="sysadmin">Administrator</option>
+                                                </select>
+                                                <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M7 10l5 5 5-5z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="users-form-actions">
+                                        <button type="button" class="btn btn-secondary"
+                                            id="cancel-create-user">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Create User</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1171,6 +1251,58 @@
         <button slot='action' class='btn' id='cancel-delete-playlist'>Cancel</button>
         <button slot='action' class='btn btn-danger' id='confirm-delete-playlist'>Delete</button>
     </rainy-modal>
+
+    <!-- Reset User Password Modal -->
+    <div class="modal-overlay hidden" id="reset-user-password-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reset Password</h2>
+                <button class="modal-close" id="close-reset-user-password-modal">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" id="reset-user-password-target" style="margin-bottom: var(--spacing-md);">
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="reset-user-password-input">New Password</label>
+                    <input type="password" class="form-input" id="reset-user-password-input" minlength="6"
+                        placeholder="At least 6 characters">
+                </div>
+                <div class="modal-actions"
+                    style="display: flex; justify-content: flex-end; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                    <button class="btn" id="cancel-reset-user-password">Cancel</button>
+                    <button class="btn btn-primary" id="confirm-reset-user-password">Reset Password</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete User Modal -->
+    <div class="modal-overlay hidden" id="delete-user-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Delete User</h2>
+                <button class="modal-close" id="close-delete-user-modal">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" id="delete-user-target" style="margin-bottom: var(--spacing-md);"></p>
+                <div class="modal-actions"
+                    style="display: flex; justify-content: flex-end; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                    <button class="btn" id="cancel-delete-user">Cancel</button>
+                    <button class="btn btn-danger" id="confirm-delete-user">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Audio Element -->
     <audio id="audio-player" preload="auto"></audio>

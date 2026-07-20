@@ -2,7 +2,7 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import Config
 from models.database import Database
-from routes import auth_bp, setup_bp, music_bp, ratings_bp
+from routes import auth_bp, setup_bp, music_bp, ratings_bp, users_bp
 from routes.playlists import playlists_bp
 
 app = Flask(__name__, static_folder='static', static_url_path='')
@@ -17,6 +17,7 @@ app.register_blueprint(setup_bp)
 app.register_blueprint(music_bp)
 app.register_blueprint(ratings_bp, url_prefix='/api/ratings')
 app.register_blueprint(playlists_bp, url_prefix='/api/playlists')
+app.register_blueprint(users_bp, url_prefix='/api/users')
 
 @app.route('/')
 def serve_index():

@@ -18,6 +18,11 @@
     text-transform: none;
 }
 
+.btn-sm {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+}
+
 .btn-primary {
     width: 100%;
     background: var(--accent-gradient);

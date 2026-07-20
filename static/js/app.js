@@ -12,6 +12,7 @@ import { useMusicService } from "./services/music.js";
 import { usePlaylistService } from './services/playlist.js';
 import { useScanService } from './services/scan.js';
 import { useSetupService } from "./services/setup.js";
+import { useUsersService } from './services/users.js';
 import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
@@ -119,6 +120,12 @@ export class RainyApp {
         // Close settings with Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                const createGroup = document.getElementById('users-create-group');
+                if (createGroup && !createGroup.classList.contains('hidden')) {
+                    this.setCreateUserFormOpen(false);
+                    return;
+                }
+
                 const settingsPage = document.getElementById('settings-page');
                 if (settingsPage && !settingsPage.classList.contains('hidden')) {
                     this.closeSettings();
@@ -218,6 +225,44 @@ export class RainyApp {
 
             this.showToast('Password updated successfully', 'success');
             document.getElementById('change-password-form').reset();
+        });
+
+        // Create User (admin)
+        document.getElementById('create-user-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleCreateUser();
+        });
+
+        // Toggle the Add User panel
+        document.getElementById('add-user-toggle-btn')?.addEventListener('click', () => {
+            const group = document.getElementById('users-create-group');
+            this.setCreateUserFormOpen(group.classList.contains('hidden'));
+        });
+
+        document.getElementById('cancel-create-user')?.addEventListener('click', () => {
+            this.setCreateUserFormOpen(false);
+        });
+
+        // Reset User Password modal
+        document.getElementById('close-reset-user-password-modal')?.addEventListener('click', () => {
+            document.getElementById('reset-user-password-modal').classList.add('hidden');
+        });
+        document.getElementById('cancel-reset-user-password')?.addEventListener('click', () => {
+            document.getElementById('reset-user-password-modal').classList.add('hidden');
+        });
+        document.getElementById('confirm-reset-user-password')?.addEventListener('click', () => {
+            this.performResetUserPassword();
+        });
+
+        // Delete User modal
+        document.getElementById('close-delete-user-modal')?.addEventListener('click', () => {
+            document.getElementById('delete-user-modal').classList.add('hidden');
+        });
+        document.getElementById('cancel-delete-user')?.addEventListener('click', () => {
+            document.getElementById('delete-user-modal').classList.add('hidden');
+        });
+        document.getElementById('confirm-delete-user')?.addEventListener('click', () => {
+            this.performDeleteUser();
         });
 
         // Search
@@ -2066,14 +2111,17 @@ export class RainyApp {
             const serverCategory = document.getElementById('settings-nav-server-category');
             const libraryNav = document.getElementById('settings-nav-library');
             const jobsNav = document.getElementById('settings-nav-jobs');
+            const usersNav = document.getElementById('settings-nav-users');
             if (this.user.role === 'sysadmin') {
                 serverCategory?.classList.remove('hidden');
                 libraryNav?.classList.remove('hidden');
                 jobsNav?.classList.remove('hidden');
+                usersNav?.classList.remove('hidden');
             } else {
                 serverCategory?.classList.add('hidden');
                 libraryNav?.classList.add('hidden');
                 jobsNav?.classList.add('hidden');
+                usersNav?.classList.add('hidden');
             }
         }
 
@@ -2157,7 +2205,8 @@ export class RainyApp {
             'player': 'Player',
             'account': 'Account',
             'library': 'Library Scanning',
-            'jobs': 'Jobs'
+            'jobs': 'Jobs',
+            'users': 'Users'
         };
         const title = document.getElementById('settings-page-title');
         if (title) title.textContent = titleMap[sectionName] || 'Settings';
@@ -2168,9 +2217,21 @@ export class RainyApp {
         });
         document.getElementById(`settings-section-${sectionName}`)?.classList.add('active');
 
+        // Allow data-heavy sections (e.g. Users) to use the full content width
+        const settingsContent = document.querySelector('.settings-content');
+        if (settingsContent) {
+            settingsContent.classList.toggle('settings-content-wide', sectionName === 'users');
+        }
+
         // Load scan status when switching to library section
         if (sectionName === 'library') {
             this.loadScanStatus();
+        }
+
+        // Load users when switching to users section
+        if (sectionName === 'users') {
+            this.setCreateUserFormOpen(false);
+            this.loadUsers();
         }
     }
 
@@ -2184,7 +2245,8 @@ export class RainyApp {
             'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
             'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
             'library': ['library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'server'],
-            'jobs': ['jobs', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata']
+            'jobs': ['jobs', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata'],
+            'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
         };
 
         if (!searchTerm) {
@@ -2275,6 +2337,176 @@ export class RainyApp {
             // Save to server
             await useAuthService().updatePreferences(updatedPrefs);
         }
+    }
+
+    // ==================== User Management (Admin) ====================
+
+    async loadUsers() {
+        const list = document.getElementById('user-list');
+        if (!list) return;
+
+        const data = await useUsersService().all();
+        if (data.error) {
+            Logger.error(data.error);
+            list.innerHTML = '<div class="user-list-empty">Failed to load users</div>';
+            return;
+        }
+
+        this.renderUsers(data.value || []);
+    }
+
+    renderUsers(users) {
+        const list = document.getElementById('user-list');
+        if (!list) return;
+
+        const countBadge = document.getElementById('user-count');
+        if (countBadge) countBadge.textContent = String(users.length);
+
+        if (!users.length) {
+            list.innerHTML = '<div class="user-list-empty">No users yet. Click “Add User” to create the first account.</div>';
+            return;
+        }
+
+        const currentUserId = this.user?.id;
+
+        const shieldPath = 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z';
+        const keyPath = 'M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z';
+        const trashPath = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
+
+        list.innerHTML = users.map(user => {
+            const initial = Utils.escapeHtml((user.username || '?').charAt(0).toUpperCase());
+            const isAdmin = user.role === 'sysadmin';
+            const isSelf = user.id === currentUserId;
+            const roleTitle = isAdmin ? 'Make user' : 'Make administrator';
+
+            return `
+                <div class="user-list-item" data-id="${user.id}">
+                    <div class="user-list-avatar">${initial}</div>
+                    <div class="user-list-info">
+                        <div class="user-list-name">
+                            <span class="user-list-name-text">${Utils.escapeHtml(user.username)}</span>
+                            ${isSelf ? '<span class="user-role-badge you">You</span>' : ''}
+                            <span class="user-role-badge ${isAdmin ? 'admin' : ''}">${isAdmin ? 'Admin' : 'User'}</span>
+                        </div>
+                        <div class="user-list-email" title="${Utils.escapeHtml(user.email)}">${Utils.escapeHtml(user.email)}</div>
+                    </div>
+                    <div class="user-list-actions">
+                        <button class="icon-btn-small user-role-toggle ${isAdmin ? 'active-admin' : ''}" data-id="${user.id}" data-role="${user.role}" title="${roleTitle}" aria-label="${roleTitle}">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${shieldPath}"/></svg>
+                        </button>
+                        <button class="icon-btn-small user-reset-password" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="Reset password" aria-label="Reset password">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${keyPath}"/></svg>
+                        </button>
+                        <button class="icon-btn-small user-action-delete user-delete" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="${isSelf ? 'You cannot delete yourself' : 'Delete user'}" aria-label="Delete user" ${isSelf ? 'disabled' : ''}>
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${trashPath}"/></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.user-role-toggle').forEach(btn => {
+            btn.addEventListener('click', () => this.handleToggleUserRole(btn.dataset.id, btn.dataset.role));
+        });
+
+        list.querySelectorAll('.user-reset-password').forEach(btn => {
+            btn.addEventListener('click', () => this.openResetUserPasswordModal(btn.dataset.id, btn.dataset.username));
+        });
+
+        list.querySelectorAll('.user-delete').forEach(btn => {
+            btn.addEventListener('click', () => this.openDeleteUserModal(btn.dataset.id, btn.dataset.username));
+        });
+    }
+
+    setCreateUserFormOpen(open) {
+        const layout = document.getElementById('users-layout');
+        const group = document.getElementById('users-create-group');
+        const btn = document.getElementById('add-user-toggle-btn');
+        if (!layout || !group || !btn) return;
+
+        group.classList.toggle('hidden', !open);
+        layout.classList.toggle('users-layout--with-form', open);
+
+        const label = btn.querySelector('.add-user-btn-label');
+        const iconPath = btn.querySelector('svg path');
+        if (open) {
+            if (label) label.textContent = 'Cancel';
+            if (iconPath) iconPath.setAttribute('d', 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
+            setTimeout(() => document.getElementById('new-user-username')?.focus(), 50);
+        } else {
+            if (label) label.textContent = 'Add User';
+            if (iconPath) iconPath.setAttribute('d', 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z');
+        }
+    }
+
+    async handleCreateUser() {
+        const username = document.getElementById('new-user-username').value.trim();
+        const email = document.getElementById('new-user-email').value.trim();
+        const password = document.getElementById('new-user-password').value;
+        const role = document.getElementById('new-user-role').value;
+
+        const data = await useUsersService().create(username, email, password, role);
+        if (data.error) {
+            this.showToast(data.error.error || 'Failed to create user', 'error');
+            return;
+        }
+
+        this.showToast(`User "${username}" created`, 'success');
+        document.getElementById('create-user-form').reset();
+        this.setCreateUserFormOpen(false);
+        await this.loadUsers();
+    }
+
+    async handleToggleUserRole(userId, currentRole) {
+        const newRole = currentRole === 'sysadmin' ? 'user' : 'sysadmin';
+
+        const data = await useUsersService().updateRole(userId, newRole);
+        if (data.error) {
+            this.showToast(data.error.error || 'Failed to update role', 'error');
+            return;
+        }
+
+        this.showToast('Role updated', 'success');
+        await this.loadUsers();
+    }
+
+    openResetUserPasswordModal(userId, username) {
+        this._resetPasswordUserId = userId;
+        document.getElementById('reset-user-password-target').textContent = `Set a new password for ${username}`;
+        document.getElementById('reset-user-password-input').value = '';
+        document.getElementById('reset-user-password-modal').classList.remove('hidden');
+    }
+
+    async performResetUserPassword() {
+        const password = document.getElementById('reset-user-password-input').value;
+
+        const data = await useUsersService().resetPassword(this._resetPasswordUserId, password);
+        if (data.error) {
+            this.showToast(data.error.error || 'Failed to reset password', 'error');
+            return;
+        }
+
+        this.showToast('Password reset successfully', 'success');
+        document.getElementById('reset-user-password-modal').classList.add('hidden');
+    }
+
+    openDeleteUserModal(userId, username) {
+        this._deleteUserId = userId;
+        document.getElementById('delete-user-target').textContent =
+            `Are you sure you want to delete "${username}"? This action cannot be undone.`;
+        document.getElementById('delete-user-modal').classList.remove('hidden');
+    }
+
+    async performDeleteUser() {
+        const data = await useUsersService().remove(this._deleteUserId);
+        if (data.error) {
+            this.showToast(data.error.error || 'Failed to delete user', 'error');
+            return;
+        }
+
+        this.showToast('User deleted', 'success');
+        document.getElementById('delete-user-modal').classList.add('hidden');
+        await this.loadUsers();
     }
 
     switchToArtistsView(targetArtistName = null) {

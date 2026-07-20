@@ -62,3 +62,28 @@ class UserModel:
         query = "SELECT COUNT(*) as count FROM users"
         result = Database.execute_query(query, fetch_one=True)
         return result['count']
+
+    @staticmethod
+    def get_all_users():
+        """Get all users (without password hashes)."""
+        query = "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC"
+        return Database.execute_query(query, fetch_all=True)
+
+    @staticmethod
+    def update_role(user_id, role):
+        """Update a user's role."""
+        query = "UPDATE users SET role = %s WHERE id = %s"
+        return Database.execute_query(query, (role, user_id))
+
+    @staticmethod
+    def delete_user(user_id):
+        """Delete a user by ID."""
+        query = "DELETE FROM users WHERE id = %s"
+        return Database.execute_query(query, (user_id,))
+
+    @staticmethod
+    def get_sysadmin_count():
+        """Get the number of sysadmin users."""
+        query = "SELECT COUNT(*) as count FROM users WHERE role = 'sysadmin'"
+        result = Database.execute_query(query, fetch_one=True)
+        return result['count']
