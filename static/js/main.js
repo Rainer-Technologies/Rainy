@@ -9,6 +9,9 @@ import { Utils } from './modules/utils.js';
 import { AudioPlayer } from './player.js';
 import { initLogin, initSetup } from './setup.js';
 import { useRatingService } from './services/rating.js';
+import { KeyboardShortcuts } from './modules/keyboardShortcuts.js';
+import { GlobalSearch } from './modules/globalSearch.js';
+import { NewViews } from './modules/newViews.js';
 
 // Document ready handler
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,11 +34,36 @@ document.addEventListener('DOMContentLoaded', () => {
     initSetup();
     initLogin();
 
+    // Initialize global keyboard shortcuts (Space, arrows, Ctrl+K, etc.)
+    window.keyboardShortcuts = new KeyboardShortcuts(window.player, window.app);
+
+    // Initialize global search overlay (Ctrl+K / Cmd+K)
+    window.globalSearch = new GlobalSearch(window.app, window.player);
+
+    // Initialize new views (Albums, Recently Played, Smart Mix)
+    window.newViews = new NewViews(window.app, window.player);
+
+    // Register service worker for PWA support
+    registerServiceWorker();
+
     // Run migration for ratings table (one-time per browser)
     runRatingsMigration();
 
     Logger.log('🎵 Rainy Music Player - Ready');
 });
+
+/**
+ * Register the service worker for PWA / offline shell support.
+ */
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then((reg) => Logger.log('Service worker registered:', reg.scope))
+                .catch((err) => Logger.warn('Service worker registration failed:', err));
+        });
+    }
+}
 
 /**
  * Migrate existing likes from Liked Music playlist to song_ratings table
