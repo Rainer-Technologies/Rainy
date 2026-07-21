@@ -1098,6 +1098,7 @@ def discover_search():
 def discover_preview(video_id):
     """Proxy the audio stream from YouTube for previewing."""
     try:
+        import time
         import yt_dlp
         import requests
         from flask import Response, stream_with_context
@@ -1108,12 +1109,27 @@ def discover_preview(video_id):
             'quiet': True,
             'no_warnings': True,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            stream_url = info.get('url')
+        
+        stream_url = None
+        last_error = None
+        for attempt in range(1, 4):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    stream_url = info.get('url')
+                break
+            except Exception as e:
+                last_error = str(e)
+                if attempt < 3:
+                    delay = 2 * (2 ** (attempt - 1))
+                    print(f"⚠️  YouTube preview extraction failed (attempt {attempt}/3): {last_error}")
+                    print(f"   Retrying in {delay}s…")
+                    time.sleep(delay)
+                else:
+                    print(f"❌ YouTube preview extraction failed after 3 attempts: {last_error}")
             
         if not stream_url:
-            return jsonify({'error': 'Failed to extract stream URL'}), 404
+            return jsonify({'error': f'Failed to extract stream URL after 3 attempts: {last_error}'}), 404
             
         # Set request headers for streaming
         req_headers = {

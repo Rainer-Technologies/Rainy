@@ -2,13 +2,70 @@
 
 import os
 import re
+import time
 import hashlib
 import requests
 
 
 class YouTubeDownloader:
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2  # seconds, doubles each attempt
+
     def __init__(self, music_path):
         self.music_path = music_path
+
+    def _retry_ydl(self, ydl_opts, urls, label="download"):
+        """Run a yt-dlp download/extract with up to MAX_RETRIES attempts.
+
+        Returns (success: bool, error: str | None).
+        Prints retry notices so the server log (and any log watcher) can
+        relay them to the user.
+        """
+        import yt_dlp
+
+        last_error = None
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download(urls)
+                return True, None
+            except Exception as e:
+                last_error = str(e)
+                if attempt < self.MAX_RETRIES:
+                    delay = self.RETRY_DELAY * (2 ** (attempt - 1))
+                    print(f"⚠️  YouTube {label} failed (attempt {attempt}/{self.MAX_RETRIES}): {last_error}")
+                    print(f"   Retrying in {delay}s…")
+                    time.sleep(delay)
+                else:
+                    print(f"❌ YouTube {label} failed after {self.MAX_RETRIES} attempts: {last_error}")
+        return False, last_error
+
+    def _retry_extract_info(self, url, ydl_opts=None, label="info extraction"):
+        """Extract video/playlist info with retries.
+
+        Returns (info_dict | None, error: str | None).
+        """
+        import yt_dlp
+
+        if ydl_opts is None:
+            ydl_opts = {'quiet': True, 'no_warnings': True}
+
+        last_error = None
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                return info, None
+            except Exception as e:
+                last_error = str(e)
+                if attempt < self.MAX_RETRIES:
+                    delay = self.RETRY_DELAY * (2 ** (attempt - 1))
+                    print(f"⚠️  YouTube {label} failed (attempt {attempt}/{self.MAX_RETRIES}): {last_error}")
+                    print(f"   Retrying in {delay}s…")
+                    time.sleep(delay)
+                else:
+                    print(f"❌ YouTube {label} failed after {self.MAX_RETRIES} attempts: {last_error}")
+        return None, last_error
     
     def download(self, url):
         """
@@ -35,9 +92,10 @@ class YouTubeDownloader:
             }
         
         try:
-            # First extract info to get metadata and thumbnail
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
+            # First extract info to get metadata and thumbnail (with retries)
+            info, err = self._retry_extract_info(url, label="info extraction")
+            if info is None:
+                return {'success': False, 'error': f'Failed to extract video info: {err}'}
             
             title = info.get('title', 'Unknown Title')
             artist = info.get('artist') or info.get('uploader', 'Unknown Artist')
@@ -100,9 +158,10 @@ class YouTubeDownloader:
                 'add_metadata': True,
             })
             
-            # Download audio
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                ydl2.download([url])
+            # Download audio (with retries)
+            ok, dl_err = self._retry_ydl(ydl_opts, [url], label=f"download \"{title}\"")
+            if not ok:
+                return {'success': False, 'error': f'Download failed after {self.MAX_RETRIES} attempts: {dl_err}'}
             
             # Find the downloaded file
             if os.path.exists(output_path):
@@ -230,8 +289,6 @@ class YouTubeDownloader:
     def _download_single_with_info(self, info):
         """Download a single video using pre-extracted info (for playlist downloads)."""
         try:
-            import yt_dlp
-            
             title = info.get('title', 'Unknown Title')
             artist = info.get('artist') or info.get('uploader', 'Unknown Artist')
             thumbnail_url = info.get('thumbnail')
@@ -287,8 +344,9 @@ class YouTubeDownloader:
             if not video_url:
                 return {'success': False, 'error': 'No video URL in entry'}
             
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
+            ok, dl_err = self._retry_ydl(ydl_opts, [video_url], label=f"download \"{title}\"")
+            if not ok:
+                return {'success': False, 'error': f'Download failed after {self.MAX_RETRIES} attempts: {dl_err}'}
             
             if os.path.exists(output_path):
                 return {
@@ -318,10 +376,9 @@ class YouTubeDownloader:
     def _download_single(self, url):
         """Download a single video (helper for playlist downloads)."""
         try:
-            import yt_dlp
-            
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
+            info, err = self._retry_extract_info(url, label="info extraction")
+            if info is None:
+                return {'success': False, 'error': f'Failed to extract video info: {err}'}
             
             title = info.get('title', 'Unknown Title')
             artist = info.get('artist') or info.get('uploader', 'Unknown Artist')
@@ -353,8 +410,9 @@ class YouTubeDownloader:
                 'add_metadata': True,
             })
             
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                ydl2.download([url])
+            ok, dl_err = self._retry_ydl(ydl_opts, [url], label=f"download \"{title}\"")
+            if not ok:
+                return {'success': False, 'error': f'Download failed after {self.MAX_RETRIES} attempts: {dl_err}'}
             
             if os.path.exists(output_path):
                 return {
@@ -384,16 +442,16 @@ class YouTubeDownloader:
     def _extract_playlist_info(self, url):
         """Extract playlist title and video entries from a playlist URL."""
         try:
-            import yt_dlp
-            
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': True
             }
             
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+            info, err = self._retry_extract_info(url, ydl_opts=ydl_opts, label="playlist info extraction")
+            if info is None:
+                print(f"Error extracting playlist info: {err}")
+                return None
             
             playlist_title = info.get('title', 'Imported Playlist')
             entries = info.get('entries', [])
