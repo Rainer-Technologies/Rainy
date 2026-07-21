@@ -2320,7 +2320,7 @@ export class RainyApp {
         const row = document.getElementById('lyrics-audio-sync-row');
         const cb = document.getElementById('settings-lyrics-audio-sync');
         if (!row || !cb) return;
-        const available = effect === 'word';
+        const available = effect === 'word' || effect === 'slide';
         row.classList.toggle('is-disabled', !available);
         cb.disabled = !available;
     }

@@ -1666,8 +1666,13 @@ def get_lyrics_words(song_id):
             (song_id,), fetch_one=True)
         if cached:
             words = json.loads(cached['data'])
-            _log(f'cache HIT — {len(words)} lines (no whisper run)')
-            return jsonify({'success': True, 'words': words})
+            if _is_word_pairs(words):
+                _log(f'cache HIT — {len(words)} lines (no whisper run)')
+                return jsonify({'success': True, 'words': words})
+            _log('cache is legacy start-only format — purging row')
+            Database.execute_query(
+                "DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
+            cached = None
 
         # Cache-only by default: opening the panel must never trigger the heavy
         # Whisper run. The batch job (or ?refresh=1) does the alignment.
@@ -1866,8 +1871,16 @@ def job_align_lyrics():
                    JOIN song_lyrics sl ON sl.song_id = s.id AND sl.found = 1
                    ORDER BY s.id""",
                 fetch_all=True)
-            have_words = {r['song_id'] for r in Database.execute_query(
-                "SELECT song_id FROM song_lyrics_words", fetch_all=True)}
+            # Only current-format ([start, end] pairs) caches count as done;
+            # legacy start-only rows get re-aligned and overwritten below.
+            have_words = set()
+            for r in Database.execute_query(
+                    "SELECT song_id, data FROM song_lyrics_words", fetch_all=True):
+                try:
+                    if _is_word_pairs(json.loads(r['data'])):
+                        have_words.add(r['song_id'])
+                except Exception:
+                    pass
 
             music_path = SettingsModel.get_music_path()
             norm_music = os.path.normpath(music_path) if music_path else None

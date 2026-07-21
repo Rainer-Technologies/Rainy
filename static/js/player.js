@@ -44,7 +44,12 @@ export class AudioPlayer {
         this.lyricsAudioSync = false;
         this._activeWordEls = null;
         this._activeWordLit = -1;
+        this._slideWordFracs = null;
+        this._slideFracsDirty = true;
+        this._slideP = null;
+        this._slideSnap = true;
         this._lyricsWordTimes = null;
+        this._lyricsWordEnds = null;
         this._lyricsAnalysis = null;
         this._lyricsAnalysisSongId = null;
         this._lyricsAnalysisPromise = null;
@@ -135,6 +140,10 @@ export class AudioPlayer {
         this.audio.addEventListener('play', () => this.handlePlay());
         this.audio.addEventListener('pause', () => this.handlePause());
         this.audio.addEventListener('error', (e) => this.handleError(e));
+
+        window.addEventListener('resize', () => {
+            this._slideFracsDirty = true;
+        });
 
         // Buffering events
         this.audio.addEventListener('waiting', () => this.handleWaiting());
@@ -1206,6 +1215,7 @@ export class AudioPlayer {
         this.lyricsData = null;
         this.activeLyricIndex = -1;
         this._lyricsWordTimes = null;
+        this._lyricsWordEnds = null;
 
         if (this.fsLyricsContent) {
             this.fsLyricsContent.innerHTML = '<div class="fs-lyrics-loading">Loading lyrics…</div>';
@@ -1260,7 +1270,7 @@ export class AudioPlayer {
                     : synced[i].time + 4;
             }
 
-            const wordMode = this.lyricsEffect === 'word';
+            const wordMode = this.lyricsEffect === 'word' || this.lyricsEffect === 'slide';
             const lineInner = (text) => {
                 if (!wordMode) return escape(text || '♪');
                 return this._lineWords(text)
@@ -1326,6 +1336,9 @@ export class AudioPlayer {
             ? Array.from(activeEl.querySelectorAll('.fs-lyric-word'))
             : null;
         this._activeWordLit = -1;
+        this._slideWordFracs = null;
+        this._slideFracsDirty = true;
+        this._slideSnap = true;
 
         const scrollEl = this.fsLyricsScroll;
         const lineEl = idx >= 0 ? els[idx] : null;
@@ -1359,7 +1372,21 @@ export class AudioPlayer {
         if (!el) return;
 
         if (this.lyricsEffect === 'slide') {
-            el.style.setProperty('--p', `${(p * 100).toFixed(2)}%`);
+            let target = p;
+            if (this.lyricsAudioSync) {
+                const synced = this._slideSyncedProgress(idx, t, line);
+                if (synced != null) target = synced;
+            }
+            let cur = this._slideP;
+            if (cur == null || this._slideSnap) {
+                cur = target;
+                this._slideSnap = false;
+            } else {
+                cur += (target - cur) * 0.3;
+                if (Math.abs(target - cur) < 0.0005) cur = target;
+            }
+            this._slideP = cur;
+            el.style.setProperty('--p', `${(cur * 100).toFixed(2)}%`);
         } else if (this.lyricsEffect === 'word') {
             const words = this._activeWordEls;
             if (!words || !words.length) return;
@@ -1382,6 +1409,75 @@ export class AudioPlayer {
                 words[i].classList.toggle('lit', i < lit);
             }
         }
+    }
+
+    _slideSyncedProgress(idx, t, line) {
+        const wt = this._lyricsWordTimes && this._lyricsWordTimes[idx];
+        const words = this._activeWordEls;
+        if (!Array.isArray(wt) || !words || wt.length !== words.length) return null;
+
+        if (this._slideFracsDirty || !this._slideWordFracs || this._slideWordFracs.length !== words.length) {
+            this._measureSlideWordFracs();
+            if (!this._slideWordFracs) return null;
+        }
+        const fracs = this._slideWordFracs;
+        const n = wt.length;
+        const ends = this._lyricsWordEnds && this._lyricsWordEnds[idx];
+
+        if (t <= wt[0]) return 0;
+        let i = 0;
+        while (i + 1 < n && t >= wt[i + 1]) i++;
+
+        let nextT;
+        if (ends && Number.isFinite(ends[i]) && ends[i] > wt[i]) {
+            nextT = ends[i];
+        } else if (i + 1 < n) {
+            nextT = wt[i + 1];
+        } else {
+            nextT = wt[i] + this._estimateWordSpan(wt);
+        }
+        if (line.end != null && nextT > line.end) nextT = line.end;
+        if (nextT <= wt[i]) nextT = wt[i] + 0.001;
+
+        const from = i > 0 ? fracs[i - 1] : 0;
+        const to = i === n - 1 ? 1 : fracs[i];
+        let u = (t - wt[i]) / (nextT - wt[i]);
+        if (u < 0) u = 0;
+        else if (u > 1) u = 1;
+        return from + (to - from) * u;
+    }
+
+    _estimateWordSpan(wt) {
+        const n = wt.length;
+        if (n < 2) return 0.6;
+        const gaps = [];
+        for (let k = 1; k < n; k++) gaps.push(wt[k] - wt[k - 1]);
+        gaps.sort((a, b) => a - b);
+        const med = gaps[Math.floor(gaps.length / 2)];
+        return med > 0 ? med : 0.6;
+    }
+
+    _measureSlideWordFracs() {
+        this._slideWordFracs = null;
+        this._slideFracsDirty = false;
+        const words = this._activeWordEls;
+        const el = this.activeLyricIndex >= 0 && this.fsLyricsContent
+            ? this.fsLyricsContent.children[this.activeLyricIndex]
+            : null;
+        if (!el || !words || !words.length) return;
+        const lineRect = el.getBoundingClientRect();
+        if (!lineRect.width) return;
+        const fracs = new Array(words.length);
+        let prev = 0;
+        for (let i = 0; i < words.length; i++) {
+            const r = words[i].getBoundingClientRect();
+            let f = (r.right - lineRect.left) / lineRect.width;
+            if (f < prev) f = prev;
+            if (f > 1) f = 1;
+            fracs[i] = f;
+            prev = f;
+        }
+        this._slideWordFracs = fracs;
     }
 
     _applyLyricsFxClass() {
@@ -1428,10 +1524,11 @@ export class AudioPlayer {
         this._lyricsAnalysisSongId = null;
         this._lyricsAnalysisPromise = null;
         this._lyricsWordTimes = null;
+        this._lyricsWordEnds = null;
     }
 
     _maybeStartAudioAnalysis() {
-        if (!this.lyricsAudioSync || this.lyricsEffect !== 'word') return;
+        if (!this.lyricsAudioSync || (this.lyricsEffect !== 'word' && this.lyricsEffect !== 'slide')) return;
         if (!this.currentSong || !this.lyricsData || !Array.isArray(this.lyricsData.synced)) return;
         this._ensureAudioAnalysis();
     }
@@ -1476,7 +1573,7 @@ export class AudioPlayer {
                 Logger.log(`[lyrics] song ${id}: server shape mismatch (words=${Array.isArray(words) ? words.length : 'n/a'}, lines=${Array.isArray(lines) ? lines.length : 'n/a'})`);
                 return false;
             }
-            this._lyricsWordTimes = words;
+            this._ingestWordTimes(words);
             this._lyricsAnalysis = { source: 'whisper' };
             return true;
         } catch (err) {
@@ -1546,14 +1643,67 @@ export class AudioPlayer {
         return { env: sm, hop, sr };
     }
 
+    _ingestWordTimes(words) {
+        const starts = new Array(words.length);
+        const ends = new Array(words.length);
+        let hasEnds = false;
+        for (let i = 0; i < words.length; i++) {
+            const line = words[i];
+            if (Array.isArray(line) && line.length && Array.isArray(line[0])) {
+                starts[i] = line.map(p => p[0]);
+                ends[i] = line.map(p => p[1]);
+                hasEnds = true;
+            } else {
+                starts[i] = line;
+                ends[i] = null;
+            }
+        }
+        this._lyricsWordTimes = starts;
+        this._lyricsWordEnds = hasEnds ? ends : null;
+        this._normalizeWordTimes();
+    }
+
+    _normalizeWordTimes() {
+        const synced = this.lyricsData && this.lyricsData.synced;
+        const all = this._lyricsWordTimes;
+        if (!Array.isArray(synced) || !Array.isArray(all)) return;
+        const endsAll = this._lyricsWordEnds;
+        const MARGIN = 0.25;
+        const GAP = 0.03;
+        for (let i = 0; i < all.length && i < synced.length; i++) {
+            const wt = all[i];
+            const line = synced[i];
+            if (!Array.isArray(wt) || !wt.length || !line) continue;
+            const hardEnd = line.end != null ? line.end : line.time + 4;
+            let cap = hardEnd - MARGIN;
+            for (let k = wt.length - 1; k >= 0; k--) {
+                if (wt[k] > cap) wt[k] = cap;
+                cap = wt[k] - GAP;
+            }
+            const ends = endsAll && endsAll[i];
+            if (Array.isArray(ends)) {
+                for (let k = 0; k < ends.length; k++) {
+                    const upper = k + 1 < wt.length ? wt[k + 1] : hardEnd;
+                    let e = ends[k];
+                    if (!Number.isFinite(e) || e < wt[k]) e = wt[k];
+                    if (e > upper) e = upper;
+                    ends[k] = e;
+                }
+            }
+        }
+    }
+
     _buildAllWordTimes() {
         const lines = this.lyricsData && this.lyricsData.synced;
         if (!this._lyricsAnalysis || !Array.isArray(lines)) {
             this._lyricsWordTimes = null;
+            this._lyricsWordEnds = null;
             return;
         }
         this._lyricsWordTimes = lines.map(line =>
             this._computeLineWordTimes(line, this._lineWordCount(line.text)));
+        this._lyricsWordEnds = null;
+        this._normalizeWordTimes();
     }
 
     _computeLineWordTimes(line, wordCount) {

@@ -127,7 +127,7 @@ def _fill_gaps(times):
     return times
 
 
-def _proportional_map(flat_tokens, aligned_words):
+def _proportional_map(flat_tokens, aligned_words, field=1):
     n = len(flat_tokens)
     m = len(aligned_words)
     if m == 0:
@@ -135,7 +135,7 @@ def _proportional_map(flat_tokens, aligned_words):
     times = []
     for i in range(n):
         j = round(i * (m - 1) / (n - 1)) if n > 1 else 0
-        times.append(aligned_words[j][1])
+        times.append(aligned_words[j][field])
     # Enforce monotonic
     for i in range(1, n):
         if times[i] < times[i - 1]:
@@ -151,8 +151,9 @@ def align_lyrics_words(audio_path, lines):
         lines: list of lyric line strings, in order.
 
     Returns:
-        A list (same length as `lines`) of lists of start-times (seconds),
-        one per token in that line, or None if alignment produced nothing.
+        A list (same length as `lines`) of lists of [start, end] pairs
+        (seconds), one per token in that line, or None if alignment produced
+        nothing.
     """
     if not lines or not audio_path or not os.path.exists(audio_path):
         _log(f'abort: bad input (lines={len(lines) if lines else 0}, '
@@ -184,7 +185,11 @@ def align_lyrics_words(audio_path, lines):
             st = getattr(w, 'start', None)
             if st is None:
                 continue
-            aligned_words.append((getattr(w, 'word', '') or '', float(st)))
+            en = getattr(w, 'end', None)
+            aligned_words.append((
+                getattr(w, 'word', '') or '',
+                float(st),
+                float(en) if en is not None else float(st)))
     if not aligned_words:
         _log('abort: align produced no word timestamps')
         return None
@@ -200,13 +205,14 @@ def align_lyrics_words(audio_path, lines):
         return None
 
     times = [None] * n
+    ends = [None] * n
     strategy = 'proportional'
 
     # Order-preserving fuzzy text match, when we have enough words to be useful.
     if m >= max(3, n // 2):
         ti = 0
         window = 8
-        for wtext, st in aligned_words:
+        for wtext, st, en in aligned_words:
             nt = _norm(wtext)
             if not nt:
                 continue
@@ -217,36 +223,57 @@ def align_lyrics_words(audio_path, lines):
                     break
             if found >= 0:
                 times[found] = st
+                ends[found] = en
                 ti = found + 1
 
     matched = sum(1 for t in times if t is not None)
     if matched < max(1, n // 3):
         # Too few text matches — fall back to order-based proportional mapping.
-        times = _proportional_map(flat, aligned_words)
+        times = _proportional_map(flat, aligned_words, 1)
+        ends = _proportional_map(flat, aligned_words, 2)
         strategy = 'proportional'
     else:
         times = _fill_gaps(times)
+        ends = _fill_gaps(ends)
         strategy = 'greedy'
 
     if times is None or any(t is None for t in times):
-        times = _proportional_map(flat, aligned_words)
+        times = _proportional_map(flat, aligned_words, 1)
+        ends = _proportional_map(flat, aligned_words, 2)
         strategy = 'proportional (gap-fill fallback)'
     if times is None:
         _log('abort: mapping produced no times')
         return None
+    if ends is None or any(e is None for e in ends):
+        ends = list(times)
 
     _log(f'mapping: {n} tokens vs {m} whisper words -> '
          f'{matched} text matches, strategy={strategy}')
 
     # Clamp to >= 0
     times = [max(0.0, float(t)) for t in times]
+    ends = [max(0.0, float(e)) for e in ends]
 
     out = []
     idx = 0
     for toks in tokens_per_line:
-        out.append(times[idx:idx + len(toks)])
-        idx += len(toks)
+        cnt = len(toks)
+        line_pairs = []
+        for k in range(cnt):
+            s = times[idx + k]
+            e = ends[idx + k]
+            if e < s:
+                e = s
+            if k + 1 < cnt:
+                nxt = times[idx + k + 1]
+                if e > nxt:
+                    e = nxt
+            elif e <= s:
+                e = s + 0.5
+            line_pairs.append([round(s, 3), round(e, 3)])
+        out.append(line_pairs)
+        idx += cnt
     _log(f'done: word times for {len(out)} lines '
          f'(first line {len(out[0])} words, '
-         f'range {times[0]:.2f}s–{times[-1]:.2f}s)')
+         f'range {times[0]:.2f}s–{ends[-1]:.2f}s)')
     return out
