@@ -1572,6 +1572,7 @@ export class RainyApp {
         // Hide other views and reset
         document.getElementById('discover-view')?.classList.add('hidden');
         document.getElementById('artists-view')?.classList.add('hidden');
+        window.newViews?.hideNewViews();
         document.querySelector('.view-toggle')?.classList.remove('hidden');
         
         // Show section header
@@ -1617,6 +1618,7 @@ export class RainyApp {
         // Hide other views and reset
         document.getElementById('discover-view')?.classList.add('hidden');
         document.getElementById('artists-view')?.classList.add('hidden');
+        window.newViews?.hideNewViews();
         document.querySelector('.view-toggle')?.classList.remove('hidden');
         
         // Show section header
@@ -1661,6 +1663,9 @@ export class RainyApp {
 
         useContext().set('current-view-type', 'discover');
         this.currentPlaylistId = null;
+
+        // Hide new-feature views so they don't linger
+        window.newViews?.hideNewViews();
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
@@ -2723,6 +2728,9 @@ export class RainyApp {
 
         useContext().set('current-view-type', 'artists');
         this.currentPlaylistId = null;
+
+        // Hide new-feature views so they don't linger
+        window.newViews?.hideNewViews();
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));

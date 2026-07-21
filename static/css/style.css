@@ -20,6 +20,7 @@
 @import url('./components/toast.css');
 @import url('./components/context-menu.css');
 @import url('./components/settings-page.css');
+@import url('./components/new-features.css');
 
 /* Pages */
 @import url('./pages/setup.css');
