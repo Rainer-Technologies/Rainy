@@ -1,4 +1,5 @@
 import os
+import hashlib
 from datetime import datetime
 from mutagen import File as MutagenFile
 from mutagen.mp3 import MP3
@@ -215,7 +216,108 @@ class MusicScanner:
             # If metadata extraction fails, use filename-based metadata
             print(f"Warning: Could not extract metadata from {file_path}: {e}")
         
+        # Extract embedded cover art
+        try:
+            cover_path = self._extract_cover_art(file_path)
+            if cover_path:
+                metadata['cover_path'] = cover_path
+        except Exception as e:
+            print(f"Warning: Could not extract cover art from {file_path}: {e}")
+        
         return metadata
+    
+    def _extract_cover_art(self, file_path):
+        """Extract embedded cover art from an audio file and save it to the covers directory.
+        
+        Supports ID3 APIC (MP3), FLAC pictures, MP4 covr atoms, and OGG metadata blocks.
+        Returns a relative path like 'covers/<hash>.jpg' or None if no art is found.
+        """
+        audio = MutagenFile(file_path)
+        if audio is None:
+            return None
+        
+        image_data = None
+        mime = 'image/jpeg'
+        
+        ext = os.path.splitext(file_path)[1].lower()
+        
+        if ext == '.mp3' or ext == '.wav':
+            # ID3 APIC frames
+            if hasattr(audio, 'tags') and audio.tags:
+                for key in audio.tags:
+                    if key.startswith('APIC'):
+                        apic = audio.tags[key]
+                        image_data = apic.data
+                        mime = apic.mime or 'image/jpeg'
+                        break
+        
+        elif ext == '.flac':
+            # FLAC pictures
+            if hasattr(audio, 'pictures') and audio.pictures:
+                pic = audio.pictures[0]
+                image_data = pic.data
+                mime = pic.mime or 'image/jpeg'
+        
+        elif ext in ('.m4a', '.mp4', '.aac'):
+            # MP4 covr atom
+            if hasattr(audio, 'tags') and audio.tags:
+                covr = audio.tags.get('covr')
+                if covr:
+                    image_data = bytes(covr[0])
+                    # Detect format from magic bytes
+                    if image_data[:8] == b'\x89PNG\r\n\x1a\n':
+                        mime = 'image/png'
+                    elif image_data[:4] == b'RIFF':
+                        mime = 'image/webp'
+                    else:
+                        mime = 'image/jpeg'
+        
+        elif ext == '.ogg':
+            # OGG metadata_block_picture (base64-encoded)
+            if hasattr(audio, 'tags') and audio.tags:
+                import base64 as b64
+                pictures = audio.tags.get('metadata_block_picture')
+                if pictures:
+                    from mutagen.flac import Picture
+                    pic = Picture(b64.b64decode(pictures[0]))
+                    image_data = pic.data
+                    mime = pic.mime or 'image/jpeg'
+        
+        if not image_data:
+            return None
+        
+        # Determine file extension from MIME type
+        ext_map = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/webp': '.webp',
+            'image/gif': '.gif',
+        }
+        img_ext = ext_map.get(mime, '.jpg')
+        
+        # Use hash of the audio file path as the cover filename for uniqueness
+        relative_audio = os.path.relpath(file_path, self.music_path).replace('\\', '/')
+        cover_filename = hashlib.md5(relative_audio.encode()).hexdigest()
+        
+        # Save to covers directory
+        covers_dir = os.path.join(self.music_path, 'covers')
+        os.makedirs(covers_dir, exist_ok=True)
+        
+        cover_filepath = os.path.join(covers_dir, f"{cover_filename}{img_ext}")
+        
+        # Skip writing if the file already exists with the same content
+        if os.path.isfile(cover_filepath):
+            try:
+                with open(cover_filepath, 'rb') as f:
+                    if f.read() == image_data:
+                        return os.path.join('covers', f"{cover_filename}{img_ext}").replace('\\', '/')
+            except OSError:
+                pass
+        
+        with open(cover_filepath, 'wb') as f:
+            f.write(image_data)
+        
+        return os.path.join('covers', f"{cover_filename}{img_ext}").replace('\\', '/')
     
     def _get_tag(self, audio, tag_name, default=None):
         """Safely get a tag value from audio metadata."""
