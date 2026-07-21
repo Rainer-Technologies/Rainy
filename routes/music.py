@@ -1410,6 +1410,98 @@ def _fetch_lyrics_from_lrclib(title, artist, album, duration):
     return synced, plain
 
 
+_LRC_STAMPS = _re.compile(r'\[\d{1,2}:\d{1,2}(?:[.:]\d{1,3})?\]')
+
+
+def _lyrics_snippet(record, max_lines=4):
+    """First few non-empty lines of a record's lyrics, timestamps stripped."""
+    text = record.get('plainLyrics') or record.get('syncedLyrics') or ''
+    lines = []
+    for raw in text.splitlines():
+        line = _LRC_STAMPS.sub('', raw).strip()
+        if line:
+            lines.append(line)
+        if len(lines) >= max_lines:
+            break
+    return '\n'.join(lines)
+
+
+def _search_lyrics_candidates(query):
+    """Search LRCLIB for lyrics matching a free-text query.
+
+    Returns a deduplicated list of candidate dicts, synced-first and ranked by
+    similarity to the query.
+    """
+    import requests
+
+    query = (query or '').strip()
+    if not query:
+        return []
+
+    seen = set()
+    records = []
+    attempts = [{'q': query}, {'track_name': query}]
+    for params in attempts:
+        try:
+            resp = requests.get(
+                f'{_LRCLIB_BASE}/search', params=params,
+                headers=_LRCLIB_HEADERS, timeout=10)
+        except Exception:
+            continue
+        if resp.status_code != 200:
+            continue
+        try:
+            data = resp.json()
+        except Exception:
+            continue
+        if not isinstance(data, list):
+            continue
+        for record in data:
+            if not record or not record.get('id'):
+                continue
+            if not (record.get('syncedLyrics') or record.get('plainLyrics')):
+                continue
+            if record['id'] in seen:
+                continue
+            seen.add(record['id'])
+            records.append(record)
+
+    def rank(record):
+        name = f"{record.get('trackName') or ''} {record.get('artistName') or ''}"
+        return (1 if record.get('syncedLyrics') else 0,
+                _token_similarity(name, query))
+
+    records.sort(key=rank, reverse=True)
+    return [
+        {
+            'id': record['id'],
+            'title': record.get('trackName') or '',
+            'artist': record.get('artistName') or '',
+            'album': record.get('albumName') or '',
+            'duration': record.get('duration') or 0,
+            'synced': bool(record.get('syncedLyrics')),
+            'snippet': _lyrics_snippet(record),
+        }
+        for record in records[:15]
+    ]
+
+
+@music_bp.route('/lyrics/search', methods=['POST'])
+@require_auth
+def search_lyrics():
+    """Search LRCLIB for lyrics candidates so the user can pick one manually."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query = (body.get('query') or '').strip()
+        if not query:
+            return jsonify({'error': 'Missing search query'}), 400
+
+        results = _search_lyrics_candidates(query)
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['GET'])
 @require_auth
 def get_lyrics(song_id):
@@ -1486,6 +1578,68 @@ def delete_lyrics(song_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/song/<int:song_id>/lyrics', methods=['POST'])
+@require_auth
+def apply_lyrics(song_id):
+    """Manually apply a specific LRCLIB record as this song's lyrics."""
+    try:
+        from models.database import Database
+        import json
+        import requests
+
+        body = request.get_json(silent=True) or {}
+        lrclib_id = body.get('lrclib_id')
+        if not lrclib_id:
+            return jsonify({'error': 'Missing lrclib_id'}), 400
+
+        song = SongModel.get_song_by_id(song_id)
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+
+        try:
+            resp = requests.get(
+                f'{_LRCLIB_BASE}/get/{int(lrclib_id)}',
+                headers=_LRCLIB_HEADERS, timeout=10)
+        except Exception:
+            return jsonify({'error': 'Could not reach LRCLIB'}), 502
+        if resp.status_code != 200:
+            return jsonify({'error': 'Lyrics record not found on LRCLIB'}), 404
+
+        try:
+            record = resp.json()
+        except Exception:
+            return jsonify({'error': 'Invalid response from LRCLIB'}), 502
+
+        synced = _parse_lrc(record.get('syncedLyrics'))
+        plain = (record.get('plainLyrics') or '').strip()
+        if not synced and not plain:
+            return jsonify({'error': 'That record has no lyrics'}), 404
+
+        synced_json = json.dumps(synced) if synced else None
+        plain_text = plain or None
+        Database.execute_query(
+            """INSERT INTO song_lyrics (song_id, found, synced, plain)
+               VALUES (%s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE found = %s, synced = %s, plain = %s""",
+            (song_id, 1, synced_json, plain_text, 1, synced_json, plain_text))
+        # Word timings were aligned against the previous lyrics — drop them.
+        Database.execute_query("DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
+
+        return jsonify({
+            'success': True,
+            'lyrics': {'synced': synced or [], 'plain': plain or ''}
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def _is_word_pairs(words):
+    """True if cached word-timing data is the current [start, end] pair format."""
+    return (isinstance(words, list) and words
+            and isinstance(words[0], list) and words[0]
+            and isinstance(words[0][0], list))
 
 
 @music_bp.route('/song/<int:song_id>/lyrics-words', methods=['GET'])
