@@ -670,6 +670,7 @@
                     <span class="progress-time current" id="current-time">0:00</span>
                     <div class="progress-bar" id="progress-bar">
                         <div class="progress-fill" id="progress-fill"></div>
+                        <div class="ab-loop-region hidden" id="ab-loop-region"></div>
                     </div>
                     <span class="progress-time" id="total-time">0:00</span>
                 </div>
@@ -686,6 +687,19 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
                     </svg>
+                </button>
+                <button class="control-btn secondary" id="ab-repeat-btn" title="A-B Repeat (loop a section)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                        <text x="12" y="14.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="Arial">AB</text>
+                    </svg>
+                </button>
+                <button class="control-btn secondary" id="speed-btn" title="Playback Speed">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.28-10.43z"/>
+                        <path d="M10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/>
+                    </svg>
+                    <span class="speed-label" id="speed-label">1x</span>
                 </button>
                 <div class="volume-control">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1419,6 +1433,7 @@
                         <span class="fs-time current" id="fs-current-time">0:00</span>
                         <div class="fs-progress-bar" id="fs-progress-bar">
                             <div class="fs-progress-fill" id="fs-progress-fill"></div>
+                            <div class="ab-loop-region hidden" id="fs-ab-loop-region"></div>
                         </div>
                         <span class="fs-time" id="fs-total-time">0:00</span>
                     </div>
@@ -1462,6 +1477,19 @@
                                 </svg>
                             </button>
                         </div>
+                        <button class="fs-control-btn secondary" id="fs-ab-repeat-btn" title="A-B Repeat (loop a section)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                                <text x="12" y="14.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="Arial">AB</text>
+                            </svg>
+                        </button>
+                        <button class="fs-control-btn secondary" id="fs-speed-btn" title="Playback Speed">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.28-10.43z"/>
+                                <path d="M10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/>
+                            </svg>
+                            <span class="speed-label" id="fs-speed-label">1x</span>
+                        </button>
                         <button class="fs-control-btn secondary" id="fs-repeat-btn" title="Repeat">
                             <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />

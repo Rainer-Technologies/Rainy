@@ -57,6 +57,10 @@ export class AudioPlayer {
         this._lyricsAnalysisSongId = null;
         this._lyricsAnalysisPromise = null;
 
+        // A-B Repeat (section loop)
+        this.abPointA = null; // seconds
+        this.abPointB = null; // seconds
+
         this.init();
     }
 
@@ -64,6 +68,7 @@ export class AudioPlayer {
         this.bindElements();
         this.bindEvents();
         this.loadSettings();
+        this.restorePlaybackSpeed();
 
         // Media Session API (lock screen / media keys)
         this.mediaSession = new MediaSessionController(this);
@@ -80,6 +85,18 @@ export class AudioPlayer {
         this.nextBtn = document.getElementById('next-btn');
         this.shuffleBtn = document.getElementById('shuffle-btn');
         this.repeatBtn = document.getElementById('repeat-btn');
+
+        // A-B Repeat
+        this.abRepeatBtn = document.getElementById('ab-repeat-btn');
+        this.fsAbRepeatBtn = document.getElementById('fs-ab-repeat-btn');
+        this.abLoopRegion = document.getElementById('ab-loop-region');
+        this.fsAbLoopRegion = document.getElementById('fs-ab-loop-region');
+
+        // Playback Speed
+        this.speedBtn = document.getElementById('speed-btn');
+        this.fsSpeedBtn = document.getElementById('fs-speed-btn');
+        this.speedLabel = document.getElementById('speed-label');
+        this.fsSpeedLabel = document.getElementById('fs-speed-label');
 
         // Progress
         this.progressBar = document.getElementById('progress-bar');
@@ -180,6 +197,10 @@ export class AudioPlayer {
         this.nextBtn.addEventListener('click', () => this.playNext());
         this.shuffleBtn.addEventListener('click', () => this.toggleShuffle());
         this.repeatBtn.addEventListener('click', () => this.toggleRepeat());
+        if (this.abRepeatBtn) this.abRepeatBtn.addEventListener('click', () => this.handleAbRepeatClick());
+        if (this.fsAbRepeatBtn) this.fsAbRepeatBtn.addEventListener('click', () => this.handleAbRepeatClick());
+        if (this.speedBtn) this.speedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.speedBtn); });
+        if (this.fsSpeedBtn) this.fsSpeedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.fsSpeedBtn); });
         if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
         if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
 
@@ -338,6 +359,9 @@ export class AudioPlayer {
 
         this.currentIndex = index;
         const song = this.playlist[index];
+
+        // Clear any A-B section loop from the previous song
+        this.clearAbRepeat();
 
         // Update audio source - API now uses database ID
         const streamUrl = `/api/music/stream/${song.id}`;
@@ -560,12 +584,102 @@ export class AudioPlayer {
         updateBtn(this.fsRepeatBtn);
     }
 
+    /* ========================================================================
+       A-B Repeat (Section Loop)
+       Click once to set point A (start), again to set point B (end) and start
+       looping, a third time to clear. Great for practicing a solo/riff or
+       replaying a favorite section of a song.
+       ======================================================================== */
+    handleAbRepeatClick() {
+        if (!this.audio || !this.audio.duration) {
+            window.showToast?.('Play a song first to use A-B repeat', 'info');
+            return;
+        }
+
+        const t = this.audio.currentTime;
+
+        if (this.abPointA === null) {
+            // First click: set point A
+            this.abPointA = t;
+            this.abPointB = null;
+            window.showToast?.(`A-B repeat: start set at ${this.formatTime(t)}`, 'info');
+        } else if (this.abPointB === null) {
+            // Second click: set point B
+            if (t <= this.abPointA + 0.5) {
+                // Too close / before A — treat as resetting A
+                this.abPointA = t;
+                window.showToast?.(`A-B repeat: start moved to ${this.formatTime(t)}`, 'info');
+            } else {
+                this.abPointB = t;
+                // Jump back to A so the loop starts cleanly
+                this.audio.currentTime = this.abPointA;
+                if (this.audio.paused) this.audio.play().catch(() => {});
+                window.showToast?.(
+                    `Looping ${this.formatTime(this.abPointA)} → ${this.formatTime(this.abPointB)}`,
+                    'success'
+                );
+            }
+        } else {
+            // Third click: clear the loop
+            this.clearAbRepeat();
+            window.showToast?.('A-B repeat cleared', 'info');
+            return;
+        }
+
+        this.updateAbRepeatUI();
+    }
+
+    clearAbRepeat() {
+        this.abPointA = null;
+        this.abPointB = null;
+        this.updateAbRepeatUI();
+    }
+
+    updateAbRepeatUI() {
+        const active = this.abPointA !== null && this.abPointB !== null;
+
+        // Toggle active class on both buttons
+        [this.abRepeatBtn, this.fsAbRepeatBtn].forEach(btn => {
+            if (!btn) return;
+            if (active) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+
+        // Position the loop-region overlay on both progress bars
+        [this.abLoopRegion, this.fsAbLoopRegion].forEach(region => {
+            if (!region) return;
+            if (active && this.audio.duration) {
+                const startPct = (this.abPointA / this.audio.duration) * 100;
+                const widthPct = ((this.abPointB - this.abPointA) / this.audio.duration) * 100;
+                region.style.left = `${startPct}%`;
+                region.style.width = `${widthPct}%`;
+                region.classList.remove('hidden');
+            } else {
+                region.classList.add('hidden');
+            }
+        });
+    }
+
+    /**
+     * Enforce the A-B loop boundary during playback. Called from timeupdate.
+     * When currentTime reaches/exceeds point B, jump back to point A.
+     */
+    _enforceAbLoop() {
+        if (this.abPointA === null || this.abPointB === null) return;
+        if (this.audio.currentTime >= this.abPointB) {
+            this.audio.currentTime = this.abPointA;
+        }
+    }
+
     handleTimeUpdate() {
         // Don't update time display while buffering or dragging progress
         if (this.isBuffering || this.isDraggingProgress) return;
 
         // Accumulate real listening time (only counts while actually playing)
         if (this.isPlaying) this._tickListenTracking();
+
+        // Enforce A-B loop boundary before updating the progress display
+        this._enforceAbLoop();
 
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
@@ -2350,6 +2464,133 @@ export class AudioPlayer {
         } else {
             btn.classList.remove('active');
             btn.title = 'Sleep Timer';
+        }
+    }
+
+    /* ========================================================================
+       Playback Speed Control
+       Popup menu with presets (0.5x–2x) and a fine-tune slider.
+       Persists to localStorage so it survives page reloads.
+       ======================================================================== */
+
+    /** Speed presets shown as buttons in the menu. */
+    static SPEED_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+    /**
+     * Show the playback-speed popup anchored to the given button.
+     * @param {HTMLElement} anchorBtn
+     */
+    showSpeedMenu(anchorBtn) {
+        document.getElementById('speed-menu')?.remove();
+
+        const current = this.audio.playbackRate || 1;
+        const menu = document.createElement('div');
+        menu.id = 'speed-menu';
+        menu.className = 'speed-menu';
+
+        menu.innerHTML = `
+            <div class="speed-menu-header">Playback Speed</div>
+            <div class="speed-presets">
+                ${AudioPlayer.SPEED_PRESETS.map(s => `
+                    <button class="speed-preset${Math.abs(s - current) < 0.01 ? ' active' : ''}" data-speed="${s}">${s}x</button>
+                `).join('')}
+            </div>
+            <div class="speed-slider-row">
+                <span class="speed-slider-label">Fine</span>
+                <input type="range" class="speed-slider" id="speed-slider" min="0.25" max="3" step="0.05" value="${current}">
+                <span class="speed-slider-value" id="speed-slider-value">${current.toFixed(2)}x</span>
+            </div>
+            <button class="speed-reset-btn" id="speed-reset-btn">Reset to 1x</button>
+        `;
+
+        document.body.appendChild(menu);
+
+        // Position above the anchor button
+        const rect = anchorBtn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+        menu.style.zIndex = '3000';
+        // Center horizontally on the button, clamp to viewport
+        const menuWidth = 220;
+        let left = rect.left + rect.width / 2 - menuWidth / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+        menu.style.left = `${left}px`;
+        menu.style.width = `${menuWidth}px`;
+
+        // Preset buttons
+        menu.querySelectorAll('.speed-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.setPlaybackSpeed(parseFloat(btn.dataset.speed));
+                menu.remove();
+            });
+        });
+
+        // Fine-tune slider
+        const slider = menu.querySelector('#speed-slider');
+        const valueEl = menu.querySelector('#speed-slider-value');
+        slider?.addEventListener('input', () => {
+            const v = parseFloat(slider.value);
+            valueEl.textContent = `${v.toFixed(2)}x`;
+            this.setPlaybackSpeed(v);
+            // Update active preset highlight
+            menu.querySelectorAll('.speed-preset').forEach(b => {
+                b.classList.toggle('active', Math.abs(parseFloat(b.dataset.speed) - v) < 0.01);
+            });
+        });
+
+        // Reset button
+        menu.querySelector('#speed-reset-btn')?.addEventListener('click', () => {
+            this.setPlaybackSpeed(1);
+            menu.remove();
+        });
+
+        // Close on outside click
+        const outsideHandler = (e) => {
+            if (!menu.contains(e.target) && e.target !== anchorBtn && !anchorBtn.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', outsideHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', outsideHandler), 0);
+    }
+
+    /**
+     * Set the audio playback rate and update all UI labels.
+     * @param {number} rate  e.g. 0.5 – 3
+     */
+    setPlaybackSpeed(rate) {
+        rate = Math.max(0.25, Math.min(3, rate));
+        this.audio.playbackRate = rate;
+        localStorage.setItem('rainy_playback_speed', String(rate));
+
+        const label = rate === 1 ? '1x' : `${parseFloat(rate.toFixed(2))}x`;
+        if (this.speedLabel) this.speedLabel.textContent = label;
+        if (this.fsSpeedLabel) this.fsSpeedLabel.textContent = label;
+
+        // Highlight active state on buttons
+        const active = Math.abs(rate - 1) > 0.01;
+        [this.speedBtn, this.fsSpeedBtn].forEach(btn => {
+            if (btn) btn.classList.toggle('active', active);
+        });
+    }
+
+    /**
+     * Restore saved playback speed (called on init / song load).
+     */
+    restorePlaybackSpeed() {
+        const saved = localStorage.getItem('rainy_playback_speed');
+        if (saved !== null) {
+            const rate = parseFloat(saved);
+            if (!isNaN(rate) && rate >= 0.25 && rate <= 3) {
+                this.audio.playbackRate = rate;
+                const label = rate === 1 ? '1x' : `${parseFloat(rate.toFixed(2))}x`;
+                if (this.speedLabel) this.speedLabel.textContent = label;
+                if (this.fsSpeedLabel) this.fsSpeedLabel.textContent = label;
+                const active = Math.abs(rate - 1) > 0.01;
+                [this.speedBtn, this.fsSpeedBtn].forEach(btn => {
+                    if (btn) btn.classList.toggle('active', active);
+                });
+            }
         }
     }
 

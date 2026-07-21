@@ -566,3 +566,175 @@
     .smartmix-hero h2 { font-size: 24px; }
     .recent-tabs { flex-wrap: wrap; }
 }
+
+/* ==========================================================================
+   A-B Repeat (Section Loop)
+   ========================================================================== */
+.ab-loop-region {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(var(--accent-primary-rgb, 99, 102, 241), 0.35);
+    border-left: 2px solid var(--accent-primary);
+    border-right: 2px solid var(--accent-primary);
+    border-radius: var(--radius-full);
+    pointer-events: none;
+    z-index: 5;
+}
+.ab-loop-region.hidden { display: none; }
+
+/* Active state for the A-B repeat buttons */
+#ab-repeat-btn.active svg,
+#fs-ab-repeat-btn.active svg {
+    fill: var(--accent-primary);
+}
+#ab-repeat-btn.active,
+#fs-ab-repeat-btn.active {
+    color: var(--accent-primary);
+}
+
+/* Small "looping" badge shown near the time while A-B repeat is active */
+.ab-loop-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+    color: var(--accent-primary);
+    font-weight: 600;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+.ab-loop-badge.hidden { display: none; }
+
+/* ==========================================================================
+   Playback Speed Control
+   ========================================================================== */
+#speed-btn,
+#fs-speed-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+#speed-btn.active,
+#fs-speed-btn.active {
+    color: var(--accent-primary);
+}
+#speed-btn.active svg,
+#fs-speed-btn.active svg {
+    fill: var(--accent-primary);
+}
+.speed-label {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.speed-menu {
+    background: var(--bg-secondary, #1e1e2e);
+    border: 1px solid var(--border-color, #333);
+    border-radius: var(--radius-lg, 12px);
+    padding: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    z-index: 3000;
+    animation: speedMenuIn 0.15s ease;
+}
+@keyframes speedMenuIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.speed-menu-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary, #aaa);
+    margin-bottom: 10px;
+    text-align: center;
+}
+.speed-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.speed-preset {
+    background: var(--bg-tertiary, #2a2a3e);
+    border: 1px solid var(--border-color, #444);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-primary, #eee);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.speed-preset:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+.speed-preset.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+}
+.speed-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.speed-slider-label {
+    font-size: 11px;
+    color: var(--text-secondary, #aaa);
+    white-space: nowrap;
+}
+.speed-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bg-tertiary, #333);
+    outline: none;
+    cursor: pointer;
+}
+.speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+}
+.speed-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    border: none;
+}
+.speed-slider-value {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-primary);
+    min-width: 42px;
+    text-align: right;
+}
+.speed-reset-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border-color, #444);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-secondary, #aaa);
+    font-size: 12px;
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.speed-reset-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}

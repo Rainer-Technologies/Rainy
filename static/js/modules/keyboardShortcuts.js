@@ -1,7 +1,8 @@
 /**
  * Global keyboard shortcuts for Rainy.
  * Space=play/pause, arrows=seek/track, /=focus search, Ctrl+K=global search,
- * M=mute, F=fullscreen player, L=like current song.
+ * M=mute, F=fullscreen player, L=like current song, B=A-B repeat (section loop),
+ * [/]=speed down/up (0.25x steps), 0=reset speed to 1x.
  */
 import { Logger } from '../helper/logger.js';
 
@@ -74,6 +75,30 @@ export class KeyboardShortcuts {
             case 'l':
             case 'L':
                 if (p.toggleLike) p.toggleLike();
+                break;
+            case 'b':
+            case 'B':
+                if (p.handleAbRepeatClick) p.handleAbRepeatClick();
+                break;
+            case '[':
+                if (p.setPlaybackSpeed) {
+                    const cur = p.audio.playbackRate || 1;
+                    p.setPlaybackSpeed(Math.max(0.25, parseFloat((cur - 0.25).toFixed(2))));
+                    window.showToast?.(`Speed: ${p.audio.playbackRate}x`, 'info');
+                }
+                break;
+            case ']':
+                if (p.setPlaybackSpeed) {
+                    const cur = p.audio.playbackRate || 1;
+                    p.setPlaybackSpeed(Math.min(3, parseFloat((cur + 0.25).toFixed(2))));
+                    window.showToast?.(`Speed: ${p.audio.playbackRate}x`, 'info');
+                }
+                break;
+            case '0':
+                if (p.setPlaybackSpeed) {
+                    p.setPlaybackSpeed(1);
+                    window.showToast?.('Speed: 1x', 'info');
+                }
                 break;
             case '/':
                 e.preventDefault();
