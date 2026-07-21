@@ -42,8 +42,31 @@ export class AddMusicModal extends Component {
         /** @type {Ref<HTMLDivElement>} */
         this._playlistProgressFill = useRef(null);
 
+        /** @type {Ref<HTMLInputElement>} */
+        this._spotifySongInput = useRef(null);
+        /** @type {Ref<HTMLButtonElement>} */
+        this._spotifySongImportBtn = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._spotifySongStatus = useRef(null);
+        /** @type {Ref<HTMLSpanElement>} */
+        this._spotifySongStatusText = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._spotifySongProgressFill = useRef(null);
+
+        /** @type {Ref<HTMLInputElement>} */
+        this._spotifyPlaylistInput = useRef(null);
+        /** @type {Ref<HTMLButtonElement>} */
+        this._spotifyPlaylistImportBtn = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._spotifyPlaylistStatus = useRef(null);
+        /** @type {Ref<HTMLSpanElement>} */
+        this._spotifyPlaylistStatusText = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._spotifyPlaylistProgressFill = useRef(null);
+
         this.set('current-method', 'upload', { silent: true });
         this.set('youtube-tab', 'song', { silent: true });
+        this.set('spotify-tab', 'song', { silent: true });
 
         this.watch('current-method', (_path, _oldValue, methodName) => {
             const methods = this.root.querySelectorAll('.add-music-method');
@@ -73,18 +96,40 @@ export class AddMusicModal extends Component {
                 playlistContent.classList.toggle('hidden', tabName !== 'playlist');
             }
         });
+
+        this.watch('spotify-tab', (_path, _oldValue, tabName) => {
+            const songTab = this.root.querySelector('.spotify-tab-song');
+            const playlistTab = this.root.querySelector('.spotify-tab-playlist');
+            const songContent = this.root.querySelector('.spotify-song-content');
+            const playlistContent = this.root.querySelector('.spotify-playlist-content');
+
+            if (songTab && playlistTab) {
+                songTab.classList.toggle('active', tabName === 'song');
+                playlistTab.classList.toggle('active', tabName === 'playlist');
+            }
+
+            if (songContent && playlistContent) {
+                songContent.classList.toggle('hidden', tabName !== 'song');
+                playlistContent.classList.toggle('hidden', tabName !== 'playlist');
+            }
+        });
     }
 
     show() {
         this.root.show();
         this.set('current-method', 'upload');
         this.set('youtube-tab', 'song');
+        this.set('spotify-tab', 'song');
         if (this._youtubeInput.value) this._youtubeInput.value.value = '';
         if (this._fileInput.value) this._fileInput.value.value = '';
         if (this._playlistInput.value) this._playlistInput.value.value = '';
+        if (this._spotifySongInput.value) this._spotifySongInput.value.value = '';
+        if (this._spotifyPlaylistInput.value) this._spotifyPlaylistInput.value.value = '';
         this._uploadProgress.value?.classList.add('hidden');
         this._youtubeStatus.value?.classList.add('hidden');
         this._playlistStatus.value?.classList.add('hidden');
+        this._spotifySongStatus.value?.classList.add('hidden');
+        this._spotifyPlaylistStatus.value?.classList.add('hidden');
     }
 
     hide() {
@@ -103,9 +148,25 @@ export class AddMusicModal extends Component {
         this.set('youtube-tab', tabName);
     }
 
+    switchSpotifyTab(tabName) {
+        this.set('spotify-tab', tabName);
+    }
+
     _onPlaylistKeyPress = (e) => {
         if (e.key === 'Enter') {
             this.importPlaylistFromYouTube();
+        }
+    };
+
+    _onSpotifySongKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            this.importFromSpotify();
+        }
+    };
+
+    _onSpotifyPlaylistKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            this.importPlaylistFromSpotify();
         }
     };
 
@@ -325,10 +386,145 @@ export class AddMusicModal extends Component {
         importBtn.disabled = false;
     }
 
+    async importFromSpotify() {
+        const urlInput = this._spotifySongInput.value;
+        const importBtn = this._spotifySongImportBtn.value;
+        const status = this._spotifySongStatus.value;
+        const statusText = this._spotifySongStatusText.value;
+        const progressFill = this._spotifySongProgressFill.value;
+
+        const url = urlInput.value.trim();
+        if (!url) {
+            urlInput.focus();
+            return;
+        }
+
+        importBtn.disabled = true;
+        status.classList.remove('hidden');
+        progressFill.style.width = '0%';
+
+        const updateProgress = (percent, message) => {
+            progressFill.style.width = `${percent}%`;
+            statusText.textContent = message;
+        };
+
+        updateProgress(10, 'Fetching track from Spotify...');
+
+        let currentProgress = 10;
+        const progressInterval = setInterval(() => {
+            if (currentProgress < 85) {
+                currentProgress += Math.random() * 5;
+                const messages = [
+                    'Matching on YouTube Music...',
+                    'Downloading audio...',
+                    'Converting to MP3...',
+                    'Downloading cover art...'
+                ];
+                const messageIndex = Math.min(Math.floor(currentProgress / 25), messages.length - 1);
+                updateProgress(currentProgress, messages[messageIndex]);
+            }
+        }, 500);
+
+        const data = await useMusicService().Spotify.import(url);
+        clearInterval(progressInterval);
+
+        if (data.error) {
+            Logger.error(data.error);
+
+            importBtn.disabled = false;
+            status.classList.add('hidden');
+            progressFill.style.width = '0%';
+
+            const errorMessage = data.error.error || data.error.message || 'Failed to import from Spotify. Please check the URL and try again.';
+            Utils.showToast(errorMessage, 'error', 5000);
+
+            return;
+        }
+
+        const result = data.value;
+        if (!result) return Logger.error('unreachable');
+
+        if (result.already_exists) {
+            updateProgress(100, `Song already in library`);
+            Utils.showToast(result.message || `"${result.title}" by ${result.artist} already exists`, 'error', 4000);
+            setTimeout(() => {
+                status.classList.add('hidden');
+                progressFill.style.width = '0%';
+                urlInput.value = '';
+            }, 1500);
+            importBtn.disabled = false;
+            return;
+        }
+
+        updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
+        setTimeout(() => {
+            this.hide();
+            window.app?.loadLibrary();
+        }, 1500);
+
+        importBtn.disabled = false;
+    }
+
+    async importPlaylistFromSpotify() {
+        const urlInput = this._spotifyPlaylistInput.value;
+        const importBtn = this._spotifyPlaylistImportBtn.value;
+        const status = this._spotifyPlaylistStatus.value;
+        const statusText = this._spotifyPlaylistStatusText.value;
+        const progressFill = this._spotifyPlaylistProgressFill.value;
+
+        const url = urlInput.value.trim();
+        if (!url) {
+            urlInput.focus();
+            return;
+        }
+
+        importBtn.disabled = true;
+        status.classList.remove('hidden');
+        progressFill.style.width = '0%';
+
+        const updateProgress = (percent, message) => {
+            progressFill.style.width = `${percent}%`;
+            statusText.textContent = message;
+        };
+
+        updateProgress(2, 'Fetching playlist from Spotify...');
+
+        const data = await useMusicService().Spotify.importPlaylist(url, (event) => {
+            updateProgress(event.percent, event.message);
+        });
+
+        if (data.error) {
+            Logger.error(data.error);
+
+            importBtn.disabled = false;
+            status.classList.add('hidden');
+            progressFill.style.width = '0%';
+
+            const errorMessage = data.error.error || data.error.message || 'Failed to import from Spotify. Please check the URL and try again.';
+            Utils.showToast(errorMessage, 'error', 5000);
+
+            return;
+        }
+
+        const result = data.value;
+        if (!result) return Logger.error('unreachable');
+
+        const failedNote = result.failed_count > 0 ? ` (${result.failed_count} failed)` : '';
+        updateProgress(100, `✓ Imported: ${result.song_count} songs to "${result.playlist_name}"${failedNote}`);
+        setTimeout(() => {
+            this.hide();
+            window.app?.loadLibrary();
+            window.app?.loadPlaylists();
+        }, 2000);
+
+        importBtn.disabled = false;
+    }
+
     render() {
-        const isUpload = this.get('current-method') === 'upload';
-        const uploadActive = isUpload ? 'active' : '';
-        const youtubeActive = !isUpload ? 'active' : '';
+        const currentMethod = this.get('current-method');
+        const uploadActive = currentMethod === 'upload' ? 'active' : '';
+        const youtubeActive = currentMethod === 'youtube' ? 'active' : '';
+        const spotifyActive = currentMethod === 'spotify' ? 'active' : '';
 
         return H.of(Modal,
             I.Note('currentColor', a.slot('header-icon')),
@@ -352,6 +548,17 @@ export class AddMusicModal extends Component {
                     ),
                     h.div(a.class('method-info'),
                         h.span(a.class('method-title'), 'YouTube Import')
+                    ),
+                    h.div(a.class('method-check'),
+                        I.Check()
+                    )
+                ),
+                h.div(a.class('add-music-method', spotifyActive), a.dataMethod('spotify'), on.click(() => this.switchMethod('spotify')),
+                    h.div(a.class('method-icon', 'spotify'),
+                        I.Spotify()
+                    ),
+                    h.div(a.class('method-info'),
+                        h.span(a.class('method-title'), 'Spotify Import')
                     ),
                     h.div(a.class('method-check'),
                         I.Check()
@@ -462,6 +669,78 @@ export class AddMusicModal extends Component {
                         h.div(a.class('tip-item'),
                             I.Info(),
                             h.span('Creates a new playlist with all songs from the YouTube Music playlist')
+                        )
+                    )
+                )
+            ),
+            h.div(a.slot('body'), a.class('add-music-content', spotifyActive), a.dataMethod('spotify'), a.id('spotify-content'),
+                h.div(a.class('youtube-tabs'),
+                    h.div(a.class('youtube-tab', 'spotify-tab-song', 'active'), on.click(() => this.switchSpotifyTab('song')),
+                        h.span(a.class('tab-label'), 'Song')
+                    ),
+                    h.div(a.class('youtube-tab', 'spotify-tab-playlist'), on.click(() => this.switchSpotifyTab('playlist')),
+                        h.span(a.class('tab-label'), 'Playlist')
+                    )
+                ),
+                h.div(a.class('spotify-song-content'),
+                    h.div(a.class('youtube-input-wrapper'),
+                        h.div(a.class('youtube-input-field'),
+                            I.Share('currentColor', a.class('input-icon-svg')),
+                            h.input(this._spotifySongInput, a.type('text'), a.id('spotify-song-url-input'), a.placeholder('Paste Spotify track URL...'), on.keypress((ev) => this._onSpotifySongKeyPress(ev)))
+                        ),
+                        h.button(this._spotifySongImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('spotify-song-import-btn'), on.click(() => this.importFromSpotify()),
+                            I.Import(),
+                            'Import'
+                        )
+                    ),
+                    h.div(this._spotifySongStatus, a.class('youtube-status-modern', 'hidden'), a.id('spotify-song-status'),
+                        h.div(a.class('status-card'),
+                            h.div(a.class('status-icon'),
+                                I.Refresh('currentColor', a.class('spinning'))
+                            ),
+                            h.div(a.class('status-info'),
+                                h.span(this._spotifySongStatusText, a.class('status-title'), a.id('spotify-song-status-text'), 'Importing from Spotify...'),
+                                h.div(a.class('progress-bar-modern'),
+                                    h.div(this._spotifySongProgressFill, a.class('progress-fill-modern'), a.id('spotify-song-progress-fill'))
+                                )
+                            )
+                        )
+                    ),
+                    h.div(a.class('youtube-tips'),
+                        h.div(a.class('tip-item'),
+                            I.Info(),
+                            h.span('Imports a single song by matching it on YouTube Music')
+                        )
+                    )
+                ),
+                h.div(a.class('spotify-playlist-content', 'hidden'),
+                    h.div(a.class('youtube-input-wrapper'),
+                        h.div(a.class('youtube-input-field'),
+                            I.Share('currentColor', a.class('input-icon-svg')),
+                            h.input(this._spotifyPlaylistInput, a.type('text'), a.id('spotify-playlist-url-input'), a.placeholder('Paste Spotify playlist URL...'), on.keypress((ev) => this._onSpotifyPlaylistKeyPress(ev)))
+                        ),
+                        h.button(this._spotifyPlaylistImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('spotify-playlist-import-btn'), on.click(() => this.importPlaylistFromSpotify()),
+                            I.Import(),
+                            'Import Playlist'
+                        )
+                    ),
+                    h.div(this._spotifyPlaylistStatus, a.class('youtube-status-modern', 'hidden'), a.id('spotify-playlist-status'),
+                        h.div(a.class('status-card'),
+                            h.div(a.class('status-icon'),
+                                I.Refresh('currentColor', a.class('spinning'))
+                            ),
+                            h.div(a.class('status-info'),
+                                h.span(this._spotifyPlaylistStatusText, a.class('status-title'), a.id('spotify-playlist-status-text'), 'Importing playlist...'),
+                                h.div(a.class('progress-bar-modern'),
+                                    h.div(this._spotifyPlaylistProgressFill, a.class('progress-fill-modern'), a.id('spotify-playlist-progress-fill'))
+                                )
+                            )
+                        )
+                    ),
+                    h.div(a.class('youtube-tips'),
+                        h.div(a.class('tip-item'),
+                            I.Info(),
+                            h.span('Creates a new playlist with all songs from the Spotify playlist')
                         )
                     )
                 )

@@ -756,6 +756,234 @@ def youtube_playlist_import():
         return jsonify({'error': str(e)}), 500
 
 
+def _spotify_match_score(track_title, track_artist, result):
+    """Score a YouTube Music search result against a Spotify track."""
+    def _tokens(s):
+        return set((s or '').lower().split())
+
+    title_score = 0.0
+    rt = _tokens(result.get('title'))
+    tt = _tokens(track_title)
+    if rt and tt:
+        title_score = len(rt & tt) / len(rt | tt)
+
+    artist_score = 0.0
+    ra = _tokens(result.get('artist'))
+    ta = _tokens(track_artist)
+    if ra and ta:
+        artist_score = len(ra & ta) / len(ra | ta)
+
+    return title_score + artist_score * 0.8
+
+
+@music_bp.route('/spotify-import', methods=['POST'])
+@require_auth
+def spotify_import():
+    """Import a single song from a Spotify track link."""
+    try:
+        from utils.spotify import SpotifyImporter
+        from utils.metadata import MetadataSearcher
+        from utils.youtube import YouTubeDownloader
+
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            return jsonify({'error': 'Music path not configured'}), 400
+
+        data = request.get_json()
+        url = (data.get('url') or '').strip() if data else ''
+
+        if not url:
+            return jsonify({'error': 'No URL provided'}), 400
+
+        importer = SpotifyImporter()
+        track = importer.fetch_track(url)
+        if not track.get('success'):
+            return jsonify({'error': track.get('error', 'Failed to fetch Spotify track')}), 400
+
+        title = track['title']
+        artist = track['artist']
+
+        searcher = MetadataSearcher()
+        results = searcher.search(f'{title} {artist}', limit=5)
+        if not results:
+            return jsonify({'error': f'No YouTube Music match found for "{title}" by {artist}'}), 404
+
+        best = max(results, key=lambda r: _spotify_match_score(title, artist, r))
+        video_id = best.get('videoId')
+        if not video_id:
+            return jsonify({'error': 'No playable match found on YouTube Music'}), 404
+
+        downloader = YouTubeDownloader(music_path)
+        result = downloader.download(f'https://www.youtube.com/watch?v={video_id}')
+
+        if not result.get('success'):
+            return jsonify({'error': result.get('error', 'Download failed')}), 400
+
+        if result.get('already_exists'):
+            return jsonify({
+                'success': True,
+                'already_exists': True,
+                'title': result.get('title') or title,
+                'artist': result.get('artist') or artist,
+                'message': result.get('message', 'Song already exists in library')
+            })
+
+        if result.get('file_path'):
+            scanner = MusicScanner(music_path)
+            metadata = scanner.scan_single_file(result['file_path'])
+            if result.get('cover_path') and metadata:
+                SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
+
+        return jsonify({
+            'success': True,
+            'title': result.get('title') or title,
+            'artist': result.get('artist') or artist
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/spotify-playlist-import', methods=['POST'])
+@require_auth
+def spotify_playlist_import():
+    """Import a playlist from Spotify (Streaming response)."""
+    try:
+        from utils.spotify import SpotifyImporter
+        from utils.metadata import MetadataSearcher
+        from utils.youtube import YouTubeDownloader
+        from models.playlist import PlaylistModel
+        from flask import Response, stream_with_context
+        import json
+
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            return jsonify({'error': 'Music path not configured'}), 400
+
+        data = request.get_json()
+        url = (data.get('url') or '').strip() if data else ''
+
+        if not url:
+            return jsonify({'error': 'No URL provided'}), 400
+
+        def generate():
+            importer = SpotifyImporter()
+
+            yield json.dumps({
+                'type': 'progress', 'percent': 2,
+                'message': 'Fetching playlist from Spotify...'
+            }) + '\n'
+
+            playlist_data = importer.fetch_playlist(url)
+            if not playlist_data.get('success'):
+                yield json.dumps({
+                    'type': 'error',
+                    'error': playlist_data.get('error', 'Failed to fetch Spotify playlist')
+                }) + '\n'
+                return
+
+            playlist_name = playlist_data['name']
+            tracks = playlist_data['tracks']
+            total = len(tracks)
+
+            searcher = MetadataSearcher()
+            downloader = YouTubeDownloader(music_path)
+
+            created_playlist_id = None
+            try:
+                created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+            except Exception as e:
+                yield json.dumps({
+                    'type': 'error',
+                    'error': f'Failed to create playlist: {e}'
+                }) + '\n'
+                return
+
+            added_count = 0
+            failed_count = 0
+
+            for i, track in enumerate(tracks):
+                title = track['title']
+                artist = track['artist']
+                percent = 5 + int((i / total) * 90)
+
+                yield json.dumps({
+                    'type': 'progress', 'percent': percent,
+                    'message': f'[{i + 1}/{total}] Searching: {title} - {artist}'
+                }) + '\n'
+
+                try:
+                    query = f'{title} {artist}'
+                    results = searcher.search(query, limit=5)
+
+                    if not results:
+                        failed_count += 1
+                        continue
+
+                    best = max(results, key=lambda r: _spotify_match_score(title, artist, r))
+                    video_id = best.get('videoId')
+                    if not video_id:
+                        failed_count += 1
+                        continue
+
+                    video_url = f'https://www.youtube.com/watch?v={video_id}'
+                    song_result = downloader.download(video_url)
+
+                    if not song_result.get('success') or not song_result.get('file_path'):
+                        failed_count += 1
+                        continue
+
+                    song_id = None
+                    file_path = song_result['file_path']
+
+                    if song_result.get('already_exists'):
+                        relative_path = os.path.relpath(file_path, music_path)
+                        existing_song = SongModel.get_song_by_path(relative_path)
+                        if existing_song:
+                            song_id = existing_song['id']
+                    else:
+                        scanner = MusicScanner(music_path)
+                        metadata = scanner.scan_single_file(file_path)
+                        if metadata and metadata.get('id'):
+                            song_id = metadata['id']
+                            if song_result.get('cover_path') and metadata:
+                                SongModel.update_song_metadata(
+                                    metadata['path'],
+                                    {'cover_path': song_result['cover_path']}
+                                )
+
+                    if song_id:
+                        PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)
+                        added_count += 1
+                    else:
+                        failed_count += 1
+
+                except Exception as e:
+                    print(f"Error importing Spotify track '{title}': {e}")
+                    failed_count += 1
+                    continue
+
+            yield json.dumps({
+                'type': 'progress', 'percent': 98,
+                'message': 'Finalizing playlist...'
+            }) + '\n'
+
+            yield json.dumps({
+                'type': 'result',
+                'data': {
+                    'success': True,
+                    'playlist_name': playlist_name,
+                    'playlist_id': created_playlist_id,
+                    'song_count': added_count,
+                    'failed_count': failed_count,
+                }
+            }) + '\n'
+
+        return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @music_bp.route('/artists/scrape-descriptions', methods=['POST'])
 @require_auth
 def scrape_all_artist_descriptions():

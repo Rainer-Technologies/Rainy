@@ -508,10 +508,15 @@
 
 .add-music-method {
     flex: 1;
+    min-width: 0;
+    position: relative;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: var(--spacing-md);
-    padding: var(--spacing-md);
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg) var(--spacing-sm);
+    text-align: center;
     background: var(--bg-secondary);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
@@ -558,10 +563,14 @@
     fill: #ff0000;
 }
 
+.method-icon.spotify svg {
+    fill: #1DB954;
+}
+
 .method-info {
-    flex: 1;
     display: flex;
     align-items: center;
+    justify-content: center;
     min-width: 0;
 }
 
@@ -569,9 +578,13 @@
     font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 1.3;
 }
 
 .method-check {
+    position: absolute;
+    top: var(--spacing-xs);
+    right: var(--spacing-xs);
     width: 20px;
     height: 20px;
     display: flex;
@@ -926,7 +939,9 @@
 }
 
 .youtube-song-content.hidden,
-.youtube-playlist-content.hidden {
+.youtube-playlist-content.hidden,
+.spotify-song-content.hidden,
+.spotify-playlist-content.hidden {
     display: none;
 }
 

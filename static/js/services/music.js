@@ -187,6 +187,111 @@ export class MusicService extends Service {
         }
     }
 
+    Spotify = {
+        /**
+         * @param {string} url 
+         * @returns {Promise<Result<ImportModel, ErrorModel | ResponseError>>}
+         */
+        import: (url) => {
+            return this.wrap(RequestHelper.request(this.url('/spotify-import'), {
+                method: 'POST',
+                body: { url }
+            }));
+        },
+        /**
+         * @param {string} url 
+         * @param {function(object): void} onProgress Callback for progress events
+         * @returns {Promise<Result<{
+         *  success: boolean;
+         *  playlist_name: string;
+         *  playlist_id: number;
+         *  song_count: number;
+         *  failed_count: number;
+         * }, ErrorModel | ResponseError>>}
+         */
+        importPlaylist: async (url, onProgress) => {
+            try {
+                const response = await fetch(this.url('/spotify-playlist-import'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ url })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+                    return Err(error);
+                }
+
+                if (!response.body) {
+                    return Err({ error: 'No response body' });
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let finalResult = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+
+                        try {
+                            const event = JSON.parse(line);
+
+                            if (event.type === 'progress') {
+                                if (onProgress) {
+                                    onProgress(event);
+                                }
+                            } else if (event.type === 'result') {
+                                finalResult = event.data;
+                            } else if (event.type === 'error') {
+                                return Err({ error: event.error });
+                            }
+                        } catch (e) {
+                            console.error('Error parsing stream:', e);
+                        }
+                    }
+                }
+
+                const remaining = buffer.trim();
+                if (!finalResult && remaining) {
+                    try {
+                        const event = JSON.parse(remaining);
+                        if (event?.type === 'result') {
+                            finalResult = event.data;
+                        } else if (event?.type === 'error') {
+                            return Err({ error: event.error });
+                        } else if (event?.success) {
+                            finalResult = event;
+                        }
+                    } catch {
+                        return Err({ error: 'Stream ended without valid result' });
+                    }
+                }
+
+                if (finalResult) {
+                    return Ok(finalResult);
+                } else {
+                    return Err({ error: 'Stream ended without result' });
+                }
+
+            } catch (e) {
+                return Err({ error: e?.message ?? String(e) });
+            }
+        }
+    };
+
     discover = {
         /**
          * @param {string} query 
