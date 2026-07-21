@@ -6,8 +6,11 @@ import { Logger } from './helper/logger.js';
 import { LightShowEngine } from './lightshow.js';
 import { usePlaylistService } from './services/playlist.js';
 import { useRatingService } from './services/rating.js';
+import { usePlaybackService } from './services/playback.js';
 import { useContext } from './helper/context.js';
 import { Utils } from './modules/utils.js';
+import { MediaSessionController } from './modules/mediaSession.js';
+import { SleepTimer } from './modules/sleepTimer.js';
 
 export class AudioPlayer {
     constructor() {
@@ -61,6 +64,13 @@ export class AudioPlayer {
         this.bindElements();
         this.bindEvents();
         this.loadSettings();
+
+        // Media Session API (lock screen / media keys)
+        this.mediaSession = new MediaSessionController(this);
+        // Sleep timer with fade-out
+        this.sleepTimer = new SleepTimer(this);
+        // Real listening-time tracker (replaces instant play recording)
+        this._listenTracker = null;
     }
 
     bindElements() {
@@ -145,6 +155,17 @@ export class AudioPlayer {
             this._slideFracsDirty = true;
         });
 
+        // Flush listening stats when the page/tab is closed (beacon survives unload)
+        window.addEventListener('beforeunload', () => this._flushListenTracking(true));
+
+        // Reset listen-tracker clock when tab visibility changes so hidden gaps
+        // don't inflate or get rejected by the >5s guard
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && this._listenTracker) {
+                this._listenTracker.lastTick = Date.now();
+            }
+        });
+
         // Buffering events
         this.audio.addEventListener('waiting', () => this.handleWaiting());
         this.audio.addEventListener('stalled', () => this.handleWaiting());
@@ -161,6 +182,19 @@ export class AudioPlayer {
         this.repeatBtn.addEventListener('click', () => this.toggleRepeat());
         if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
         if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
+
+        // Sleep timer button
+        const sleepBtn = document.getElementById('sleep-timer-btn');
+        if (sleepBtn) sleepBtn.addEventListener('click', () => this.showSleepTimerMenu(sleepBtn));
+
+        // Queue button — toggle fullscreen player queue tab
+        const queueBtn = document.getElementById('queue-btn');
+        if (queueBtn) queueBtn.addEventListener('click', () => {
+            this.toggleFullscreen();
+            // Switch to queue tab if available
+            const queueTab = document.querySelector('.fs-tab[data-tab="queue"]');
+            if (queueTab) queueTab.click();
+        });
 
         // Fullscreen events
         if (this.nowPlayingContainer) {
@@ -358,6 +392,12 @@ export class AudioPlayer {
         // Update document title
         document.title = `${song.title} - ${song.artist} | Rainy`;
 
+        // Push to Media Session API (lock screen / OS media controls)
+        if (this.mediaSession) this.mediaSession.updateMetadata(song);
+
+        // Start tracking real listening time for this song
+        this._startListenTracking(song);
+
         // Update fullscreen view if active
         if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
             this.updateFullscreenView();
@@ -523,6 +563,9 @@ export class AudioPlayer {
     handleTimeUpdate() {
         // Don't update time display while buffering or dragging progress
         if (this.isBuffering || this.isDraggingProgress) return;
+
+        // Accumulate real listening time (only counts while actually playing)
+        if (this.isPlaying) this._tickListenTracking();
 
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
@@ -900,6 +943,9 @@ export class AudioPlayer {
     }
 
     handleEnded() {
+        // Flush listening stats for the song that just ended
+        this._flushListenTracking();
+
         if (this.repeatMode === 'one') {
             this.audio.currentTime = 0;
             this.audio.play();
@@ -910,9 +956,14 @@ export class AudioPlayer {
 
     handlePlay() {
         this.isPlaying = true;
+        // Reset listen-tracker clock so the pause gap isn't counted as listening
+        if (this._listenTracker) this._listenTracker.lastTick = Date.now();
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
         this.nowPlayingArtwork.classList.add('playing');
+
+        // Sync Media Session playback state
+        if (this.mediaSession) this.mediaSession.updatePlaybackState();
 
         // Pause discover preview audio if it exists and is playing
         const discoverPreviewAudio = document.getElementById('discover-preview-audio');
@@ -931,9 +982,14 @@ export class AudioPlayer {
 
     handlePause() {
         this.isPlaying = false;
+        // Reset listen-tracker clock so the resume gap isn't counted as listening
+        if (this._listenTracker) this._listenTracker.lastTick = Date.now();
         this.iconPlay.classList.remove('hidden');
         this.iconPause.classList.add('hidden');
         this.nowPlayingArtwork.classList.remove('playing');
+
+        // Sync Media Session playback state
+        if (this.mediaSession) this.mediaSession.updatePlaybackState();
 
         // Fullscreen update
         if (this.fsIconPlay) this.fsIconPlay.classList.remove('hidden');
@@ -1936,6 +1992,18 @@ export class AudioPlayer {
                 </svg>
                 <span>Play Now</span>
             </div>
+            <div class="fs-queue-menu-item" data-action="playnext" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 3v18l8.5-6L6 9zm2 4.83l3.5 2.5L8 13.16zM16 6h5v2h-5zm0 4h5v2h-5zm0 4h5v2h-5z"/>
+                </svg>
+                <span>Play Next</span>
+            </div>
+            <div class="fs-queue-menu-item" data-action="addqueue" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                <span>Add to Queue</span>
+            </div>
             <div class="fs-queue-menu-item ${isLiked ? 'active liked' : ''}" data-action="like" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
@@ -2106,6 +2174,186 @@ export class AudioPlayer {
     }
 
     /**
+     * Add a song to the end of the queue.
+     * @param {Object} song - The song object to add
+     */
+    addToQueue(song) {
+        if (!song) return;
+        this.playlist.push(song);
+        this.queueModified = true;
+        this.queueOperations.push({ action: 'add', songId: song.id, position: this.playlist.length - 1 });
+        this.savePlaybackState();
+        this.renderFullscreenQueue();
+        window.showToast?.(`Added "${song.title}" to queue`, 'success');
+        Logger.log('Added song to queue:', song.title);
+    }
+
+    /**
+     * Insert a song to play immediately after the current one.
+     * @param {Object} song - The song object to insert
+     */
+    playNextInQueue(song) {
+        if (!song) return;
+        const insertAt = this.currentIndex + 1;
+        this.playlist.splice(insertAt, 0, song);
+        this.queueModified = true;
+        this.queueOperations.push({ action: 'add', songId: song.id, position: insertAt });
+        this.savePlaybackState();
+        this.renderFullscreenQueue();
+        window.showToast?.(`"${song.title}" will play next`, 'success');
+        Logger.log('Inserted song to play next:', song.title);
+    }
+
+    /**
+     * Clear all songs from the queue except the currently playing one.
+     */
+    clearQueue() {
+        if (this.currentIndex < 0 || !this.playlist.length) return;
+        const current = this.playlist[this.currentIndex];
+        this.playlist = [current];
+        this.currentIndex = 0;
+        this.queueModified = true;
+        this.queueOperations = [];
+        this.savePlaybackState();
+        this.renderFullscreenQueue();
+        window.showToast?.('Queue cleared', 'success');
+        Logger.log('Queue cleared, kept current song');
+    }
+
+    /**
+     * Restore playback state from the server (cross-device sync).
+     * Fetches saved state and offers to resume.
+     */
+    async restoreFromServer() {
+        try {
+            const res = await usePlaybackService().getState();
+            if (res.error || !res.value || !res.value.state) return null;
+            return res.value.state;
+        } catch (e) {
+            Logger.warn('Failed to fetch server state:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Show the sleep timer popup menu anchored to a button.
+     * @param {HTMLElement} anchorBtn
+     */
+    showSleepTimerMenu(anchorBtn) {
+        // Remove any existing menu
+        document.getElementById('sleep-timer-menu')?.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'sleep-timer-menu';
+        menu.className = 'sleep-timer-menu';
+
+        const presets = [5, 10, 15, 30, 45, 60];
+        const activeRemaining = this.sleepTimer.isActive ? this.sleepTimer.remainingMs : 0;
+
+        menu.innerHTML = `
+            <div class="sleep-timer-header">Sleep Timer</div>
+            ${this.sleepTimer.isActive ? `
+                <div class="sleep-timer-active">
+                    <span id="sleep-timer-countdown">${SleepTimer.format(activeRemaining)}</span> remaining
+                    <button class="sleep-timer-cancel" id="sleep-timer-cancel">Cancel</button>
+                </div>
+            ` : ''}
+            <div class="sleep-timer-presets">
+                ${presets.map(m => `<button class="sleep-timer-preset" data-minutes="${m}">${m} min</button>`).join('')}
+            </div>
+            <div class="sleep-timer-custom">
+                <input type="number" id="sleep-timer-custom-input" min="1" max="180" placeholder="Custom">
+                <button class="sleep-timer-set" id="sleep-timer-custom-set">Set</button>
+            </div>
+        `;
+
+        document.body.appendChild(menu);
+
+        // Position above the anchor button
+        const rect = anchorBtn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+        menu.style.right = `${window.innerWidth - rect.right}px`;
+        menu.style.zIndex = '3000';
+
+        // Bind preset buttons
+        menu.querySelectorAll('.sleep-timer-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.startSleepTimer(parseInt(btn.dataset.minutes));
+                menu.remove();
+            });
+        });
+
+        // Custom input
+        const customSet = menu.querySelector('#sleep-timer-custom-set');
+        const customInput = menu.querySelector('#sleep-timer-custom-input');
+        customSet?.addEventListener('click', () => {
+            const val = parseInt(customInput.value);
+            if (val && val > 0) {
+                this.startSleepTimer(val);
+                menu.remove();
+            }
+        });
+        customInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') customSet.click();
+        });
+
+        // Cancel button
+        menu.querySelector('#sleep-timer-cancel')?.addEventListener('click', () => {
+            this.sleepTimer.cancel();
+            this._updateSleepTimerBtn(false);
+            menu.remove();
+            window.showToast?.('Sleep timer cancelled', 'info');
+        });
+
+        // Close on outside click
+        const outsideHandler = (e) => {
+            if (!menu.contains(e.target) && e.target !== anchorBtn && !anchorBtn.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', outsideHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', outsideHandler), 0);
+    }
+
+    /**
+     * Start the sleep timer and wire up UI feedback.
+     * @param {number} minutes
+     */
+    startSleepTimer(minutes) {
+        this.sleepTimer.start(minutes);
+        this._updateSleepTimerBtn(true);
+        window.showToast?.(`Sleep timer set for ${minutes} min`, 'success');
+
+        this.sleepTimer.onTick = (remainingMs) => {
+            const countdown = document.getElementById('sleep-timer-countdown');
+            if (countdown) countdown.textContent = SleepTimer.format(remainingMs);
+            this._updateSleepTimerBtn(true, remainingMs);
+        };
+        this.sleepTimer.onEnd = () => {
+            this._updateSleepTimerBtn(false);
+            window.showToast?.('Sleep timer ended — playback paused', 'info');
+        };
+    }
+
+    /**
+     * Update the sleep timer button visual state.
+     * @param {boolean} active
+     * @param {number} [remainingMs]
+     */
+    _updateSleepTimerBtn(active, remainingMs) {
+        const btn = document.getElementById('sleep-timer-btn');
+        if (!btn) return;
+        if (active) {
+            btn.classList.add('active');
+            btn.title = remainingMs ? `Sleep timer: ${SleepTimer.format(remainingMs)}` : 'Sleep timer active';
+        } else {
+            btn.classList.remove('active');
+            btn.title = 'Sleep Timer';
+        }
+    }
+
+    /**
      * Save current playback state to localStorage
      * Stores essential data (song ID, context, time)
      * For modified queues, stores only the operations (add/remove) for space efficiency
@@ -2132,6 +2380,117 @@ export class AudioPlayer {
             localStorage.setItem('rainy_playback_state', JSON.stringify(state));
         } catch (e) {
             Logger.warn('Failed to save playback state:', e);
+        }
+
+        // Also push to server for cross-device sync (throttled)
+        this._syncStateToServer();
+    }
+
+    /**
+     * Start tracking real listening time for a song.
+     * Uses wall-clock accumulation (pause-aware) instead of audio.currentTime
+     * so seeking doesn't inflate stats.
+     * @param {Object} song
+     */
+    _startListenTracking(song) {
+        // Flush any in-progress tracking from the previous song
+        this._flushListenTracking();
+
+        if (!song || !song.id) return;
+        this._listenTracker = {
+            songId: song.id,
+            songDuration: song.duration || 0,
+            listenedSeconds: 0,
+            lastTick: Date.now(),
+            recorded: false
+        };
+    }
+
+    /**
+     * Called on every timeupdate while playing — accumulates real elapsed time.
+     * Records the play once the 50% threshold is crossed.
+     */
+    _tickListenTracking() {
+        const t = this._listenTracker;
+        if (!t || t.recorded) return;
+
+        const now = Date.now();
+        const elapsed = (now - t.lastTick) / 1000;
+        t.lastTick = now;
+
+        // Count elapsed time while playing. isPlaying already guards against
+        // pause gaps; cap at 30s per tick to handle browser tab-suspend edge
+        // cases without rejecting legitimate background-tab listening.
+        if (elapsed > 0) {
+            t.listenedSeconds += Math.min(elapsed, 30);
+        }
+
+        // Record once we've listened to at least 50% of the song
+        if (t.songDuration > 0 && t.listenedSeconds >= t.songDuration * 0.5) {
+            this._recordPlay(t.songId, Math.round(t.listenedSeconds));
+            t.recorded = true;
+        }
+    }
+
+    /**
+     * Flush: if the song ended or was skipped before the 50% mark but we
+     * listened to at least 30 seconds, still count it (partial credit).
+     * @param {boolean} useBeacon - use sendBeacon for page-unload reliability
+     */
+    _flushListenTracking(useBeacon = false) {
+        const t = this._listenTracker;
+        if (!t || t.recorded) {
+            this._listenTracker = null;
+            return;
+        }
+        // Count partial listens of at least 30 seconds
+        if (t.listenedSeconds >= 30) {
+            this._recordPlay(t.songId, Math.round(t.listenedSeconds), useBeacon);
+        }
+        this._listenTracker = null;
+    }
+
+    /**
+     * Send the actual play record to the server.
+     * @param {number} songId
+     * @param {number} listenedSeconds - real seconds actually listened
+     * @param {boolean} useBeacon - use navigator.sendBeacon (survives page unload)
+     */
+    _recordPlay(songId, listenedSeconds, useBeacon = false) {
+        const payload = JSON.stringify({ song_id: songId, position: 0, duration: listenedSeconds });
+        if (useBeacon && navigator.sendBeacon) {
+            navigator.sendBeacon('/api/playback/history', new Blob([payload], { type: 'application/json' }));
+        } else {
+            try {
+                usePlaybackService().recordPlay(songId, 0, listenedSeconds);
+            } catch (e) {
+                Logger.warn('Failed to record play history:', e);
+            }
+        }
+    }
+
+    /**
+     * Push current playback state to the server for cross-device sync.
+     * Throttled to avoid excessive requests.
+     */
+    _syncStateToServer() {
+        if (this.currentIndex < 0 || !this.playlist.length) return;
+        const now = Date.now();
+        if (this._lastServerSync && now - this._lastServerSync < 5000) return;
+        this._lastServerSync = now;
+
+        const song = this.playlist[this.currentIndex];
+        if (!song) return;
+        try {
+            usePlaybackService().saveState(
+                song.id,
+                this.audio.currentTime || 0,
+                this.playlist,
+                this.currentIndex,
+                this.isPlaying
+            );
+        } catch (e) {
+            Logger.warn('Failed to sync state to server:', e);
         }
     }
 

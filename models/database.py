@@ -254,6 +254,37 @@ class Database:
             )
         """)
 
+        # Playback history — records every play event per user
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS play_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                song_id INT NOT NULL,
+                position INT DEFAULT 0,
+                duration INT DEFAULT 0,
+                played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+                INDEX idx_user_played (user_id, played_at),
+                INDEX idx_user_song (user_id, song_id)
+            )
+        """)
+
+        # Playback state — cross-device sync (one row per user)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS playback_state (
+                user_id INT PRIMARY KEY,
+                song_id INT NULL,
+                position DOUBLE DEFAULT 0,
+                queue MEDIUMTEXT NULL,
+                queue_index INT DEFAULT 0,
+                is_playing TINYINT(1) DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE SET NULL
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()
