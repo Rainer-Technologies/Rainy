@@ -159,6 +159,31 @@ def remove_song(playlist_id, song_id):
         return jsonify({'error': str(e)}), 500
 
 
+@playlists_bp.route('/<int:playlist_id>/reorder', methods=['POST'])
+@require_auth
+def reorder_playlist(playlist_id):
+    """Reorder songs in a playlist via drag-and-drop.
+
+    Expects JSON body: {"ordered_track_ids": [3, 1, 2, ...]}
+    """
+    try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
+
+        data = request.get_json() or {}
+        ordered = data.get('ordered_track_ids')
+        if not isinstance(ordered, list) or not ordered:
+            return jsonify({'error': 'ordered_track_ids must be a non-empty list'}), 400
+
+        PlaylistModel.reorder_songs(playlist_id, ordered)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @playlists_bp.route('/<int:playlist_id>/download', methods=['GET'])
 @require_auth
 def download_playlist(playlist_id):

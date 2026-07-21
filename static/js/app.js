@@ -1051,6 +1051,76 @@ export class RainyApp {
         });
 
         this.bindRightClickEvents(listContent);
+
+        // Enable drag-and-drop reordering when viewing a playlist in list mode
+        if (useContext().get('current-view-type') === 'playlist' && this.currentPlaylistId) {
+            this.enablePlaylistDragDrop(listContent);
+        }
+    }
+
+    /**
+     * Enable HTML5 drag-and-drop reordering of playlist song rows.
+     * @param {HTMLElement} container - The list content container with .song-row children
+     */
+    enablePlaylistDragDrop(container) {
+        const rows = Array.from(container.querySelectorAll('.song-row'));
+        let dragSrcEl = null;
+
+        rows.forEach(row => {
+            row.setAttribute('draggable', 'true');
+            row.classList.add('draggable-row');
+
+            row.addEventListener('dragstart', (e) => {
+                dragSrcEl = row;
+                row.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', row.dataset.index || '');
+            });
+
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const target = e.currentTarget;
+                if (target === dragSrcEl) return;
+                const rect = target.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                if (e.clientY < midpoint) {
+                    container.insertBefore(dragSrcEl, target);
+                } else {
+                    container.insertBefore(dragSrcEl, target.nextSibling);
+                }
+            });
+
+            row.addEventListener('dragend', () => {
+                row.classList.remove('dragging');
+                rows.forEach(r => r.classList.remove('drag-over'));
+                this.persistPlaylistOrder(container);
+            });
+        });
+    }
+
+    /**
+     * Read the current DOM order of song rows and persist it to the backend.
+     * @param {HTMLElement} container
+     */
+    async persistPlaylistOrder(container) {
+        const orderedIds = Array.from(container.querySelectorAll('.song-row'))
+            .map(row => parseInt(row.dataset.id))
+            .filter(id => !isNaN(id));
+
+        if (!orderedIds.length || !this.currentPlaylistId) return;
+
+        try {
+            const res = await usePlaylistService().reorder(this.currentPlaylistId, orderedIds);
+            if (res.error) {
+                Logger.error('Failed to reorder playlist:', res.error);
+                window.showToast?.('Failed to save order', 'error');
+            } else {
+                window.showToast?.('Playlist order saved', 'success');
+            }
+        } catch (e) {
+            Logger.error('Reorder error:', e);
+        }
     }
 
     setViewMode(mode) {

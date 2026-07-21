@@ -114,3 +114,25 @@ class PlaylistModel:
             ORDER BY ps.order_num ASC
         """
         return Database.execute_query(query, (playlist_id,), fetch_all=True)
+
+    @staticmethod
+    def reorder_songs(playlist_id, ordered_track_ids):
+        """Reorder playlist songs by assigning sequential order_num values.
+
+        Args:
+            playlist_id: The playlist to reorder.
+            ordered_track_ids: List of track IDs in the desired order.
+        """
+        conn = Database.get_connection()
+        try:
+            cursor = conn.cursor()
+            for index, track_id in enumerate(ordered_track_ids):
+                cursor.execute(
+                    "UPDATE playlist_entries SET order_num = %s WHERE playlist_id = %s AND track_id = %s",
+                    (index + 1, playlist_id, track_id)
+                )
+            conn.commit()
+            cursor.close()
+            return True
+        finally:
+            conn.close()

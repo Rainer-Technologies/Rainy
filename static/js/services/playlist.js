@@ -127,6 +127,22 @@ export class PlaylistService extends Service {
         if (data.error) return data;
         return Ok(true);
     }
+
+    /**
+     * Reorder songs in a playlist (drag-and-drop)
+     * @param {string|number} playlistId
+     * @param {Array<number>} orderedTrackIds - Track IDs in the desired order
+     * @returns {Promise<Result<boolean, ErrorModel | ResponseError>>}
+     */
+    async reorder(playlistId, orderedTrackIds) {
+        const data = await this.wrap(RequestHelper.request(this.url(`/${playlistId}/reorder`), {
+            method: 'POST',
+            body: { ordered_track_ids: orderedTrackIds }
+        }));
+
+        if (data.error) return data;
+        return Ok(true);
+    }
 };
 
 const __singleton = new PlaylistService();
