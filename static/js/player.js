@@ -61,6 +61,13 @@ export class AudioPlayer {
         this.abPointA = null; // seconds
         this.abPointB = null; // seconds
 
+        // Equalizer (Web Audio API)
+        this._eqContext = null;
+        this._eqSource = null;
+        this._eqFilters = [];
+        this._eqEnabled = false;
+        this._eqGains = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 10 bands
+
         this.init();
     }
 
@@ -69,6 +76,7 @@ export class AudioPlayer {
         this.bindEvents();
         this.loadSettings();
         this.restorePlaybackSpeed();
+        this.restoreEq();
 
         // Media Session API (lock screen / media keys)
         this.mediaSession = new MediaSessionController(this);
@@ -97,6 +105,10 @@ export class AudioPlayer {
         this.fsSpeedBtn = document.getElementById('fs-speed-btn');
         this.speedLabel = document.getElementById('speed-label');
         this.fsSpeedLabel = document.getElementById('fs-speed-label');
+
+        // Equalizer
+        this.eqBtn = document.getElementById('eq-btn');
+        this.fsEqBtn = document.getElementById('fs-eq-btn');
 
         // Progress
         this.progressBar = document.getElementById('progress-bar');
@@ -201,6 +213,8 @@ export class AudioPlayer {
         if (this.fsAbRepeatBtn) this.fsAbRepeatBtn.addEventListener('click', () => this.handleAbRepeatClick());
         if (this.speedBtn) this.speedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.speedBtn); });
         if (this.fsSpeedBtn) this.fsSpeedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.fsSpeedBtn); });
+        if (this.eqBtn) this.eqBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEqMenu(this.eqBtn); });
+        if (this.fsEqBtn) this.fsEqBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEqMenu(this.fsEqBtn); });
         if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
         if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
 
@@ -2592,6 +2606,252 @@ export class AudioPlayer {
                 });
             }
         }
+    }
+
+    /* =====================================================================
+     *  EQUALIZER (Web Audio API — 10-band peaking filters)
+     * ===================================================================== */
+
+    /** Band centre frequencies (Hz) for the 10-band EQ. */
+    static EQ_BANDS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+    /** Named presets — each is an array of 10 gain values (dB, -12…+12). */
+    static EQ_PRESETS = {
+        Flat:      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Bass Boost': [6, 5, 4, 2, 0, 0, 0, 0, 0, 0],
+        'Treble Boost': [0, 0, 0, 0, 0, 1, 3, 5, 6, 7],
+        Vocal:     [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1],
+        Rock:      [5, 4, 3, 1, -1, -1, 1, 3, 4, 5],
+        Pop:       [-1, 1, 3, 4, 3, 1, -1, -1, 1, 2],
+        Jazz:      [4, 3, 1, 2, -1, -1, 0, 1, 3, 4],
+        Electronic:[5, 4, 1, 0, -2, 1, 0, 2, 4, 5],
+        Classical: [5, 4, 3, 2, -1, -1, 0, 2, 3, 4],
+        Podcast:   [-3, -1, 0, 2, 4, 4, 3, 1, -1, -2],
+    };
+
+    /**
+     * Lazily create the AudioContext + 10 peaking BiquadFilters and wire
+     * them between the <audio> element and the destination.
+     * Must be called from a user gesture (click) to satisfy autoplay policy.
+     */
+    _ensureEqGraph() {
+        if (this._eqContext) return; // already built
+
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) { window.showToast?.('Equalizer not supported in this browser', 'error'); return; }
+
+        this._eqContext = new Ctx();
+        this._eqSource = this._eqContext.createMediaElementSource(this.audio);
+
+        this._eqFilters = AudioPlayer.EQ_BANDS.map((freq, i) => {
+            const f = this._eqContext.createBiquadFilter();
+            f.type = 'peaking';
+            f.frequency.value = freq;
+            f.Q.value = 1.4;
+            f.gain.value = this._eqGains[i];
+            return f;
+        });
+
+        // Chain: source → filter0 → filter1 → … → filter9 → destination
+        this._eqSource.connect(this._eqFilters[0]);
+        for (let i = 0; i < this._eqFilters.length - 1; i++) {
+            this._eqFilters[i].connect(this._eqFilters[i + 1]);
+        }
+        this._eqFilters[this._eqFilters.length - 1].connect(this._eqContext.destination);
+
+        // If the context was created while audio was already playing, resume it
+        if (this._eqContext.state === 'suspended') this._eqContext.resume();
+    }
+
+    /**
+     * Apply a gain array (10 values in dB) to the EQ filters.
+     * @param {number[]} gains
+     * @param {string} [presetName]  if provided, stored so the UI can highlight it
+     */
+    applyEqGains(gains, presetName = null) {
+        this._eqGains = gains.slice(0, 10);
+        if (this._eqFilters.length) {
+            this._eqFilters.forEach((f, i) => { f.gain.value = this._eqGains[i]; });
+        }
+        if (presetName) this._eqPreset = presetName;
+        this._saveEqState();
+    }
+
+    /** Toggle the EQ on/off. When off, all gains are set to 0 (flat). */
+    toggleEqEnabled() {
+        this._eqEnabled = !this._eqEnabled;
+        if (!this._eqEnabled) {
+            // Flatten
+            this._eqGains = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            if (this._eqFilters.length) this._eqFilters.forEach(f => { f.gain.value = 0; });
+            this._eqPreset = 'Flat';
+        } else {
+            // Restore saved gains
+            this._loadEqState();
+            if (this._eqFilters.length) {
+                this._eqFilters.forEach((f, i) => { f.gain.value = this._eqGains[i]; });
+            }
+        }
+        this._updateEqButtonState();
+        this._saveEqState();
+    }
+
+    _updateEqButtonState() {
+        const active = this._eqEnabled && this._eqGains.some(g => Math.abs(g) > 0.1);
+        [this.eqBtn, this.fsEqBtn].forEach(btn => {
+            if (btn) btn.classList.toggle('active', active);
+        });
+    }
+
+    _saveEqState() {
+        localStorage.setItem('rainy_eq_gains', JSON.stringify(this._eqGains));
+        localStorage.setItem('rainy_eq_enabled', this._eqEnabled ? '1' : '0');
+        if (this._eqPreset) localStorage.setItem('rainy_eq_preset', this._eqPreset);
+    }
+
+    _loadEqState() {
+        try {
+            const g = JSON.parse(localStorage.getItem('rainy_eq_gains'));
+            if (Array.isArray(g) && g.length === 10) this._eqGains = g;
+        } catch { /* ignore */ }
+        this._eqEnabled = localStorage.getItem('rainy_eq_enabled') === '1';
+        this._eqPreset = localStorage.getItem('rainy_eq_preset') || 'Flat';
+    }
+
+    /** Restore EQ state on init (called from init()). */
+    restoreEq() {
+        this._loadEqState();
+        this._updateEqButtonState();
+    }
+
+    /**
+     * Show the equalizer popup anchored to the given button.
+     * @param {HTMLElement} anchorBtn
+     */
+    showEqMenu(anchorBtn) {
+        document.getElementById('eq-menu')?.remove();
+
+        // Ensure graph exists (user gesture)
+        this._ensureEqGraph();
+        if (!this._eqContext) return;
+        if (this._eqContext.state === 'suspended') this._eqContext.resume();
+
+        // If EQ was off, turn it on when opening the menu
+        if (!this._eqEnabled) {
+            this._eqEnabled = true;
+            this._updateEqButtonState();
+            this._saveEqState();
+        }
+
+        const bands = AudioPlayer.EQ_BANDS;
+        const presets = Object.keys(AudioPlayer.EQ_PRESETS);
+
+        const menu = document.createElement('div');
+        menu.id = 'eq-menu';
+        menu.className = 'eq-menu';
+
+        menu.innerHTML = `
+            <div class="eq-menu-header">
+                <span>Equalizer</span>
+                <button class="eq-power-btn${this._eqEnabled ? ' on' : ''}" id="eq-power-btn" title="Toggle EQ">⏻</button>
+            </div>
+            <div class="eq-presets">
+                ${presets.map(name => `
+                    <button class="eq-preset${(this._eqPreset || 'Flat') === name ? ' active' : ''}" data-preset="${name}">${name}</button>
+                `).join('')}
+            </div>
+            <div class="eq-bands">
+                ${bands.map((freq, i) => `
+                    <div class="eq-band">
+                        <span class="eq-band-val" id="eq-val-${i}">${this._eqGains[i] > 0 ? '+' : ''}${this._eqGains[i]}</span>
+                        <input type="range" class="eq-slider" id="eq-slider-${i}"
+                               min="-12" max="12" step="1" value="${this._eqGains[i]}"
+                               orient="vertical" data-index="${i}">
+                        <span class="eq-band-freq">${freq >= 1000 ? (freq / 1000) + 'k' : freq}</span>
+                    </div>
+                `).join('')}
+            </div>
+            <button class="eq-reset-btn" id="eq-reset-btn">Reset to Flat</button>
+        `;
+
+        document.body.appendChild(menu);
+
+        // Position above the anchor button
+        const rect = anchorBtn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+        menu.style.zIndex = '3000';
+        const menuWidth = 340;
+        let left = rect.left + rect.width / 2 - menuWidth / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+        menu.style.left = `${left}px`;
+        menu.style.width = `${menuWidth}px`;
+
+        // Preset buttons
+        menu.querySelectorAll('.eq-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const name = btn.dataset.preset;
+                const gains = AudioPlayer.EQ_PRESETS[name];
+                if (!gains) return;
+                this.applyEqGains(gains, name);
+                // Update sliders
+                gains.forEach((g, i) => {
+                    const sl = menu.querySelector(`#eq-slider-${i}`);
+                    const vl = menu.querySelector(`#eq-val-${i}`);
+                    if (sl) sl.value = g;
+                    if (vl) vl.textContent = `${g > 0 ? '+' : ''}${g}`;
+                });
+                menu.querySelectorAll('.eq-preset').forEach(b => b.classList.toggle('active', b === btn));
+            });
+        });
+
+        // Individual band sliders
+        menu.querySelectorAll('.eq-slider').forEach(slider => {
+            slider.addEventListener('input', () => {
+                const idx = parseInt(slider.dataset.index);
+                const val = parseInt(slider.value);
+                this._eqGains[idx] = val;
+                if (this._eqFilters[idx]) this._eqFilters[idx].gain.value = val;
+                const vl = menu.querySelector(`#eq-val-${idx}`);
+                if (vl) vl.textContent = `${val > 0 ? '+' : ''}${val}`;
+                // Deselect preset (custom)
+                this._eqPreset = 'Custom';
+                menu.querySelectorAll('.eq-preset').forEach(b => b.classList.remove('active'));
+                this._saveEqState();
+                this._updateEqButtonState();
+            });
+        });
+
+        // Power toggle
+        menu.querySelector('#eq-power-btn')?.addEventListener('click', () => {
+            this.toggleEqEnabled();
+            const btn = menu.querySelector('#eq-power-btn');
+            if (btn) btn.classList.toggle('on', this._eqEnabled);
+            // Update sliders to reflect state
+            this._eqGains.forEach((g, i) => {
+                const sl = menu.querySelector(`#eq-slider-${i}`);
+                const vl = menu.querySelector(`#eq-val-${i}`);
+                if (sl) sl.value = g;
+                if (vl) vl.textContent = `${g > 0 ? '+' : ''}${g}`;
+            });
+        });
+
+        // Reset button
+        menu.querySelector('#eq-reset-btn')?.addEventListener('click', () => {
+            this.applyEqGains([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'Flat');
+            menu.querySelectorAll('.eq-slider').forEach((sl, i) => { sl.value = 0; });
+            menu.querySelectorAll('.eq-band-val').forEach(vl => { vl.textContent = '0'; });
+            menu.querySelectorAll('.eq-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === 'Flat'));
+        });
+
+        // Close on outside click
+        const outsideHandler = (e) => {
+            if (!menu.contains(e.target) && e.target !== anchorBtn && !anchorBtn.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', outsideHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', outsideHandler), 0);
     }
 
     /**
