@@ -34,6 +34,7 @@ const SHORTCUT_GROUPS = [
             { keys: ['L'], action: 'Like current song' },
             { keys: ['B'], action: 'A-B repeat (loop section)' },
             { keys: ['E'], action: 'Equalizer' },
+            { keys: ['X'], action: 'Toggle crossfade' },
         ],
     },
     {

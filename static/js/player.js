@@ -68,6 +68,14 @@ export class AudioPlayer {
         this._eqEnabled = false;
         this._eqGains = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 10 bands
 
+        // Crossfade
+        this.crossfadeAudio = null; // secondary <audio> element
+        this._crossfadeEnabled = false;
+        this._crossfadeDuration = 5; // seconds
+        this._crossfading = false;
+        this._crossfadeRaf = null;
+        this._crossfadeTriggered = false; // prevent re-trigger within same song
+
         this.init();
     }
 
@@ -77,6 +85,7 @@ export class AudioPlayer {
         this.loadSettings();
         this.restorePlaybackSpeed();
         this.restoreEq();
+        this.restoreCrossfade();
 
         // Media Session API (lock screen / media keys)
         this.mediaSession = new MediaSessionController(this);
@@ -109,6 +118,11 @@ export class AudioPlayer {
         // Equalizer
         this.eqBtn = document.getElementById('eq-btn');
         this.fsEqBtn = document.getElementById('fs-eq-btn');
+
+        // Crossfade
+        this.crossfadeBtn = document.getElementById('crossfade-btn');
+        this.fsCrossfadeBtn = document.getElementById('fs-crossfade-btn');
+        this.crossfadeAudio = document.getElementById('crossfade-audio');
 
         // Progress
         this.progressBar = document.getElementById('progress-bar');
@@ -215,6 +229,8 @@ export class AudioPlayer {
         if (this.fsSpeedBtn) this.fsSpeedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.fsSpeedBtn); });
         if (this.eqBtn) this.eqBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEqMenu(this.eqBtn); });
         if (this.fsEqBtn) this.fsEqBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEqMenu(this.fsEqBtn); });
+        if (this.crossfadeBtn) this.crossfadeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showCrossfadeMenu(this.crossfadeBtn); });
+        if (this.fsCrossfadeBtn) this.fsCrossfadeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showCrossfadeMenu(this.fsCrossfadeBtn); });
         if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
         if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
 
@@ -355,6 +371,9 @@ export class AudioPlayer {
     }
 
     playSong(index, playlist = null, context = null) {
+        // Cancel any in-progress crossfade
+        if (this._crossfading) this._cancelCrossfade();
+
         if (playlist) {
             this.playlist = playlist;
             // Reset queue modifications when switching to a new playlist/context
@@ -694,6 +713,9 @@ export class AudioPlayer {
 
         // Enforce A-B loop boundary before updating the progress display
         this._enforceAbLoop();
+
+        // Check if we should trigger a crossfade
+        this._checkCrossfade();
 
         if (this.audio.duration) {
             const percent = (this.audio.currentTime / this.audio.duration) * 100;
@@ -1074,6 +1096,10 @@ export class AudioPlayer {
         // Flush listening stats for the song that just ended
         this._flushListenTracking();
 
+        // If a crossfade is in progress, the secondary audio is already
+        // playing the next song — don't call playNext() again.
+        if (this._crossfading) return;
+
         if (this.repeatMode === 'one') {
             this.audio.currentTime = 0;
             this.audio.play();
@@ -1110,6 +1136,9 @@ export class AudioPlayer {
 
     handlePause() {
         this.isPlaying = false;
+        // Cancel any in-progress crossfade so the secondary audio doesn't
+        // keep playing while the user has paused.
+        if (this._crossfading) this._cancelCrossfade();
         // Reset listen-tracker clock so the resume gap isn't counted as listening
         if (this._listenTracker) this._listenTracker.lastTick = Date.now();
         this.iconPlay.classList.remove('hidden');
@@ -2842,6 +2871,254 @@ export class AudioPlayer {
             menu.querySelectorAll('.eq-slider').forEach((sl, i) => { sl.value = 0; });
             menu.querySelectorAll('.eq-band-val').forEach(vl => { vl.textContent = '0'; });
             menu.querySelectorAll('.eq-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === 'Flat'));
+        });
+
+        // Close on outside click
+        const outsideHandler = (e) => {
+            if (!menu.contains(e.target) && e.target !== anchorBtn && !anchorBtn.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', outsideHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', outsideHandler), 0);
+    }
+
+    /* ========================================================================
+       Crossfade — smooth volume-fade transition between songs.
+       Uses a secondary <audio> element to overlap the tail of the current
+       track with the head of the next. Toggle + adjustable duration (1-12 s).
+       ======================================================================== */
+
+    /** Restore crossfade settings from localStorage (called from init). */
+    restoreCrossfade() {
+        this._crossfadeEnabled = localStorage.getItem('rainy_crossfade_enabled') === '1';
+        const d = parseInt(localStorage.getItem('rainy_crossfade_duration'));
+        if (d >= 1 && d <= 12) this._crossfadeDuration = d;
+        this._updateCrossfadeButtonState();
+    }
+
+    _saveCrossfadeState() {
+        localStorage.setItem('rainy_crossfade_enabled', this._crossfadeEnabled ? '1' : '0');
+        localStorage.setItem('rainy_crossfade_duration', String(this._crossfadeDuration));
+    }
+
+    _updateCrossfadeButtonState() {
+        [this.crossfadeBtn, this.fsCrossfadeBtn].forEach(btn => {
+            if (btn) btn.classList.toggle('active', this._crossfadeEnabled);
+        });
+    }
+
+    toggleCrossfadeEnabled() {
+        this._crossfadeEnabled = !this._crossfadeEnabled;
+        if (!this._crossfadeEnabled) this._cancelCrossfade();
+        this._updateCrossfadeButtonState();
+        this._saveCrossfadeState();
+        window.showToast?.(
+            this._crossfadeEnabled
+                ? `Crossfade on (${this._crossfadeDuration}s)`
+                : 'Crossfade off',
+            'info'
+        );
+    }
+
+    setCrossfadeDuration(seconds) {
+        this._crossfadeDuration = Math.max(1, Math.min(12, Math.round(seconds)));
+        this._saveCrossfadeState();
+    }
+
+    /**
+     * Called from handleTimeUpdate — triggers crossfade when the current
+     * song is within the fade window of its end.
+     */
+    _checkCrossfade() {
+        if (!this._crossfadeEnabled || this._crossfading) return;
+        if (!this.audio.duration || this.audio.duration < this._crossfadeDuration + 2) return;
+        if (this.repeatMode === 'one') return;
+
+        const remaining = this.audio.duration - this.audio.currentTime;
+        if (remaining <= this._crossfadeDuration && remaining > 0.3) {
+            // Determine next index
+            let nextIndex = this.currentIndex + 1;
+            if (this.isShuffle) {
+                nextIndex = Math.floor(Math.random() * this.playlist.length);
+            }
+            if (nextIndex >= this.playlist.length) {
+                if (this.repeatMode === 'all') nextIndex = 0;
+                else return; // end of playlist — let it stop naturally
+            }
+            if (nextIndex === this.currentIndex) return;
+            this._startCrossfade(nextIndex);
+        }
+    }
+
+    /**
+     * Begin the overlapping crossfade to the song at nextIndex.
+     */
+    _startCrossfade(nextIndex) {
+        if (this._crossfading) return;
+        const nextSong = this.playlist[nextIndex];
+        if (!nextSong) return;
+
+        this._crossfading = true;
+        const cf = this.crossfadeAudio;
+        const targetVolume = this.audio.volume;
+
+        cf.src = `/api/music/stream/${nextSong.id}`;
+        cf.volume = 0;
+        cf.playbackRate = this.audio.playbackRate || 1;
+
+        cf.play().then(() => {
+            const startTime = performance.now();
+            const fadeMs = this._crossfadeDuration * 1000;
+
+            const animate = (now) => {
+                if (!this._crossfading) return; // cancelled
+                const progress = Math.min((now - startTime) / fadeMs, 1);
+
+                // Equal-power crossfade curve
+                this.audio.volume = targetVolume * Math.cos(progress * Math.PI / 2);
+                cf.volume = targetVolume * Math.sin(progress * Math.PI / 2);
+
+                if (progress < 1) {
+                    this._crossfadeRaf = requestAnimationFrame(animate);
+                } else {
+                    this._completeCrossfade(nextIndex, nextSong, cf.currentTime);
+                }
+            };
+            this._crossfadeRaf = requestAnimationFrame(animate);
+        }).catch(() => {
+            // Autoplay blocked or load error — fall back to normal transition
+            this._crossfading = false;
+        });
+    }
+
+    /**
+     * Finalize the crossfade: swap the primary audio to the next song at
+     * the position the secondary reached, then clean up.
+     */
+    _completeCrossfade(nextIndex, nextSong, position) {
+        if (this._crossfadeRaf) { cancelAnimationFrame(this._crossfadeRaf); this._crossfadeRaf = null; }
+
+        const cf = this.crossfadeAudio;
+        const targetVolume = parseFloat(localStorage.getItem('rainy_volume') || '0.8');
+
+        // Flush listening stats for the song that just ended
+        this._flushListenTracking();
+
+        // Point the primary at the next song
+        this.currentIndex = nextIndex;
+        this.audio.src = `/api/music/stream/${nextSong.id}`;
+        this.audio.volume = targetVolume;
+
+        const onLoaded = () => {
+            this.audio.removeEventListener('loadedmetadata', onLoaded);
+            if (position > 0 && position < this.audio.duration) {
+                this.audio.currentTime = position;
+            }
+            this.audio.play().catch(() => {});
+            // Stop the secondary now that primary has taken over
+            cf.pause();
+            cf.removeAttribute('src');
+            cf.load();
+        };
+        this.audio.addEventListener('loadedmetadata', onLoaded);
+
+        // Reset crossfade state
+        this._crossfading = false;
+        this._crossfadeTriggered = false;
+
+        // Update all UI
+        this.updateNowPlaying(nextSong);
+        this.savePlaybackState();
+        if (this.lyricsActive) this.loadLyrics(nextSong.id);
+    }
+
+    /** Cancel an in-progress crossfade (e.g. user skipped manually). */
+    _cancelCrossfade() {
+        if (this._crossfadeRaf) { cancelAnimationFrame(this._crossfadeRaf); this._crossfadeRaf = null; }
+        if (this.crossfadeAudio) {
+            this.crossfadeAudio.pause();
+            this.crossfadeAudio.removeAttribute('src');
+            this.crossfadeAudio.load();
+        }
+        // Restore primary volume
+        const vol = parseFloat(localStorage.getItem('rainy_volume') || '0.8');
+        if (this.audio) this.audio.volume = vol;
+        this._crossfading = false;
+        this._crossfadeTriggered = false;
+    }
+
+    /**
+     * Show the crossfade settings popup anchored to the given button.
+     * @param {HTMLElement} anchorBtn
+     */
+    showCrossfadeMenu(anchorBtn) {
+        document.getElementById('crossfade-menu')?.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'crossfade-menu';
+        menu.className = 'crossfade-menu';
+
+        menu.innerHTML = `
+            <div class="crossfade-menu-header">
+                <span>Crossfade</span>
+                <button class="crossfade-power-btn${this._crossfadeEnabled ? ' on' : ''}" id="cf-power-btn" title="Toggle Crossfade">⏻</button>
+            </div>
+            <p class="crossfade-desc">Smoothly blend the end of one song into the start of the next.</p>
+            <div class="crossfade-slider-row">
+                <span class="crossfade-slider-label">Duration</span>
+                <input type="range" class="crossfade-slider" id="cf-duration-slider"
+                       min="1" max="12" step="1" value="${this._crossfadeDuration}">
+                <span class="crossfade-slider-value" id="cf-duration-value">${this._crossfadeDuration}s</span>
+            </div>
+            <div class="crossfade-presets">
+                ${[2, 4, 6, 8, 10].map(d => `
+                    <button class="crossfade-preset${this._crossfadeDuration === d ? ' active' : ''}" data-dur="${d}">${d}s</button>
+                `).join('')}
+            </div>
+        `;
+
+        document.body.appendChild(menu);
+
+        // Position above the anchor button
+        const rect = anchorBtn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+        menu.style.zIndex = '3000';
+        const menuWidth = 260;
+        let left = rect.left + rect.width / 2 - menuWidth / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+        menu.style.left = `${left}px`;
+        menu.style.width = `${menuWidth}px`;
+
+        // Power toggle
+        menu.querySelector('#cf-power-btn')?.addEventListener('click', () => {
+            this.toggleCrossfadeEnabled();
+            const btn = menu.querySelector('#cf-power-btn');
+            if (btn) btn.classList.toggle('on', this._crossfadeEnabled);
+        });
+
+        // Duration slider
+        const slider = menu.querySelector('#cf-duration-slider');
+        const valueEl = menu.querySelector('#cf-duration-value');
+        slider?.addEventListener('input', () => {
+            const v = parseInt(slider.value);
+            this.setCrossfadeDuration(v);
+            valueEl.textContent = `${v}s`;
+            menu.querySelectorAll('.crossfade-preset').forEach(b => {
+                b.classList.toggle('active', parseInt(b.dataset.dur) === v);
+            });
+        });
+
+        // Preset buttons
+        menu.querySelectorAll('.crossfade-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const d = parseInt(btn.dataset.dur);
+                this.setCrossfadeDuration(d);
+                slider.value = d;
+                valueEl.textContent = `${d}s`;
+                menu.querySelectorAll('.crossfade-preset').forEach(b => b.classList.toggle('active', b === btn));
+            });
         });
 
         // Close on outside click

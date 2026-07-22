@@ -891,6 +891,137 @@
     color: var(--accent-primary);
 }
 
+/* ==========================================================================
+   Crossfade
+   ========================================================================== */
+#crossfade-btn.active,
+#fs-crossfade-btn.active {
+    color: var(--accent-primary);
+}
+#crossfade-btn.active svg,
+#fs-crossfade-btn.active svg {
+    fill: var(--accent-primary);
+}
+
+.crossfade-menu {
+    background: var(--bg-secondary, #1e1e2e);
+    border: 1px solid var(--border-color, #333);
+    border-radius: var(--radius-lg, 12px);
+    padding: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    z-index: 3000;
+    animation: speedMenuIn 0.15s ease;
+}
+.crossfade-menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary, #aaa);
+    margin-bottom: 8px;
+}
+.crossfade-power-btn {
+    background: none;
+    border: 1px solid var(--border-color, #444);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-secondary, #aaa);
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.crossfade-power-btn.on {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+}
+.crossfade-power-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+.crossfade-desc {
+    font-size: 11px;
+    color: var(--text-tertiary, #777);
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+}
+.crossfade-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.crossfade-slider-label {
+    font-size: 11px;
+    color: var(--text-secondary, #aaa);
+    white-space: nowrap;
+}
+.crossfade-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bg-tertiary, #333);
+    outline: none;
+    cursor: pointer;
+}
+.crossfade-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+}
+.crossfade-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    border: none;
+}
+.crossfade-slider-value {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-primary);
+    min-width: 28px;
+    text-align: right;
+}
+.crossfade-presets {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+.crossfade-preset {
+    background: var(--bg-tertiary, #2a2a3e);
+    border: 1px solid var(--border-color, #444);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-primary, #eee);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.crossfade-preset:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+.crossfade-preset.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+}
+
 /* ============================================
    Keyboard Shortcut Cheat Sheet Overlay (? key)
    ============================================ */
