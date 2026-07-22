@@ -75,6 +75,7 @@ export class AudioPlayer {
         this._crossfading = false;
         this._crossfadeRaf = null;
         this._crossfadeTriggered = false; // prevent re-trigger within same song
+        this._activeBlobUrl = null; // blob URL currently assigned to this.audio.src
 
         this.init();
     }
@@ -105,23 +106,17 @@ export class AudioPlayer {
 
         // A-B Repeat
         this.abRepeatBtn = document.getElementById('ab-repeat-btn');
-        this.fsAbRepeatBtn = document.getElementById('fs-ab-repeat-btn');
         this.abLoopRegion = document.getElementById('ab-loop-region');
-        this.fsAbLoopRegion = document.getElementById('fs-ab-loop-region');
 
         // Playback Speed
         this.speedBtn = document.getElementById('speed-btn');
-        this.fsSpeedBtn = document.getElementById('fs-speed-btn');
         this.speedLabel = document.getElementById('speed-label');
-        this.fsSpeedLabel = document.getElementById('fs-speed-label');
 
         // Equalizer
         this.eqBtn = document.getElementById('eq-btn');
-        this.fsEqBtn = document.getElementById('fs-eq-btn');
 
         // Crossfade
         this.crossfadeBtn = document.getElementById('crossfade-btn');
-        this.fsCrossfadeBtn = document.getElementById('fs-crossfade-btn');
         this.crossfadeAudio = document.getElementById('crossfade-audio');
 
         // Progress
@@ -224,13 +219,9 @@ export class AudioPlayer {
         this.shuffleBtn.addEventListener('click', () => this.toggleShuffle());
         this.repeatBtn.addEventListener('click', () => this.toggleRepeat());
         if (this.abRepeatBtn) this.abRepeatBtn.addEventListener('click', () => this.handleAbRepeatClick());
-        if (this.fsAbRepeatBtn) this.fsAbRepeatBtn.addEventListener('click', () => this.handleAbRepeatClick());
         if (this.speedBtn) this.speedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.speedBtn); });
-        if (this.fsSpeedBtn) this.fsSpeedBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showSpeedMenu(this.fsSpeedBtn); });
         if (this.eqBtn) this.eqBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEqMenu(this.eqBtn); });
-        if (this.fsEqBtn) this.fsEqBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEqMenu(this.fsEqBtn); });
         if (this.crossfadeBtn) this.crossfadeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showCrossfadeMenu(this.crossfadeBtn); });
-        if (this.fsCrossfadeBtn) this.fsCrossfadeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showCrossfadeMenu(this.fsCrossfadeBtn); });
         if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
         if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
 
@@ -373,6 +364,7 @@ export class AudioPlayer {
     playSong(index, playlist = null, context = null) {
         // Cancel any in-progress crossfade
         if (this._crossfading) this._cancelCrossfade();
+        this._crossfadeTriggered = false;
 
         if (playlist) {
             this.playlist = playlist;
@@ -398,6 +390,11 @@ export class AudioPlayer {
 
         // Update audio source - API now uses database ID
         const streamUrl = `/api/music/stream/${song.id}`;
+        // Revoke any blob URL from a previous crossfade before replacing src
+        if (this._activeBlobUrl) {
+            URL.revokeObjectURL(this._activeBlobUrl);
+            this._activeBlobUrl = null;
+        }
         this.audio.src = streamUrl;
 
         // Update now playing info
@@ -671,26 +668,23 @@ export class AudioPlayer {
     updateAbRepeatUI() {
         const active = this.abPointA !== null && this.abPointB !== null;
 
-        // Toggle active class on both buttons
-        [this.abRepeatBtn, this.fsAbRepeatBtn].forEach(btn => {
-            if (!btn) return;
-            if (active) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
+        // Toggle active class on the button
+        if (this.abRepeatBtn) {
+            this.abRepeatBtn.classList.toggle('active', active);
+        }
 
-        // Position the loop-region overlay on both progress bars
-        [this.abLoopRegion, this.fsAbLoopRegion].forEach(region => {
-            if (!region) return;
+        // Position the loop-region overlay on the progress bar
+        if (this.abLoopRegion) {
             if (active && this.audio.duration) {
                 const startPct = (this.abPointA / this.audio.duration) * 100;
                 const widthPct = ((this.abPointB - this.abPointA) / this.audio.duration) * 100;
-                region.style.left = `${startPct}%`;
-                region.style.width = `${widthPct}%`;
-                region.classList.remove('hidden');
+                this.abLoopRegion.style.left = `${startPct}%`;
+                this.abLoopRegion.style.width = `${widthPct}%`;
+                this.abLoopRegion.classList.remove('hidden');
             } else {
-                region.classList.add('hidden');
+                this.abLoopRegion.classList.add('hidden');
             }
-        });
+        }
     }
 
     /**
@@ -1100,6 +1094,14 @@ export class AudioPlayer {
         // playing the next song — don't call playNext() again.
         if (this._crossfading) return;
 
+        // If a crossfade just completed, the primary's src was already
+        // swapped to the next song and the old song's `ended` event fires
+        // late. Swallow it so playNext() doesn't restart from position 0.
+        if (this._crossfadeTriggered) {
+            this._crossfadeTriggered = false;
+            return;
+        }
+
         if (this.repeatMode === 'one') {
             this.audio.currentTime = 0;
             this.audio.play();
@@ -1138,7 +1140,10 @@ export class AudioPlayer {
         this.isPlaying = false;
         // Cancel any in-progress crossfade so the secondary audio doesn't
         // keep playing while the user has paused.
-        if (this._crossfading) this._cancelCrossfade();
+        // But DON'T cancel if the song ended naturally — the browser fires
+        // `pause` right before `ended`, and the crossfade is handling the
+        // transition. audio.ended is true in that case.
+        if (this._crossfading && !this.audio.ended) this._cancelCrossfade();
         // Reset listen-tracker clock so the resume gap isn't counted as listening
         if (this._listenTracker) this._listenTracker.lastTick = Date.now();
         this.iconPlay.classList.remove('hidden');
@@ -1199,6 +1204,10 @@ export class AudioPlayer {
 
     handleProgressClick(e, progressBarElement) {
         if (!this.audio.duration) return;
+
+        // Manual seek cancels any in-progress crossfade — the user is
+        // taking control of the timeline.
+        if (this._crossfading) this._cancelCrossfade();
 
         const bar = progressBarElement || this.progressBar;
         const rect = bar.getBoundingClientRect();
@@ -2608,13 +2617,10 @@ export class AudioPlayer {
 
         const label = rate === 1 ? '1x' : `${parseFloat(rate.toFixed(2))}x`;
         if (this.speedLabel) this.speedLabel.textContent = label;
-        if (this.fsSpeedLabel) this.fsSpeedLabel.textContent = label;
 
-        // Highlight active state on buttons
+        // Highlight active state on button
         const active = Math.abs(rate - 1) > 0.01;
-        [this.speedBtn, this.fsSpeedBtn].forEach(btn => {
-            if (btn) btn.classList.toggle('active', active);
-        });
+        if (this.speedBtn) this.speedBtn.classList.toggle('active', active);
     }
 
     /**
@@ -2628,11 +2634,8 @@ export class AudioPlayer {
                 this.audio.playbackRate = rate;
                 const label = rate === 1 ? '1x' : `${parseFloat(rate.toFixed(2))}x`;
                 if (this.speedLabel) this.speedLabel.textContent = label;
-                if (this.fsSpeedLabel) this.fsSpeedLabel.textContent = label;
                 const active = Math.abs(rate - 1) > 0.01;
-                [this.speedBtn, this.fsSpeedBtn].forEach(btn => {
-                    if (btn) btn.classList.toggle('active', active);
-                });
+                if (this.speedBtn) this.speedBtn.classList.toggle('active', active);
             }
         }
     }
@@ -2727,9 +2730,7 @@ export class AudioPlayer {
 
     _updateEqButtonState() {
         const active = this._eqEnabled && this._eqGains.some(g => Math.abs(g) > 0.1);
-        [this.eqBtn, this.fsEqBtn].forEach(btn => {
-            if (btn) btn.classList.toggle('active', active);
-        });
+        if (this.eqBtn) this.eqBtn.classList.toggle('active', active);
     }
 
     _saveEqState() {
@@ -2903,9 +2904,7 @@ export class AudioPlayer {
     }
 
     _updateCrossfadeButtonState() {
-        [this.crossfadeBtn, this.fsCrossfadeBtn].forEach(btn => {
-            if (btn) btn.classList.toggle('active', this._crossfadeEnabled);
-        });
+        if (this.crossfadeBtn) this.crossfadeBtn.classList.toggle('active', this._crossfadeEnabled);
     }
 
     toggleCrossfadeEnabled() {
@@ -2934,6 +2933,10 @@ export class AudioPlayer {
         if (!this._crossfadeEnabled || this._crossfading) return;
         if (!this.audio.duration || this.audio.duration < this._crossfadeDuration + 2) return;
         if (this.repeatMode === 'one') return;
+        // Don't trigger while the user is manually seeking — they chose a
+        // position on purpose, and starting a crossfade mid-seek causes
+        // AbortError races in _completeCrossfade.
+        if (this.audio.seeking) return;
 
         const remaining = this.audio.duration - this.audio.currentTime;
         if (remaining <= this._crossfadeDuration && remaining > 0.3) {
@@ -2960,12 +2963,25 @@ export class AudioPlayer {
         if (!nextSong) return;
 
         this._crossfading = true;
+        this._crossfadeTriggered = true;
+        this._crossfadeBlobUrl = null;
         const cf = this.crossfadeAudio;
         const targetVolume = this.audio.volume;
 
         cf.src = `/api/music/stream/${nextSong.id}`;
         cf.volume = 0;
         cf.playbackRate = this.audio.playbackRate || 1;
+
+        // Prefetch the full song as a blob so the primary can swap
+        // instantly from memory instead of a fresh HTTP request.
+        fetch(`/api/music/stream/${nextSong.id}`)
+            .then(r => r.blob())
+            .then(blob => {
+                if (this._crossfading) {
+                    this._crossfadeBlobUrl = URL.createObjectURL(blob);
+                }
+            })
+            .catch(() => { /* fall back to URL src in _completeCrossfade */ });
 
         cf.play().then(() => {
             const startTime = performance.now();
@@ -2996,7 +3012,7 @@ export class AudioPlayer {
      * Finalize the crossfade: swap the primary audio to the next song at
      * the position the secondary reached, then clean up.
      */
-    _completeCrossfade(nextIndex, nextSong, position) {
+    _completeCrossfade(nextIndex, nextSong, _position) {
         if (this._crossfadeRaf) { cancelAnimationFrame(this._crossfadeRaf); this._crossfadeRaf = null; }
 
         const cf = this.crossfadeAudio;
@@ -3005,27 +3021,85 @@ export class AudioPlayer {
         // Flush listening stats for the song that just ended
         this._flushListenTracking();
 
-        // Point the primary at the next song
+        // Point the primary at the next song — use the prefetched blob if
+        // available (instant load from memory), otherwise fall back to URL.
         this.currentIndex = nextIndex;
-        this.audio.src = `/api/music/stream/${nextSong.id}`;
-        this.audio.volume = targetVolume;
+        const blobUrl = this._crossfadeBlobUrl;
+
+        // Mute and pause BEFORE changing src. The element was previously
+        // playing, so without this it can auto-play from position 0 at full
+        // volume for a brief moment before loadedmetadata fires — that's
+        // the "repeated second" artifact.
+        this.audio.pause();
+        this.audio.volume = 0;
+
+        // Revoke the OLD active blob before assigning a new src.
+        if (this._activeBlobUrl && this._activeBlobUrl !== blobUrl) {
+            URL.revokeObjectURL(this._activeBlobUrl);
+        }
+        this._activeBlobUrl = blobUrl;
+        this.audio.src = blobUrl || `/api/music/stream/${nextSong.id}`;
 
         const onLoaded = () => {
             this.audio.removeEventListener('loadedmetadata', onLoaded);
-            if (position > 0 && position < this.audio.duration) {
-                this.audio.currentTime = position;
+            this.audio.volume = 0;
+
+            // Seek to the secondary's current position while the primary is
+            // still PAUSED. This guarantees no audio frame is ever output
+            // from the wrong position.
+            const syncPos = cf.currentTime;
+
+            const startPlayback = () => {
+                this.audio.removeEventListener('seeked', startPlayback);
+
+                const onPlaying = () => {
+                    this.audio.removeEventListener('playing', onPlaying);
+                    this._crossfadeTriggered = false;
+                    this._crossfadeBlobUrl = null;
+
+                    // Primary is confirmed playing at the correct position.
+                    // Fade it in and ramp the secondary down over 150 ms.
+                    this.audio.volume = targetVolume;
+                    const cfVol = cf.volume;
+                    const t0 = performance.now();
+                    const ramp = (now) => {
+                        const p = Math.min((now - t0) / 150, 1);
+                        cf.volume = cfVol * (1 - p);
+                        if (p < 1) {
+                            requestAnimationFrame(ramp);
+                        } else {
+                            cf.pause();
+                            cf.removeAttribute('src');
+                            cf.load();
+                        }
+                    };
+                    requestAnimationFrame(ramp);
+                };
+
+                this.audio.addEventListener('playing', onPlaying);
+                this.audio.play().catch(() => {
+                    this.audio.removeEventListener('playing', onPlaying);
+                    this._crossfadeTriggered = false;
+                    this._crossfadeBlobUrl = null;
+                    cf.pause();
+                    cf.removeAttribute('src');
+                    cf.load();
+                });
+            };
+
+            if (syncPos > 0 && syncPos < this.audio.duration) {
+                this.audio.addEventListener('seeked', startPlayback);
+                this.audio.currentTime = syncPos;
+            } else {
+                startPlayback();
             }
-            this.audio.play().catch(() => {});
-            // Stop the secondary now that primary has taken over
-            cf.pause();
-            cf.removeAttribute('src');
-            cf.load();
         };
         this.audio.addEventListener('loadedmetadata', onLoaded);
 
-        // Reset crossfade state
+        // Reset crossfade state — but keep _crossfadeTriggered set.
+        // The old song's `ended` event may already be queued in the event
+        // loop; handleEnded needs the flag to swallow it.
         this._crossfading = false;
-        this._crossfadeTriggered = false;
 
         // Update all UI
         this.updateNowPlaying(nextSong);
@@ -3041,6 +3115,13 @@ export class AudioPlayer {
             this.crossfadeAudio.removeAttribute('src');
             this.crossfadeAudio.load();
         }
+        // Revoke any prefetched blob — but NOT if it's already the active
+        // src on the primary audio (revoking a live src causes
+        // ERR_FILE_NOT_FOUND on every subsequent seek/buffer).
+        if (this._crossfadeBlobUrl && this._crossfadeBlobUrl !== this._activeBlobUrl) {
+            URL.revokeObjectURL(this._crossfadeBlobUrl);
+        }
+        this._crossfadeBlobUrl = null;
         // Restore primary volume
         const vol = parseFloat(localStorage.getItem('rainy_volume') || '0.8');
         if (this.audio) this.audio.volume = vol;
