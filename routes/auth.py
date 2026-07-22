@@ -126,26 +126,50 @@ def update_preferences():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def get_current_user_id():
+    """Helper to get current user ID from session or request parameters/headers."""
+    if 'user_id' in session:
+        return session['user_id']
+    
+    # Check if session cookie string or session token was passed as query param or header
+    sess_token = request.args.get('session') or request.headers.get('X-Session-Token')
+    if not sess_token:
+        # Check raw Cookie header if session wasn't auto-loaded by Flask
+        cookie_header = request.headers.get('Cookie')
+        if cookie_header:
+            import re
+            m = re.search(r'session=([^;,]+)', cookie_header)
+            if m:
+                sess_token = m.group(1)
+
+    if sess_token:
+        try:
+            if 'session=' in sess_token:
+                import re
+                m = re.search(r'session=([^;,]+)', sess_token)
+                if m:
+                    sess_token = m.group(1)
+            from flask import current_app
+            from flask.sessions import SecureCookieSessionInterface
+            serializer = SecureCookieSessionInterface().get_signing_serializer(current_app)
+            session_data = serializer.loads(sess_token)
+            if session_data and 'user_id' in session_data:
+                session['user_id'] = session_data['user_id']
+                return session_data['user_id']
+        except Exception as e:
+            print("Session token parse error:", e)
+    return None
+
+
 def require_auth(f):
     """Decorator to require authentication."""
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user_id' not in session:
-            # Check if session cookie string was passed as query param or header for audio/image fetching
-            sess_token = request.args.get('session') or request.headers.get('X-Session-Token')
-            if sess_token:
-                try:
-                    from flask import current_app
-                    from flask.sessions import SecureCookieSessionInterface
-                    serializer = SecureCookieSessionInterface().get_signing_serializer(current_app)
-                    session_data = serializer.loads(sess_token)
-                    if session_data and 'user_id' in session_data:
-                        session['user_id'] = session_data['user_id']
-                except Exception:
-                    pass
-        if 'user_id' not in session:
+        user_id = get_current_user_id()
+        if user_id is None:
             return jsonify({'error': 'Authentication required'}), 401
         return f(*args, **kwargs)
     return decorated
+
 

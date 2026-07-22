@@ -4,9 +4,7 @@ from models.song_rating import SongRatingModel
 from models.playlist import PlaylistModel
 
 
-def get_current_user_id():
-    """Helper to get current user ID from session."""
-    return session.get('user_id')
+from routes.auth import get_current_user_id
 
 
 def login_required(f):
@@ -18,6 +16,7 @@ def login_required(f):
             return jsonify({'error': 'Authentication required'}), 401
         return f(user_id, *args, **kwargs)
     return decorated
+
 
 
 ratings_bp = Blueprint('ratings', __name__, url_prefix='/api/ratings')

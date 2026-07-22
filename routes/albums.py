@@ -19,14 +19,18 @@ def _dedupe_artists(raw):
 albums_bp = Blueprint('albums', __name__, url_prefix='/api/albums')
 
 
+from routes.auth import get_current_user_id
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        user_id = session.get('user_id')
+        user_id = get_current_user_id()
         if user_id is None:
             return jsonify({'error': 'Authentication required'}), 401
         return f(user_id, *args, **kwargs)
     return decorated
+
 
 
 @albums_bp.route('/', methods=['GET'])

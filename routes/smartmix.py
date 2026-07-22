@@ -7,14 +7,18 @@ from models.song_rating import SongRatingModel
 smartmix_bp = Blueprint('smartmix', __name__, url_prefix='/api/smartmix')
 
 
+from routes.auth import get_current_user_id
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        user_id = session.get('user_id')
+        user_id = get_current_user_id()
         if user_id is None:
             return jsonify({'error': 'Authentication required'}), 401
         return f(user_id, *args, **kwargs)
     return decorated
+
 
 
 @smartmix_bp.route('/generate', methods=['POST'])
