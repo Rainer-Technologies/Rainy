@@ -18,7 +18,8 @@ from config import Config
 
 LASTFM_API_BASE = "https://ws.audioscrobbler.com/2.0/"
 MUSICBRAINZ_API_BASE = "https://musicbrainz.org/ws/2/"
-MB_RATE_LIMIT = 1.1  # seconds between MusicBrainz calls (they ask for >= 1s)
+MB_RATE_LIMIT = 1.5  # seconds between MusicBrainz calls (they ask for >= 1s;
+                     # we do 2 calls/song so 1.5s keeps us safely under)
 _mb_last_call = 0.0
 
 
@@ -26,18 +27,34 @@ def _lastfm_key():
     return getattr(Config, 'LASTFM_API_KEY', None) or None
 
 
-def _http_get_json(url, timeout=15):
-    """GET a URL and parse JSON. Returns dict or None on any failure."""
-    try:
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Rainy/1.0 (self-hosted music player)',
-            'Accept': 'application/json',
-        })
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode('utf-8'))
-    except Exception as e:  # noqa: BLE001
-        print(f"[enrich] GET failed {url[:80]}...: {e}")
-        return None
+def _http_get_json(url, timeout=15, retries=2):
+    """GET a URL and parse JSON. Retries on 503 (rate limit) with backoff.
+
+    Returns dict or None on any failure.
+    """
+    import urllib.error
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Rainy/1.0 (self-hosted music player)',
+                'Accept': 'application/json',
+            })
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            if e.code == 503 and attempt < retries:
+                # Rate-limited — back off and retry.
+                wait = 5 * (attempt + 1)
+                print(f"[enrich] 503 from {url[:60]}... retrying in {wait}s "
+                      f"(attempt {attempt + 1}/{retries})")
+                time.sleep(wait)
+                continue
+            print(f"[enrich] HTTP {e.code} {url[:80]}...")
+            return None
+        except Exception as e:  # noqa: BLE001
+            print(f"[enrich] GET failed {url[:80]}...: {e}")
+            return None
+    return None
 
 
 # ---------------------------------------------------------------------------
