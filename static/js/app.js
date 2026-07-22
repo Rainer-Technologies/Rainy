@@ -102,6 +102,7 @@ export class RainyApp {
 
         this.user = user;
         this.applyThemeFromPreferences();
+        this.applyPlayerBarPreferences();
 
         Router.navigate(new View('app', user), this);
     }
@@ -213,6 +214,17 @@ export class RainyApp {
 
         document.getElementById('settings-show-bg-blur')?.addEventListener('change', (e) => {
             this.savePreferences({ show_bg_blur: e.target.checked });
+        });
+
+        // Player Bar control toggles — apply instantly + persist
+        document.querySelectorAll('.pb-toggle-input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const key = input.dataset.playerbarToggle;
+                const controls = { ...(this._getPlayerPrefs().player_bar_controls || {}) };
+                controls[key] = e.target.checked;
+                this.savePreferences({ player_bar_controls: controls });
+                this.applyPlayerBarPreferences();
+            });
         });
 
         // Change Password
@@ -2292,6 +2304,40 @@ export class RainyApp {
         }
     }
 
+    /** Parse user preferences into an object (handles string or object form). */
+    _getPlayerPrefs() {
+        if (!this.user || !this.user.preferences) return {};
+        let prefs = this.user.preferences;
+        if (typeof prefs === 'string') {
+            try { prefs = JSON.parse(prefs); } catch (e) { return {}; }
+        }
+        return prefs || {};
+    }
+
+    /**
+     * Show/hide player-bar extra controls based on the user's
+     * `player_bar_controls` preference. All controls default to visible.
+     */
+    applyPlayerBarPreferences() {
+        const prefs = this._getPlayerPrefs();
+        const controls = prefs.player_bar_controls || {};
+        const map = {
+            sleep_timer: '#sleep-timer-btn',
+            queue: '#queue-btn',
+            ab_repeat: '#ab-repeat-btn',
+            speed: '#speed-btn',
+            equalizer: '#eq-btn',
+            crossfade: '#crossfade-btn',
+            volume: '.volume-control',
+        };
+        for (const [key, selector] of Object.entries(map)) {
+            const el = document.querySelector(selector);
+            if (!el) continue;
+            const visible = controls[key] !== false; // default: visible
+            el.classList.toggle('hidden', !visible);
+        }
+    }
+
     // Discord-style Settings Page Methods
     openSettings(section = 'appearance') {
         const settingsPage = document.getElementById('settings-page');
@@ -2308,17 +2354,14 @@ export class RainyApp {
 
             // Show/hide server settings for sysadmin
             const serverCategory = document.getElementById('settings-nav-server-category');
-            const libraryNav = document.getElementById('settings-nav-library');
             const jobsNav = document.getElementById('settings-nav-jobs');
             const usersNav = document.getElementById('settings-nav-users');
             if (this.user.role === 'sysadmin') {
                 serverCategory?.classList.remove('hidden');
-                libraryNav?.classList.remove('hidden');
                 jobsNav?.classList.remove('hidden');
                 usersNav?.classList.remove('hidden');
             } else {
                 serverCategory?.classList.add('hidden');
-                libraryNav?.classList.add('hidden');
                 jobsNav?.classList.add('hidden');
                 usersNav?.classList.add('hidden');
             }
@@ -2387,12 +2430,14 @@ export class RainyApp {
         const showBgBlurToggle = document.getElementById('settings-show-bg-blur');
         if (showBgBlurToggle) showBgBlurToggle.checked = showBgBlur;
 
-        // Load scan status if going to library section
-        if (section === 'library') {
-            this.loadScanStatus();
-        }
+        // Sync Player Bar control toggles with saved preferences
+        const pbControls = (this._getPlayerPrefs().player_bar_controls) || {};
+        document.querySelectorAll('.pb-toggle-input').forEach(input => {
+            const key = input.dataset.playerbarToggle;
+            input.checked = pbControls[key] !== false; // default: on
+        });
 
-        // Switch to the requested section
+        // Switch to the requested section (loadScanStatus runs inside for the jobs section)
         this.switchSettingsSection(section);
     }
 
@@ -2427,7 +2472,6 @@ export class RainyApp {
             'appearance': 'Appearance',
             'player': 'Player',
             'account': 'Account',
-            'library': 'Library Scanning',
             'jobs': 'Jobs',
             'users': 'Users'
         };
@@ -2447,8 +2491,8 @@ export class RainyApp {
                 sectionName === 'users' || sectionName === 'player');
         }
 
-        // Load scan status when switching to library section
-        if (sectionName === 'library') {
+        // Load scan status when switching to jobs section (Library Scanning lives here)
+        if (sectionName === 'jobs') {
             this.loadScanStatus();
         }
 
@@ -2468,8 +2512,7 @@ export class RainyApp {
             'appearance': ['appearance', 'theme', 'color', 'accent', 'color picker', 'preset', 'reset', 'style', 'look'],
             'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
             'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
-            'library': ['library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'server'],
-            'jobs': ['jobs', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata'],
+            'jobs': ['jobs', 'library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata', 'server'],
             'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
         };
 
@@ -2514,7 +2557,7 @@ export class RainyApp {
             if (matches && canShow) {
                 item.style.display = '';
                 if (!firstMatch) firstMatch = section;
-                if (section === 'library') {
+                if (section === 'jobs' || section === 'users') {
                     hasServerMatch = true;
                 } else {
                     hasUserMatch = true;

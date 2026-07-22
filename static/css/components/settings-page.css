@@ -237,7 +237,34 @@
     flex: 1;
     overflow-y: auto;
     padding: var(--spacing-xl);
+}
+
+/* Keep text-heavy / form sections at a readable measure, but let the
+   Player section (which uses side-by-side option cards) expand to fill
+   the available width. */
+.settings-section:not(#settings-section-player) {
     max-width: 800px;
+}
+
+/* Horizontal radio group — options laid out side by side inside a card.
+   Used by the Player section so radio cards share one row instead of
+   stacking as full-width strips. Doubled class selector so it wins over
+   the base .settings-radio-group flex-column rule regardless of order. */
+.settings-radio-group.settings-radio-group--horizontal {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+@media (max-width: 700px) {
+    .settings-radio-group.settings-radio-group--horizontal {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Player Bar customization toggles — compact rows */
+.pb-toggle-input {
+    cursor: pointer;
 }
 
 /* Settings Sections */
@@ -581,9 +608,13 @@
     }
 }
 
-/* User Management */
+/* User Management / Player — these sections are data-heavy or use
+   side-by-side option cards, so they should fill the whole content area
+   instead of being squeezed into a readable-measure column. The base
+   .settings-content has no cap; this class explicitly opts OUT of any
+   measure so the panel stretches edge-to-edge on wide screens. */
 .settings-content.settings-content-wide {
-    max-width: 1180px;
+    max-width: none;
 }
 
 /* Player settings: 2-column card grid so the wide layout is filled */

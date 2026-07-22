@@ -784,13 +784,6 @@
 
                 <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category">Server
                     Settings</div>
-                <a class="settings-nav-item sysadmin-only hidden" data-section="library" id="settings-nav-library">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 16h8V4h-2v6l-2.5-1.5L11 10V4h-1v12z" />
-                    </svg>
-                    <span>Library Scanning</span>
-                </a>
                 <a class="settings-nav-item sysadmin-only hidden" data-section="jobs" id="settings-nav-jobs">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -871,131 +864,227 @@
                 <!-- Section: Player -->
                 <div class="settings-section" id="settings-section-player">
                     <div class="settings-group">
+                        <div class="settings-group-title">Player Bar</div>
+                        <div class="settings-group-description">Choose which controls appear on the player bar at the
+                            bottom of the screen. Changes are saved automatically.</div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Sleep Timer</div>
+                                    <div class="settings-row-hint">Automatically pause playback after a set amount of
+                                        time</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input"
+                                            data-playerbar-toggle="sleep_timer" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Queue</div>
+                                    <div class="settings-row-hint">View and manage the upcoming songs</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input" data-playerbar-toggle="queue"
+                                            checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">A-B Repeat</div>
+                                    <div class="settings-row-hint">Loop a specific section of the current track</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input" data-playerbar-toggle="ab_repeat"
+                                            checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Playback Speed</div>
+                                    <div class="settings-row-hint">Adjust the tempo of the current track</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input" data-playerbar-toggle="speed"
+                                            checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Equalizer</div>
+                                    <div class="settings-row-hint">Tune the frequency response of the audio output
+                                    </div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input"
+                                            data-playerbar-toggle="equalizer" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Crossfade</div>
+                                    <div class="settings-row-hint">Blend the end of one track into the start of the next
+                                    </div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input" data-playerbar-toggle="crossfade"
+                                            checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Volume Slider</div>
+                                    <div class="settings-row-hint">Show the volume control on the player bar</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="pb-toggle-input" data-playerbar-toggle="volume"
+                                            checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
                         <div class="settings-group-title">Fullscreen Player</div>
                         <div class="settings-group-description">Control how the fullscreen player looks and behaves.
                         </div>
 
-                        <div class="player-settings-grid">
-                            <div class="settings-card">
-                                <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Fullscreen
-                                    Mode
-                                </div>
-                                <div class="settings-radio-group" data-pref="fullscreen_mode">
-                                    <div class="settings-radio-item selected" data-value="standard">
-                                        <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content">
-                                            <div class="settings-radio-title">Standard</div>
-                                            <div class="settings-radio-description">Keeps the player bar visible at the
-                                                bottom</div>
-                                        </div>
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Fullscreen Mode
+                            </div>
+                            <div class="settings-radio-group settings-radio-group--horizontal"
+                                data-pref="fullscreen_mode">
+                                <div class="settings-radio-item selected" data-value="standard">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Standard</div>
+                                        <div class="settings-radio-description">Keeps the player bar visible at the
+                                            bottom</div>
                                     </div>
-                                    <div class="settings-radio-item" data-value="modern">
-                                        <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content">
-                                            <div class="settings-radio-title">Modern</div>
-                                            <div class="settings-radio-description">Uses a dedicated full-screen player
-                                                experience</div>
+                                </div>
+                                <div class="settings-radio-item" data-value="modern">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Modern</div>
+                                        <div class="settings-radio-description">Uses a dedicated full-screen player
+                                            experience</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Lyrics Effect
+                            </div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Choose how
+                                the active lyric line is highlighted while a song plays.</div>
+                            <div class="settings-radio-group settings-radio-group--horizontal"
+                                data-pref="lyrics_effect">
+                                <div class="settings-radio-item selected" data-value="default">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Solid</div>
+                                        <div class="settings-radio-description">The whole line lights up at once
+                                            (default)</div>
+                                    </div>
+                                </div>
+                                <div class="settings-radio-item" data-value="word">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Word by word</div>
+                                        <div class="settings-radio-description">Words light up one at a time as they are
+                                            sung</div>
+                                    </div>
+                                </div>
+                                <div class="settings-radio-item" data-value="slide">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Slide</div>
+                                        <div class="settings-radio-description">A smooth fill sweeps across the line
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="settings-card">
-                                <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Lyrics Effect
+                            <div class="settings-row settings-row--divided is-disabled" id="lyrics-audio-sync-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Audio-synced words</div>
+                                    <div class="settings-row-hint">Analyzes the track to time each word more accurately
+                                        (Word by word &amp; Slide)</div>
                                 </div>
-                                <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Choose
-                                    how
-                                    the active lyric line is highlighted while a song plays.</div>
-                                <div class="settings-radio-group" data-pref="lyrics_effect">
-                                    <div class="settings-radio-item selected" data-value="default">
-                                        <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content">
-                                            <div class="settings-radio-title">Solid</div>
-                                            <div class="settings-radio-description">The whole line lights up at once
-                                                (default)</div>
-                                        </div>
-                                    </div>
-                                    <div class="settings-radio-item" data-value="word">
-                                        <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content">
-                                            <div class="settings-radio-title">Word by word</div>
-                                            <div class="settings-radio-description">Words light up one at a time as they
-                                                are sung</div>
-                                        </div>
-                                    </div>
-                                    <div class="settings-radio-item" data-value="slide">
-                                        <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content">
-                                            <div class="settings-radio-title">Slide</div>
-                                            <div class="settings-radio-description">A smooth fill sweeps across the line
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="settings-row settings-row--divided is-disabled"
-                                    id="lyrics-audio-sync-row">
-                                    <div class="settings-row-info">
-                                        <div class="settings-row-label">Audio-synced words</div>
-                                        <div class="settings-row-hint">Analyzes the track to time each word more
-                                            accurately (Word by word &amp; Slide)</div>
-                                    </div>
-                                    <div class="settings-row-control">
-                                        <label class="toggle-switch">
-                                            <input type="checkbox" id="settings-lyrics-audio-sync" disabled>
-                                            <span class="toggle-slider"></span>
-                                        </label>
-                                    </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-lyrics-audio-sync" disabled>
+                                        <span class="toggle-slider"></span>
+                                    </label>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="settings-card">
-                                <div class="settings-row">
-                                    <div class="settings-row-info">
-                                        <div class="settings-row-label">Swap image and queue</div>
-                                        <div class="settings-row-hint">Switch the positions of album art and up next
-                                            queue
-                                        </div>
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Layout &amp;
+                                Effects</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Arrange the
+                                fullscreen player and tune its visual effects.</div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Swap image and queue</div>
+                                    <div class="settings-row-hint">Switch the positions of album art and up next queue
                                     </div>
-                                    <div class="settings-row-control">
-                                        <label class="toggle-switch">
-                                            <input type="checkbox" id="settings-fullscreen-swap">
-                                            <span class="toggle-slider"></span>
-                                        </label>
-                                    </div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-fullscreen-swap">
+                                        <span class="toggle-slider"></span>
+                                    </label>
                                 </div>
                             </div>
-
-                            <div class="settings-card">
-                                <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Show
-                                    Animations</div>
-                                <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">
-                                    Customize visual effects and animations during playback.</div>
-                                <div class="settings-row">
-                                    <div class="settings-row-info">
-                                        <div class="settings-row-label">Disable Lasers</div>
-                                        <div class="settings-row-hint">Turn off the stage laser beam animations
-                                            completely</div>
-                                    </div>
-                                    <div class="settings-row-control">
-                                        <label class="toggle-switch">
-                                            <input type="checkbox" id="settings-disable-lasers">
-                                            <span class="toggle-slider"></span>
-                                        </label>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Disable Lasers</div>
+                                    <div class="settings-row-hint">Turn off the stage laser beam animations completely
                                     </div>
                                 </div>
-                                <div class="settings-row">
-                                    <div class="settings-row-info">
-                                        <div class="settings-row-label">Blur Animated Background</div>
-                                        <div class="settings-row-hint">Apply a smooth ambient blur filter to the light
-                                            show visuals</div>
-                                    </div>
-                                    <div class="settings-row-control">
-                                        <label class="toggle-switch">
-                                            <input type="checkbox" id="settings-show-bg-blur">
-                                            <span class="toggle-slider"></span>
-                                        </label>
-                                    </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-disable-lasers">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Blur Animated Background</div>
+                                    <div class="settings-row-hint">Apply a smooth ambient blur filter to the light show
+                                        visuals</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-show-bg-blur">
+                                        <span class="toggle-slider"></span>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -1034,14 +1123,23 @@
                     </div>
                 </div>
 
-                <!-- Section: Library Scanning (Server Settings) -->
-                <div class="settings-section" id="settings-section-library">
+                <!-- Section: Jobs (Server Settings) -->
+                <div class="settings-section" id="settings-section-jobs">
                     <div class="settings-group">
-                        <div class="settings-group-title">Library Scanning</div>
-                        <div class="settings-group-description">Scan your music library to update the database with new
-                            files.</div>
+                        <div class="settings-group-title">Jobs</div>
+                        <div class="settings-group-description">Run background tasks to scan your library and enrich its
+                            metadata.
+                        </div>
 
                         <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Library Scanning</div>
+                                    <div class="settings-row-hint">Scan your music library to update the database with new
+                                        files</div>
+                                </div>
+                            </div>
+
                             <div class="settings-scan-status" id="scan-status">
                                 <div class="settings-scan-row">
                                     <span class="settings-scan-label">Library Status:</span>
@@ -1085,15 +1183,6 @@
                                     <div class="stat"><span id="scan-files-removed">0</span> removed</div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section: Jobs (Server Settings) -->
-                <div class="settings-section" id="settings-section-jobs">
-                    <div class="settings-group">
-                        <div class="settings-group-title">Jobs</div>
-                        <div class="settings-group-description">Run background tasks to enrich your library metadata.
                         </div>
 
                         <div class="settings-card">
@@ -1456,7 +1545,6 @@
                         <span class="fs-time current" id="fs-current-time">0:00</span>
                         <div class="fs-progress-bar" id="fs-progress-bar">
                             <div class="fs-progress-fill" id="fs-progress-fill"></div>
-                            <div class="ab-loop-region hidden" id="fs-ab-loop-region"></div>
                         </div>
                         <span class="fs-time" id="fs-total-time">0:00</span>
                     </div>
@@ -1500,30 +1588,6 @@
                                 </svg>
                             </button>
                         </div>
-                        <button class="fs-control-btn secondary" id="fs-ab-repeat-btn" title="A-B Repeat (loop a section)">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                                <text x="12" y="14.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="Arial">AB</text>
-                            </svg>
-                        </button>
-                        <button class="fs-control-btn secondary" id="fs-eq-btn" title="Equalizer">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M3 21h2v-6H3v6zm0-8h2V3H3v10zm4 8h2v-10H7v10zm0-12h2V3H7v6zm4 12h2v-4h-2v4zm0-6h2V3h-2v12zm4 6h2v-8h-2v8zm0-10h2V3h-2v6zm4 10h2v-2h-2v2zm0-4h2V3h-2v14z"/>
-                            </svg>
-                        </button>
-                        <button class="fs-control-btn secondary" id="fs-crossfade-btn" title="Crossfade">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M6.5 5.5C4 7.5 3 10 3 12s1 4.5 3.5 6.5M17.5 5.5C20 7.5 21 10 21 12s-1 4.5-3.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                <path d="M8 8l-3 4 3 4M16 8l3 4-3 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </button>
-                        <button class="fs-control-btn secondary" id="fs-speed-btn" title="Playback Speed">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.28-10.43z"/>
-                                <path d="M10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/>
-                            </svg>
-                            <span class="speed-label" id="fs-speed-label">1x</span>
-                        </button>
                         <button class="fs-control-btn secondary" id="fs-repeat-btn" title="Repeat">
                             <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
