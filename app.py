@@ -49,7 +49,29 @@ def init_app():
     print("Initializing database...")
     Database.init_db()
     print("Database initialized successfully!")
+
+    # Recover any import jobs left 'running' by a previous crash. The worker
+    # thread itself is started lazily on the first request (see below) so it
+    # always runs in the process that actually serves requests — the debug
+    # reloader's watchdog parent never serves requests, so it never spawns a
+    # duplicate worker.
+    from models.import_job import ImportJobModel
+    ImportJobModel.recover_stale()
+    print("Background import worker ready.")
     print("=" * 40)
+
+
+_import_worker_started = False
+
+
+@app.before_request
+def _ensure_import_worker():
+    """Start the background import worker once, in the request-serving process."""
+    global _import_worker_started
+    if not _import_worker_started:
+        _import_worker_started = True
+        from utils import job_worker
+        job_worker.start_worker()
 
 if __name__ == '__main__':
     init_app()

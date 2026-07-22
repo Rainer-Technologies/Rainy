@@ -285,6 +285,31 @@ class Database:
             )
         """)
 
+        # Import jobs — background queue for YouTube/Spotify imports.
+        # Each row is one import request; a single background worker drains
+        # the queue one job at a time, streaming progress into `progress`/
+        # `message` and the final outcome into `result`/`error_message`.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS import_jobs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                source ENUM('youtube', 'spotify') NOT NULL,
+                kind ENUM('song', 'playlist') NOT NULL,
+                url TEXT NOT NULL,
+                status ENUM('queued', 'running', 'completed', 'failed', 'cancelled') DEFAULT 'queued',
+                progress INT DEFAULT 0,
+                message VARCHAR(500) NULL,
+                result MEDIUMTEXT NULL,
+                error_message TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP NULL,
+                completed_at TIMESTAMP NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+                INDEX idx_status (status),
+                INDEX idx_created (created_at)
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

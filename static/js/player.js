@@ -199,8 +199,13 @@ export class AudioPlayer {
         // Reset listen-tracker clock when tab visibility changes so hidden gaps
         // don't inflate or get rejected by the >5s guard
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && this._listenTracker) {
-                this._listenTracker.lastTick = Date.now();
+            if (!document.hidden) {
+                if (this._listenTracker) this._listenTracker.lastTick = Date.now();
+                // Browsers suspend AudioContexts when the tab is hidden.
+                // Resume so audio isn't silent when the user returns.
+                if (this._eqContext && this._eqContext.state === 'suspended' && !this.audio.paused) {
+                    this._eqContext.resume();
+                }
             }
         });
 
@@ -1114,6 +1119,14 @@ export class AudioPlayer {
         this.isPlaying = true;
         // Reset listen-tracker clock so the pause gap isn't counted as listening
         if (this._listenTracker) this._listenTracker.lastTick = Date.now();
+
+        // Resume the EQ AudioContext if it was suspended (browsers suspend it
+        // on pause/tab-switch). Once createMediaElementSource is wired, ALL
+        // audio routes through the graph — a suspended context = silence.
+        if (this._eqContext && this._eqContext.state === 'suspended') {
+            this._eqContext.resume();
+        }
+
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
         this.nowPlayingArtwork.classList.add('playing');

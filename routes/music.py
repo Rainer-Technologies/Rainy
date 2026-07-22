@@ -984,6 +984,110 @@ def spotify_playlist_import():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== Background Import Jobs ====================
+
+def _serialize_job(job):
+    """Convert an import_jobs row into a JSON-safe dict for the frontend."""
+    import json as _json
+    result = job.get('result')
+    if isinstance(result, str) and result:
+        try:
+            result = _json.loads(result)
+        except (ValueError, TypeError):
+            pass
+
+    def _ts(value):
+        return value.isoformat() if value else None
+
+    return {
+        'id': job['id'],
+        'source': job['source'],
+        'kind': job['kind'],
+        'url': job['url'],
+        'status': job['status'],
+        'progress': job.get('progress') or 0,
+        'message': job.get('message'),
+        'result': result,
+        'error': job.get('error_message'),
+        'created_at': _ts(job.get('created_at')),
+        'started_at': _ts(job.get('started_at')),
+        'completed_at': _ts(job.get('completed_at')),
+    }
+
+
+@music_bp.route('/import-jobs', methods=['POST'])
+@require_auth
+def enqueue_import_job():
+    """Queue a YouTube/Spotify import to run in the background."""
+    from flask import session
+    from models.import_job import ImportJobModel
+    from utils import job_worker
+
+    data = request.get_json() or {}
+    source = data.get('source')
+    kind = data.get('kind')
+    url = (data.get('url') or '').strip()
+
+    if source not in ('youtube', 'spotify'):
+        return jsonify({'error': 'Invalid source'}), 400
+    if kind not in ('song', 'playlist'):
+        return jsonify({'error': 'Invalid kind'}), 400
+    if not url:
+        return jsonify({'error': 'No URL provided'}), 400
+
+    job_id = ImportJobModel.enqueue(session.get('user_id'), source, kind, url)
+    job_worker.notify()  # wake the worker so it picks the job up immediately
+
+    job = ImportJobModel.get(job_id)
+    return jsonify({'success': True, 'job': _serialize_job(job)})
+
+
+@music_bp.route('/import-jobs', methods=['GET'])
+@require_auth
+def list_import_jobs():
+    """Return the live queue (queued + running) and recent history."""
+    from models.import_job import ImportJobModel
+
+    active = ImportJobModel.active_jobs()
+    history = ImportJobModel.list_recent(limit=25)
+
+    return jsonify({
+        'success': True,
+        'queue': [_serialize_job(j) for j in active],
+        'history': [_serialize_job(j) for j in history],
+        'running': ImportJobModel.is_any_running(),
+    })
+
+
+@music_bp.route('/import-jobs/<int:job_id>', methods=['GET'])
+@require_auth
+def get_import_job(job_id):
+    """Return a single job's current state (for polling)."""
+    from models.import_job import ImportJobModel
+
+    job = ImportJobModel.get(job_id)
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify({'success': True, 'job': _serialize_job(job)})
+
+
+@music_bp.route('/import-jobs/<int:job_id>', methods=['DELETE'])
+@require_auth
+def cancel_import_job(job_id):
+    """Cancel a queued (not yet running) job."""
+    from models.import_job import ImportJobModel
+
+    job = ImportJobModel.get(job_id)
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+
+    if job['status'] != 'queued':
+        return jsonify({'error': f"Cannot cancel a job that is {job['status']}"}), 400
+
+    cancelled = ImportJobModel.cancel(job_id)
+    return jsonify({'success': cancelled})
+
+
 @music_bp.route('/artists/scrape-descriptions', methods=['POST'])
 @require_auth
 def scrape_all_artist_descriptions():

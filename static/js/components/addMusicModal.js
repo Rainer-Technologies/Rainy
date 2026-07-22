@@ -1,6 +1,7 @@
 import { Logger } from "../helper/logger.js";
 import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
+import { useImportJobsService } from "../services/importJobs.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
@@ -63,6 +64,11 @@ export class AddMusicModal extends Component {
         this._spotifyPlaylistStatusText = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._spotifyPlaylistProgressFill = useRef(null);
+
+        /** @type {Ref<HTMLInputElement>} */
+        this._youtubeBgToggle = useRef(null);
+        /** @type {Ref<HTMLInputElement>} */
+        this._spotifyBgToggle = useRef(null);
 
         this.set('current-method', 'upload', { silent: true });
         this.set('youtube-tab', 'song', { silent: true });
@@ -130,6 +136,8 @@ export class AddMusicModal extends Component {
         this._playlistStatus.value?.classList.add('hidden');
         this._spotifySongStatus.value?.classList.add('hidden');
         this._spotifyPlaylistStatus.value?.classList.add('hidden');
+        if (this._youtubeBgToggle.value) this._youtubeBgToggle.value.checked = false;
+        if (this._spotifyBgToggle.value) this._spotifyBgToggle.value.checked = false;
     }
 
     hide() {
@@ -252,6 +260,32 @@ export class AddMusicModal extends Component {
         }
     }
 
+    /**
+     * If the "process in background" toggle is on for the given source, enqueue
+     * the import as a background job and return true (caller should stop).
+     * Otherwise returns false so the caller proceeds with the foreground import.
+     * @param {'youtube'|'spotify'} source
+     * @param {'song'|'playlist'} kind
+     * @param {string} url
+     * @returns {Promise<boolean>}
+     */
+    async _tryBackgroundImport(source, kind, url) {
+        const toggle = source === 'youtube' ? this._youtubeBgToggle.value : this._spotifyBgToggle.value;
+        if (!toggle || !toggle.checked) return false;
+
+        const data = await useImportJobsService().enqueue(source, kind, url);
+        if (data.error) {
+            const msg = data.error.error || data.error.message || 'Failed to queue background import';
+            Utils.showToast(msg, 'error', 5000);
+            return false; // fall back to foreground import on failure
+        }
+
+        const label = kind === 'playlist' ? 'playlist' : 'song';
+        Utils.showToast(`Import queued — track it in Settings → Jobs`, 'success', 4000);
+        setTimeout(() => this.hide(), 800);
+        return true;
+    }
+
     async importFromYouTube() {
         const urlInput = this._youtubeInput.value;
         const importBtn = this._youtubeImportBtn.value;
@@ -262,6 +296,11 @@ export class AddMusicModal extends Component {
         const url = urlInput.value.trim();
         if (!url) {
             urlInput.focus();
+            return;
+        }
+
+        if (await this._tryBackgroundImport('youtube', 'song', url)) {
+            urlInput.value = '';
             return;
         }
 
@@ -345,6 +384,11 @@ export class AddMusicModal extends Component {
             return;
         }
 
+        if (await this._tryBackgroundImport('youtube', 'playlist', url)) {
+            urlInput.value = '';
+            return;
+        }
+
         importBtn.disabled = true;
         status.classList.remove('hidden');
         progressFill.style.width = '0%';
@@ -396,6 +440,11 @@ export class AddMusicModal extends Component {
         const url = urlInput.value.trim();
         if (!url) {
             urlInput.focus();
+            return;
+        }
+
+        if (await this._tryBackgroundImport('spotify', 'song', url)) {
+            urlInput.value = '';
             return;
         }
 
@@ -475,6 +524,11 @@ export class AddMusicModal extends Component {
         const url = urlInput.value.trim();
         if (!url) {
             urlInput.focus();
+            return;
+        }
+
+        if (await this._tryBackgroundImport('spotify', 'playlist', url)) {
+            urlInput.value = '';
             return;
         }
 
@@ -610,6 +664,16 @@ export class AddMusicModal extends Component {
                         h.span(a.class('tab-label'), 'Playlist')
                     )
                 ),
+                h.label(a.class('bg-import-toggle'),
+                    h.span(a.class('bg-import-toggle-text'),
+                        h.span(a.class('bg-import-toggle-title'), 'Process in background'),
+                        h.span(a.class('bg-import-toggle-hint'), 'Queue this import as a job — track it in Settings → Jobs')
+                    ),
+                    h.span(a.class('toggle-switch'),
+                        h.input(this._youtubeBgToggle, a.type('checkbox'), a.id('youtube-bg-toggle'), a.class('bg-import-checkbox')),
+                        h.span(a.class('toggle-slider'))
+                    )
+                ),
                 h.div(a.class('youtube-song-content'),
                     h.div(a.class('youtube-input-wrapper'),
                         h.div(a.class('youtube-input-field'),
@@ -680,6 +744,16 @@ export class AddMusicModal extends Component {
                     ),
                     h.div(a.class('youtube-tab', 'spotify-tab-playlist'), on.click(() => this.switchSpotifyTab('playlist')),
                         h.span(a.class('tab-label'), 'Playlist')
+                    )
+                ),
+                h.label(a.class('bg-import-toggle'),
+                    h.span(a.class('bg-import-toggle-text'),
+                        h.span(a.class('bg-import-toggle-title'), 'Process in background'),
+                        h.span(a.class('bg-import-toggle-hint'), 'Queue this import as a job — track it in Settings → Jobs')
+                    ),
+                    h.span(a.class('toggle-switch'),
+                        h.input(this._spotifyBgToggle, a.type('checkbox'), a.id('spotify-bg-toggle'), a.class('bg-import-checkbox')),
+                        h.span(a.class('toggle-slider'))
                     )
                 ),
                 h.div(a.class('spotify-song-content'),

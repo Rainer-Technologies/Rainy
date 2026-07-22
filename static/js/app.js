@@ -8,6 +8,7 @@ import { Library } from './modules/library.js';
 import { Playlists } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
 import { useAuthService } from "./services/auth.js";
+import { useImportJobsService } from "./services/importJobs.js";
 import { useMusicService } from "./services/music.js";
 import { usePlaylistService } from './services/playlist.js';
 import { useScanService } from './services/scan.js';
@@ -370,6 +371,10 @@ export class RainyApp {
 
         document.getElementById('align-lyrics-btn')?.addEventListener('click', () => {
             this.runAlignLyrics();
+        });
+
+        document.getElementById('import-jobs-refresh-btn')?.addEventListener('click', () => {
+            this.loadImportJobs();
         });
 
         // Context menu
@@ -833,6 +838,134 @@ export class RainyApp {
             field1: 'aligned', skipped: 'align-lyrics-skipped', failed: 'align-lyrics-failed'
         }, 'No songs with lyrics to align!',
         (m) => `Aligned word timing for ${m.aligned} song${m.aligned === 1 ? '' : 's'}`);
+    }
+
+    // ==================== Background Import Jobs ====================
+
+    _importJobLabel(job) {
+        const source = job.source === 'spotify' ? 'Spotify' : 'YouTube';
+        const kind = job.kind === 'playlist' ? 'playlist' : 'song';
+        return `${source} ${kind}`;
+    }
+
+    _importJobSummary(job) {
+        if (job.status === 'completed' && job.result) {
+            const r = job.result;
+            if (job.kind === 'playlist') {
+                const failed = r.failed_count ? ` (${r.failed_count} failed)` : '';
+                return `${r.song_count ?? 0} songs → "${r.playlist_name || 'playlist'}"${failed}`;
+            }
+            if (r.already_exists) return `Already in library: ${r.title || 'song'}`;
+            return `Imported: ${r.title || 'song'}${r.artist ? ' — ' + r.artist : ''}`;
+        }
+        if (job.status === 'failed') return job.error || 'Import failed';
+        if (job.status === 'cancelled') return 'Cancelled';
+        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Working…');
+    }
+
+    _importJobRow(job, isQueue) {
+        const row = document.createElement('div');
+        row.className = `import-job-row import-job-${job.status}`;
+
+        const info = document.createElement('div');
+        info.className = 'import-job-info';
+
+        const title = document.createElement('div');
+        title.className = 'import-job-title';
+        title.textContent = this._importJobLabel(job);
+
+        const badge = document.createElement('span');
+        badge.className = `import-job-badge import-job-badge-${job.status}`;
+        badge.textContent = job.status;
+        title.appendChild(badge);
+
+        const summary = document.createElement('div');
+        summary.className = 'import-job-summary';
+        summary.textContent = this._importJobSummary(job);
+
+        info.appendChild(title);
+        info.appendChild(summary);
+
+        // Progress bar for running jobs
+        if (job.status === 'running') {
+            const bar = document.createElement('div');
+            bar.className = 'import-job-progress';
+            const fill = document.createElement('div');
+            fill.className = 'import-job-progress-fill';
+            fill.style.width = `${job.progress || 0}%`;
+            bar.appendChild(fill);
+            info.appendChild(bar);
+        }
+
+        row.appendChild(info);
+
+        // Cancel button for queued jobs
+        if (isQueue && job.status === 'queued') {
+            const cancel = document.createElement('button');
+            cancel.className = 'btn btn-secondary btn-sm import-job-cancel';
+            cancel.textContent = 'Cancel';
+            cancel.addEventListener('click', () => this.cancelImportJob(job.id));
+            row.appendChild(cancel);
+        }
+
+        return row;
+    }
+
+    async loadImportJobs() {
+        const queueEl = document.getElementById('import-jobs-queue');
+        const historyEl = document.getElementById('import-jobs-history');
+        if (!queueEl || !historyEl) return;
+
+        const data = await useImportJobsService().list();
+        if (data.error) {
+            Logger.error('Failed to load import jobs', data.error);
+            return;
+        }
+
+        const { queue = [], history = [] } = data.value || {};
+
+        // Render queue
+        queueEl.innerHTML = '';
+        if (queue.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'import-jobs-empty';
+            empty.textContent = 'No imports running or queued.';
+            queueEl.appendChild(empty);
+        } else {
+            queue.forEach(job => queueEl.appendChild(this._importJobRow(job, true)));
+        }
+
+        // Render history (exclude still-active jobs to avoid duplication)
+        const activeIds = new Set(queue.map(j => j.id));
+        const finished = history.filter(j => !activeIds.has(j.id));
+        historyEl.innerHTML = '';
+        if (finished.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'import-jobs-empty';
+            empty.textContent = 'No completed imports yet.';
+            historyEl.appendChild(empty);
+        } else {
+            finished.forEach(job => historyEl.appendChild(this._importJobRow(job, false)));
+        }
+
+        // Keep polling while there's an active job and the Jobs section is open
+        const jobsSection = document.getElementById('settings-section-jobs');
+        const jobsOpen = jobsSection && jobsSection.classList.contains('active');
+        const settingsOpen = !document.getElementById('settings-page').classList.contains('hidden');
+        if (queue.length > 0 && jobsOpen && settingsOpen) {
+            clearTimeout(this._importJobsPollTimer);
+            this._importJobsPollTimer = setTimeout(() => this.loadImportJobs(), 1500);
+        }
+    }
+
+    async cancelImportJob(jobId) {
+        const data = await useImportJobsService().cancel(jobId);
+        if (data.error) {
+            this.showToast(data.error.error || 'Could not cancel job', 'error');
+        } else {
+            this.showToast('Import cancelled', 'success');
+        }
+        this.loadImportJobs();
     }
 
     async loadLibrary() {
@@ -2494,6 +2627,7 @@ export class RainyApp {
         // Load scan status when switching to jobs section (Library Scanning lives here)
         if (sectionName === 'jobs') {
             this.loadScanStatus();
+            this.loadImportJobs();
         }
 
         // Load users when switching to users section
