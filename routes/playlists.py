@@ -238,3 +238,93 @@ def download_playlist(playlist_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/export', methods=['GET'])
+@require_auth
+def export_playlist(playlist_id):
+    """Export a playlist as M3U or CSV file.
+
+    Query params:
+        format: 'm3u' (default) or 'csv'
+    """
+    try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+
+        # Ownership check
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
+
+        songs = PlaylistModel.get_playlist_songs(playlist_id)
+        if not songs:
+            return jsonify({'error': 'Playlist is empty'}), 400
+
+        from models.settings import SettingsModel
+        music_path = SettingsModel.get_music_path()
+
+        export_format = request.args.get('format', 'm3u').lower()
+        playlist_name = playlist['name']
+        import re
+        safe_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', playlist_name)
+        if not safe_name:
+            safe_name = f"playlist_{playlist_id}"
+
+        if export_format == 'csv':
+            import csv
+            import io
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['Title', 'Artist', 'Album', 'Duration', 'Genre', 'Year', 'File Path'])
+            for song in songs:
+                duration_secs = song.get('duration') or 0
+                writer.writerow([
+                    song.get('title', ''),
+                    song.get('artist', ''),
+                    song.get('album', ''),
+                    f"{int(duration_secs // 60)}:{int(duration_secs % 60):02d}" if duration_secs else '',
+                    song.get('genre', ''),
+                    song.get('year', ''),
+                    song.get('file_path', '')
+                ])
+            content = output.getvalue()
+            from flask import Response
+            return Response(
+                content,
+                mimetype='text/csv',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{safe_name}.csv"',
+                    'Content-Type': 'text/csv; charset=utf-8'
+                }
+            )
+        else:
+            # M3U format (extended M3U with metadata)
+            lines = ['#EXTM3U']
+            for song in songs:
+                duration_secs = int(song.get('duration') or -1)
+                artist = song.get('artist', 'Unknown Artist')
+                title = song.get('title', 'Unknown Title')
+                lines.append(f'#EXTINF:{duration_secs},{artist} - {title}')
+                # Use full file path for M3U compatibility
+                file_path = song.get('file_path', '')
+                if music_path and file_path:
+                    import os
+                    full_path = os.path.normpath(os.path.join(music_path, file_path))
+                    lines.append(full_path)
+                else:
+                    lines.append(file_path)
+            content = '\n'.join(lines) + '\n'
+            from flask import Response
+            return Response(
+                content,
+                mimetype='audio/x-mpegurl',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{safe_name}.m3u"',
+                    'Content-Type': 'audio/x-mpegurl; charset=utf-8'
+                }
+            )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

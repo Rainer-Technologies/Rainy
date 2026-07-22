@@ -479,6 +479,22 @@ export class RainyApp {
             }
         });
 
+        // Playlist export as M3U
+        document.getElementById('action-export-m3u')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            if (this.currentPlaylistId) {
+                window.location.href = `/api/playlists/${this.currentPlaylistId}/export?format=m3u`;
+            }
+        });
+
+        // Playlist export as CSV
+        document.getElementById('action-export-csv')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            if (this.currentPlaylistId) {
+                window.location.href = `/api/playlists/${this.currentPlaylistId}/export?format=csv`;
+            }
+        });
+
         // Discover Music click
         document.getElementById('nav-discover')?.addEventListener('click', (e) => {
             e.preventDefault();
