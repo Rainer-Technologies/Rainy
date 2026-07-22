@@ -44,7 +44,7 @@ class SongRatingModel:
         params = [user_id]
         
         if rating_type:
-            where_parts.append("sr.rating = %s")
+            where_parts.append("AND sr.rating = %s")
             params.append(rating_type)
         
         query = "SELECT " + ", ".join(query_parts) + " " + " ".join(from_parts) + " " + " ".join(where_parts)
