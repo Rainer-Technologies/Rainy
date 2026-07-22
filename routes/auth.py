@@ -132,6 +132,20 @@ def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
+            # Check if session cookie string was passed as query param or header for audio/image fetching
+            sess_token = request.args.get('session') or request.headers.get('X-Session-Token')
+            if sess_token:
+                try:
+                    from flask import current_app
+                    from flask.sessions import SecureCookieSessionInterface
+                    serializer = SecureCookieSessionInterface().get_signing_serializer(current_app)
+                    session_data = serializer.loads(sess_token)
+                    if session_data and 'user_id' in session_data:
+                        session['user_id'] = session_data['user_id']
+                except Exception:
+                    pass
+        if 'user_id' not in session:
             return jsonify({'error': 'Authentication required'}), 401
         return f(*args, **kwargs)
     return decorated
+
