@@ -584,12 +584,10 @@
 .ab-loop-region.hidden { display: none; }
 
 /* Active state for the A-B repeat buttons */
-#ab-repeat-btn.active svg,
-#fs-ab-repeat-btn.active svg {
+#ab-repeat-btn.active svg {
     fill: var(--accent-primary);
 }
-#ab-repeat-btn.active,
-#fs-ab-repeat-btn.active {
+#ab-repeat-btn.active {
     color: var(--accent-primary);
 }
 
@@ -609,19 +607,16 @@
 /* ==========================================================================
    Playback Speed Control
    ========================================================================== */
-#speed-btn,
-#fs-speed-btn {
+#speed-btn {
     position: relative;
     display: inline-flex;
     align-items: center;
     gap: 3px;
 }
-#speed-btn.active,
-#fs-speed-btn.active {
+#speed-btn.active {
     color: var(--accent-primary);
 }
-#speed-btn.active svg,
-#fs-speed-btn.active svg {
+#speed-btn.active svg {
     fill: var(--accent-primary);
 }
 .speed-label {
@@ -742,12 +737,10 @@
 /* ==========================================================================
    Equalizer
    ========================================================================== */
-#eq-btn.active,
-#fs-eq-btn.active {
+#eq-btn.active {
     color: var(--accent-primary);
 }
-#eq-btn.active svg,
-#fs-eq-btn.active svg {
+#eq-btn.active svg {
     fill: var(--accent-primary);
 }
 
@@ -894,12 +887,10 @@
 /* ==========================================================================
    Crossfade
    ========================================================================== */
-#crossfade-btn.active,
-#fs-crossfade-btn.active {
+#crossfade-btn.active {
     color: var(--accent-primary);
 }
-#crossfade-btn.active svg,
-#fs-crossfade-btn.active svg {
+#crossfade-btn.active svg {
     fill: var(--accent-primary);
 }
 
