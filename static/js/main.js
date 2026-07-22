@@ -11,6 +11,7 @@ import { initLogin, initSetup } from './setup.js';
 import { useRatingService } from './services/rating.js';
 import { KeyboardShortcuts } from './modules/keyboardShortcuts.js';
 import { GlobalSearch } from './modules/globalSearch.js';
+import { ShortcutOverlay } from './modules/shortcutOverlay.js';
 import { NewViews } from './modules/newViews.js';
 
 // Document ready handler
@@ -39,6 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize global search overlay (Ctrl+K / Cmd+K)
     window.globalSearch = new GlobalSearch(window.app, window.player);
+
+    // Initialize keyboard shortcut cheat sheet overlay (? key)
+    window.shortcutOverlay = new ShortcutOverlay();
 
     // Initialize new views (Albums, Recently Played, Smart Mix)
     window.newViews = new NewViews(window.app, window.player);
