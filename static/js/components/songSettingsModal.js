@@ -2,6 +2,7 @@ import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { useLightshowService } from "../services/lightshow.js";
 import { useLyricsService } from "../services/lyrics.js";
+import { useEnrichmentService } from "../services/enrichment.js";
 import { generateAndSaveLightshow, isLightshowCancel } from "../lightshowGenerator.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
@@ -26,24 +27,35 @@ export class SongSettingsModal extends Component {
         this._navLightshow = useRef(null);
         /** @type {Ref<HTMLButtonElement>} */
         this._navLyrics = useRef(null);
+        /** @type {Ref<HTMLButtonElement>} */
+        this._navMetadata = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._paneLightshow = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._paneLyrics = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
+        this._paneMetadata = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
         this._lightshowList = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._lyricsList = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._metadataList = useRef(null);
 
         this.set('current-song', null, { silent: true });
         this.set('active-tab', 'lightshow', { silent: true });
 
         this.watch('active-tab', (_path, _oldValue, tab) => {
-            const isLightshow = tab === 'lightshow';
-            this._navLightshow.value.classList.toggle('active', isLightshow);
-            this._navLyrics.value.classList.toggle('active', !isLightshow);
-            this._paneLightshow.value.classList.toggle('active', isLightshow);
-            this._paneLyrics.value.classList.toggle('active', !isLightshow);
+            const tabs = [
+                ['lightshow', this._navLightshow, this._paneLightshow],
+                ['lyrics', this._navLyrics, this._paneLyrics],
+                ['metadata', this._navMetadata, this._paneMetadata],
+            ];
+            for(const [name, nav, pane] of tabs) {
+                const active = tab === name;
+                nav.value.classList.toggle('active', active);
+                pane.value.classList.toggle('active', active);
+            }
         });
     }
 
@@ -58,6 +70,7 @@ export class SongSettingsModal extends Component {
 
         this._renderLightshow();
         this._renderLyrics();
+        this._renderMetadata();
     }
 
     hide() {
@@ -481,6 +494,220 @@ export class SongSettingsModal extends Component {
         this._renderLyrics();
     }
 
+    /**
+     * Human-friendly label for an audio feature value.
+     * @param {string} key
+     * @param {number|string} value
+     * @returns {string}
+     */
+    _formatFeature(key, value) {
+        if(value === null || value === undefined || value === '') return '\u2014';
+        switch(key) {
+            case 'tempo_bpm': return `${Math.round(Number(value))} BPM`;
+            case 'key_name': return String(value);
+            case 'loudness_db': return `${Number(value).toFixed(1)} dB`;
+            case 'danceability': return Number(value).toFixed(2);
+            case 'energy': {
+                // Raw signal power — normalise to a 0-100 feel via log scale.
+                const v = Number(value);
+                const norm = v > 0 ? Math.min(100, Math.round(Math.log10(v + 1) * 18)) : 0;
+                return `${norm}/100`;
+            }
+            case 'spectral_centroid': return `${Math.round(Number(value))} Hz`;
+            case 'tempo_confidence':
+            case 'key_strength': return `${Math.round(Number(value) * 100)}%`;
+            default: {
+                const n = Number(value);
+                return Number.isFinite(n) ? (n < 1 ? n.toFixed(3) : n.toFixed(1)) : String(value);
+            }
+        }
+    }
+
+    /**
+     * @param {import('../services/enrichment.js').AudioFeatures} features
+     */
+    _renderFeatureGrid(features) {
+        const items = [
+            ['tempo_bpm', 'Tempo'],
+            ['key_name', 'Key', features.scale_type ? `${features.key_name} ${features.scale_type}` : null],
+            ['danceability', 'Danceability'],
+            ['energy', 'Energy'],
+            ['loudness_db', 'Loudness'],
+            ['spectral_centroid', 'Brightness'],
+        ];
+
+        const grid = h.div(a.class('ss-meta-grid'));
+        for(const [key, label, override] of items) {
+            const raw = override !== undefined && override !== null ? override : features[key];
+            const display = override !== undefined && override !== null
+                ? raw
+                : this._formatFeature(key, features[key]);
+            grid.append(h.div(a.class('ss-meta-cell'),
+                h.div(a.class('ss-meta-value'), String(display ?? '\u2014')),
+                h.div(a.class('ss-meta-label'), label),
+            ));
+        }
+        return grid;
+    }
+
+    /**
+     * @param {Array<import('../services/enrichment.js').SongTag>} tags
+     */
+    _renderTagChips(tags) {
+        const wrap = h.div(a.class('ss-meta-tags'));
+        for(const tag of tags.slice(0, 12)) {
+            const chip = h.span(a.class('ss-meta-tag', tag.source === 'musicbrainz' ? 'mb' : ''),
+                tag.tag_name,
+            );
+            chip.title = `${tag.source} \u00b7 weight ${tag.weight}`;
+            wrap.append(chip);
+        }
+        return wrap;
+    }
+
+    /**
+     * @param {Array<import('../services/enrichment.js').SimilarArtist>} artists
+     */
+    _renderSimilarArtists(artists) {
+        const wrap = h.div(a.class('ss-meta-similar'));
+        for(const rel of artists.slice(0, 8)) {
+            const pct = Math.round(rel.similarity * 100);
+            wrap.append(h.div(a.class('ss-meta-similar-row'),
+                h.span(a.class('ss-meta-similar-name'), rel.related_artist),
+                h.span(a.class('ss-meta-similar-bar'),
+                    h.span(a.class('ss-meta-similar-fill'), a.style(`width: ${pct}%`)),
+                ),
+                h.span(a.class('ss-meta-similar-pct'), `${pct}%`),
+            ));
+        }
+        return wrap;
+    }
+
+    async _renderMetadata() {
+        const container = this._metadataList.value;
+        if(!container) return;
+        Array.from(container.children).forEach(el => el.remove());
+
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        // Loading state
+        container.append(h.div(a.class('ss-meta-loading'),
+            I.Spinner(),
+            h.span('Loading metadata\u2026'),
+        ));
+
+        const data = await useEnrichmentService().getMetadata(song.id);
+        Array.from(container.children).forEach(el => el.remove());
+
+        if(data.error || !data.value || !data.value.metadata) {
+            Logger.error(data.error || 'Failed to load metadata');
+            container.append(h.div(a.class('ss-empty'),
+                I.Info(),
+                h.div(a.class('ss-empty-title'), 'Couldn\u2019t load metadata'),
+                h.div(a.class('ss-empty-detail'), 'Something went wrong fetching this song\u2019s analysis.'),
+            ));
+            return;
+        }
+
+        const meta = data.value.metadata;
+        const hasFeatures = meta.features && Object.keys(meta.features).length > 0;
+        const hasTags = Array.isArray(meta.tags) && meta.tags.length > 0;
+        const hasSimilar = Array.isArray(meta.similar_artists) && meta.similar_artists.length > 0;
+        const hasAny = hasFeatures || hasTags || hasSimilar || meta.musicbrainz_id;
+
+        if(!hasAny) {
+            container.append(h.div(a.class('ss-empty'),
+                I.Info(),
+                h.div(a.class('ss-empty-title'), 'No metadata yet'),
+                h.div(a.class('ss-empty-detail'), 'Analyse this song to extract its audio profile, genre tags and similar artists \u2014 all locally and from free open databases.'),
+            ));
+        } else {
+            if(hasFeatures) {
+                container.append(h.div(a.class('ss-meta-section-title'), 'Audio Profile'));
+                container.append(this._renderFeatureGrid(meta.features));
+            }
+            if(hasTags) {
+                container.append(h.div(a.class('ss-meta-section-title'), 'Tags & Genre'));
+                container.append(this._renderTagChips(meta.tags));
+            }
+            if(hasSimilar) {
+                container.append(h.div(a.class('ss-meta-section-title'),
+                    `Similar to ${meta.primary_artist || 'artist'}`));
+                container.append(this._renderSimilarArtists(meta.similar_artists));
+            }
+            if(meta.musicbrainz_id) {
+                container.append(h.div(a.class('ss-meta-mbid'),
+                    h.span('MusicBrainz ID: '),
+                    h.code(meta.musicbrainz_id),
+                ));
+            }
+        }
+
+        // Enrich / re-analyse action
+        const ctaIcon = h.span(a.class('ss-cta-icon'), I.Refresh());
+        const ctaLabel = h.span(hasAny ? 'Re-analyse Song' : 'Analyse Song');
+        const cta = h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.runEnrichment(cta, ctaIcon, ctaLabel)),
+            ctaIcon,
+            ctaLabel,
+        );
+        container.append(cta);
+    }
+
+    /**
+     * @param {HTMLElement} cta
+     * @param {HTMLElement} ctaIcon
+     * @param {HTMLElement} ctaLabel
+     */
+    async runEnrichment(cta, ctaIcon, ctaLabel) {
+        if(cta.classList.contains('busy')) return;
+
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+
+        cta.classList.add('busy');
+        Array.from(ctaIcon.children).forEach(el => el.remove());
+        ctaIcon.append(I.Spinner());
+        ctaLabel.textContent = 'Analysing\u2026';
+
+        const data = await useEnrichmentService().enrichSong(song.id);
+        if(data.error) {
+            Logger.error(data.error);
+            app.showToast('Failed to start analysis', 'error');
+            cta.classList.remove('busy');
+            ctaLabel.textContent = 'Analyse Song';
+            Array.from(ctaIcon.children).forEach(el => el.remove());
+            ctaIcon.append(I.Refresh());
+            return;
+        }
+
+        // Poll the enrichment job until it finishes, then re-render.
+        const jobId = data.value && data.value.job ? data.value.job.id : null;
+        let finished = false;
+        for(let i = 0; i < 60 && !finished; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            const status = await useEnrichmentService().status();
+            if(status.error || !status.value) break;
+            const job = status.value.job;
+            if(job && job.id === jobId && (job.status === 'completed' || job.status === 'failed')) {
+                finished = true;
+                if(job.status === 'completed') {
+                    app.showToast('Metadata analysis complete', 'success');
+                } else {
+                    app.showToast(job.error || 'Analysis failed', 'error');
+                }
+            }
+        }
+
+        cta.classList.remove('busy');
+        this._renderMetadata();
+    }
+
     render() {
         return H.of(Modal,
             h.div(this._cover, a.slot('header-icon'), a.class('ss-cover')),
@@ -496,12 +723,19 @@ export class SongSettingsModal extends Component {
                         I.Lyrics(),
                         h.span('Lyrics'),
                     ),
+                    h.button(this._navMetadata, a.class('ss-nav'), on.click(() => this.set('active-tab', 'metadata')),
+                        I.Info(),
+                        h.span('Metadata'),
+                    ),
                 ),
                 h.div(this._paneLightshow, a.class('ss-pane', 'active'),
                     h.div(this._lightshowList, a.class('ss-pane-inner')),
                 ),
                 h.div(this._paneLyrics, a.class('ss-pane'),
                     h.div(this._lyricsList, a.class('ss-pane-inner')),
+                ),
+                h.div(this._paneMetadata, a.class('ss-pane'),
+                    h.div(this._metadataList, a.class('ss-pane-inner')),
                 ),
             ),
         );

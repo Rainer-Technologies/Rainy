@@ -1088,6 +1088,97 @@ def cancel_import_job(job_id):
     return jsonify({'success': cancelled})
 
 
+# ==================== Song Metadata Enrichment ====================
+
+def _serialize_enrichment_job(job):
+    """Convert an enrichment_jobs row into a JSON-safe dict."""
+    import json as _json
+    result = job.get('result')
+    if isinstance(result, str) and result:
+        try:
+            result = _json.loads(result)
+        except (ValueError, TypeError):
+            pass
+
+    def _ts(value):
+        return value.isoformat() if value else None
+
+    return {
+        'id': job['id'],
+        'song_id': job.get('song_id'),
+        'scope': job.get('scope'),
+        'status': job['status'],
+        'progress': job.get('progress') or 0,
+        'message': job.get('message'),
+        'result': result,
+        'error': job.get('error_message'),
+        'created_at': _ts(job.get('created_at')),
+        'started_at': _ts(job.get('started_at')),
+        'completed_at': _ts(job.get('completed_at')),
+    }
+
+
+@music_bp.route('/songs/<int:song_id>/metadata', methods=['GET'])
+@require_auth
+def get_song_metadata(song_id):
+    """Return all enrichment metadata for a song (features, tags, similar artists)."""
+    from models.song_metadata import SongMetadataModel
+
+    data = SongMetadataModel.get_full(song_id)
+    if not data:
+        return jsonify({'error': 'Song not found'}), 404
+    return jsonify({'success': True, 'metadata': data})
+
+
+@music_bp.route('/songs/<int:song_id>/enrich', methods=['POST'])
+@require_auth
+def enrich_song(song_id):
+    """Queue background enrichment for a single song."""
+    from models.database import Database
+    from models.enrichment_job import EnrichmentJobModel
+    from utils import enrichment_worker
+
+    song = Database.execute_query(
+        "SELECT id FROM songs WHERE id = %s", (song_id,), fetch_one=True,
+    )
+    if not song:
+        return jsonify({'error': 'Song not found'}), 404
+
+    job_id = EnrichmentJobModel.enqueue_song(song_id)
+    enrichment_worker.notify()
+
+    job = EnrichmentJobModel.get(job_id)
+    return jsonify({'success': True, 'job': _serialize_enrichment_job(job)})
+
+
+@music_bp.route('/enrich/backfill', methods=['POST'])
+@require_auth
+def backfill_metadata():
+    """Queue a library-wide metadata backfill (all songs)."""
+    from models.enrichment_job import EnrichmentJobModel
+    from utils import enrichment_worker
+
+    job_id = EnrichmentJobModel.enqueue_backfill()
+    enrichment_worker.notify()
+
+    job = EnrichmentJobModel.get(job_id)
+    return jsonify({'success': True, 'job': _serialize_enrichment_job(job)})
+
+
+@music_bp.route('/enrich/status', methods=['GET'])
+@require_auth
+def enrichment_status():
+    """Return the latest enrichment job + whether one is running (for polling)."""
+    from models.enrichment_job import EnrichmentJobModel
+
+    latest = EnrichmentJobModel.latest()
+    return jsonify({
+        'success': True,
+        'running': EnrichmentJobModel.is_any_running(),
+        'job': _serialize_enrichment_job(latest) if latest else None,
+    })
+
+
 @music_bp.route('/artists/scrape-descriptions', methods=['POST'])
 @require_auth
 def scrape_all_artist_descriptions():

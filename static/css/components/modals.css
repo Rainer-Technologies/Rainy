@@ -1141,6 +1141,172 @@ rainy-song-settings-modal .ss-cover svg {
     color: var(--text-tertiary);
 }
 
+/* --- Metadata pane --- */
+
+.ss-meta-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xl) 0;
+    color: var(--text-tertiary);
+    font-size: 13px;
+}
+
+.ss-meta-loading svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--text-tertiary);
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.ss-meta-section-title {
+    margin: var(--spacing-lg) 0 var(--spacing-sm);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+.ss-meta-section-title:first-child {
+    margin-top: 0;
+}
+
+.ss-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-sm);
+}
+
+.ss-meta-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.ss-meta-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.ss-meta-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ss-meta-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ss-meta-tag {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent-primary);
+    background: rgba(250, 88, 106, 0.1);
+    border: 1px solid rgba(250, 88, 106, 0.2);
+    border-radius: 999px;
+    cursor: default;
+}
+
+.ss-meta-tag.mb {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--border-subtle);
+}
+
+.ss-meta-similar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ss-meta-similar-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 38px;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.ss-meta-similar-name {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ss-meta-similar-bar {
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.ss-meta-similar-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.ss-meta-similar-pct {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.ss-meta-mbid {
+    margin-top: var(--spacing-md);
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+.ss-meta-mbid code {
+    font-family: var(--font-mono, monospace);
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.ss-cta-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ss-cta-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.ss-cta.busy {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.ss-cta.busy .ss-cta-icon svg {
+    animation: spin 0.8s linear infinite;
+}
+
 /* ============================================
    ADD MUSIC MODAL
    ============================================ */

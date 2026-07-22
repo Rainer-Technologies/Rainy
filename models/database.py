@@ -310,6 +310,92 @@ class Database:
             )
         """)
 
+        # Song audio features — objective signal analysis from essentia.
+        # One row per song, computed locally from the audio file itself so it
+        # works for any file regardless of where it came from. These numeric
+        # descriptors power content-based similarity and the future AI DJ.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_features (
+                song_id INT PRIMARY KEY,
+                tempo_bpm FLOAT NULL,
+                tempo_confidence FLOAT NULL,
+                key_name VARCHAR(20) NULL,
+                scale_type VARCHAR(20) NULL,
+                key_strength FLOAT NULL,
+                danceability FLOAT NULL,
+                loudness_db FLOAT NULL,
+                energy FLOAT NULL,
+                spectral_centroid FLOAT NULL,
+                spectral_rolloff FLOAT NULL,
+                spectral_complexity FLOAT NULL,
+                zero_crossing_rate FLOAT NULL,
+                mfccs JSON NULL,
+                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Song tags — crowd-sourced genre/mood/style labels from Last.fm and
+        # MusicBrainz, keyed on artist + title so they work for any source.
+        # weight is 0-100 (Last.fm normalises its own top tag to 100).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_tags (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                song_id INT NOT NULL,
+                tag_name VARCHAR(100) NOT NULL,
+                weight INT DEFAULT 0,
+                source ENUM('lastfm', 'musicbrainz') NOT NULL DEFAULT 'lastfm',
+                UNIQUE KEY uniq_song_tag_source (song_id, tag_name, source),
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+                INDEX idx_tag_name (tag_name)
+            )
+        """)
+
+        # Artist relations — similarity graph from Last.fm's collaborative
+        # data. Cached per artist so we only fetch once per unique artist.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS artist_relations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                artist_name VARCHAR(255) NOT NULL,
+                related_artist VARCHAR(255) NOT NULL,
+                similarity FLOAT DEFAULT 0,
+                source ENUM('lastfm') NOT NULL DEFAULT 'lastfm',
+                UNIQUE KEY uniq_artist_pair (artist_name, related_artist),
+                INDEX idx_artist_name (artist_name)
+            )
+        """)
+
+        # Migration: add musicbrainz_id to songs (universal recording ID,
+        # the open-standard key that links a track across free databases).
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'songs' AND column_name = 'musicbrainz_id'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE songs ADD COLUMN musicbrainz_id VARCHAR(36) NULL")
+
+        # Enrichment jobs — background queue for metadata enrichment
+        # (essentia audio analysis + Last.fm tags + MusicBrainz IDs).
+        # Mirrors the import_jobs pattern but is kept separate so enrichment
+        # progress never clutters the import queue UI.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS enrichment_jobs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                song_id INT NULL,
+                scope ENUM('song', 'backfill') NOT NULL DEFAULT 'song',
+                status ENUM('queued', 'running', 'completed', 'failed') DEFAULT 'queued',
+                progress INT DEFAULT 0,
+                message VARCHAR(500) NULL,
+                result MEDIUMTEXT NULL,
+                error_message TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP NULL,
+                completed_at TIMESTAMP NULL,
+                INDEX idx_status (status)
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

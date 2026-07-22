@@ -58,10 +58,17 @@ def init_app():
     from models.import_job import ImportJobModel
     ImportJobModel.recover_stale()
     print("Background import worker ready.")
+
+    # Recover enrichment jobs left 'running' by a previous crash, same
+    # lazy-start pattern as the import worker below.
+    from models.enrichment_job import EnrichmentJobModel
+    EnrichmentJobModel.recover_stale()
+    print("Background enrichment worker ready.")
     print("=" * 40)
 
 
 _import_worker_started = False
+_enrichment_worker_started = False
 
 
 @app.before_request
@@ -72,6 +79,16 @@ def _ensure_import_worker():
         _import_worker_started = True
         from utils import job_worker
         job_worker.start_worker()
+
+
+@app.before_request
+def _ensure_enrichment_worker():
+    """Start the background enrichment worker once, in the request-serving process."""
+    global _enrichment_worker_started
+    if not _enrichment_worker_started:
+        _enrichment_worker_started = True
+        from utils import enrichment_worker
+        enrichment_worker.start_worker()
 
 if __name__ == '__main__':
     init_app()

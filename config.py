@@ -20,5 +20,10 @@ class Config:
     MYSQL_DATABASE = os.getenv('MYSQL_DATABASE', 'rainy')
     
     FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
-    
+
+    # Free Last.fm API key for track tags / similar artists / bios.
+    # Get one at https://www.last.fm/api/account/create (30 seconds, free).
+    # If unset, Last.fm enrichment is skipped (MusicBrainz still works).
+    LASTFM_API_KEY = os.getenv('LASTFM_API_KEY', '')
+
     SUPPORTED_FORMATS = {'.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma'}

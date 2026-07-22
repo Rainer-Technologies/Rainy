@@ -359,7 +359,17 @@ class MusicScanner:
         # Add to database and get the song ID
         song_id = SongModel.add_song(metadata)
         metadata['id'] = song_id
-        
+
+        # Queue background metadata enrichment (audio analysis + free external
+        # tags). Best-effort — never let enrichment break a scan/import.
+        try:
+            from models.enrichment_job import EnrichmentJobModel
+            from utils import enrichment_worker
+            EnrichmentJobModel.enqueue_song(song_id)
+            enrichment_worker.notify()
+        except Exception as e:  # noqa: BLE001
+            print(f"[scanner] failed to queue enrichment for song {song_id}: {e}")
+
         return metadata
     
     def format_duration(self, seconds):
