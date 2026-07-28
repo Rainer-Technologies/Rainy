@@ -512,6 +512,30 @@ export class RainyApp {
             }
         });
 
+        // Playlist regenerate cover (auto mosaic from song covers)
+        document.getElementById('action-regen-cover')?.addEventListener('click', async () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            if (!this.currentPlaylistId) return;
+            try {
+                window.showToast?.('Generating cover…', 'info');
+                const res = await fetch(`/api/playlists/${this.currentPlaylistId}/cover`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    window.showToast?.('Cover regenerated', 'success');
+                    // Re-open the playlist to refresh the displayed cover.
+                    await this.openPlaylist(this.currentPlaylistId);
+                    this.loadPlaylists?.();
+                } else {
+                    window.showToast?.(data.error || 'Failed to generate cover', 'error');
+                }
+            } catch (e) {
+                window.showToast?.('Failed to generate cover', 'error');
+            }
+        });
+
         // Discover Music click
         document.getElementById('nav-discover')?.addEventListener('click', (e) => {
             e.preventDefault();

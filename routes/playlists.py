@@ -10,7 +10,13 @@ def get_playlists():
     """Get all playlists."""
     user_id = session.get('user_id')
     playlists = PlaylistModel.get_all_playlists_for_user(user_id)
-    return jsonify(playlists or [])
+    # Normalize each row so the frontend always gets a cover_path key.
+    result = []
+    for p in (playlists or []):
+        p = dict(p)
+        p.setdefault('cover_path', None)
+        result.append(p)
+    return jsonify(result)
 
 @playlists_bp.route('/', methods=['POST'])
 @require_auth
@@ -73,6 +79,7 @@ def get_playlist(playlist_id):
         'name': playlist['name'],
         'icon': playlist.get('icon', 'music-note'),
         'icon_color': playlist.get('icon_color', '#fa586a'),
+        'cover_path': playlist.get('cover_path'),
         'created_at': playlist['created_at'],
         'songs': songs
     })
@@ -156,6 +163,50 @@ def remove_song(playlist_id, song_id):
         PlaylistModel.remove_song_from_playlist(playlist_id, song_id)
         return jsonify({'success': True})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/cover', methods=['POST'])
+@require_auth
+def generate_cover(playlist_id):
+    """Auto-generate (or regenerate) a mosaic cover for a playlist.
+
+    Builds a 2x2 grid from up to four of the playlist's song covers, stores it
+    under covers/playlists/, and saves the relative path on the playlist row.
+    The cover then stays fixed until this endpoint is called again.
+    """
+    try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        # Ownership check
+        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
+
+        songs = PlaylistModel.get_playlist_songs(playlist_id)
+        if not songs:
+            return jsonify({'error': 'Playlist is empty'}), 400
+
+        from models.settings import SettingsModel
+        from utils.playlist_cover import generate_playlist_cover
+        music_path = SettingsModel.get_music_path()
+        if not music_path:
+            return jsonify({'error': 'Music path not configured'}), 400
+
+        cover_path = generate_playlist_cover(
+            playlist_id,
+            songs,
+            music_path,
+            icon_color=playlist.get('icon_color', '#888888'),
+        )
+        if not cover_path:
+            return jsonify({'error': 'Could not generate cover'}), 500
+
+        PlaylistModel.update_playlist_cover(playlist_id, cover_path)
+        return jsonify({'success': True, 'cover_path': cover_path})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 

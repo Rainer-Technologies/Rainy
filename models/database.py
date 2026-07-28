@@ -162,6 +162,15 @@ class Database:
                 """)
             except mysql.connector.Error:
                 pass
+
+        # Migration: Add cover_path column (auto-generated playlist cover) if missing
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'cover_path'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE playlists ADD COLUMN cover_path VARCHAR(768) NULL")
         
         
         # Playlist Songs table (linking table)

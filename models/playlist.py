@@ -13,8 +13,19 @@ class PlaylistModel:
     
     @staticmethod
     def get_all_playlists_for_user(user_id):
-        """Get playlists visible to a user: public or owned by user."""
-        query = "SELECT * FROM playlists WHERE owner_user_id IS NULL OR owner_user_id = %s ORDER BY name"
+        """Get playlists visible to a user: public or owned by user.
+
+        Includes a song_count so clients can show the number of tracks without
+        fetching every playlist's full song list.
+        """
+        query = """
+            SELECT p.*,
+                   (SELECT COUNT(*) FROM playlist_entries pe
+                    WHERE pe.playlist_id = p.id) AS song_count
+            FROM playlists p
+            WHERE p.owner_user_id IS NULL OR p.owner_user_id = %s
+            ORDER BY p.name
+        """
         return Database.execute_query(query, (user_id,), fetch_all=True)
     
     @staticmethod
@@ -40,6 +51,12 @@ class PlaylistModel:
         """Update a playlist's icon and color."""
         query = "UPDATE playlists SET icon = %s, icon_color = %s WHERE id = %s"
         return Database.execute_query(query, (icon, icon_color, playlist_id))
+
+    @staticmethod
+    def update_playlist_cover(playlist_id, cover_path):
+        """Set the auto-generated cover image path (relative to music_path)."""
+        query = "UPDATE playlists SET cover_path = %s WHERE id = %s"
+        return Database.execute_query(query, (cover_path, playlist_id))
     
     @staticmethod
     def update_playlist_privacy(playlist_id, owner_user_id):

@@ -104,10 +104,17 @@ export const Playlists = {
             const iconColor = playlist.icon_color || '#888888';
             const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
 
+            // Prefer the auto-generated cover image; fall back to the icon.
+            const media = playlist.cover_path
+                ? `<img src="/api/music/cover/${encodeURIComponent(playlist.cover_path)}"
+                        class="playlist-icon playlist-cover" alt="" loading="lazy"
+                        onerror="this.style.display='none'" />`
+                : `<svg viewBox="0 0 24 24" fill="${iconColor}" class="playlist-icon"><path d="${icon.path}"/></svg>`;
+
             return `
-            <div class="nav-item ${currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''}" 
+            <div class="nav-item ${currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''}"
                  data-id="${playlist.id}">
-                <svg viewBox="0 0 24 24" fill="${iconColor}" class="playlist-icon"><path d="${icon.path}"/></svg>
+                ${media}
                 <span>${escapeHtml(playlist.name)}</span>
             </div>
         `}).join('');
