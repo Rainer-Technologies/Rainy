@@ -3060,11 +3060,13 @@ export class AudioPlayer {
 
             const animate = (now) => {
                 if (!this._crossfading) return; // cancelled
-                const progress = Math.min((now - startTime) / fadeMs, 1);
+                // Clamp to [0,1] — a stray negative/overshoot here would push
+                // audio.volume below 0 and break the fade.
+                const progress = Math.max(0, Math.min((now - startTime) / fadeMs, 1));
 
-                // Equal-power crossfade curve
-                this.audio.volume = targetVolume * Math.cos(progress * Math.PI / 2);
-                cf.volume = targetVolume * Math.sin(progress * Math.PI / 2);
+                // Equal-power crossfade curve (clamped so volume stays >= 0)
+                this.audio.volume = Math.max(0, targetVolume * Math.cos(progress * Math.PI / 2));
+                cf.volume = Math.max(0, targetVolume * Math.sin(progress * Math.PI / 2));
 
                 if (progress < 1) {
                     this._crossfadeRaf = requestAnimationFrame(animate);

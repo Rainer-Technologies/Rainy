@@ -23,14 +23,22 @@ _model_lock = threading.Lock()
 _infer_lock = threading.Lock()
 
 
-def _device_and_compute():
+def _detect_device():
     try:
         import ctranslate2
         if ctranslate2.get_cuda_device_count() > 0:
-            return 'cuda', 'float16'
+            return 'cuda'
     except Exception:
         pass
-    return 'cpu', 'int8'
+    return 'cpu'
+
+
+def _compute_candidates(device):
+    """Ordered compute types to try. Some GPUs/backends lack efficient
+    float16, so fall back through progressively safer options."""
+    if device == 'cuda':
+        return ['float16', 'int8_float16', 'float32', 'int8']
+    return ['int8']
 
 
 def _get_model():
@@ -39,14 +47,31 @@ def _get_model():
         with _model_lock:
             if _model is None:
                 import stable_whisper
-                device, compute = _device_and_compute()
-                _log(f'loading whisper model "{_MODEL_NAME}" '
-                     f'(device={device}, compute={compute}) — first request only, '
-                     f'downloads model if not cached…')
-                t0 = time.time()
-                _model = stable_whisper.load_faster_whisper(
-                    _MODEL_NAME, device=device, compute_type=compute)
-                _log(f'whisper model ready in {time.time() - t0:.1f}s')
+                device = _detect_device()
+                last_err = None
+                for compute in _compute_candidates(device):
+                    try:
+                        _log(f'loading whisper model "{_MODEL_NAME}" '
+                             f'(device={device}, compute={compute}) — first request '
+                             f'only, downloads model if not cached…')
+                        t0 = time.time()
+                        _model = stable_whisper.load_faster_whisper(
+                            _MODEL_NAME, device=device, compute_type=compute)
+                        _log(f'whisper model ready in {time.time() - t0:.1f}s '
+                             f'(compute={compute})')
+                        return _model
+                    except Exception as e:  # noqa: BLE001
+                        last_err = e
+                        _log(f'compute={compute} unavailable ({e}); trying next…')
+                # GPU compute types all failed — last resort: CPU int8.
+                if device != 'cpu':
+                    _log(f'GPU compute types exhausted ({last_err}); '
+                         f'falling back to cpu/int8')
+                    _model = stable_whisper.load_faster_whisper(
+                        _MODEL_NAME, device='cpu', compute_type='int8')
+                    _log('whisper model ready on cpu/int8 (fallback)')
+                    return _model
+                raise last_err
     return _model
 
 

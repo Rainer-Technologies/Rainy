@@ -22,7 +22,9 @@
 .app-main {
     flex: 1;
     padding: var(--spacing-xl);
-    padding-bottom: calc(var(--player-height) + var(--spacing-xl));
+    /* End the scroll container above the fixed player-bar so its scrollbar
+       isn't hidden behind it when scrolled fully to the bottom. */
+    margin-bottom: var(--player-height);
     overflow-y: auto;
     overflow-x: hidden;
     min-width: 0;
