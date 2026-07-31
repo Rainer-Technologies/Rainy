@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from .database import Database
 
 
@@ -42,7 +44,11 @@ class PlaybackHistoryModel:
                 'year': row['year'],
                 'genre': row['genre'],
                 'cover_path': row['cover_path'],
-                'played_at': row['played_at'].isoformat() if row['played_at'] else None
+                # The DB stores UTC (container tz). Tag it as UTC so the
+                # browser parses it as an absolute instant instead of misreading
+                # a naive ISO string as local time (which made every song look
+                # a fixed tz-offset old, e.g. always "2h ago" in CEST).
+                'played_at': row['played_at'].replace(tzinfo=timezone.utc).isoformat() if row['played_at'] else None
             })
         return songs
 
