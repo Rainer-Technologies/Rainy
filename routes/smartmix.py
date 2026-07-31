@@ -88,7 +88,9 @@ def generate_mix(user_id):
             results = Database.execute_query(query, tuple(params + [limit]), fetch_all=True)
         else:
             seed = Database.execute_query(
-                "SELECT artist, genre, album FROM songs WHERE id = %s",
+                "SELECT id, file_path, title, artist, album, duration, "
+                "track_number, year, genre, cover_path "
+                "FROM songs WHERE id = %s",
                 (seed_song_id,), fetch_one=True
             )
             if not seed:
@@ -130,6 +132,10 @@ def generate_mix(user_id):
                     fetch_all=True
                 )
                 results.extend(fill_results)
+
+            # Include the seed track itself so the "now playing" song leads
+            # the radio queue instead of being excluded.
+            results.insert(0, seed)
 
     songs = []
     for row in results:
