@@ -1,0 +1,101 @@
+{
+  "id": "media-importer",
+  "name": "Media Importer",
+  "version": "1.0.0",
+  "author": "Rainy",
+  "icon": "download",
+  "color": "#FF5252",
+  "category": "Import",
+  "description": "Import songs and playlists from YouTube, YouTube Music and Spotify directly into your Rainy library. Paste a link and let Rainy fetch the audio, metadata and cover art for you.",
+  "changelog": "Initial release — YouTube & Spotify song and playlist import.",
+  "actions": [
+    {
+      "id": "yt-song",
+      "label": "YouTube → Song",
+      "icon": "music_note",
+      "description": "Download a single track from a YouTube or YouTube Music link.",
+      "endpoint": "/api/music/youtube-import",
+      "method": "POST",
+      "streaming": false,
+      "fields": [
+        {
+          "key": "url",
+          "label": "YouTube URL",
+          "type": "text",
+          "hint": "https://www.youtube.com/watch?v=…",
+          "required": true
+        }
+      ],
+      "success": {
+        "title": "Imported {{title}}",
+        "message": "{{artist}}"
+      }
+    },
+    {
+      "id": "yt-playlist",
+      "label": "YouTube → Playlist",
+      "icon": "queue_music",
+      "description": "Download every track in a YouTube playlist and create a matching Rainy playlist.",
+      "endpoint": "/api/music/youtube-playlist-import",
+      "method": "POST",
+      "streaming": true,
+      "fields": [
+        {
+          "key": "url",
+          "label": "Playlist URL",
+          "type": "text",
+          "hint": "https://www.youtube.com/playlist?list=…",
+          "required": true
+        }
+      ],
+      "success": {
+        "title": "Playlist imported",
+        "message": "{{song_count}} songs added to “{{playlist_name}}”"
+      }
+    },
+    {
+      "id": "sp-song",
+      "label": "Spotify → Song",
+      "icon": "music_note",
+      "description": "Match a Spotify track on YouTube Music and download the best match.",
+      "endpoint": "/api/music/spotify-import",
+      "method": "POST",
+      "streaming": false,
+      "fields": [
+        {
+          "key": "url",
+          "label": "Spotify Track URL",
+          "type": "text",
+          "hint": "https://open.spotify.com/track/…",
+          "required": true
+        }
+      ],
+      "success": {
+        "title": "Imported {{title}}",
+        "message": "{{artist}}"
+      }
+    },
+    {
+      "id": "sp-playlist",
+      "label": "Spotify → Playlist",
+      "icon": "queue_music",
+      "description": "Import a whole Spotify playlist, matching each track on YouTube Music.",
+      "endpoint": "/api/music/spotify-playlist-import",
+      "method": "POST",
+      "streaming": true,
+      "fields": [
+        {
+          "key": "url",
+          "label": "Spotify Playlist URL",
+          "type": "text",
+          "hint": "https://open.spotify.com/playlist/…",
+          "required": true
+        }
+      ],
+      "success": {
+        "title": "Playlist imported",
+        "message": "{{song_count}} songs added to “{{playlist_name}}”"
+      }
+    }
+  ]
+}

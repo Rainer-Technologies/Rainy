@@ -468,6 +468,14 @@ export class RainyApp {
             modal.show();
         });
 
+        // Rainy Connect — device picker / remote control
+        document.getElementById('connect-btn')?.addEventListener('click', () => {
+            /** @type {import('./components/connectModal.js').ConnectModal} */
+            const modal = document.querySelector('rainy-connect-modal');
+            if(!modal) return;
+            modal.show();
+        });
+
         // Playlist events
         document.getElementById('sidebar-new-playlist')?.addEventListener('click', (e) => {
             e.stopPropagation(); // prevent triggering nav section collapse if we had that
@@ -546,6 +554,12 @@ export class RainyApp {
         document.getElementById('nav-artists')?.addEventListener('click', (e) => {
             e.preventDefault();
             this.switchToArtistsView();
+        });
+
+        // Achievements click
+        document.getElementById('nav-achievements')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToAchievementsView();
         });
 
         // Global song artist link click delegation
@@ -2981,6 +2995,49 @@ export class RainyApp {
 
         // Index and render artists
         this.renderArtistsView(targetArtistName);
+    }
+
+    switchToAchievementsView() {
+        // Pause discover audio preview if it exists
+        const previewAudio = document.getElementById('discover-preview-audio');
+        if (previewAudio) {
+            previewAudio.pause();
+            previewAudio.src = '';
+            document.getElementById('discover-preview-bar')?.classList.add('hidden');
+        }
+
+        useContext().set('current-view-type', 'achievements');
+        this.currentPlaylistId = null;
+
+        // Hide new-feature views so they don't linger
+        window.newViews?.hideNewViews();
+
+        // Update Sidebar UI
+        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-achievements')?.classList.add('active');
+        this.renderSidebarPlaylists();
+
+        // Update Header
+        document.querySelector('.section-title').textContent = 'Achievements';
+        document.getElementById('library-subtitle').textContent = 'Your listening milestones and trophies';
+
+        // Hide library chrome
+        document.getElementById('playlist-menu-container').classList.add('hidden');
+        document.getElementById('library-stats').classList.add('hidden');
+        document.querySelector('.view-toggle')?.classList.add('hidden');
+        document.getElementById('songs-grid').classList.add('hidden');
+        document.getElementById('songs-list').classList.add('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('discover-view').classList.add('hidden');
+        document.getElementById('artists-view')?.classList.add('hidden');
+
+        // Show section header
+        document.querySelector('.section-header')?.classList.remove('hidden');
+
+        // Show Achievements view and refresh its data
+        document.getElementById('achievements-view').classList.remove('hidden');
+        document.querySelector('rainy-achievements-view')?.refresh();
     }
 
     renderArtistsView(targetArtistName = null) {

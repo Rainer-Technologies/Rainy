@@ -1,0 +1,808 @@
+/* ============================================
+   Rainy Connect — device picker & remote control
+   ============================================ */
+
+/* ---------- Player-bar button ---------- */
+
+#connect-btn {
+    position: relative;
+}
+
+/* Pulsing dot while a remote is steering this player */
+#connect-btn.remote-active {
+    color: var(--accent-primary);
+}
+
+#connect-btn.remote-active svg {
+    fill: var(--accent-primary);
+}
+
+#connect-btn.remote-active::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-full);
+    background: var(--accent-primary);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: connect-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes connect-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 0.55;
+    }
+}
+
+/* ---------- Modal body ---------- */
+
+.connect-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.connect-section-label {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+.connect-section-label-name {
+    color: var(--accent-primary);
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Device list ---------- */
+
+.connect-devices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.connect-device {
+    position: relative;
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    align-items: center;
+    gap: var(--spacing-md);
+    width: 100%;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color var(--transition-fast), background var(--transition-fast),
+        transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.connect-device:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-color);
+    transform: translateY(-1px);
+}
+
+.connect-device.selected {
+    border-color: var(--accent-primary);
+    background: rgba(250, 88, 106, 0.08);
+    box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-glow);
+}
+
+.connect-device-icon {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: linear-gradient(145deg, var(--bg-elevated), var(--bg-secondary));
+    border: 1px solid var(--border-subtle);
+}
+
+.connect-device-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: var(--text-secondary);
+    transition: fill var(--transition-fast);
+}
+
+.connect-device.selected .connect-device-icon svg,
+.connect-device:hover .connect-device-icon svg {
+    fill: var(--accent-primary);
+}
+
+/* Mini equalizer bars while a device is playing */
+.connect-eq {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    display: none;
+    align-items: flex-end;
+    gap: 2px;
+    height: 10px;
+}
+
+.connect-eq.active {
+    display: flex;
+}
+
+.connect-eq i {
+    display: block;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent-primary);
+    animation: connect-eq-bounce 0.9s ease-in-out infinite;
+}
+
+.connect-eq i:nth-child(1) {
+    height: 5px;
+    animation-delay: 0s;
+}
+
+.connect-eq i:nth-child(2) {
+    height: 9px;
+    animation-delay: 0.25s;
+}
+
+.connect-eq i:nth-child(3) {
+    height: 6px;
+    animation-delay: 0.5s;
+}
+
+@keyframes connect-eq-bounce {
+
+    0%,
+    100% {
+        transform: scaleY(0.45);
+    }
+
+    50% {
+        transform: scaleY(1);
+    }
+}
+
+.connect-device-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.connect-device-name {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.connect-device-badge {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+}
+
+.connect-device.selected .connect-device-badge {
+    color: var(--accent-primary);
+    border-color: rgba(250, 88, 106, 0.35);
+    background: rgba(250, 88, 106, 0.1);
+}
+
+.connect-device-song {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.connect-device-song.idle {
+    color: var(--text-tertiary);
+}
+
+.connect-device-state {
+    display: flex;
+    align-items: center;
+    color: var(--text-tertiary);
+}
+
+.connect-chevron {
+    width: 18px;
+    height: 18px;
+    fill: var(--text-tertiary);
+    transition: transform var(--transition-fast), fill var(--transition-fast);
+}
+
+.connect-device:hover .connect-chevron {
+    transform: translateX(2px);
+    fill: var(--text-secondary);
+}
+
+.connect-playing-label {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    color: var(--accent-primary);
+    white-space: nowrap;
+}
+
+/* Slim progress strip along the bottom of a device row */
+.connect-device-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.connect-device-progress-fill {
+    height: 100%;
+    background: var(--accent-gradient);
+    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+    transition: width 0.6s linear;
+}
+
+/* ---------- Empty state ---------- */
+
+.connect-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-2xl) var(--spacing-lg);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.connect-empty-icon svg {
+    width: 44px;
+    height: 44px;
+    fill: var(--text-tertiary);
+    animation: connect-pulse 2.4s ease-in-out infinite;
+}
+
+.connect-empty-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.connect-empty-text {
+    max-width: 34ch;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+/* ---------- Remote control panel ---------- */
+
+.connect-remote {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    animation: connect-panel-in 0.25s ease;
+}
+
+@keyframes connect-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.connect-remote-nowplaying {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+}
+
+.connect-remote-cover {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
+}
+
+.connect-remote-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.connect-remote-cover.empty::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 50% 45%, rgba(250, 88, 106, 0.25), transparent 60%),
+        var(--bg-elevated);
+}
+
+.connect-remote-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.connect-remote-title {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.connect-remote-artist {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Seek bar */
+.connect-remote-seek-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.connect-remote-seek {
+    position: relative;
+    flex: 1;
+    height: 5px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: height var(--transition-fast);
+}
+
+.connect-remote-seek:hover {
+    height: 7px;
+}
+
+.connect-remote-seek-fill {
+    position: relative;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--accent-gradient);
+    transition: width 0.2s linear;
+}
+
+.connect-remote-seek:hover .connect-remote-seek-fill::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+.connect-remote-time {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-tertiary);
+}
+
+/* Transport controls */
+.connect-remote-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
+}
+
+.connect-ctrl {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast), transform var(--transition-fast),
+        color var(--transition-fast);
+}
+
+.connect-ctrl svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
+.connect-ctrl:hover {
+    background: var(--bg-hover);
+    transform: scale(1.08);
+}
+
+.connect-ctrl:active {
+    transform: scale(0.96);
+}
+
+.connect-ctrl.active {
+    color: var(--accent-primary);
+}
+
+.connect-ctrl-main {
+    width: 54px;
+    height: 54px;
+    background: var(--accent-gradient);
+    color: #fff;
+    box-shadow: var(--shadow-glow);
+}
+
+.connect-ctrl-main svg {
+    width: 26px;
+    height: 26px;
+}
+
+.connect-ctrl-main:hover {
+    background: var(--accent-gradient);
+    transform: scale(1.08);
+    box-shadow: 0 0 38px var(--accent-glow);
+}
+
+.connect-repeat-one {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent-primary);
+}
+
+/* Volume */
+.connect-remote-volume {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: 0 var(--spacing-sm);
+}
+
+.connect-remote-volume svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    fill: var(--text-secondary);
+}
+
+.connect-volume-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(to right,
+            var(--accent-primary) 0%,
+            var(--accent-primary) var(--volume-percent, 80%),
+            rgba(255, 255, 255, 0.2) var(--volume-percent, 80%),
+            rgba(255, 255, 255, 0.2) 100%);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+}
+
+.connect-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+}
+
+.connect-volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    border: none;
+}
+
+/* Transfer ("Play here") */
+.connect-transfer {
+    margin-top: var(--spacing-xs);
+}
+
+.connect-transfer svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+.connect-transfer.busy {
+    opacity: 0.65;
+    pointer-events: none;
+    animation: connect-pulse 1s ease-in-out infinite;
+}
+
+/* ---------- Remote queue (tap-to-play) ---------- */
+
+.connect-remote-queue {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    animation: connect-panel-in 0.25s ease;
+}
+
+.connect-queue-count {
+    color: var(--accent-primary);
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.connect-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 236px;
+    overflow-y: auto;
+    padding-right: var(--spacing-xs);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+.connect-queue-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.connect-queue-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-full);
+}
+
+.connect-queue-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.connect-queue-item {
+    display: grid;
+    grid-template-columns: 26px 1fr auto;
+    align-items: center;
+    gap: var(--spacing-md);
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast),
+        transform var(--transition-fast);
+}
+
+.connect-queue-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+    transform: translateX(2px);
+}
+
+.connect-queue-item:active {
+    transform: translateX(2px) scale(0.99);
+}
+
+/* Currently playing track on the remote */
+.connect-queue-item.current {
+    background: rgba(250, 88, 106, 0.08);
+    border-color: rgba(250, 88, 106, 0.25);
+    border-left-color: var(--accent-primary);
+}
+
+.connect-queue-index {
+    position: relative;
+    height: 14px;
+    font-size: var(--font-size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-tertiary);
+    text-align: center;
+}
+
+/* The shared eq-bars widget sits bottom-right of the index cell */
+.connect-queue-index .connect-eq {
+    right: 6px;
+    bottom: 0;
+}
+
+.connect-queue-item.current .connect-queue-index {
+    color: var(--accent-primary);
+}
+
+.connect-queue-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.connect-queue-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color var(--transition-fast);
+}
+
+.connect-queue-item.current .connect-queue-title {
+    color: var(--accent-primary);
+}
+
+.connect-queue-artist {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.connect-queue-play {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.connect-queue-play svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--accent-primary);
+}
+
+.connect-queue-item:hover .connect-queue-play {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Already playing — the eq bars are the indicator, no play hint needed */
+.connect-queue-item.current .connect-queue-play {
+    display: none;
+}
+
+/* ---------- Action row: Play here / Take Control ---------- */
+
+.connect-remote-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.connect-remote-actions .connect-transfer {
+    margin-top: 0;
+    width: 100%;
+}
+
+.connect-take-control {
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(250, 88, 106, 0.45);
+    color: var(--accent-primary);
+    box-shadow: none;
+}
+
+.connect-take-control svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+.connect-take-control:hover {
+    background: rgba(250, 88, 106, 0.12);
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+}
+
+.connect-take-control:active {
+    transform: translateY(0);
+}
+
+.connect-take-control.busy {
+    opacity: 0.65;
+    pointer-events: none;
+    animation: connect-pulse 1s ease-in-out infinite;
+}
+
+/* Controller mode banner */
+.controller-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.08));
+    border-bottom: 1px solid rgba(99, 102, 241, 0.25);
+    font-size: 13px;
+    color: #c7c9f5;
+    z-index: 100;
+}
+.controller-banner-icon { font-size: 14px; }
+.controller-banner-text { flex: 1; }
+.controller-banner-text strong { color: #fff; font-weight: 600; }
+.controller-banner-stop {
+    padding: 3px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.controller-banner-stop:hover { background: rgba(255,255,255,0.15); }

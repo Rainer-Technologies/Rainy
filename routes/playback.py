@@ -33,7 +33,15 @@ def record_play(user_id):
         data.get('position', 0),
         data.get('duration', 0)
     )
-    return jsonify({'success': True})
+
+    # Lightweight achievement check (play-count milestones only)
+    from models.achievement import AchievementModel
+    newly = AchievementModel.evaluate_play_count(user_id)
+
+    resp = {'success': True}
+    if newly:
+        resp['achievements_unlocked'] = newly
+    return jsonify(resp)
 
 
 @playback_bp.route('/history', methods=['GET'])

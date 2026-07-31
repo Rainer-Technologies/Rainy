@@ -7,6 +7,8 @@ import { LightShowEngine } from './lightshow.js';
 import { usePlaylistService } from './services/playlist.js';
 import { useRatingService } from './services/rating.js';
 import { usePlaybackService } from './services/playback.js';
+import { useConnectService } from './services/connect.js';
+import { useMusicService } from './services/music.js';
 import { useContext } from './helper/context.js';
 import { Utils } from './modules/utils.js';
 import { MediaSessionController } from './modules/mediaSession.js';
@@ -77,6 +79,20 @@ export class AudioPlayer {
         this._crossfadeTriggered = false; // prevent re-trigger within same song
         this._activeBlobUrl = null; // blob URL currently assigned to this.audio.src
 
+        // Rainy Connect (cross-device control)
+        this._connectDeviceId = null; // persistent id, generated in _initConnect()
+        this._connectDeviceName = 'Web Player';
+        this._connectHeartbeatTimer = null;
+        this._connectPollTimer = null;
+
+        // Controller mode: this player acts as a remote for another device
+        this._controllerTarget = null; // { device_id, device_name } when controlling
+        this._controllerPollTimer = null;
+        this._controllerState = null; // last known remote state snapshot
+        this._controllerBanner = null; // DOM element
+        this._controllerPollFailures = 0;
+        this._lastControllerCommandMs = 0;
+
         this.init();
     }
 
@@ -94,6 +110,9 @@ export class AudioPlayer {
         this.sleepTimer = new SleepTimer(this);
         // Real listening-time tracker (replaces instant play recording)
         this._listenTracker = null;
+
+        // Rainy Connect — register this player as a controllable device
+        this._initConnect();
     }
 
     bindElements() {
@@ -367,6 +386,25 @@ export class AudioPlayer {
     }
 
     playSong(index, playlist = null, context = null) {
+        // Controller mode: route playback to the remote device
+        // BUT: if this is a Connect command (context.type === 'connect'), 
+        // we're the target — play locally, don't forward.
+        if (this.isControllerMode && context?.type !== 'connect') {
+            const pl = playlist || this.playlist;
+            if (pl && pl.length > 0) {
+                const queue = pl.slice(0, 200).map(s => ({
+                    id: s?.id ?? null,
+                    title: s?.title ?? null,
+                    artist: s?.artist ?? null,
+                    album: s?.album ?? null,
+                    duration: s?.duration ?? 0,
+                    cover_path: s?.cover_path ?? null,
+                })).filter(s => s.id != null);
+                this._controllerCommand('play_queue', { queue, index });
+            }
+            return;
+        }
+
         // Cancel any in-progress crossfade
         if (this._crossfading) this._cancelCrossfade();
         this._crossfadeTriggered = false;
@@ -519,6 +557,7 @@ export class AudioPlayer {
     }
 
     togglePlayPause() {
+        if (this.isControllerMode) { this._controllerCommand('play_pause'); return; }
         if (this.currentIndex === -1 && this.playlist.length > 0) {
             this.playSong(0);
             return;
@@ -532,6 +571,7 @@ export class AudioPlayer {
     }
 
     playPrevious() {
+        if (this.isControllerMode) { this._controllerCommand('previous'); return; }
         if (this.audio.currentTime > 3) {
             // If more than 3 seconds into song, restart it
             this.audio.currentTime = 0;
@@ -552,6 +592,7 @@ export class AudioPlayer {
     }
 
     playNext() {
+        if (this.isControllerMode) { this._controllerCommand('next'); return; }
         let newIndex = this.currentIndex + 1;
 
         if (this.isShuffle) {
@@ -571,6 +612,7 @@ export class AudioPlayer {
     }
 
     toggleShuffle() {
+        if (this.isControllerMode) { this._controllerCommand('shuffle', { enabled: !(this._controllerState?.is_shuffled) }); return; }
         this.isShuffle = !this.isShuffle;
         const color = this.isShuffle ? 'var(--accent-primary)' : '';
         const fill = this.isShuffle ? 'var(--accent-primary)' : '';
@@ -585,6 +627,13 @@ export class AudioPlayer {
     }
 
     toggleRepeat() {
+        if (this.isControllerMode) {
+            const order = ['none', 'all', 'one'];
+            const current = this._controllerState?.repeat_mode || 'none';
+            const next = order[(order.indexOf(current) + 1) % order.length];
+            this._controllerCommand('repeat', { mode: next });
+            return;
+        }
         const modes = ['none', 'all', 'one'];
         const currentModeIndex = modes.indexOf(this.repeatMode);
         this.repeatMode = modes[(currentModeIndex + 1) % modes.length];
@@ -1216,6 +1265,14 @@ export class AudioPlayer {
     }
 
     handleProgressClick(e, progressBarElement) {
+        if (this.isControllerMode) {
+            const bar = progressBarElement || this.progressBar;
+            const rect = bar.getBoundingClientRect();
+            const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const duration = this._controllerState?.duration || 0;
+            if (duration > 0) this._controllerCommand('seek', { position: Math.floor(percent * duration) });
+            return;
+        }
         if (!this.audio.duration) return;
 
         // Manual seek cancels any in-progress crossfade — the user is
@@ -1229,6 +1286,7 @@ export class AudioPlayer {
     }
 
     handleVolumeChange(e) {
+        if (this.isControllerMode) { this._controllerCommand('volume', { volume: Number(e.target.value) }); return; }
         const volume = e.target.value / 100;
         this.audio.volume = volume;
         localStorage.setItem('rainy_volume', volume.toString());
@@ -3223,6 +3281,646 @@ export class AudioPlayer {
             }
         };
         setTimeout(() => document.addEventListener('click', outsideHandler), 0);
+    }
+
+    /* ========================================================================
+       Rainy Connect — Spotify-Connect-style cross-device control.
+
+       This player registers itself as a Connect device (heartbeat every 5s),
+       polls the server for remote-control commands (every 2s) and applies
+       them to local playback. Other devices (phones, other browsers) show up
+       in the Connect modal and can be remote-controlled from here.
+       ======================================================================== */
+
+    /**
+     * Register this player as a Connect device and start the
+     * heartbeat + command-poll loops.
+     */
+    _initConnect() {
+        try {
+            let deviceId = localStorage.getItem('rainy-connect-device-id');
+            if (!deviceId) {
+                deviceId = this._generateConnectDeviceId();
+                localStorage.setItem('rainy-connect-device-id', deviceId);
+            }
+            this._connectDeviceId = deviceId;
+        } catch (e) {
+            // localStorage unavailable (private mode etc.) — fall back to a
+            // session-scoped id so Connect still works within this tab.
+            this._connectDeviceId = this._generateConnectDeviceId();
+        }
+
+        this._connectDeviceName = this._deriveConnectDeviceName();
+
+        // Announce ourselves immediately, then every 2 seconds
+        this._connectHeartbeat();
+        this._connectHeartbeatTimer = setInterval(() => this._connectHeartbeat(), 2000);
+
+        // Poll for remote-control commands every 1 second
+        this._connectPollTimer = setInterval(() => this._connectPollCommands(), 1000);
+
+        // Deregister on page unload so we disappear from other devices'
+        // pickers immediately instead of waiting for the server timeout.
+        window.addEventListener('beforeunload', () => this._connectDeregister());
+
+        // Reflect remote activity on the player-bar button (pulsing dot)
+        window.addEventListener('rainy-connect:remote-active', (e) => {
+            const btn = document.getElementById('connect-btn');
+            if (btn) btn.classList.toggle('remote-active', !!e.detail?.active);
+        });
+    }
+
+    /** @returns {string} a random 16-char hex id */
+    _generateConnectDeviceId() {
+        try {
+            if (window.crypto && crypto.randomUUID) {
+                return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+            }
+        } catch (e) { /* fall through */ }
+        let id = '';
+        for (let i = 0; i < 16; i++) id += Math.floor(Math.random() * 16).toString(16);
+        return id;
+    }
+
+    /** @returns {string} e.g. "Chrome on macOS" */
+    _deriveConnectDeviceName() {
+        const ua = navigator.userAgent;
+        let browser = 'Web Player';
+        if (/Edg\//.test(ua)) browser = 'Edge';
+        else if (/OPR\//.test(ua)) browser = 'Opera';
+        else if (/Chrome\//.test(ua)) browser = 'Chrome';
+        else if (/Firefox\//.test(ua)) browser = 'Firefox';
+        else if (/Safari\//.test(ua)) browser = 'Safari';
+
+        let platform = '';
+        if (/Windows/.test(ua)) platform = 'Windows';
+        else if (/Mac OS X/.test(ua)) platform = 'macOS';
+        else if (/Android/.test(ua)) platform = 'Android';
+        else if (/iPhone|iPad|iPod/.test(ua)) platform = 'iOS';
+        else if (/Linux/.test(ua)) platform = 'Linux';
+
+        return platform ? `${browser} on ${platform}` : browser;
+    }
+
+    /**
+     * POST the current playback snapshot to the Connect hub.
+     * Only heartbeats while there's a song loaded or playback is active,
+     * so an idle tab doesn't clutter other devices' pickers.
+     */
+    _connectHeartbeat() {
+        if (!this._connectDeviceId) return;
+        // While in controller mode, heartbeat as idle (we're not playing locally)
+        if (this._controllerTarget) return;
+        if (!this.currentSong && !this.isPlaying) return;
+
+        const song = this.currentSong;
+
+        // Serialize the queue as lightweight maps so remotes can display and
+        // tap-to-play any track. Cap at 200 entries to keep payloads sane.
+        const queue = (this.playlist || []).slice(0, 200).map(s => ({
+            id: s?.id ?? null,
+            title: s?.title ?? null,
+            artist: s?.artist ?? null,
+            album: s?.album ?? null,
+            cover_path: s?.cover_path ?? null
+        }));
+
+        useConnectService().heartbeat({
+            device_id: this._connectDeviceId,
+            device_name: this._connectDeviceName,
+            device_type: 'web',
+            song_id: song?.id ?? null,
+            song_title: song?.title ?? null,
+            song_artist: song?.artist ?? null,
+            song_album: song?.album ?? null,
+            cover_path: song?.cover_path ?? null,
+            position: this.audio ? Math.floor(this.audio.currentTime || 0) : 0,
+            duration: (this.audio && this.audio.duration) ? Math.floor(this.audio.duration) : (song?.duration || 0),
+            is_playing: this.isPlaying,
+            volume: Math.round((this.audio ? this.audio.volume : 0.8) * 100),
+            is_shuffled: this.isShuffle,
+            repeat_mode: this.repeatMode || 'none',
+            queue,
+            queue_index: this.currentIndex
+        }).catch(() => { /* network blips are fine — next beat retries */ });
+    }
+
+    /** Fetch queued remote commands and apply them to local playback. */
+    async _connectPollCommands() {
+        if (!this._connectDeviceId || this._connectPollBusy) return;
+        this._connectPollBusy = true;
+        try {
+            const result = await useConnectService().pollCommands(this._connectDeviceId);
+            const commands = result?.value?.commands;
+            if (Array.isArray(commands) && commands.length > 0) {
+                for (const cmd of commands) {
+                    try {
+                        await this._connectApplyCommand(cmd);
+                    } catch (e) {
+                        Logger.warn('Connect command failed:', cmd, e);
+                    }
+                }
+                // Reflect the new state to remotes without waiting for the next beat
+                this._connectHeartbeat();
+            }
+        } catch (e) {
+            // silent — polling retries every 2s
+        } finally {
+            this._connectPollBusy = false;
+        }
+    }
+
+    /**
+     * Apply a single remote-control command to local playback.
+     * @param {{ command: string, args?: Object }} cmd
+     */
+    async _connectApplyCommand(cmd) {
+        if (!cmd || !cmd.command) return;
+        const args = cmd.args || {};
+
+        // Give visible feedback that a remote is steering this player
+        this._connectFlashButton();
+
+        switch (cmd.command) {
+            case 'play':
+                if (!this.isPlaying) this.togglePlayPause();
+                break;
+            case 'pause':
+                if (this.isPlaying) this.togglePlayPause();
+                break;
+            case 'play_pause':
+                this.togglePlayPause();
+                break;
+            case 'next':
+                this.playNext();
+                break;
+            case 'previous':
+                this.playPrevious();
+                break;
+            case 'seek': {
+                const position = Number(args.position);
+                if (!isNaN(position) && this.audio) {
+                    this.audio.currentTime = Math.max(0, position);
+                }
+                break;
+            }
+            case 'volume': {
+                const volume = Number(args.volume);
+                if (!isNaN(volume) && this.audio) {
+                    this.setVolume(Math.max(0, Math.min(100, volume)) / 100);
+                }
+                break;
+            }
+            case 'shuffle': {
+                const enabled = !!args.enabled;
+                if (this.isShuffle !== enabled) this.toggleShuffle();
+                break;
+            }
+            case 'repeat': {
+                const mode = String(args.mode ?? '');
+                if (['none', 'all', 'one'].includes(mode) && this.repeatMode !== mode) {
+                    this.setRepeatMode(mode);
+                }
+                break;
+            }
+            case 'play_song': {
+                // Receiving a playback command means we're being controlled — exit controller mode
+                if (this.isControllerMode) this._stopControllerMode();
+                if (args.song_id != null) await this._connectPlaySongById(args.song_id);
+                break;
+            }
+            case 'transfer':
+                // Receiving side of a hand-off: load the full queue (if provided)
+                // and start at the given index/position.
+                if (this.isControllerMode) this._stopControllerMode();
+                if (Array.isArray(args.queue) && args.queue.length > 0) {
+                    this._connectPlayQueueObjects(args.queue, Number(args.index) || 0, Number(args.position) || 0);
+                } else if (args.song_id != null) {
+                    await this._connectPlaySongById(args.song_id, Number(args.position) || 0);
+                }
+                break;
+            case 'play_queue':
+                // Remote sets our entire queue and starts at index.
+                // Receiving this means we're being controlled — exit controller mode
+                if (this.isControllerMode) this._stopControllerMode();
+                // Supports two formats:
+                //   args.queue  — full song objects (preferred, no resolution needed)
+                //   args.song_ids — legacy ID-only format (resolved against library)
+                if (Array.isArray(args.queue) && args.queue.length > 0) {
+                    this._connectPlayQueueObjects(args.queue, Number(args.index) || 0);
+                } else if (Array.isArray(args.song_ids)) {
+                    await this._connectPlayQueue(args.song_ids, Number(args.index) || 0);
+                }
+                break;
+            default:
+                Logger.warn('Unknown Connect command:', cmd.command);
+        }
+    }
+
+    /**
+     * Set the local queue from a list of song IDs (sent by a remote) and start
+     * playing at [startIndex]. Resolves IDs against the loaded library, falling
+     * back to a full server fetch.
+     * @param {Array<number|string>} songIds
+     * @param {number} startIndex
+     */
+    async _connectPlayQueue(songIds, startIndex = 0) {
+        if (!Array.isArray(songIds) || songIds.length === 0) return;
+
+        /** @type {import('./app.js').RainyApp | undefined} */
+        const app = window.app;
+        let library = app?.songs || [];
+        if (!library.length) {
+            const result = await useMusicService().library();
+            library = result?.value?.all_songs || [];
+        }
+        const byId = new Map(library.map(s => [Number(s.id), s]));
+
+        const queue = [];
+        for (const raw of songIds) {
+            const song = byId.get(Number(raw));
+            if (song) queue.push(song);
+        }
+        if (!queue.length) return;
+
+        const idx = Math.max(0, Math.min(startIndex, queue.length - 1));
+        this.playSong(idx, queue, { type: 'connect', id: null });
+    }
+
+    /**
+     * Set the local queue from full song objects sent by a remote controller.
+     * No resolution needed — the objects are used directly.
+     * @param {Array<Object>} queueData - Song objects with id, title, artist, etc.
+     * @param {number} startIndex
+     */
+    _connectPlayQueueObjects(queueData, startIndex = 0, startPosition = 0) {
+        if (!Array.isArray(queueData) || queueData.length === 0) return;
+        const idx = Math.max(0, Math.min(startIndex, queueData.length - 1));
+        this.playSong(idx, queueData, { type: 'connect', id: null });
+        if (startPosition > 0 && this.audio) {
+            this.audio.currentTime = startPosition;
+        }
+    }
+
+    /**
+     * Look a song up by id and play it locally. Prefers the current queue,
+     * falls back to the app's loaded library, then to a server fetch.
+     * @param {number|string} songId
+     * @param {number} [position] - seconds to start at
+     */
+    async _connectPlaySongById(songId, position = 0) {
+        const wantedId = Number(songId);
+
+        // 1) Already in the current queue?
+        const queueIndex = this.playlist.findIndex(s => Number(s.id) === wantedId);
+        if (queueIndex !== -1) {
+            this.playSong(queueIndex);
+            if (position > 0) this.audio.currentTime = position;
+            return;
+        }
+
+        // 2) In the app's loaded library?
+        /** @type {import('./app.js').RainyApp | undefined} */
+        const app = window.app;
+        const librarySong = app?.songs?.find(s => Number(s.id) === wantedId);
+        if (librarySong) {
+            this.playSong(0, [librarySong], { type: 'connect', id: null });
+            if (position > 0) this.audio.currentTime = position;
+            return;
+        }
+
+        // 3) Fetch from the server.
+        const result = await useMusicService().fetch(songId);
+        const song = result?.value?.song;
+        if (result.error || !song) {
+            Logger.warn('Connect: could not resolve song', songId, result.error);
+            window.showToast?.('Could not play the requested song', 'error');
+            return;
+        }
+        this.playSong(0, [song], { type: 'connect', id: null });
+        if (position > 0) this.audio.currentTime = position;
+    }
+
+    /**
+     * Set volume (0..1) and sync both sliders + gradient fill.
+     * @param {number} volume
+     */
+    setVolume(volume) {
+        if (!this.audio) return;
+        const v = Math.max(0, Math.min(1, volume));
+        this.audio.volume = v;
+        try {
+            localStorage.setItem('rainy_volume', v.toString());
+        } catch (e) { /* ignore */ }
+        if (this.volumeSlider) this.volumeSlider.value = Math.round(v * 100);
+        this.updateVolumeGradient();
+        if (this.fsVolumeSlider) {
+            this.fsVolumeSlider.value = Math.round(v * 100);
+            this.updateFsVolumeGradient();
+        }
+    }
+
+    /**
+     * Set the repeat mode directly ('none' | 'all' | 'one') and update the UI.
+     * Cycles via toggleRepeat() when the target differs from the current mode.
+     * @param {'none'|'all'|'one'} mode
+     */
+    setRepeatMode(mode) {
+        const modes = ['none', 'all', 'one'];
+        if (!modes.includes(mode) || this.repeatMode === mode) return;
+        // toggleRepeat cycles none -> all -> one; at most two cycles needed
+        this.toggleRepeat();
+        if (this.repeatMode !== mode) this.toggleRepeat();
+    }
+
+    /** Open the Rainy Connect device picker. */
+    openConnectModal() {
+        /** @type {import('./components/connectModal.js').ConnectModal | null} */
+        const modal = document.querySelector('rainy-connect-modal');
+        if (modal) {
+            modal.show();
+        } else {
+            window.showToast?.('Connect is not available', 'error');
+        }
+    }
+
+    /** Briefly light up the Connect button when a remote command lands. */
+    _connectFlashButton() {
+        const btn = document.getElementById('connect-btn');
+        if (!btn) return;
+        btn.classList.add('remote-active');
+        clearTimeout(this._connectFlashTimeout);
+        this._connectFlashTimeout = setTimeout(() => btn.classList.remove('remote-active'), 1500);
+    }
+
+    /** Fire-and-forget deregister so we vanish from other devices on unload. */
+    _connectDeregister() {
+        if (!this._connectDeviceId) return;
+        const url = `/api/connect/device/${encodeURIComponent(this._connectDeviceId)}`;
+        try {
+            if (navigator.sendBeacon) {
+                // sendBeacon can't send DELETE — a POST to the same path is the
+                // closest reliable approximation during unload.
+                navigator.sendBeacon(url, new Blob([], { type: 'application/json' }));
+            }
+            fetch(url, { method: 'DELETE', keepalive: true }).catch(() => { });
+        } catch (e) { /* best effort */ }
+    }
+
+    /* ========================================================================
+       Controller Mode — this player becomes a remote control for another device
+       ======================================================================== */
+
+    /**
+     * Enter controller mode: stop local playback, mirror the remote device's
+     * state on the player bar, and route all controls as Connect commands.
+     * @param {{ device_id: string, device_name: string }} device
+     */
+    _startControllerMode(device) {
+        if (!device?.device_id) return;
+
+        // Clean up any existing controller mode first
+        if (this._controllerTarget) {
+            this._stopControllerMode();
+        }
+
+        // Stop local audio
+        if (this.audio) {
+            this.audio.pause();
+            this.audio.currentTime = 0;
+        }
+        this.isPlaying = false;
+
+        this._controllerTarget = { device_id: device.device_id, device_name: device.device_name };
+        this._controllerState = null;
+        this._controllerPollFailures = 0;
+
+        // Show the controller banner
+        this._showControllerBanner(device.device_name);
+
+        // Immediately fetch remote state, then poll every 1s
+        this._controllerPoll();
+        this._controllerPollTimer = setInterval(() => this._controllerPoll(), 1000);
+
+        window.showToast?.(`Controlling ${device.device_name}`, 'success');
+    }
+
+    /** Exit controller mode and restore local player state. */
+    _stopControllerMode() {
+        this._controllerTarget = null;
+        this._controllerState = null;
+        if (this._controllerPollTimer) {
+            clearInterval(this._controllerPollTimer);
+            this._controllerPollTimer = null;
+        }
+        this._hideControllerBanner();
+        // Restore player bar to local state
+        if (this.currentSong) this.updateNowPlaying(this.currentSong);
+        this._updatePlayPauseIcon();
+        window.showToast?.('Back to local playback', 'info');
+    }
+
+    /** @returns {boolean} true when this player is in controller mode */
+    get isControllerMode() {
+        return !!this._controllerTarget;
+    }
+
+    /** Send a command to the controlled device. */
+    async _controllerCommand(command, args = {}) {
+        if (!this._controllerTarget) return;
+        this._lastControllerCommandMs = Date.now();
+        try {
+            await useConnectService().sendCommand(this._controllerTarget.device_id, command, args);
+        } catch (e) {
+            Logger.warn('Controller command failed:', command, e);
+        }
+    }
+
+    /** Poll the controlled device's state and mirror it on the player bar. */
+    async _controllerPoll() {
+        if (!this._controllerTarget) return;
+        try {
+            const result = await useConnectService().getDevice(this._controllerTarget.device_id);
+            const device = result?.value?.device;
+            if (!device) {
+                // Transient failure — only give up after several consecutive misses
+                this._controllerPollFailures++;
+                if (this._controllerPollFailures >= 5) {
+                    this._stopControllerMode();
+                    window.showToast?.('Controlled device went offline', 'info');
+                }
+                return;
+            }
+            this._controllerPollFailures = 0;
+            
+            // Skip stale responses: if we just sent a command, the remote might
+            // not have processed it yet, so this response is outdated.
+            const now = Date.now();
+            if (now - this._lastControllerCommandMs < 1500) {
+                return; // Too soon — wait for the next poll
+            }
+            
+            this._controllerState = device;
+            this._mirrorControllerState(device);
+        } catch (e) {
+            this._controllerPollFailures++;
+            if (this._controllerPollFailures >= 5) {
+                this._stopControllerMode();
+                window.showToast?.('Controlled device went offline', 'info');
+            }
+        }
+    }
+
+    /** Update the player bar UI to reflect the remote device's state. */
+    _mirrorControllerState(device) {
+        // Now-playing info (player bar)
+        if (this.nowPlayingTitle) this.nowPlayingTitle.textContent = device.song_title || 'Nothing playing';
+        if (this.nowPlayingArtist) this.nowPlayingArtist.textContent = device.song_artist || (device.song_title ? '' : 'Select a song to play');
+        if (this.nowPlayingArtwork) {
+            const img = this.nowPlayingArtwork.querySelector('img');
+            if (device.cover_path) {
+                const src = `/api/music/cover/${encodeURIComponent(device.cover_path)}`;
+                if (!img || !img.src.startsWith(src)) {
+                    this.nowPlayingArtwork.innerHTML = `<img src="${src}" alt="">`;
+                }
+            } else {
+                this.nowPlayingArtwork.innerHTML = '';
+            }
+        }
+
+        // Fullscreen player info
+        if (this.fsTitle) this.fsTitle.textContent = device.song_title || 'Nothing playing';
+        if (this.fsArtist) this.fsArtist.textContent = device.song_artist || (device.song_title ? '' : 'Select a song to play');
+        if (this.fsArtwork) {
+            const img = this.fsArtwork.querySelector('img');
+            if (device.cover_path) {
+                const src = `/api/music/cover/${encodeURIComponent(device.cover_path)}`;
+                if (!img || !img.src.startsWith(src)) {
+                    this.fsArtwork.innerHTML = `<img src="${src}" alt="">`;
+                }
+            } else {
+                this.fsArtwork.innerHTML = '';
+            }
+        }
+        if (this.fsBackdrop && device.cover_path) {
+            const src = `/api/music/cover/${encodeURIComponent(device.cover_path)}`;
+            this.fsBackdrop.style.backgroundImage = `url(${src})`;
+        }
+
+        // Queue: mirror remote queue into local playlist and re-render
+        const remoteQueue = device.queue;
+        const remoteIndex = device.queue_index ?? 0;
+        if (Array.isArray(remoteQueue) && remoteQueue.length > 0) {
+            // Only update if the queue actually changed (compare by IDs)
+            const newIds = remoteQueue.map(s => s?.id).join(',');
+            const oldIds = (this.playlist || []).map(s => s?.id).join(',');
+            if (newIds !== oldIds) {
+                this.playlist = remoteQueue;
+                this.currentIndex = remoteIndex;
+                this.renderFullscreenQueue();
+            } else if (remoteIndex !== this.currentIndex) {
+                this.currentIndex = remoteIndex;
+                this.renderFullscreenQueue();
+            }
+        }
+
+        // Lyrics: load for the remote song when it changes
+        const remoteSongId = device.song_id;
+        if (remoteSongId != null && remoteSongId !== this.lyricsSongId && this.lyricsActive) {
+            this.loadLyrics(remoteSongId);
+        }
+
+        // Play/pause icon
+        this.isPlaying = !!device.is_playing;
+        this._updatePlayPauseIcon();
+
+        // Progress bar
+        const duration = device.duration || 0;
+        const position = device.position || 0;
+        if (this.progressFill) {
+            this.progressFill.style.width = duration > 0 ? `${Math.min(100, (position / duration) * 100)}%` : '0%';
+        }
+        if (this.fsProgressFill) {
+            this.fsProgressFill.style.width = duration > 0 ? `${Math.min(100, (position / duration) * 100)}%` : '0%';
+        }
+        // Time labels
+        if (this.currentTimeEl) this.currentTimeEl.textContent = this.formatTime(position);
+        if (this.totalTimeEl) this.totalTimeEl.textContent = this.formatTime(duration);
+        if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(position);
+        if (this.fsTotalTimeEl) this.fsTotalTimeEl.textContent = this.formatTime(duration);
+
+        // Volume
+        const vol = Math.max(0, Math.min(100, device.volume ?? 80));
+        if (this.volumeSlider) {
+            this.volumeSlider.value = vol;
+            this.updateVolumeGradient?.();
+        }
+        if (this.fsVolumeSlider) {
+            this.fsVolumeSlider.value = vol;
+            this.updateFsVolumeGradient?.();
+        }
+
+        // Shuffle / repeat visual state
+        if (this.shuffleBtn) {
+            const color = device.is_shuffled ? 'var(--accent-primary)' : '';
+            this.shuffleBtn.style.color = color;
+            const svg = this.shuffleBtn.querySelector('svg');
+            if (svg) svg.style.fill = color;
+        }
+        if (this.fsShuffleBtn) {
+            const color = device.is_shuffled ? 'var(--accent-primary)' : '';
+            this.fsShuffleBtn.style.color = color;
+            const svg = this.fsShuffleBtn.querySelector('svg');
+            if (svg) svg.style.fill = color;
+        }
+        if (this.repeatBtn) {
+            const mode = device.repeat_mode || 'none';
+            const color = mode !== 'none' ? 'var(--accent-primary)' : '';
+            this.repeatBtn.style.color = color;
+            const svg = this.repeatBtn.querySelector('svg');
+            if (svg) svg.style.fill = color;
+        }
+        if (this.fsRepeatBtn) {
+            const mode = device.repeat_mode || 'none';
+            const color = mode !== 'none' ? 'var(--accent-primary)' : '';
+            this.fsRepeatBtn.style.color = color;
+            const svg = this.fsRepeatBtn.querySelector('svg');
+            if (svg) svg.style.fill = color;
+        }
+    }
+
+    /** Show the 'Controlling: X' banner above the player bar. */
+    _showControllerBanner(deviceName) {
+        this._hideControllerBanner();
+        const banner = document.createElement('div');
+        banner.id = 'controller-banner';
+        banner.className = 'controller-banner';
+        banner.innerHTML = `
+            <span class="controller-banner-icon">📡</span>
+            <span class="controller-banner-text">Controlling <strong>${deviceName}</strong></span>
+            <button class="controller-banner-stop" title="Stop controlling">Stop</button>
+        `;
+        banner.querySelector('.controller-banner-stop').addEventListener('click', () => this._stopControllerMode());
+        const playerBar = document.querySelector('.player-bar');
+        if (playerBar) {
+            playerBar.parentNode.insertBefore(banner, playerBar);
+        }
+        this._controllerBanner = banner;
+    }
+
+    _hideControllerBanner() {
+        if (this._controllerBanner) {
+            this._controllerBanner.remove();
+            this._controllerBanner = null;
+        }
+    }
+
+    /** Update the play/pause button icons based on this.isPlaying. */
+    _updatePlayPauseIcon() {
+        if (this.iconPlay) this.iconPlay.classList.toggle('hidden', this.isPlaying);
+        if (this.iconPause) this.iconPause.classList.toggle('hidden', !this.isPlaying);
+        if (this.fsIconPlay) this.fsIconPlay.classList.toggle('hidden', this.isPlaying);
+        if (this.fsIconPause) this.fsIconPause.classList.toggle('hidden', !this.isPlaying);
     }
 
     /**

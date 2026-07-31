@@ -405,6 +405,67 @@ class Database:
             )
         """)
 
+        # Achievements — tracks which achievements each user has unlocked.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_achievements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                achievement_id VARCHAR(64) NOT NULL,
+                unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_user_achievement (user_id, achievement_id),
+                INDEX idx_user (user_id)
+            )
+        """)
+
+        # Rainy Connect — active player device sessions (Spotify-Connect-style).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS connect_sessions (
+                device_id VARCHAR(64) PRIMARY KEY,
+                user_id INT NOT NULL,
+                device_name VARCHAR(128) NOT NULL,
+                device_type VARCHAR(32) NOT NULL DEFAULT 'web',
+                song_id INT NULL,
+                song_title VARCHAR(255) NULL,
+                song_artist VARCHAR(255) NULL,
+                song_album VARCHAR(255) NULL,
+                cover_path VARCHAR(500) NULL,
+                position DOUBLE DEFAULT 0,
+                duration DOUBLE DEFAULT 0,
+                is_playing TINYINT DEFAULT 0,
+                volume INT DEFAULT 100,
+                is_shuffled TINYINT DEFAULT 0,
+                repeat_mode VARCHAR(16) DEFAULT 'off',
+                queue MEDIUMTEXT NULL,
+                queue_index INT DEFAULT 0,
+                last_seen DOUBLE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_user (user_id),
+                INDEX idx_last_seen (last_seen)
+            )
+        """)
+
+        # Migrate: add queue columns to existing connect_sessions tables.
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'connect_sessions' AND column_name = 'queue'
+        """, (Config.MYSQL_DATABASE,))
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue MEDIUMTEXT NULL")
+            cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue_index INT DEFAULT 0")
+
+        # Rainy Connect — remote-control command queue (polled by target device).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS connect_commands (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                device_id VARCHAR(64) NOT NULL,
+                command VARCHAR(32) NOT NULL,
+                args TEXT NULL,
+                created_at DOUBLE NOT NULL,
+                INDEX idx_device (user_id, device_id)
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

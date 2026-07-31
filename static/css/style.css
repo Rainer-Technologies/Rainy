@@ -21,6 +21,7 @@
 @import url('./components/context-menu.css');
 @import url('./components/settings-page.css');
 @import url('./components/new-features.css');
+@import url('./components/connect.css');
 
 /* Pages */
 @import url('./pages/setup.css');
@@ -28,3 +29,4 @@
 @import url('./pages/library.css');
 @import url('./pages/discover.css');
 @import url('./pages/artists.css');
+@import url('./pages/achievements.css');
