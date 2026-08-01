@@ -733,7 +733,7 @@ rainy-song-settings-modal .ss-cover svg {
 
 .ss-nav.active {
     color: var(--accent-primary);
-    background: rgba(250, 88, 106, 0.1);
+    background: rgba(61, 125, 196, 0.1);
 }
 
 .ss-nav.active svg {
@@ -749,7 +749,7 @@ rainy-song-settings-modal .ss-cover svg {
     width: 3px;
     border-radius: 0 3px 3px 0;
     background: var(--accent-primary);
-    box-shadow: 0 0 8px rgba(250, 88, 106, 0.7);
+    box-shadow: 0 0 8px rgba(61, 125, 196, 0.7);
     opacity: 0;
     transform: scaleY(0);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -810,7 +810,7 @@ rainy-song-settings-modal .ss-cover svg {
     flex: 1;
     min-height: 4px;
     border-radius: 2px 2px 0 0;
-    background: rgba(250, 88, 106, 0.38);
+    background: rgba(61, 125, 196, 0.38);
     transform-origin: bottom;
     animation: ssEqIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
     transition: background 0.12s, box-shadow 0.12s, filter 0.12s;
@@ -818,7 +818,7 @@ rainy-song-settings-modal .ss-cover svg {
 
 .ss-wave-bar.hot {
     background: var(--accent-primary);
-    box-shadow: 0 0 8px rgba(250, 88, 106, calc(0.75 * var(--hot, 1)));
+    box-shadow: 0 0 8px rgba(61, 125, 196, calc(0.75 * var(--hot, 1)));
     filter: brightness(calc(1 + 0.5 * var(--hot, 1)));
 }
 
@@ -972,7 +972,7 @@ rainy-song-settings-modal .ss-cover svg {
 .ss-seg button.active {
     background: var(--accent-primary);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(250, 88, 106, 0.35);
+    box-shadow: 0 2px 8px rgba(61, 125, 196, 0.35);
 }
 
 /* --- Action rows --- */
@@ -1218,8 +1218,8 @@ rainy-song-settings-modal .ss-cover svg {
     font-size: 12px;
     font-weight: 500;
     color: var(--accent-primary);
-    background: rgba(250, 88, 106, 0.1);
-    border: 1px solid rgba(250, 88, 106, 0.2);
+    background: rgba(61, 125, 196, 0.1);
+    border: 1px solid rgba(61, 125, 196, 0.2);
     border-radius: 999px;
     cursor: default;
 }
@@ -1377,7 +1377,7 @@ rainy-song-settings-modal .ss-cover svg {
 
 .add-music-method.active {
     border-color: var(--accent-primary);
-    background: var(--accent-bg-subtle, rgba(250, 88, 106, 0.08));
+    background: var(--accent-bg-subtle, rgba(61, 125, 196, 0.08));
 }
 
 .method-icon {
@@ -1490,7 +1490,7 @@ rainy-song-settings-modal .ss-cover svg {
 .upload-dropzone-modern:hover,
 .upload-dropzone-modern.dragover {
     border-color: var(--accent-primary);
-    background: var(--accent-bg-subtle, rgba(250, 88, 106, 0.05));
+    background: var(--accent-bg-subtle, rgba(61, 125, 196, 0.05));
 }
 
 .upload-dropzone-modern:hover .dropzone-icon-glow,
@@ -1808,7 +1808,7 @@ rainy-song-settings-modal .ss-cover svg {
 .upload-dropzone:hover,
 .upload-dropzone.dragover {
     border-color: var(--accent-primary);
-    background: rgba(250, 88, 106, 0.05);
+    background: rgba(61, 125, 196, 0.05);
 }
 
 .upload-dropzone svg {
@@ -2168,8 +2168,8 @@ rainy-song-settings-modal .ss-cover svg {
 
 .icon-picker-btn.selected {
     border-color: var(--accent-primary);
-    background: var(--accent-bg-subtle, rgba(250, 88, 106, 0.1));
-    box-shadow: 0 0 0 3px var(--accent-bg-subtle, rgba(250, 88, 106, 0.15));
+    background: var(--accent-bg-subtle, rgba(61, 125, 196, 0.1));
+    box-shadow: 0 0 0 3px var(--accent-bg-subtle, rgba(61, 125, 196, 0.15));
 }
 
 .icon-picker-btn svg {

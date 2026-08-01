@@ -1068,7 +1068,7 @@
     color: var(--text-primary, #fff);
 }
 .so-title svg {
-    color: var(--accent-primary, #fa586a);
+    color: var(--accent-primary, #3d7dc4);
 }
 .so-close {
     background: none;
@@ -1103,7 +1103,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--accent-primary, #fa586a);
+    color: var(--accent-primary, #3d7dc4);
     margin-bottom: 8px;
 }
 .so-group-icon {

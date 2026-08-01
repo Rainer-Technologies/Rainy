@@ -29,7 +29,7 @@
 
 .discover-search-container .search-bar-wrapper:focus-within {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 4px rgba(250, 88, 106, 0.15);
+    box-shadow: 0 0 0 4px rgba(61, 125, 196, 0.15);
     background: var(--bg-tertiary);
 }
 

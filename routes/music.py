@@ -1373,15 +1373,34 @@ def download_song(song_id):
 @music_bp.route('/discover/search', methods=['GET'])
 @require_auth
 def discover_search():
-    """Search for songs on YouTube Music."""
+    """Search for songs on YouTube Music, flagging any already in the library."""
     try:
         query = request.args.get('q', '').strip()
         if not query:
             return jsonify([])
-            
+
         from utils.metadata import MetadataSearcher
+        from models.duplicates import _norm
+        from models.database import Database
+
         searcher = MetadataSearcher()
         results = searcher.search(query)
+
+        # Build a normalized title+artist -> song id lookup from the library so
+        # the client can mark tracks that are already downloaded.
+        lib_rows = Database.execute_query(
+            "SELECT id, title, artist FROM songs", fetch_all=True)
+        lib_index = {}
+        for row in lib_rows:
+            key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))
+            lib_index.setdefault(key, row['id'])
+
+        for song in results:
+            key = _norm(song.get('title')) + '||' + _norm(song.get('artist'))
+            match_id = lib_index.get(key)
+            song['in_library'] = match_id is not None
+            song['library_song_id'] = match_id
+
         return jsonify(results)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1390,59 +1409,96 @@ def discover_search():
 @music_bp.route('/discover/preview/<video_id>', methods=['GET'])
 @require_auth
 def discover_preview(video_id):
-    """Proxy the audio stream from YouTube for previewing."""
+    """Proxy the audio stream from YouTube for previewing.
+
+    Supports HTTP Range requests so clients can seek. The extracted googlevideo
+    URL is cached briefly so seeking doesn't re-run the (slow) yt-dlp
+    extraction on every byte-range request.
+    """
+    import time
+    import yt_dlp
+    import requests
+    from flask import Response, stream_with_context
+
     try:
-        import time
-        import yt_dlp
-        import requests
-        from flask import Response, stream_with_context
-        
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'no_warnings': True,
-        }
-        
-        stream_url = None
-        last_error = None
-        for attempt in range(1, 4):
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    stream_url = info.get('url')
-                break
-            except Exception as e:
-                last_error = str(e)
-                if attempt < 3:
-                    delay = 2 * (2 ** (attempt - 1))
-                    print(f"⚠️  YouTube preview extraction failed (attempt {attempt}/3): {last_error}")
-                    print(f"   Retrying in {delay}s…")
-                    time.sleep(delay)
-                else:
-                    print(f"❌ YouTube preview extraction failed after 3 attempts: {last_error}")
-            
-        if not stream_url:
-            return jsonify({'error': f'Failed to extract stream URL after 3 attempts: {last_error}'}), 404
-            
-        # Set request headers for streaming
+        # --- Resolve the direct stream URL (cached per video for 5 minutes) ---
+        cache = getattr(discover_preview, '_url_cache', None)
+        if cache is None:
+            cache = {}
+            discover_preview._url_cache = cache
+
+        entry = cache.get(video_id)
+        now = time.time()
+        if entry and entry['expires'] > now:
+            stream_url = entry['url']
+        else:
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'quiet': True,
+                'no_warnings': True,
+            }
+            stream_url = None
+            last_error = None
+            for attempt in range(1, 4):
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        stream_url = info.get('url')
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    if attempt < 3:
+                        delay = 2 * (2 ** (attempt - 1))
+                        print(f"⚠️  YouTube preview extraction failed (attempt {attempt}/3): {last_error}")
+                        time.sleep(delay)
+                    else:
+                        print(f"❌ YouTube preview extraction failed after 3 attempts: {last_error}")
+
+            if not stream_url:
+                return jsonify({'error': f'Failed to extract stream URL: {last_error}'}), 404
+
+            # Cache for 5 minutes (googlevideo URLs last hours, but keep it fresh).
+            cache[video_id] = {'url': stream_url, 'expires': now + 300}
+            # Trim cache if it grows unbounded.
+            if len(cache) > 200:
+                for k in [k for k, v in cache.items() if v['expires'] <= now]:
+                    cache.pop(k, None)
+
+        # --- Proxy the (possibly ranged) request to googlevideo ---
         req_headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
         }
         if 'Range' in request.headers:
             req_headers['Range'] = request.headers['Range']
-            
+
         r = requests.get(stream_url, headers=req_headers, stream=True, timeout=15)
-        
+
+        # If googlevideo rejected a stale cached URL, re-extract once and retry.
+        if r.status_code >= 400 and 'Range' not in request.headers:
+            cache.pop(video_id, None)
+            try:
+                with yt_dlp.YoutubeDL({'format': 'bestaudio/best', 'quiet': True, 'no_warnings': True}) as ydl:
+                    stream_url = ydl.extract_info(
+                        f"https://www.youtube.com/watch?v={video_id}",
+                        download=False).get('url')
+                if stream_url:
+                    cache[video_id] = {'url': stream_url, 'expires': time.time() + 300}
+                    r = requests.get(stream_url, headers=req_headers, stream=True, timeout=15)
+            except Exception:
+                pass
+
         res_headers = {}
         for h in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges']:
             if h in r.headers:
                 res_headers[h] = r.headers[h]
-                
+        # Guarantee clients know they can seek.
+        res_headers.setdefault('Accept-Ranges', 'bytes')
+
         def generate():
-            for chunk in r.iter_content(chunk_size=4096):
+            for chunk in r.iter_content(chunk_size=8192):
                 yield chunk
-                
+
         return Response(
             stream_with_context(generate()),
             status=r.status_code,

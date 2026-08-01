@@ -21,7 +21,7 @@
     gap: var(--spacing-xl);
     padding: var(--spacing-xl) var(--spacing-2xl);
     background:
-        radial-gradient(600px 240px at 8% 0%, rgba(250, 88, 106, 0.14), transparent 65%),
+        radial-gradient(600px 240px at 8% 0%, rgba(61, 125, 196, 0.14), transparent 65%),
         radial-gradient(480px 220px at 92% 100%, rgba(252, 61, 90, 0.10), transparent 60%),
         var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -240,7 +240,7 @@
 .achievements-category-count.complete {
     color: var(--accent-primary);
     border-color: var(--accent-glow);
-    background: rgba(250, 88, 106, 0.1);
+    background: rgba(61, 125, 196, 0.1);
 }
 
 .achievements-category-rule {
@@ -372,7 +372,7 @@
 .achievement-card.unlocked {
     border-color: var(--accent-glow);
     background:
-        radial-gradient(220px 120px at 100% 0%, rgba(250, 88, 106, 0.10), transparent 70%),
+        radial-gradient(220px 120px at 100% 0%, rgba(61, 125, 196, 0.10), transparent 70%),
         var(--bg-secondary);
 }
 

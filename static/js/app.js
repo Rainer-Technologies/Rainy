@@ -177,7 +177,7 @@ export class RainyApp {
 
         // Reset Theme
         document.getElementById('reset-theme-btn')?.addEventListener('click', () => {
-            const defaultColor = '#fa586a';
+            const defaultColor = '#3d7dc4';
             if (colorInput) colorInput.value = defaultColor;
             document.getElementById('settings-accent-color-value').textContent = defaultColor;
             this.applyTheme(defaultColor);
@@ -2685,7 +2685,7 @@ export class RainyApp {
         document.getElementById('change-password-form')?.reset();
 
         // Set current color in picker
-        let currentColor = '#fa586a';
+        let currentColor = '#3d7dc4';
         let currentFsMode = 'standard';
         let currentLyricsEffect = 'default';
         let swap = false;

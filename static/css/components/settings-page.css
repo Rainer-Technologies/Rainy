@@ -395,7 +395,7 @@
 
 .settings-radio-item.selected {
     border-color: var(--accent-primary);
-    background: var(--accent-bg-subtle, rgba(250, 88, 106, 0.08));
+    background: var(--accent-bg-subtle, rgba(61, 125, 196, 0.08));
 }
 
 .settings-radio-circle {

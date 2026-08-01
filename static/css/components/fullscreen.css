@@ -289,24 +289,25 @@
 .fs-logo {
     width: 32px;
     height: 32px;
-    background: var(--accent-gradient);
     border-radius: var(--radius-sm);
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+    box-shadow: 0 4px 12px rgba(61, 125, 196, 0.3);
 }
 
-.fs-logo svg {
-    width: 18px;
-    height: 18px;
-    fill: white;
+.fs-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
 }
 
 .fs-brand-title {
     font-size: var(--font-size-lg);
     font-weight: 700;
-    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, #a855f7 100%);
+    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, #8cc5e8 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -663,7 +664,7 @@
 }
 
 .fs-queue-menu-item.active.liked:hover {
-    background: rgba(var(--accent-primary-rgb, 250, 88, 106), 0.15);
+    background: rgba(var(--accent-primary-rgb, 61, 125, 196), 0.15);
 }
 
 .fs-queue-menu-item.active.disliked {
@@ -1117,9 +1118,9 @@
         height: 26px;
     }
 
-    .fs-logo svg {
-        width: 14px;
-        height: 14px;
+    .fs-logo img {
+        width: 100%;
+        height: 100%;
     }
 
     .fs-brand-title {

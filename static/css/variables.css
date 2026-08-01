@@ -14,11 +14,12 @@
     --bg-hover: rgba(255, 255, 255, 0.05);
     --bg-highlight: rgba(255, 255, 255, 0.08);
 
-    /* Accent Colors */
-    --accent-primary: #fa586a;
-    --accent-secondary: #fc3d5a;
-    --accent-gradient: linear-gradient(135deg, #fa586a 0%, #fc3d5a 50%, #ff2d55 100%);
-    --accent-glow: rgba(250, 88, 106, 0.3);
+    /* Accent Colors — derived from the Rainy logo (cobalt hair + cyan raindrops) */
+    --accent-primary: #3d7dc4;
+    --accent-secondary: #2b497c;
+    --accent-gradient: linear-gradient(135deg, #5b9be0 0%, #3d7dc4 50%, #2b497c 100%);
+    --accent-glow: rgba(61, 125, 196, 0.3);
+    --accent-primary-rgb: 61, 125, 196;
 
     /* Text Colors */
     --text-primary: #ffffff;
