@@ -125,6 +125,7 @@ export class KeyboardShortcuts {
 
     _syncVolumeUI() {
         const p = this.player;
+        if (p && p.syncVolumeUI) { p.syncVolumeUI(); return; }
         const slider = document.getElementById('volume-slider');
         if (slider && p.audio) slider.value = p.audio.muted ? 0 : p.audio.volume * 100;
     }
