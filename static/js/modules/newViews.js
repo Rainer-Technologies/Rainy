@@ -350,7 +350,7 @@ export class NewViews {
                         <div class="stat-label">Active Days</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${Utils.formatDuration(stats.total_seconds || 0)}</div>
+                        <div class="stat-value">${Utils.formatHumanDuration(stats.total_seconds || 0)}</div>
                         <div class="stat-label">Listening Time</div>
                     </div>
                 </div>
