@@ -39,6 +39,10 @@
       "endpoint": "/api/music/youtube-playlist-import",
       "method": "POST",
       "streaming": true,
+      "precheck": {
+        "endpoint": "/api/music/import-playlist-precheck",
+        "source": "youtube"
+      },
       "fields": [
         {
           "key": "url",
@@ -83,6 +87,10 @@
       "endpoint": "/api/music/spotify-playlist-import",
       "method": "POST",
       "streaming": true,
+      "precheck": {
+        "endpoint": "/api/music/import-playlist-precheck",
+        "source": "spotify"
+      },
       "fields": [
         {
           "key": "url",

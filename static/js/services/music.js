@@ -103,7 +103,7 @@ export class MusicService extends Service {
          *  song_count: number;
          * }, ErrorModel | ResponseError>>}
          */
-        importPlaylist: async (url, onProgress) => {
+        importPlaylist: async (url, onProgress, conflictMode) => {
             try {
                 const response = await fetch(this.url('/youtube-playlist-import'), {
                     method: 'POST',
@@ -111,7 +111,7 @@ export class MusicService extends Service {
                         'Content-Type': 'application/json'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ url, conflict_mode: conflictMode })
                 });
 
                 if (!response.ok) {
@@ -209,7 +209,7 @@ export class MusicService extends Service {
          *  failed_count: number;
          * }, ErrorModel | ResponseError>>}
          */
-        importPlaylist: async (url, onProgress) => {
+        importPlaylist: async (url, onProgress, conflictMode) => {
             try {
                 const response = await fetch(this.url('/spotify-playlist-import'), {
                     method: 'POST',
@@ -217,7 +217,7 @@ export class MusicService extends Service {
                         'Content-Type': 'application/json'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ url, conflict_mode: conflictMode })
                 });
 
                 if (!response.ok) {
@@ -290,6 +290,19 @@ export class MusicService extends Service {
                 return Err({ error: e?.message ?? String(e) });
             }
         }
+    };
+
+    /**
+     * Resolve an import's playlist name and check for a name collision before
+     * downloading anything.
+     * @param {'youtube'|'spotify'} source
+     * @param {string} url
+     */
+    precheckImportPlaylist = async (source, url) => {
+        return this.wrap(RequestHelper.request(this.url('/import-playlist-precheck'), {
+            method: 'POST',
+            body: { source, url }
+        }));
     };
 
     discover = {

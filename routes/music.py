@@ -590,6 +590,101 @@ def youtube_import():
         return jsonify({'error': str(e)}), 500
 
 
+@music_bp.route('/import-playlist-precheck', methods=['POST'])
+@require_auth
+def import_playlist_precheck():
+    """Resolve the name of an imported playlist and report whether a playlist
+    with that name already exists, so the client can offer Add vs Override
+    before any downloading happens.
+
+    Body: { source: 'youtube'|'spotify', url }
+    Returns: { success, playlist_name, exists, existing_id }
+    """
+    try:
+        from models.playlist import PlaylistModel
+
+        data = request.get_json() or {}
+        source = (data.get('source') or '').lower()
+        url = (data.get('url') or '').strip()
+
+        if not url:
+            return jsonify({'error': 'No URL provided'}), 400
+
+        playlist_name = None
+        try:
+            if source == 'youtube':
+                from utils.youtube import YouTubeDownloader
+                music_path = SettingsModel.get_music_path()
+                downloader = YouTubeDownloader(music_path)
+                info = downloader._extract_playlist_info(url)
+                if info:
+                    playlist_name = info.get('title') or 'Imported Playlist'
+            elif source == 'spotify':
+                from utils.spotify import SpotifyImporter
+                importer = SpotifyImporter()
+                pdata = importer.fetch_playlist(url)
+                if pdata.get('success'):
+                    playlist_name = pdata.get('name') or 'Imported Playlist'
+            else:
+                return jsonify({'error': 'Unknown source'}), 400
+        except Exception as e:
+            return jsonify({'error': f'Could not read playlist: {e}'}), 400
+
+        if not playlist_name:
+            return jsonify({'error': 'Could not determine playlist name'}), 400
+
+        existing = PlaylistModel.get_playlist_by_name(playlist_name)
+        return jsonify({
+            'success': True,
+            'playlist_name': playlist_name,
+            'exists': bool(existing),
+            'existing_id': existing['id'] if existing else None,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+class _ImportPlaylistConflict(Exception):
+    """Raised when an import targets a playlist name that already exists and
+    no explicit conflict_mode was supplied."""
+
+
+def _resolve_import_playlist(playlist_model, playlist_name, conflict_mode):
+    """Decide which playlist an import should write into.
+
+    conflict_mode:
+      - None / 'ask'  -> create new, but raise if name already exists
+      - 'add'         -> reuse the existing playlist (append new songs)
+      - 'override'    -> reuse the existing playlist but wipe its songs first
+      - 'new'         -> always create a fresh playlist (auto-suffix name)
+
+    Returns the playlist id to write into.
+    """
+    existing = playlist_model.get_playlist_by_name(playlist_name)
+
+    if conflict_mode in ('add', 'override') and existing:
+        if conflict_mode == 'override':
+            playlist_model.clear_playlist_entries(existing['id'])
+        return existing['id']
+
+    if conflict_mode == 'new':
+        # Force a unique name so we never collide.
+        base = playlist_name
+        n = 2
+        name = f"{base} ({n})"
+        while playlist_model.get_playlist_by_name(name):
+            n += 1
+            name = f"{base} ({n})"
+        return playlist_model.create_playlist(name)
+
+    # Default behaviour: create, but refuse to silently clobber an existing one.
+    if existing:
+        raise _ImportPlaylistConflict(
+            f"A playlist named “{playlist_name}” already exists"
+        )
+    return playlist_model.create_playlist(playlist_name)
+
+
 @music_bp.route('/youtube-playlist-import', methods=['POST'])
 @require_auth
 def youtube_playlist_import():
@@ -685,7 +780,9 @@ def youtube_playlist_import():
                 
                 created_playlist_id = None
                 try:
-                    created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+                    created_playlist_id = _resolve_import_playlist(
+                        PlaylistModel, playlist_name, data.get('conflict_mode')
+                    )
                 except Exception as e:
                     yield json.dumps({
                         'type': 'error',
@@ -891,7 +988,9 @@ def spotify_playlist_import():
 
             created_playlist_id = None
             try:
-                created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+                created_playlist_id = _resolve_import_playlist(
+                    PlaylistModel, playlist_name, data.get('conflict_mode')
+                )
             except Exception as e:
                 yield json.dumps({
                     'type': 'error',
@@ -2289,5 +2388,70 @@ def toggle_artist_on_song(artist_name, song_id):
         new_artist_str = ', '.join(artists) if artists else 'Unknown Artist'
         Database.execute_query("UPDATE songs SET artist = %s WHERE id = %s", (new_artist_str, song_id))
         return jsonify({'success': True, 'new_artist': new_artist_str})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@music_bp.route('/duplicates', methods=['GET'])
+@require_auth
+def get_duplicates():
+    """Find groups of duplicate songs in the library."""
+    try:
+        from models.duplicates import DuplicateModel
+        groups = DuplicateModel.find_groups()
+        total_dupes = sum(len(g['songs']) - 1 for g in groups)
+        return jsonify({
+            'success': True,
+            'groups': groups,
+            'group_count': len(groups),
+            'duplicate_count': total_dupes,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/duplicates/merge', methods=['POST'])
+@require_auth
+def merge_duplicates():
+    """Merge a group of duplicate songs into one keeper.
+
+    Body: { song_ids: [..], keeper_id?: int }
+    """
+    try:
+        from models.duplicates import DuplicateModel
+        data = request.get_json() or {}
+        song_ids = data.get('song_ids') or []
+        keeper_id = data.get('keeper_id')
+        result = DuplicateModel.merge_group(song_ids, keeper_id=keeper_id)
+        if not result.get('success'):
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/duplicates/merge-all', methods=['POST'])
+@require_auth
+def merge_all_duplicates():
+    """Auto-merge every duplicate group, keeping the best candidate in each."""
+    try:
+        from models.duplicates import DuplicateModel
+        groups = DuplicateModel.find_groups()
+        merged = 0
+        removed = 0
+        for g in groups:
+            ids = [s['id'] for s in g['songs']]
+            try:
+                res = DuplicateModel.merge_group(ids)
+                if res.get('success'):
+                    merged += 1
+                    removed += res.get('removed_count', 0)
+            except Exception as e:
+                print(f"merge group failed: {e}")
+                continue
+        return jsonify({
+            'success': True,
+            'groups_merged': merged,
+            'songs_removed': removed,
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

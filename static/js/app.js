@@ -357,6 +357,14 @@ export class RainyApp {
             this.runScan(true);
         });
 
+        // Duplicate finder (Library section)
+        document.getElementById('dup-scan-btn')?.addEventListener('click', () => {
+            this.scanDuplicates();
+        });
+        document.getElementById('dup-merge-all-btn')?.addEventListener('click', () => {
+            this.mergeAllDuplicates();
+        });
+
         document.getElementById('scrape-artists-btn')?.addEventListener('click', () => {
             this.runScrapeArtists();
         });
@@ -662,6 +670,139 @@ export class RainyApp {
 
         quickScanBtn.disabled = false;
         fullScanBtn.disabled = false;
+    }
+
+    async scanDuplicates() {
+        const btn = document.getElementById('dup-scan-btn');
+        const results = document.getElementById('dup-results');
+        const summary = document.getElementById('dup-summary');
+        const mergeAllWrap = document.getElementById('dup-merge-all-wrap');
+
+        btn.disabled = true;
+        results.innerHTML = '<p class="settings-row-hint" style="padding:12px 0;">Scanning library…</p>';
+
+        try {
+            const res = await fetch('/api/music/duplicates', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || 'Scan failed');
+
+            const groups = data.groups || [];
+            document.getElementById('dup-group-count').textContent = data.group_count || 0;
+            document.getElementById('dup-redundant-count').textContent = data.duplicate_count || 0;
+            summary.style.display = '';
+            mergeAllWrap.style.display = groups.length ? '' : 'none';
+
+            if (!groups.length) {
+                results.innerHTML = '<p class="settings-row-hint" style="padding:12px 0;">✓ No duplicates found. Your library is clean.</p>';
+                return;
+            }
+
+            results.innerHTML = '';
+            for (const group of groups) {
+                results.appendChild(this._renderDupGroup(group));
+            }
+        } catch (e) {
+            results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;color:#ff6b6b;">Error: ${e.message}</p>`;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    _renderDupGroup(group) {
+        const wrap = document.createElement('div');
+        wrap.className = 'dup-group';
+        wrap.style.cssText = 'border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-top:12px;';
+
+        const songs = group.songs || [];
+        // First song is the suggested keeper (already sorted by score server-side).
+        songs.forEach((song, idx) => {
+            const row = document.createElement('label');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;';
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = `dup-keep-${group.key}`;
+            radio.value = song.id;
+            radio.checked = idx === 0;
+            radio.style.accentColor = 'var(--accent-color, #fa586a)';
+
+            const badges = [];
+            if (song.likes > 0) badges.push(`♥ ${song.likes}`);
+            if (song.dislikes > 0) badges.push(`👎 ${song.dislikes}`);
+            if (song.playlist_count > 0) badges.push(`▤ ${song.playlist_count}`);
+            if (song.play_count > 0) badges.push(`▶ ${song.play_count}`);
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;';
+            info.innerHTML = `
+                <div style="color:#fff;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ${this._esc(song.title)} ${idx === 0 ? '<span style="color:var(--accent-color,#fa586a);font-size:11px;">(suggested)</span>' : ''}
+                </div>
+                <div style="color:rgba(255,255,255,0.5);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ${this._esc(song.artist)} ${badges.length ? '· ' + badges.join(' · ') : ''}
+                </div>`;
+
+            row.appendChild(radio);
+            row.appendChild(info);
+            wrap.appendChild(row);
+        });
+
+        const mergeBtn = document.createElement('button');
+        mergeBtn.className = 'btn btn-warning';
+        mergeBtn.style.marginTop = '8px';
+        mergeBtn.innerHTML = '<span>Merge into selected</span>';
+        mergeBtn.addEventListener('click', async () => {
+            const chosen = wrap.querySelector(`input[name="dup-keep-${CSS.escape(group.key)}"]:checked`);
+            const keeperId = chosen ? parseInt(chosen.value, 10) : songs[0].id;
+            mergeBtn.disabled = true;
+            mergeBtn.innerHTML = '<span>Merging…</span>';
+            try {
+                const res = await fetch('/api/music/duplicates/merge', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ song_ids: songs.map(s => s.id), keeper_id: keeperId })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Merge failed');
+                this.showToast(`Merged ${data.removed_count} duplicate(s)`, 'success');
+                this.loadLibrary();
+                this.scanDuplicates();
+            } catch (e) {
+                this.showToast(e.message, 'error');
+                mergeBtn.disabled = false;
+                mergeBtn.innerHTML = '<span>Merge into selected</span>';
+            }
+        });
+        wrap.appendChild(mergeBtn);
+        return wrap;
+    }
+
+    async mergeAllDuplicates() {
+        const btn = document.getElementById('dup-merge-all-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span>Merging…</span>';
+        try {
+            const res = await fetch('/api/music/duplicates/merge-all', {
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Merge failed');
+            this.showToast(`Merged ${data.groups_merged} group(s), removed ${data.songs_removed} song(s)`, 'success');
+            this.loadLibrary();
+            this.scanDuplicates();
+        } catch (e) {
+            this.showToast(e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Merge all automatically</span>';
+        }
+    }
+
+    _esc(str) {
+        const div = document.createElement('div');
+        div.textContent = str ?? '';
+        return div.innerHTML;
     }
 
     async runScrapeArtists() {
@@ -2643,6 +2784,7 @@ export class RainyApp {
             'appearance': 'Appearance',
             'player': 'Player',
             'account': 'Account',
+            'library': 'Library',
             'jobs': 'Jobs',
             'users': 'Users'
         };

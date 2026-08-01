@@ -76,7 +76,7 @@ def import_youtube_song(url, music_path, on_progress=None):
     }
 
 
-def import_youtube_playlist(url, music_path, on_progress=None):
+def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='add'):
     """Import a full YouTube / YouTube Music playlist, creating a Rainy playlist."""
     from utils.youtube import YouTubeDownloader
     from utils.scanner import MusicScanner
@@ -105,7 +105,22 @@ def import_youtube_playlist(url, music_path, on_progress=None):
         return {'success': False, 'error': 'No songs were downloaded from the playlist'}
 
     try:
-        created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+        existing = PlaylistModel.get_playlist_by_name(playlist_name)
+        if existing and conflict_mode == 'override':
+            PlaylistModel.clear_playlist_entries(existing['id'])
+            created_playlist_id = existing['id']
+        elif existing and conflict_mode == 'add':
+            created_playlist_id = existing['id']
+        elif existing:
+            # 'new' — create with a unique suffix
+            n = 2
+            name = f"{playlist_name} ({n})"
+            while PlaylistModel.get_playlist_by_name(name):
+                n += 1
+                name = f"{playlist_name} ({n})"
+            created_playlist_id = PlaylistModel.create_playlist(name)
+        else:
+            created_playlist_id = PlaylistModel.create_playlist(playlist_name)
     except Exception as e:  # noqa: BLE001
         return {'success': False, 'error': f'Failed to create playlist: {e}'}
 
@@ -210,7 +225,7 @@ def import_spotify_song(url, music_path, on_progress=None):
     }
 
 
-def import_spotify_playlist(url, music_path, on_progress=None):
+def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='add'):
     """Import a Spotify playlist (each track matched + downloaded from YouTube Music)."""
     from utils.spotify import SpotifyImporter
     from utils.metadata import MetadataSearcher
@@ -235,7 +250,21 @@ def import_spotify_playlist(url, music_path, on_progress=None):
     downloader = YouTubeDownloader(music_path)
 
     try:
-        created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+        existing = PlaylistModel.get_playlist_by_name(playlist_name)
+        if existing and conflict_mode == 'override':
+            PlaylistModel.clear_playlist_entries(existing['id'])
+            created_playlist_id = existing['id']
+        elif existing and conflict_mode == 'add':
+            created_playlist_id = existing['id']
+        elif existing:
+            n = 2
+            name = f"{playlist_name} ({n})"
+            while PlaylistModel.get_playlist_by_name(name):
+                n += 1
+                name = f"{playlist_name} ({n})"
+            created_playlist_id = PlaylistModel.create_playlist(name)
+        else:
+            created_playlist_id = PlaylistModel.create_playlist(playlist_name)
     except Exception as e:  # noqa: BLE001
         return {'success': False, 'error': f'Failed to create playlist: {e}'}
 

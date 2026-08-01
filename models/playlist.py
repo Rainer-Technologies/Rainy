@@ -33,6 +33,18 @@ class PlaylistModel:
         """Get a specific playlist by ID."""
         query = "SELECT * FROM playlists WHERE id = %s"
         return Database.execute_query(query, (playlist_id,), fetch_one=True)
+
+    @staticmethod
+    def get_playlist_by_name(name):
+        """Find an existing playlist by exact (case-insensitive) name."""
+        query = "SELECT * FROM playlists WHERE LOWER(name) = LOWER(%s) LIMIT 1"
+        return Database.execute_query(query, (name,), fetch_one=True)
+
+    @staticmethod
+    def clear_playlist_entries(playlist_id):
+        """Remove every song from a playlist (used by override imports)."""
+        query = "DELETE FROM playlist_entries WHERE playlist_id = %s"
+        return Database.execute_query(query, (playlist_id,))
     
     @staticmethod
     def delete_playlist(playlist_id):

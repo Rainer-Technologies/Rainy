@@ -286,6 +286,58 @@ export class AddMusicModal extends Component {
         return true;
     }
 
+    /**
+     * Precheck an import for a playlist-name collision and, if one exists, ask
+     * the user whether to add to the existing playlist, override it, or create
+     * a new one. Resolves to a conflict_mode ('add' | 'override' | 'new') or
+     * null if the user cancelled. When there is no collision, resolves to
+     * undefined (create normally).
+     */
+    async _resolvePlaylistConflict(source, url) {
+        const pre = await useMusicService().precheckImportPlaylist(source, url);
+        if (pre.error || !pre.value) {
+            // Precheck failed (e.g. couldn't read the playlist). Let the import
+            // proceed and surface the real error there.
+            return undefined;
+        }
+        if (!pre.value.exists) return undefined;
+
+        const name = pre.value.playlist_name;
+        return new Promise((resolve) => {
+            const overlay = h.div(a.class('modal-overlay'),
+                h.div(a.class('modal-content'),
+                    h.div(a.class('modal-header'),
+                        h.div(a.class('modal-header-info'),
+                            h.div(a.class('modal-icon'), I.Note()),
+                            h.div(a.class('modal-header-title'),
+                                h.div('Playlist already exists'),
+                                h.p(a.class('modal-subtitle'), `“${name}” is already in your library`)
+                            )
+                        )
+                    ),
+                    h.div(a.class('modal-body'),
+                        h.p(a.style('color:var(--text-secondary);margin:0 0 16px;line-height:1.5'),
+                            'A playlist with this name already exists. What would you like to do?'),
+                        h.div(a.class('modal-actions'),
+                            h.button(a.class('btn'), on.click(() => done('new')), 'Create new'),
+                            h.button(a.class('btn', 'btn-danger'), on.click(() => done('override')), 'Override'),
+                            h.button(a.class('btn', 'btn-primary'), on.click(() => done('add')), 'Add to existing')
+                        )
+                    )
+                )
+            );
+            const done = (mode) => {
+                overlay.remove();
+                resolve(mode);
+            };
+            // Cancel on backdrop click.
+            overlay.addEventListener('click', (ev) => {
+                if (ev.target === overlay) done(null);
+            });
+            document.body.appendChild(overlay);
+        });
+    }
+
     async importFromYouTube() {
         const urlInput = this._youtubeInput.value;
         const importBtn = this._youtubeImportBtn.value;
@@ -398,11 +450,21 @@ export class AddMusicModal extends Component {
             statusText.textContent = message;
         };
 
-        updateProgress(5, 'Fetching playlist...');
+        updateProgress(5, 'Checking for conflicts...');
+
+        const conflictMode = await this._resolvePlaylistConflict('youtube', url);
+        if (conflictMode === null) {
+            importBtn.disabled = false;
+            status.classList.add('hidden');
+            progressFill.style.width = '0%';
+            return;
+        }
+
+        updateProgress(10, 'Fetching playlist...');
 
         const data = await useMusicService().YouTube.importPlaylist(url, (event) => {
             updateProgress(event.percent, event.message);
-        });
+        }, conflictMode);
 
         if (data.error) {
             Logger.error(data.error);
@@ -541,11 +603,21 @@ export class AddMusicModal extends Component {
             statusText.textContent = message;
         };
 
-        updateProgress(2, 'Fetching playlist from Spotify...');
+        updateProgress(2, 'Checking for conflicts...');
+
+        const conflictMode = await this._resolvePlaylistConflict('spotify', url);
+        if (conflictMode === null) {
+            importBtn.disabled = false;
+            status.classList.add('hidden');
+            progressFill.style.width = '0%';
+            return;
+        }
+
+        updateProgress(5, 'Fetching playlist from Spotify...');
 
         const data = await useMusicService().Spotify.importPlaylist(url, (event) => {
             updateProgress(event.percent, event.message);
-        });
+        }, conflictMode);
 
         if (data.error) {
             Logger.error(data.error);
