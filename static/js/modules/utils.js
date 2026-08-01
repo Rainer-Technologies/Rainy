@@ -17,6 +17,24 @@ export const Utils = {
     },
 
     /**
+     * Format a large number of seconds as a compact human-readable duration
+     * (e.g. "45s", "12m", "1h 45m", "3d 4h"). Best for aggregate totals like
+     * total listening time, where a clock-style mm:ss is misleading.
+     * @param {number} seconds - Duration in seconds
+     * @returns {string} - Human-friendly duration string
+     */
+    formatHumanDuration(seconds) {
+        const s = Math.max(0, Math.floor(Number(seconds) || 0));
+        if (s < 60) return `${s}s`;
+        const days = Math.floor(s / 86400);
+        const hours = Math.floor((s % 86400) / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+        if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+        return `${mins}m`;
+    },
+
+    /**
      * Escape HTML to prevent XSS
      * @param {string} text - Text to escape
      * @returns {string} - Escaped HTML string
