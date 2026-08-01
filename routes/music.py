@@ -2344,10 +2344,11 @@ def get_artist_songs(artist_name):
         all_songs = Database.execute_query(query, fetch_all=True)
 
         songs_out = []
+        target = artist_name.strip().lower()
         for s in all_songs:
             raw = s.get('artist') or ''
             artist_list = [a.strip() for a in raw.split(',') if a.strip()]
-            has_artist = artist_name in artist_list
+            has_artist = any(a.lower() == target for a in artist_list)
             songs_out.append({
                 'id': s['id'],
                 'title': s['title'],
@@ -2376,12 +2377,13 @@ def toggle_artist_on_song(artist_name, song_id):
 
         raw = song.get('artist') or ''
         artists = [a.strip() for a in raw.split(',') if a.strip()]
+        target = artist_name.strip().lower()
 
         if action == 'add':
-            if artist_name not in artists:
-                artists.append(artist_name)
+            if not any(a.lower() == target for a in artists):
+                artists.append(artist_name.strip())
         elif action == 'remove':
-            artists = [a for a in artists if a != artist_name]
+            artists = [a for a in artists if a.lower() != target]
         else:
             return jsonify({'error': 'Invalid action; use "add" or "remove"'}), 400
 

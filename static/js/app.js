@@ -1503,7 +1503,9 @@ export class RainyApp {
             const rawArtist = song.artist || 'Unknown Artist';
             rawArtist.split(',').forEach(part => {
                 const trimmed = part.trim();
-                if (trimmed) artistSet.add(trimmed);
+                // Normalize by lowercasing so casing variants (e.g. "Radiohead"
+                // / "radiohead") count as one artist, matching the artists grid.
+                if (trimmed) artistSet.add(trimmed.toLowerCase());
             });
         });
         const artists = artistSet.size;
@@ -3191,29 +3193,44 @@ export class RainyApp {
 
         if (!gridView || !profileView || !gridList) return;
 
-        // Group library songs by split artist names (comma separation)
+        // Group library songs by split artist names (comma separation).
+        // Key by a normalized (lowercased) name so casing variants like
+        // "Radiohead" / "radiohead" collapse into a single artist card, while
+        // keeping the most common casing as the display name.
         const librarySongs = this.librarySongs || [];
-        const artistMap = {};
+        const artistMap = {};    // normalized name -> { displayName, songs }
+        const nameCounts = {};   // normalized name -> { variant -> count }
 
         librarySongs.forEach(song => {
             const rawArtist = song.artist || 'Unknown Artist';
             const artistNames = rawArtist.split(',').map(s => s.trim()).filter(Boolean);
-            
+
             artistNames.forEach(artistName => {
-                if (!artistMap[artistName]) {
-                    artistMap[artistName] = [];
+                const key = artistName.toLowerCase();
+                if (!artistMap[key]) {
+                    artistMap[key] = { displayName: artistName, songs: [] };
+                    nameCounts[key] = {};
                 }
-                artistMap[artistName].push(song);
+                nameCounts[key][artistName] = (nameCounts[key][artistName] || 0) + 1;
+                artistMap[key].songs.push(song);
             });
         });
 
-        const sortedArtistNames = Object.keys(artistMap).sort((a, b) => a.localeCompare(b));
+        // Pick the most frequent casing variant as the display name.
+        Object.keys(artistMap).forEach(key => {
+            const variants = nameCounts[key];
+            artistMap[key].displayName = Object.keys(variants).sort((a, b) => variants[b] - variants[a])[0];
+        });
+
+        const sortedArtistKeys = Object.keys(artistMap).sort((a, b) => a.localeCompare(b));
 
         // If targetArtistName is specified, render the profile view directly
         if (targetArtistName) {
+            const key = targetArtistName.trim().toLowerCase();
+            const entry = artistMap[key];
             gridView.classList.add('hidden');
             profileView.classList.remove('hidden');
-            this.renderArtistProfile(targetArtistName, artistMap[targetArtistName] || []);
+            this.renderArtistProfile(entry ? entry.displayName : targetArtistName, entry ? entry.songs : []);
             return;
         }
 
@@ -3229,21 +3246,22 @@ export class RainyApp {
 
         const renderGrid = (filterQuery = '') => {
             const query = filterQuery.toLowerCase().trim();
-            const filteredNames = sortedArtistNames.filter(name => name.toLowerCase().includes(query));
+            const filteredKeys = sortedArtistKeys.filter(key => key.includes(query));
 
             // Update stats badge
             const countEl = document.getElementById('artists-count-badge');
             if (countEl) {
-                countEl.textContent = `${filteredNames.length} Artist${filteredNames.length === 1 ? '' : 's'}`;
+                countEl.textContent = `${filteredKeys.length} Artist${filteredKeys.length === 1 ? '' : 's'}`;
             }
 
-            if (filteredNames.length === 0) {
+            if (filteredKeys.length === 0) {
                 gridList.innerHTML = '<div class="empty-state">No artists found</div>';
                 return;
             }
 
-            gridList.innerHTML = filteredNames.map(artistName => {
-                const count = artistMap[artistName].length;
+            gridList.innerHTML = filteredKeys.map(key => {
+                const artistName = artistMap[key].displayName;
+                const count = artistMap[key].songs.length;
                 const initials = getInitials(artistName);
                 const grad = getGradientForName(artistName);
                 const initialsStyle = `background: linear-gradient(135deg, ${grad[0]} 0%, ${grad[1]} 100%); color: #ffffff; font-weight: 700; font-size: 2.2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
@@ -3266,6 +3284,7 @@ export class RainyApp {
             const cards = gridList.querySelectorAll('.artist-circle-card');
             cards.forEach(card => {
                 const artistName = card.dataset.artist;
+                const key = artistName.trim().toLowerCase();
 
                 // Fetch custom artist metadata (bio/image) asynchronously
                 fetch(`/api/music/artists/${encodeURIComponent(artistName)}`)
@@ -3283,7 +3302,7 @@ export class RainyApp {
                 card.addEventListener('click', () => {
                     gridView.classList.add('hidden');
                     profileView.classList.remove('hidden');
-                    this.renderArtistProfile(artistName, artistMap[artistName]);
+                    this.renderArtistProfile(artistName, artistMap[key].songs);
                 });
             });
         };
