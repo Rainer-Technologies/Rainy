@@ -19,9 +19,9 @@ export class MediaSessionController {
         const ms = navigator.mediaSession;
         const p = this.player;
 
-        ms.setActionHandler('play', () => { if (!p.isPlaying) p.togglePlay(); });
-        ms.setActionHandler('pause', () => { if (p.isPlaying) p.togglePlay(); });
-        ms.setActionHandler('previoustrack', () => p.playPrev());
+        ms.setActionHandler('play', () => { if (!p.isPlaying) p.togglePlayPause(); });
+        ms.setActionHandler('pause', () => { if (p.isPlaying) p.togglePlayPause(); });
+        ms.setActionHandler('previoustrack', () => p.playPrevious());
         ms.setActionHandler('nexttrack', () => p.playNext());
         ms.setActionHandler('seekto', (details) => {
             if (details.seekTime != null && p.audio) {
@@ -34,7 +34,7 @@ export class MediaSessionController {
         ms.setActionHandler('seekforward', (details) => {
             if (p.audio) p.audio.currentTime = Math.min(p.audio.duration || 0, p.audio.currentTime + (details.seekOffset || 10));
         });
-        ms.setActionHandler('stop', () => { if (p.isPlaying) p.togglePlay(); });
+        ms.setActionHandler('stop', () => { if (p.isPlaying) p.togglePlayPause(); });
     }
 
     /** Update the lock-screen metadata + artwork for the current song. */
