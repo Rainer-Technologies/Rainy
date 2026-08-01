@@ -305,7 +305,7 @@
 }
 
 .volume-slider {
-    width: 100px;
+    width: 120px;
     height: 4px;
     -webkit-appearance: none;
     appearance: none;
@@ -327,6 +327,16 @@
     border-radius: var(--radius-full);
     cursor: pointer;
     box-shadow: var(--shadow-sm);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.volume-slider:hover::-webkit-slider-thumb {
+    transform: scale(1.25);
+}
+
+.volume-slider:active::-webkit-slider-thumb {
+    transform: scale(1.45);
+    box-shadow: 0 0 0 6px var(--accent-glow);
 }
 
 .volume-slider::-moz-range-thumb {
@@ -337,4 +347,31 @@
     cursor: pointer;
     box-shadow: var(--shadow-sm);
     border: none;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.volume-slider:hover::-moz-range-thumb {
+    transform: scale(1.25);
+}
+
+.volume-slider:active::-moz-range-thumb {
+    transform: scale(1.45);
+    box-shadow: 0 0 0 6px var(--accent-glow);
+}
+
+/* Live volume readout */
+.volume-readout {
+    min-width: 3.4em;
+    text-align: right;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    transition: color var(--transition-fast);
+    user-select: none;
+    white-space: nowrap;
+}
+
+.volume-control:hover .volume-readout {
+    color: var(--text-primary);
 }

@@ -146,6 +146,7 @@ export class AudioPlayer {
 
         // Volume
         this.volumeSlider = document.getElementById('volume-slider');
+        this.volumeReadout = document.getElementById('volume-readout');
 
         // Now playing
         this.nowPlayingTitle = document.getElementById('now-playing-title');
@@ -331,6 +332,7 @@ export class AudioPlayer {
 
         if (this.fsVolumeBtn) this.fsVolumeBtn.addEventListener('click', () => this.toggleFsVolumePopover());
         if (this.fsVolumeSlider) this.fsVolumeSlider.addEventListener('input', (e) => this.handleFsVolumeChange(e));
+        if (this.fsVolumeSlider) this._bindVolumeWheel(this.fsVolumeSlider);
         if (this.fsLikeBtn) this.fsLikeBtn.addEventListener('click', () => this.toggleLike());
         if (this.fsDislikeBtn) this.fsDislikeBtn.addEventListener('click', () => this.toggleDislike());
         if (this.fsLightShowBtn) this.fsLightShowBtn.addEventListener('click', () => this.toggleLightShow());
@@ -343,6 +345,7 @@ export class AudioPlayer {
 
         // Volume
         this.volumeSlider.addEventListener('input', (e) => this.handleVolumeChange(e));
+        this._bindVolumeWheel(this.volumeSlider);
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
@@ -360,7 +363,7 @@ export class AudioPlayer {
         const savedVolume = localStorage.getItem('rainy_volume');
         if (savedVolume !== null) {
             this.audio.volume = parseFloat(savedVolume);
-            this.volumeSlider.value = parseFloat(savedVolume) * 100;
+            this.volumeSlider.value = Math.round(parseFloat(savedVolume) * 1000) / 10;
         } else {
             this.audio.volume = 0.8;
         }
@@ -378,6 +381,51 @@ export class AudioPlayer {
     updateVolumeGradient() {
         const percent = this.volumeSlider.value;
         this.volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+        if (this.volumeReadout) this.volumeReadout.textContent = this._formatVolumePercent(percent);
+    }
+
+    /**
+     * Format a 0-100 volume value for the live readout. Whole numbers render
+     * as "80%"; fractional (fine-tuned) values keep one decimal, e.g. "80.5%".
+     */
+    _formatVolumePercent(percent) {
+        const n = Number(percent);
+        if (!Number.isFinite(n)) return '—';
+        return Number.isInteger(n) ? `${n}%` : `${n.toFixed(1)}%`;
+    }
+
+    /**
+     * Re-sync the volume slider(s), gradient fill, and readout from the current
+     * audio state (used after mute toggles / external volume changes). Does NOT
+     * touch audio.volume or localStorage.
+     */
+    syncVolumeUI() {
+        if (!this.audio || !this.volumeSlider) return;
+        const pct = this.audio.muted ? 0 : Math.round(this.audio.volume * 1000) / 10;
+        this.volumeSlider.value = pct;
+        this.updateVolumeGradient();
+        if (this.fsVolumeSlider) {
+            this.fsVolumeSlider.value = pct;
+            this.updateFsVolumeGradient();
+        }
+    }
+
+    /**
+     * Add scroll-wheel fine-tuning to a volume slider: ±1% per notch, or ±0.1%
+     * while holding Shift. Routes through setVolume so everything stays in sync.
+     */
+    _bindVolumeWheel(slider) {
+        if (!slider) return;
+        slider.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const dir = e.deltaY < 0 ? 1 : -1; // scroll up = louder
+            const step = e.shiftKey ? 0.1 : 1;
+            const next = Math.max(0, Math.min(100, parseFloat(slider.value) + dir * step));
+            // Mirror handleVolumeChange: in controller mode send to the remote
+            // device instead of changing local volume.
+            if (this.isControllerMode) { this._controllerCommand('volume', { volume: next }); return; }
+            this.setVolume(next / 100);
+        }, { passive: false });
     }
     updateFsVolumeGradient() {
         if (!this.fsVolumeSlider) return;
@@ -1318,23 +1366,11 @@ export class AudioPlayer {
                 break;
             case 'ArrowUp':
                 e.preventDefault();
-                this.audio.volume = Math.min(1, this.audio.volume + 0.1);
-                this.volumeSlider.value = this.audio.volume * 100;
-                this.updateVolumeGradient();
-                if (this.fsVolumeSlider) {
-                    this.fsVolumeSlider.value = this.volumeSlider.value;
-                    this.updateFsVolumeGradient();
-                }
+                this.setVolume(this.audio.volume + 0.1);
                 break;
             case 'ArrowDown':
                 e.preventDefault();
-                this.audio.volume = Math.max(0, this.audio.volume - 0.1);
-                this.volumeSlider.value = this.audio.volume * 100;
-                this.updateVolumeGradient();
-                if (this.fsVolumeSlider) {
-                    this.fsVolumeSlider.value = this.volumeSlider.value;
-                    this.updateFsVolumeGradient();
-                }
+                this.setVolume(this.audio.volume - 0.1);
                 break;
         }
     }
@@ -3614,10 +3650,11 @@ export class AudioPlayer {
         try {
             localStorage.setItem('rainy_volume', v.toString());
         } catch (e) { /* ignore */ }
-        if (this.volumeSlider) this.volumeSlider.value = Math.round(v * 100);
+        const pct = Math.round(v * 1000) / 10; // one decimal, matches slider step
+        if (this.volumeSlider) this.volumeSlider.value = pct;
         this.updateVolumeGradient();
         if (this.fsVolumeSlider) {
-            this.fsVolumeSlider.value = Math.round(v * 100);
+            this.fsVolumeSlider.value = pct;
             this.updateFsVolumeGradient();
         }
     }
