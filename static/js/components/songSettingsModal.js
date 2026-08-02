@@ -648,7 +648,7 @@ export class SongSettingsModal extends Component {
         // Enrich / re-analyse action
         const ctaIcon = h.span(a.class('ss-cta-icon'), I.Refresh());
         const ctaLabel = h.span(hasAny ? 'Re-analyse Song' : 'Analyse Song');
-        const cta = h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.runEnrichment(cta, ctaIcon, ctaLabel)),
+        const cta = h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.runEnrichment(cta, ctaIcon, ctaLabel, hasAny)),
             ctaIcon,
             ctaLabel,
         );
@@ -659,8 +659,9 @@ export class SongSettingsModal extends Component {
      * @param {HTMLElement} cta
      * @param {HTMLElement} ctaIcon
      * @param {HTMLElement} ctaLabel
+     * @param {boolean} [force] redo audio analysis even if features exist
      */
-    async runEnrichment(cta, ctaIcon, ctaLabel) {
+    async runEnrichment(cta, ctaIcon, ctaLabel, force = false) {
         if(cta.classList.contains('busy')) return;
 
         /** @type {SongModel?} */
@@ -675,7 +676,7 @@ export class SongSettingsModal extends Component {
         ctaIcon.append(I.Spinner());
         ctaLabel.textContent = 'Analysing\u2026';
 
-        const data = await useEnrichmentService().enrichSong(song.id);
+        const data = await useEnrichmentService().enrichSong(song.id, force);
         if(data.error) {
             Logger.error(data.error);
             app.showToast('Failed to start analysis', 'error');

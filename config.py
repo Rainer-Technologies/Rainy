@@ -21,6 +21,9 @@ class Config:
     
     FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 
+    # Server listener port.
+    HTTP_PORT = int(os.getenv('RAINY_HTTP_PORT', 6969))
+
     # Free Last.fm API key for track tags / similar artists / bios.
     # Get one at https://www.last.fm/api/account/create (30 seconds, free).
     # If unset, Last.fm enrichment is skipped (MusicBrainz still works).

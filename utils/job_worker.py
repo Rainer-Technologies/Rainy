@@ -37,7 +37,10 @@ def _process_job(job, music_path):
             print(f"[import-worker] progress update failed for job {job_id}: {e}")
 
     try:
-        result = handler(job['url'], music_path, on_progress=on_progress)
+        result = handler(
+            job['url'], music_path, on_progress=on_progress,
+            conflict_mode=job.get('conflict_mode'),
+        )
         if result.get('success'):
             ImportJobModel.complete(job_id, result)
         else:

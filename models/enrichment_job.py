@@ -12,7 +12,7 @@ class EnrichmentJobModel:
     """CRUD + queue helpers for the `enrichment_jobs` table."""
 
     @staticmethod
-    def enqueue_song(song_id):
+    def enqueue_song(song_id, force=False):
         """Queue enrichment for a single song. Returns the job id.
 
         If a queued job already exists for this song, reuse it (idempotent).
@@ -29,15 +29,18 @@ class EnrichmentJobModel:
             return existing['id']
         return Database.execute_query(
             """
-            INSERT INTO enrichment_jobs (song_id, scope, status)
-            VALUES (%s, 'song', 'queued')
+            INSERT INTO enrichment_jobs (song_id, scope, status, force_full)
+            VALUES (%s, 'song', 'queued', %s)
             """,
-            (song_id,),
+            (song_id, 1 if force else 0),
         )
 
     @staticmethod
-    def enqueue_backfill():
+    def enqueue_backfill(force=False):
         """Queue a library-wide backfill job. Returns the job id.
+
+        When ``force`` is False the worker only analyses songs that haven't
+        been enriched yet; when True it re-analyses the whole library.
 
         Idempotent: returns the existing queued/running backfill if any.
         """
@@ -52,7 +55,11 @@ class EnrichmentJobModel:
         if existing:
             return existing['id']
         return Database.execute_query(
-            "INSERT INTO enrichment_jobs (scope, status) VALUES ('backfill', 'queued')",
+            """
+            INSERT INTO enrichment_jobs (scope, status, force_full)
+            VALUES ('backfill', 'queued', %s)
+            """,
+            (1 if force else 0,),
         )
 
     @staticmethod
@@ -120,6 +127,26 @@ class EnrichmentJobModel:
         """Return the most recent job (for status polling)."""
         query = "SELECT * FROM enrichment_jobs ORDER BY created_at DESC, id DESC LIMIT 1"
         return Database.execute_query(query, fetch_one=True)
+
+    @staticmethod
+    def list_recent(limit=25):
+        """Return recent jobs, newest first, for the history view."""
+        query = """
+            SELECT * FROM enrichment_jobs
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+        """
+        return Database.execute_query(query, (limit,), fetch_all=True)
+
+    @staticmethod
+    def active_jobs():
+        """Return queued + running jobs (the live queue), running first."""
+        query = """
+            SELECT * FROM enrichment_jobs
+            WHERE status IN ('queued', 'running')
+            ORDER BY (status = 'running') DESC, created_at ASC, id ASC
+        """
+        return Database.execute_query(query, fetch_all=True)
 
     @staticmethod
     def is_any_running():

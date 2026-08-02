@@ -10,6 +10,7 @@ from routes.smartmix import smartmix_bp
 from routes.achievements import achievements_bp
 from routes.connect import connect_bp
 from routes.plugins import plugins_bp
+from routes.server import server_bp
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = Config.FLASK_SECRET_KEY
@@ -30,6 +31,7 @@ app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
 app.register_blueprint(achievements_bp, url_prefix='/api/achievements')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
 app.register_blueprint(plugins_bp, url_prefix='/api/plugins')
+app.register_blueprint(server_bp)
 
 @app.route('/')
 def serve_index():
@@ -98,6 +100,7 @@ def _ensure_enrichment_worker():
 
 if __name__ == '__main__':
     init_app()
-    print("Starting server on http://localhost:6969")
+
+    print(f"Starting server on http://localhost:{Config.HTTP_PORT}")
     print("=" * 40)
-    app.run(host='0.0.0.0', port=6969, debug=True)
+    app.run(host='0.0.0.0', port=Config.HTTP_PORT, debug=True)

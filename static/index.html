@@ -22,6 +22,26 @@
 
     <!-- Styles -->
     <link rel="stylesheet" href="/css/style.css">
+
+    <!-- Google Cast (Chromecast) sender SDK. Only functional in Chromium-based
+         browsers served from a secure context (https or localhost); the
+         bootstrap below is a no-op elsewhere. -->
+    <script>
+        window.__onGCastApiAvailable = function (isAvailable) {
+            if (!isAvailable) {
+                console.warn('[Rainy Cast] SDK unavailable (insecure context or blocked). Casting disabled.');
+                import('/js/services/cast.js')
+                    .then(function (m) { m.useCastService().markUnavailable(window.isSecureContext ? 'unsupported' : 'insecure'); })
+                    .catch(function () {});
+                return;
+            }
+            console.info('[Rainy Cast] SDK available, initializing…');
+            import('/js/services/cast.js')
+                .then(function (m) { m.useCastService().init(); })
+                .catch(function (e) { console.warn('[Rainy Cast] init import failed:', e); });
+        };
+    </script>
+    <script async src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </head>
 
 <body>
@@ -819,6 +839,12 @@
                     </svg>
                     <span>Users</span>
                 </a>
+                <a class="settings-nav-item" data-section="chromecast" id="settings-nav-chromecast">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+                    </svg>
+                    <span>Chromecast Setup</span>
+                </a>
             </nav>
         </div>
 
@@ -1363,6 +1389,32 @@
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
+                                    <div class="settings-row-label">Analyse Song Metadata</div>
+                                    <div class="settings-row-hint">Fetch audio features, genre/mood tags and artist
+                                        data for every song. Runs in the background — you can keep using Rainy while it
+                                        works. "Run" only analyses songs not done yet; "Force" re-analyses the whole
+                                        library from scratch.</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="enrich-run-btn">Run</button>
+                                    <button class="btn btn-secondary btn-sm" id="enrich-force-btn">Force</button>
+                                </div>
+                            </div>
+
+                            <div class="import-jobs-queue" id="enrich-jobs-queue">
+                                <div class="import-jobs-empty" id="enrich-jobs-queue-empty">No analysis running or
+                                    queued.</div>
+                            </div>
+
+                            <div class="import-jobs-history-header">Recent history</div>
+                            <div class="import-jobs-history" id="enrich-jobs-history">
+                                <div class="import-jobs-empty" id="enrich-jobs-history-empty">No analysis jobs yet.</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
                                     <div class="settings-row-label">Import Jobs</div>
                                     <div class="settings-row-hint">Background YouTube / Spotify imports. Toggle
                                         "Process in background" in Add Music to queue one.</div>
@@ -1453,6 +1505,86 @@
                                         <button type="submit" class="btn btn-primary">Create User</button>
                                     </div>
                                 </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: HTTPS (Server Settings) -->
+                <!-- Chromecast Setup Guide -->
+                <div class="settings-section" id="settings-section-chromecast">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Chromecast Setup & Browser Configuration</div>
+                        <div class="settings-group-description">
+                            Google's Cast Web SDK requires a <strong>secure origin</strong> to discover and connect to Chromecast devices.
+                            By configuring your browser to treat your Rainy network URL as secure, casting works seamlessly over HTTP with zero certificates or warnings.
+                        </div>
+
+                        <!-- Current Origin Card -->
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Your Rainy Server Origin</div>
+                                    <div class="settings-row-hint">Copy this address to paste into your browser's secure origin flag.</div>
+                                </div>
+                                <div class="settings-row-control ssl-flag-control">
+                                    <code class="https-url" id="chromecast-origin-url">http://...:6969</code>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="chromecast-copy-origin-btn">Copy Origin</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Browser Instructions Cards -->
+                        <div class="settings-group-title" style="margin-top: var(--spacing-lg);">Browser Setup Instructions</div>
+                        
+                        <div class="settings-card">
+                            <!-- Chrome / Brave / Opera / Vivaldi -->
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Google Chrome / Brave / Vivaldi / Opera</div>
+                                    <div class="settings-row-hint">
+                                        <ol style="margin: 6px 0 0 18px; padding: 0; line-height: 1.6;">
+                                            <li>Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
+                                            <li>Paste your Rainy URL (<code>http://...:6969</code>) into the <strong>Insecure origins treated as secure</strong> text box.</li>
+                                            <li>Change the dropdown setting from <em>Disabled</em> to <strong>Enabled</strong>.</li>
+                                            <li>Click <strong>Relaunch</strong> at the bottom of the browser.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Microsoft Edge -->
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Microsoft Edge</div>
+                                    <div class="settings-row-hint">
+                                        <ol style="margin: 6px 0 0 18px; padding: 0; line-height: 1.6;">
+                                            <li>Open <code>edge://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
+                                            <li>Paste your Rainy URL (<code>http://...:6969</code>) into the text box.</li>
+                                            <li>Set to <strong>Enabled</strong> and click <strong>Restart</strong>.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Localhost Shortcut -->
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Localhost Shortcut</div>
+                                    <div class="settings-row-hint">
+                                        When listening directly on the host machine using <code>http://localhost:6969</code>, browsers automatically treat localhost as a secure context with <strong>zero configuration</strong> needed.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Firefox Note -->
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Firefox / Safari Note</div>
+                                    <div class="settings-row-hint">
+                                        The Google Cast Web Sender API is a Chromium-exclusive browser API. To cast music to a Chromecast device, please use Chrome, Edge, Brave, Vivaldi, or Opera.
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1878,6 +2010,23 @@
             </div>
         </div>
     </div>
+
+    <!-- Rescue card: shown ONLY when an https self-signed certificate makes the
+         browser block Rainy's own stylesheet/scripts (the "unstyled page" state).
+         It uses inline styles so it renders even with no external CSS, turning a
+         confusing broken page into clear, actionable instructions. -->
+    <div id="rainy-rescue" style="display:none; position:fixed; inset:0; z-index:2147483647; align-items:center; justify-content:center; padding:24px; background:rgba(8,8,10,0.92); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#f2f2f4;">
+        <style>
+            #rainy-rescue, #rainy-rescue * { box-sizing: border-box; }
+            #rainy-rescue .rr-card { width: min(560px, 100%); background: #1b1b1f; border: 1px solid #2e2e36; border-radius: 16px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+            #rainy-rescue .rr-logo { width: 56px; height: 56px; border-radius: 14px; }
+            #rainy-rescue h2 { margin: 16px 0 6px; font-size: 22px; font-weight: 700; color: #fff; }
+            #rainy-rescue p { margin: 0 0 14px; font-size: 14px; line-height: 1.55; color: #c7c7cf; }
+            #rainy-rescue ol { margin: 0 0 16px; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #d7d7dd; }
+            #rainy-rescue li { margin: 0 0 12px; }
+            #rainy-rescue code, #rainy-rescue .rr-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0e0e12; border: 1px solid #33333c; border-radius: 8px; padding: 6px 10px; color: #7fb2ff; word-break: break-all; font-size: 13px; }
+            #rainy-rescue .rr-code-row { display: flex; gap: 8px; align-items: center; margin: 8px 0 2px; }
+            #rainy-rescue .rr-code { flex: 1; }
 </body>
 
 </html>

@@ -10,6 +10,7 @@
     flex-direction: column;
     z-index: 10;
     transition: width var(--transition-normal);
+    margin-bottom: var(--player-height);
 }
 
 .app-sidebar.collapsed {
@@ -101,7 +102,43 @@
 #sidebar-playlists {
     flex: 1;
     overflow-y: auto;
-    padding-bottom: calc(var(--player-height) + var(--spacing-xl));
+    padding-bottom: var(--spacing-md);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Custom scrollbar for lateral bar playlists */
+#sidebar-playlists::-webkit-scrollbar,
+.sidebar-playlists::-webkit-scrollbar {
+    width: 6px;
+}
+
+#sidebar-playlists::-webkit-scrollbar-track,
+.sidebar-playlists::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: var(--radius-full);
+}
+
+#sidebar-playlists::-webkit-scrollbar-thumb,
+.sidebar-playlists::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-full);
+    transition: background var(--transition-fast);
+}
+
+#sidebar-playlists:hover::-webkit-scrollbar-thumb,
+.sidebar-playlists:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+#sidebar-playlists::-webkit-scrollbar-thumb:hover,
+.sidebar-playlists::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+}
+
+#sidebar-playlists::-webkit-scrollbar-thumb:active,
+.sidebar-playlists::-webkit-scrollbar-thumb:active {
+    background: var(--accent-secondary);
 }
 
 .nav-header {

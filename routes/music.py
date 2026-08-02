@@ -298,6 +298,68 @@ def stream_song(song_id):
         return jsonify({'error': str(e)}), 500
 
 
+def _cast_base_url():
+    """Absolute, LAN-reachable base URL for Chromecast media, always plain
+    HTTP. The Chromecast fetches stream/cover URLs itself and cannot validate
+    a self-signed HTTPS cert, so even when the UI is served over HTTPS (for
+    the sender SDK) the media must come from the HTTP listener."""
+    from config import Config
+    host = request.host.split(':')[0]
+    return f'http://{host}:{Config.HTTP_PORT}/'
+
+
+def _cast_session_token():
+    """Raw session cookie value, embeddable as a ?session= token for devices
+    (e.g. Chromecast) that fetch media directly and can't send our cookies."""
+    return request.cookies.get('session') or ''
+
+
+def _cast_urls_for_song(song):
+    """Build absolute, token-authenticated stream/cover URLs for a song row."""
+    from urllib.parse import quote
+    base = _cast_base_url()
+    token = _cast_session_token()
+    query = f'?session={quote(token)}' if token else ''
+    result = {
+        'id': song['id'],
+        'url': f"{base}api/music/stream/{song['id']}{query}",
+    }
+    cover_path = song.get('cover_path')
+    if cover_path:
+        result['cover_url'] = f"{base}api/music/cover/{quote(cover_path, safe='/')}{query}"
+    return result
+
+
+@music_bp.route('/cast-url/<int:song_id>', methods=['GET'])
+@require_auth
+def cast_url(song_id):
+    """Return an absolute, token-authenticated stream URL a Chromecast can
+    fetch directly (Cast receivers can't use the browser's session cookie)."""
+    song = SongModel.get_song_by_id(song_id)
+    if not song:
+        return jsonify({'error': 'Song not found'}), 404
+    return jsonify({'success': True, **_cast_urls_for_song(song)})
+
+
+@music_bp.route('/cast-urls', methods=['POST'])
+@require_auth
+def cast_urls():
+    """Batch variant of /cast-url: resolve absolute stream URLs for a whole
+    queue in one round trip. Body: {"song_ids": [1, 2, 3]}."""
+    data = request.get_json(silent=True) or {}
+    song_ids = data.get('song_ids') or []
+    urls = {}
+    for raw_id in song_ids:
+        try:
+            sid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        song = SongModel.get_song_by_id(sid)
+        if song:
+            urls[str(sid)] = _cast_urls_for_song(song)
+    return jsonify({'success': True, 'urls': urls})
+
+
 @music_bp.route('/info/<int:song_id>', methods=['GET'])
 @require_auth
 def get_song_info(song_id):
@@ -1126,6 +1188,7 @@ def enqueue_import_job():
     source = data.get('source')
     kind = data.get('kind')
     url = (data.get('url') or '').strip()
+    conflict_mode = data.get('conflict_mode')
 
     if source not in ('youtube', 'spotify'):
         return jsonify({'error': 'Invalid source'}), 400
@@ -1133,8 +1196,12 @@ def enqueue_import_job():
         return jsonify({'error': 'Invalid kind'}), 400
     if not url:
         return jsonify({'error': 'No URL provided'}), 400
+    if conflict_mode not in (None, 'add', 'override', 'new'):
+        return jsonify({'error': 'Invalid conflict_mode'}), 400
 
-    job_id = ImportJobModel.enqueue(session.get('user_id'), source, kind, url)
+    job_id = ImportJobModel.enqueue(
+        session.get('user_id'), source, kind, url, conflict_mode
+    )
     job_worker.notify()  # wake the worker so it picks the job up immediately
 
     job = ImportJobModel.get(job_id)
@@ -1206,6 +1273,7 @@ def _serialize_enrichment_job(job):
         'id': job['id'],
         'song_id': job.get('song_id'),
         'scope': job.get('scope'),
+        'force': bool(job.get('force_full')),
         'status': job['status'],
         'progress': job.get('progress') or 0,
         'message': job.get('message'),
@@ -1232,7 +1300,11 @@ def get_song_metadata(song_id):
 @music_bp.route('/songs/<int:song_id>/enrich', methods=['POST'])
 @require_auth
 def enrich_song(song_id):
-    """Queue background enrichment for a single song."""
+    """Queue background enrichment for a single song.
+
+    Body params:
+        force: when true, redo audio analysis even if features already exist.
+    """
     from models.database import Database
     from models.enrichment_job import EnrichmentJobModel
     from utils import enrichment_worker
@@ -1243,7 +1315,10 @@ def enrich_song(song_id):
     if not song:
         return jsonify({'error': 'Song not found'}), 404
 
-    job_id = EnrichmentJobModel.enqueue_song(song_id)
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get('force'))
+
+    job_id = EnrichmentJobModel.enqueue_song(song_id, force=force)
     enrichment_worker.notify()
 
     job = EnrichmentJobModel.get(job_id)
@@ -1253,11 +1328,19 @@ def enrich_song(song_id):
 @music_bp.route('/enrich/backfill', methods=['POST'])
 @require_auth
 def backfill_metadata():
-    """Queue a library-wide metadata backfill (all songs)."""
+    """Queue a library-wide metadata backfill.
+
+    Body params:
+        force: when false (default) only songs not yet analysed are processed;
+               when true the whole library is re-analysed from scratch.
+    """
     from models.enrichment_job import EnrichmentJobModel
     from utils import enrichment_worker
 
-    job_id = EnrichmentJobModel.enqueue_backfill()
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get('force'))
+
+    job_id = EnrichmentJobModel.enqueue_backfill(force=force)
     enrichment_worker.notify()
 
     job = EnrichmentJobModel.get(job_id)
@@ -1267,14 +1350,18 @@ def backfill_metadata():
 @music_bp.route('/enrich/status', methods=['GET'])
 @require_auth
 def enrichment_status():
-    """Return the latest enrichment job + whether one is running (for polling)."""
+    """Return the live queue, recent history and latest job (for polling)."""
     from models.enrichment_job import EnrichmentJobModel
 
     latest = EnrichmentJobModel.latest()
+    queue = EnrichmentJobModel.active_jobs() or []
+    history = EnrichmentJobModel.list_recent(limit=25) or []
     return jsonify({
         'success': True,
         'running': EnrichmentJobModel.is_any_running(),
         'job': _serialize_enrichment_job(latest) if latest else None,
+        'queue': [_serialize_enrichment_job(j) for j in queue],
+        'history': [_serialize_enrichment_job(j) for j in history],
     })
 
 

@@ -96,22 +96,58 @@ def generate_mix(user_id):
             if not seed:
                 return jsonify({'error': 'Seed song not found'}), 404
 
-            # Score songs by similarity: same artist (3pts), same genre (2pts), same album (1pt)
+            seed_artist = (seed.get('artist') or '').split(',')[0].strip()
+
+            # Crowd-sourced tags for the seed (strongest first) — used to reward
+            # candidates that share genre/mood/style labels with the seed.
+            seed_tag_rows = Database.execute_query(
+                "SELECT tag_name FROM song_tags WHERE song_id = %s "
+                "ORDER BY weight DESC LIMIT 8",
+                (seed_song_id,), fetch_all=True
+            ) or []
+            seed_tags = [r['tag_name'] for r in seed_tag_rows]
+
+            # Score songs by similarity:
+            #   same artist  -> 3 pts
+            #   same genre   -> 2 pts
+            #   similar artist (Last.fm graph) -> 2 pts
+            #   shared tags  -> 1 pt each, capped at 3
+            #   same album   -> 1 pt
+            score_terms = [
+                "CASE WHEN s.artist = %s THEN 3 ELSE 0 END",
+                "CASE WHEN s.genre = %s AND s.genre IS NOT NULL AND s.genre != '' THEN 2 ELSE 0 END",
+                "CASE WHEN EXISTS (SELECT 1 FROM artist_relations ar "
+                "WHERE ar.artist_name = %s AND ar.related_artist = s.artist) THEN 2 ELSE 0 END",
+                "CASE WHEN s.album = %s THEN 1 ELSE 0 END",
+            ]
+            score_params = [
+                seed['artist'],
+                seed.get('genre', '') or '',
+                seed_artist,
+                seed.get('album', '') or '',
+            ]
+            if seed_tags:
+                placeholders = ', '.join(['%s'] * len(seed_tags))
+                score_terms.append(
+                    f"LEAST((SELECT COUNT(DISTINCT tag_name) FROM song_tags "
+                    f"WHERE song_id = s.id AND tag_name IN ({placeholders})), 3)"
+                )
+                score_params.extend(seed_tags)
+
+            score_expr = ' + '.join(score_terms)
             query = f"""
                 SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
                        s.track_number, s.year, s.genre, s.cover_path,
-                       (CASE WHEN s.artist = %s THEN 3 ELSE 0 END +
-                        CASE WHEN s.genre = %s AND s.genre IS NOT NULL AND s.genre != '' THEN 2 ELSE 0 END +
-                        CASE WHEN s.album = %s THEN 1 ELSE 0 END) as similarity
+                       ({score_expr}) as similarity
                 FROM songs s
                 WHERE s.id != %s{disliked_filter}
                 HAVING similarity > 0
                 ORDER BY similarity DESC, RAND()
                 LIMIT %s
             """
-            seed_params = [seed['artist'], seed.get('genre', ''), seed.get('album', ''), seed_song_id]
             results = Database.execute_query(
-                query, tuple(seed_params + params + [limit]), fetch_all=True
+                query, tuple(score_params + [seed_song_id] + params + [limit]),
+                fetch_all=True
             )
 
             # If not enough similar songs, fill with random

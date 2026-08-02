@@ -2,7 +2,7 @@
 
 Covers the three enrichment tables (`song_features`, `song_tags`,
 `artist_relations`) plus the `musicbrainz_id` column on `songs`. All of this
-data is source-agnostic: audio features come from local essentia analysis,
+data is source-agnostic: audio features come from local librosa analysis,
 tags and artist relations come from the free Last.fm / MusicBrainz APIs,
 keyed on artist + title so they work for any audio file.
 """
@@ -12,7 +12,7 @@ from models.database import Database
 
 
 class SongFeaturesModel:
-    """CRUD for the `song_features` table (essentia audio analysis)."""
+    """CRUD for the `song_features` table (librosa audio analysis)."""
 
     # Columns that hold numeric descriptors (everything except ids/timestamps
     # and the JSON mfccs blob). Used by upsert and the serializer.
@@ -151,6 +151,30 @@ class SongMetadataModel:
         Database.execute_query(
             "UPDATE songs SET musicbrainz_id = %s WHERE id = %s",
             (mbid, song_id),
+        )
+
+    @staticmethod
+    def mark_enriched(song_id):
+        """Stamp the song as having gone through enrichment."""
+        Database.execute_query(
+            "UPDATE songs SET enriched_at = NOW() WHERE id = %s",
+            (song_id,),
+        )
+
+    @staticmethod
+    def set_genre_if_missing(song_id, genre):
+        """Fill in the genre only if the song doesn't already have one.
+
+        Never overwrites a genre that came from the file's own tags.
+        """
+        if not genre:
+            return
+        Database.execute_query(
+            """
+            UPDATE songs SET genre = %s
+            WHERE id = %s AND (genre IS NULL OR genre = '')
+            """,
+            (genre, song_id),
         )
 
     @staticmethod

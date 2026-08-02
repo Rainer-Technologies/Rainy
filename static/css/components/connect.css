@@ -114,6 +114,25 @@
     box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-glow);
 }
 
+/* Chromecast row: subtle accent while a session is connected */
+.connect-device-cast.connected {
+    border-color: rgba(61, 125, 196, 0.35);
+}
+
+.connect-device-cast.connected .connect-device-icon svg {
+    fill: var(--accent-primary);
+}
+
+/* Blocked (insecure origin / unsupported browser) — informational only */
+.connect-device-cast.disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+.connect-device-cast.disabled .connect-device-icon svg {
+    fill: var(--text-tertiary);
+}
+
 .connect-device-icon {
     position: relative;
     width: 44px;

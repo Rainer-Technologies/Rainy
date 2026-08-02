@@ -13,7 +13,7 @@ import time
 
 from models.database import Database
 from models.enrichment_job import EnrichmentJobModel
-from models.song_metadata import SongFeaturesModel
+from models.song_metadata import SongFeaturesModel, SongMetadataModel
 from utils import audio_analyzer, lastfm
 
 _worker_thread = None
@@ -31,14 +31,32 @@ def _full_path(music_path, rel_path):
     return os.path.normpath(os.path.join(music_path, rel_path))
 
 
-def _enrich_one_song(song, music_path, on_progress):
-    """Run audio analysis + external metadata for one song row."""
+def _song_label(song):
+    """Short '"Title" — Artist' label used in progress messages."""
+    title = (song.get('title') or 'Unknown title').strip()
+    artist = (song.get('artist') or '').split(',')[0].strip()
+    if len(title) > 40:
+        title = title[:39].rstrip() + '…'
+    label = f'"{title}"'
+    if artist and artist != 'Unknown Artist':
+        label += f' — {artist}'
+    return label
+
+
+def _enrich_one_song(song, music_path, on_progress, force=False):
+    """Run audio analysis + external metadata for one song row.
+
+    With ``force=False`` the (expensive) local audio analysis only runs when
+    the song has no features yet; external metadata is always refreshed. With
+    ``force=True`` everything is recomputed from scratch.
+    """
     song_id = song['id']
 
-    # 1. Local audio analysis (essentia) — only if we don't have it yet.
-    on_progress(5, 'Analysing audio…')
+    # 1. Local audio analysis (librosa) — skip if we already have it,
+    #    unless this is a forced re-analysis.
+    on_progress(5, 'Analysing audio (tempo, key, timbre)…')
     existing = SongFeaturesModel.get(song_id)
-    if not existing:
+    if force or not existing:
         full = _full_path(music_path, song['file_path'])
         if os.path.isfile(full):
             features = audio_analyzer.analyze_file(full)
@@ -50,6 +68,9 @@ def _enrich_one_song(song, music_path, on_progress):
         song_id, song.get('artist'), song.get('title'),
         on_progress=on_progress,
     )
+
+    # 3. Mark the song as enriched so future "analyse unanalysed" jobs skip it.
+    SongMetadataModel.mark_enriched(song_id)
     return summary
 
 
@@ -64,12 +85,13 @@ def _process_song_job(job, music_path):
 
     def on_progress(pct, msg):
         try:
-            EnrichmentJobModel.update_progress(job_id, int(pct), str(msg)[:500])
+            text = f"{_song_label(song)} · {msg}"
+            EnrichmentJobModel.update_progress(job_id, int(pct), text[:500])
         except Exception as e:  # noqa: BLE001
             print(f"[enrich-worker] progress update failed: {e}")
 
     try:
-        summary = _enrich_one_song(song, music_path, on_progress)
+        summary = _enrich_one_song(song, music_path, on_progress, force=bool(job.get('force_full')))
         EnrichmentJobModel.complete(job_id, {'enriched': 1, **summary})
     except Exception as e:  # noqa: BLE001
         print(f"[enrich-worker] song job {job_id} crashed: {e}")
@@ -77,15 +99,38 @@ def _process_song_job(job, music_path):
 
 
 def _process_backfill_job(job, music_path):
-    """Enrich every song, streaming overall progress."""
+    """Enrich songs library-wide, streaming overall progress.
+
+    A normal backfill only touches songs that haven't been enriched yet
+    (``enriched_at IS NULL``); a forced one re-analyses the entire library.
+    """
     job_id = job['id']
-    songs = Database.execute_query(
-        "SELECT * FROM songs ORDER BY id ASC", fetch_all=True,
-    ) or []
+    force = bool(job.get('force_full'))
+    if force:
+        songs = Database.execute_query(
+            "SELECT * FROM songs ORDER BY id ASC", fetch_all=True,
+        ) or []
+    else:
+        songs = Database.execute_query(
+            "SELECT * FROM songs WHERE enriched_at IS NULL ORDER BY id ASC",
+            fetch_all=True,
+        ) or []
     total = len(songs)
     done = 0
     enriched = 0
     failed = 0
+
+    if total == 0:
+        EnrichmentJobModel.complete(job_id, {
+            'total': 0, 'enriched': 0, 'failed': 0, 'forced': force,
+        })
+        return
+
+    EnrichmentJobModel.update_progress(
+        job_id, 0,
+        f"Analysing {total} song{'s' if total != 1 else ''}"
+        f"{' (full re-analysis)' if force else ''}…",
+    )
 
     try:
         for i, song in enumerate(songs):
@@ -95,13 +140,13 @@ def _process_backfill_job(job, music_path):
                 try:
                     EnrichmentJobModel.update_progress(
                         job_id, min(overall, 99),
-                        f"[{i + 1}/{total}] {msg}",
+                        f"[{i + 1}/{total}] {_song_label(song)} · {msg}",
                     )
                 except Exception:  # noqa: BLE001
                     pass
 
             try:
-                _enrich_one_song(song, music_path, on_progress)
+                _enrich_one_song(song, music_path, on_progress, force=force)
                 enriched += 1
             except Exception as e:  # noqa: BLE001
                 failed += 1
@@ -110,6 +155,7 @@ def _process_backfill_job(job, music_path):
 
         EnrichmentJobModel.complete(job_id, {
             'total': total, 'enriched': enriched, 'failed': failed,
+            'forced': force,
         })
     except Exception as e:  # noqa: BLE001
         print(f"[enrich-worker] backfill job {job_id} crashed: {e}")

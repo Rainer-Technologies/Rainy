@@ -9,3 +9,6 @@ __pycache__/
 rainy-env
 
 .env
+
+# Self-signed HTTPS certs (generated in Settings → HTTPS)
+certs/

@@ -8,13 +8,20 @@ class ImportJobModel:
     """CRUD + queue helpers for the `import_jobs` table."""
 
     @staticmethod
-    def enqueue(user_id, source, kind, url):
-        """Create a queued job and return its id."""
-        query = """
-            INSERT INTO import_jobs (user_id, source, kind, url, status)
-            VALUES (%s, %s, %s, %s, 'queued')
+    def enqueue(user_id, source, kind, url, conflict_mode=None):
+        """Create a queued job and return its id.
+
+        conflict_mode ('add' | 'override' | 'new') only applies to playlist
+        imports; it decides how a name collision with an existing playlist is
+        resolved. Song imports ignore it.
         """
-        return Database.execute_query(query, (user_id, source, kind, url))
+        query = """
+            INSERT INTO import_jobs (user_id, source, kind, url, conflict_mode, status)
+            VALUES (%s, %s, %s, %s, %s, 'queued')
+        """
+        return Database.execute_query(
+            query, (user_id, source, kind, url, conflict_mode)
+        )
 
     @staticmethod
     def get(job_id):

@@ -41,12 +41,16 @@ export class ImportJobsService extends Service {
      * @param {'youtube'|'spotify'} source
      * @param {'song'|'playlist'} kind
      * @param {string} url
+     * @param {'add'|'override'|'new'} [conflictMode] Playlist name-collision
+     *        resolution. Only meaningful for playlist imports; omit for songs.
      * @returns {Promise<Result<{success: boolean, job: ImportJobModel}, ErrorModel | ResponseError>>}
      */
-    enqueue(source, kind, url) {
+    enqueue(source, kind, url, conflictMode) {
+        const body = { source, kind, url };
+        if (conflictMode) body.conflict_mode = conflictMode;
         return this.wrap(RequestHelper.request(this.url('/import-jobs'), {
             method: 'POST',
-            body: { source, kind, url }
+            body
         }));
     }
 

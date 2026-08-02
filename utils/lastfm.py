@@ -23,6 +23,70 @@ MB_RATE_LIMIT = 1.5  # seconds between MusicBrainz calls (they ask for >= 1s;
 _mb_last_call = 0.0
 
 
+# Recognised genre labels used to pick a clean genre from crowd-sourced tags.
+# Last.fm tags are free-form (moods, vocalists, years...), so we prefer a tag
+# that matches a known genre and only fall back to the top tag otherwise.
+KNOWN_GENRES = {
+    'rock', 'pop', 'hip hop', 'hip-hop', 'rap', 'jazz', 'blues', 'country',
+    'folk', 'electronic', 'dance', 'house', 'techno', 'trance', 'dubstep',
+    'drum and bass', 'dnb', 'ambient', 'chillout', 'chillwave', 'lo-fi',
+    'lofi', 'metal', 'heavy metal', 'death metal', 'black metal', 'punk',
+    'hardcore', 'indie', 'indie rock', 'indie pop', 'alternative',
+    'alternative rock', 'classic rock', 'progressive rock', 'psychedelic',
+    'psychedelic rock', 'funk', 'soul', 'rnb', 'r&b', 'disco', 'reggae',
+    'ska', 'latin', 'reggaeton', 'salsa', 'bossa nova', 'classical',
+    'opera', 'soundtrack', 'score', 'new age', 'gospel', 'christian', 'k-pop',
+    'kpop', 'j-pop', 'jpop', 'synthwave', 'vaporwave', 'post-punk', 'punk rock',
+    'grunge', 'emo', 'shoegaze', 'dream pop', 'trip hop', 'trip-hop',
+    'deep house', 'tech house', 'progressive house', 'electro', 'edm',
+    'garage', 'uk garage', 'breakbeat', 'jungle', 'idm', 'experimental',
+    'instrumental', 'acoustic', 'piano', 'singer-songwriter', 'swing',
+    'big band', 'bebop', 'smooth jazz', 'trap', 'drill', 'grime', 'afrobeat',
+    'afrobeats', 'world', 'celtic', 'bluegrass', 'americana', 'surf',
+    'post-rock', 'math rock', 'stoner rock', 'doom metal', 'power metal',
+    'symphonic metal', 'metalcore', 'pop punk', 'pop rock', 'soft rock',
+    'dancehall', 'dub', 'funk carioca', 'phonk', 'hyperpop', 'city pop',
+    'disco house', 'nu jazz', 'future bass', 'future funk', 'hardstyle',
+    'techno house', 'christmas', 'children', 'comedy', 'spoken word',
+}
+
+# Tags that are clearly not genres — avoided when falling back to the top tag.
+NON_GENRE_TAGS = {
+    'seen live', 'female vocalists', 'male vocalists', 'male vocalist',
+    'female vocalist', 'awesome', 'best songs', 'love', 'favourites',
+    'favorites', 'chill', 'sad', 'happy', 'summer', 'winter', 'party',
+    'road trip', 'workout', 'study', 'sleep', 'romantic', 'sexy', 'energetic',
+    'melancholic', 'uplifting', 'catchy', 'groovy', 'smooth', 'mellow',
+    'atmospheric', 'epic', 'dreamy', 'dark', 'heavy', 'soft', 'oldies',
+    '2000s', '2010s', '2020s', '90s', '80s', '70s', '60s', 'one hit wonder',
+    'guilty pleasure', 'underrated', 'overrated', 'legend', 'classic',
+}
+
+
+def _normalize_tag(name):
+    """Lowercase + collapse whitespace so tag comparisons are consistent."""
+    return ' '.join((name or '').strip().lower().split())
+
+
+def pick_genre(tags):
+    """Pick the best genre label from [(tag_name, weight), ...].
+
+    Returns a clean title-cased genre string, or None if nothing looks like a
+    genre. Prefers the strongest tag that matches KNOWN_GENRES; otherwise falls
+    back to the strongest tag unless it's an obvious non-genre label.
+    """
+    if not tags:
+        return None
+    for name, _weight in tags:
+        norm = _normalize_tag(name)
+        if norm in KNOWN_GENRES:
+            return norm.title()
+    top = _normalize_tag(tags[0][0])
+    if top and top not in NON_GENRE_TAGS:
+        return top.title()
+    return None
+
+
 def _lastfm_key():
     return getattr(Config, 'LASTFM_API_KEY', None) or None
 
@@ -214,28 +278,34 @@ def enrich_song(song_id, artist, title, on_progress=None):
     from models.database import Database
 
     primary_artist = (artist or '').split(',')[0].strip()
-    summary = {'tags': 0, 'similar_artists': 0, 'bio': False, 'mbid': None}
+    summary = {'tags': 0, 'similar_artists': 0, 'bio': False, 'mbid': None, 'genre': None}
 
     def progress(pct, msg):
         if on_progress:
             on_progress(pct, msg)
 
     # 1. Last.fm track tags
-    progress(10, 'Fetching Last.fm tags…')
+    progress(10, 'Fetching genre & mood tags (Last.fm)…')
     lfm_tags = lastfm_track_tags(primary_artist, title)
     if lfm_tags:
         SongTagsModel.replace_for_song(song_id, lfm_tags, 'lastfm')
         summary['tags'] += len(lfm_tags)
+        # Backfill a missing genre from the crowd-sourced tags so genre-based
+        # browsing/radio works even for files without an embedded genre.
+        genre = pick_genre(lfm_tags)
+        if genre:
+            SongMetadataModel.set_genre_if_missing(song_id, genre)
+            summary['genre'] = genre
 
     # 2 + 3. Similar artists + bio (cached per artist)
     if primary_artist and not ArtistRelationsModel.has(primary_artist):
-        progress(35, 'Fetching similar artists…')
+        progress(35, 'Finding similar artists (Last.fm)…')
         similar = lastfm_similar_artists(primary_artist)
         if similar:
             ArtistRelationsModel.replace_for_artist(primary_artist, similar)
             summary['similar_artists'] = len(similar)
 
-        progress(55, 'Fetching artist bio…')
+        progress(55, 'Fetching artist bio (Last.fm)…')
         bio = lastfm_artist_bio(primary_artist)
         if bio:
             Database.execute_query(
@@ -253,7 +323,7 @@ def enrich_song(song_id, artist, title, on_progress=None):
         summary['similar_artists'] = len(existing) if existing else 0
 
     # 4. MusicBrainz recording MBID + genre tags
-    progress(75, 'Looking up MusicBrainz…')
+    progress(75, 'Looking up MusicBrainz ID & tags…')
     mbid, mb_tags = musicbrainz_recording(primary_artist, title)
     if mbid:
         SongMetadataModel.set_musicbrainz_id(song_id, mbid)
@@ -265,5 +335,5 @@ def enrich_song(song_id, artist, title, on_progress=None):
         SongTagsModel.replace_for_song(song_id, normalised, 'musicbrainz')
         summary['tags'] += len(normalised)
 
-    progress(100, 'Done')
+    progress(100, 'Done — metadata saved')
     return summary

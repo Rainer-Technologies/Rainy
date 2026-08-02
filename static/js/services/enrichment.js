@@ -55,6 +55,7 @@ import { Service } from "./index.js";
  * @property {number} id
  * @property {?number} song_id
  * @property {string} scope
+ * @property {boolean} force
  * @property {string} status
  * @property {number} progress
  * @property {?string} message
@@ -77,27 +78,32 @@ export class EnrichmentService extends Service {
 
     /**
      * @param {number} songId
+     * @param {boolean} [force] redo audio analysis even if features exist
      * @returns {Promise<Result<{ success: boolean, job: EnrichmentJob }, ErrorModel | ResponseError>>}
      */
-    enrichSong(songId) {
+    enrichSong(songId, force = false) {
         return this.wrap(RequestHelper.request(this.url(`/songs/${songId}/enrich`), {
-            method: 'POST'
+            method: 'POST',
+            body: { force }
         }));
     }
 
     /**
-     * @returns {Promise<Result<{ success: boolean, running: boolean, job: ?EnrichmentJob }, ErrorModel | ResponseError>>}
+     * @returns {Promise<Result<{ success: boolean, running: boolean, job: ?EnrichmentJob, queue: Array<EnrichmentJob>, history: Array<EnrichmentJob> }, ErrorModel | ResponseError>>}
      */
     status() {
         return this.wrap(RequestHelper.request(this.url('/enrich/status')));
     }
 
     /**
+     * @param {boolean} [force] re-analyse the whole library instead of only
+     *                          songs that haven't been analysed yet
      * @returns {Promise<Result<{ success: boolean, job: EnrichmentJob }, ErrorModel | ResponseError>>}
      */
-    backfill() {
+    backfill(force = false) {
         return this.wrap(RequestHelper.request(this.url('/enrich/backfill'), {
-            method: 'POST'
+            method: 'POST',
+            body: { force }
         }));
     }
 }

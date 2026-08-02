@@ -16,15 +16,15 @@ if not exist ".venv" (
     )
     echo [INFO] Virtual environment created successfully.
     echo.
-    echo [INFO] Installing requirements...
-    .venv\Scripts\pip install -r requirements.txt
-    if errorlevel 1 (
-        echo [ERROR] Failed to install requirements.
-        pause
-        exit /b 1
-    )
-    echo [INFO] Requirements installed successfully.
-    echo.
+)
+
+:: Keep dependencies in sync (fast no-op when already satisfied)
+echo [INFO] Checking requirements...
+.venv\Scripts\pip install -q -r requirements.txt
+if errorlevel 1 (
+    echo [ERROR] Failed to install requirements.
+    pause
+    exit /b 1
 )
 
 :: Check for .env file, copy from .env.example if missing

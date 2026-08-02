@@ -38,7 +38,7 @@ def _noop(*_args, **_kwargs):
     pass
 
 
-def import_youtube_song(url, music_path, on_progress=None):
+def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None):
     """Import a single song from a YouTube / YouTube Music URL."""
     from utils.youtube import YouTubeDownloader
     from utils.scanner import MusicScanner
@@ -84,6 +84,7 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
     from models.playlist import PlaylistModel
 
     on_progress = on_progress or _noop
+    conflict_mode = conflict_mode or 'add'
     on_progress(2, 'Fetching playlist...')
 
     def _dl_progress(current, total, message):
@@ -165,7 +166,7 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
     }
 
 
-def import_spotify_song(url, music_path, on_progress=None):
+def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None):
     """Import a single song from a Spotify track link (matched on YouTube Music)."""
     from utils.spotify import SpotifyImporter
     from utils.metadata import MetadataSearcher
@@ -235,6 +236,7 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
     from models.playlist import PlaylistModel
 
     on_progress = on_progress or _noop
+    conflict_mode = conflict_mode or 'add'
     on_progress(2, 'Fetching playlist from Spotify...')
 
     importer = SpotifyImporter()

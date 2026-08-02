@@ -305,6 +305,7 @@ class Database:
                 source ENUM('youtube', 'spotify') NOT NULL,
                 kind ENUM('song', 'playlist') NOT NULL,
                 url TEXT NOT NULL,
+                conflict_mode VARCHAR(16) NULL,
                 status ENUM('queued', 'running', 'completed', 'failed', 'cancelled') DEFAULT 'queued',
                 progress INT DEFAULT 0,
                 message VARCHAR(500) NULL,
@@ -319,7 +320,17 @@ class Database:
             )
         """)
 
-        # Song audio features — objective signal analysis from essentia.
+        # Migration: how a playlist import resolves a name collision
+        # ('add' | 'override' | 'new'). NULL lets the handler use its default.
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'import_jobs' AND column_name = 'conflict_mode'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE import_jobs ADD COLUMN conflict_mode VARCHAR(16) NULL")
+
+        # Song audio features — objective signal analysis from librosa.
         # One row per song, computed locally from the audio file itself so it
         # works for any file regardless of where it came from. These numeric
         # descriptors power content-based similarity and the future AI DJ.
@@ -384,8 +395,18 @@ class Database:
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE songs ADD COLUMN musicbrainz_id VARCHAR(36) NULL")
 
+        # Migration: track when a song last went through metadata enrichment so
+        # the "analyse unanalysed songs" job can skip already-processed tracks.
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'songs' AND column_name = 'enriched_at'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE songs ADD COLUMN enriched_at TIMESTAMP NULL")
+
         # Enrichment jobs — background queue for metadata enrichment
-        # (essentia audio analysis + Last.fm tags + MusicBrainz IDs).
+        # (librosa audio analysis + Last.fm tags + MusicBrainz IDs).
         # Mirrors the import_jobs pattern but is kept separate so enrichment
         # progress never clutters the import queue UI.
         cursor.execute("""
@@ -404,6 +425,16 @@ class Database:
                 INDEX idx_status (status)
             )
         """)
+
+        # Migration: flag a job as a forced full re-analysis (redo audio
+        # analysis + external metadata even for already-enriched songs).
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'enrichment_jobs' AND column_name = 'force_full'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE enrichment_jobs ADD COLUMN force_full TINYINT(1) NOT NULL DEFAULT 0")
 
         # Achievements — tracks which achievements each user has unlocked.
         cursor.execute("""

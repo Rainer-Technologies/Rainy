@@ -273,14 +273,22 @@ export class AddMusicModal extends Component {
         const toggle = source === 'youtube' ? this._youtubeBgToggle.value : this._spotifyBgToggle.value;
         if (!toggle || !toggle.checked) return false;
 
-        const data = await useImportJobsService().enqueue(source, kind, url);
+        // Playlist imports: resolve a name collision up front so the queued job
+        // carries the user's choice (replace / add / new) instead of silently
+        // defaulting to "add" and never updating the playlist order.
+        let conflictMode;
+        if (kind === 'playlist') {
+            conflictMode = await this._resolvePlaylistConflict(source, url);
+            if (conflictMode === null) return true; // user cancelled — enqueue nothing
+        }
+
+        const data = await useImportJobsService().enqueue(source, kind, url, conflictMode);
         if (data.error) {
             const msg = data.error.error || data.error.message || 'Failed to queue background import';
             Utils.showToast(msg, 'error', 5000);
             return false; // fall back to foreground import on failure
         }
 
-        const label = kind === 'playlist' ? 'playlist' : 'song';
         Utils.showToast(`Import queued — track it in Settings → Jobs`, 'success', 4000);
         setTimeout(() => this.hide(), 800);
         return true;
@@ -317,11 +325,11 @@ export class AddMusicModal extends Component {
                     ),
                     h.div(a.class('modal-body'),
                         h.p(a.style('color:var(--text-secondary);margin:0 0 16px;line-height:1.5'),
-                            'A playlist with this name already exists. What would you like to do?'),
+                            'A playlist with this name already exists. Replace it to update its songs and order, or add only the new songs while keeping the current order.'),
                         h.div(a.class('modal-actions'),
                             h.button(a.class('btn'), on.click(() => done('new')), 'Create new'),
-                            h.button(a.class('btn', 'btn-danger'), on.click(() => done('override')), 'Override'),
-                            h.button(a.class('btn', 'btn-primary'), on.click(() => done('add')), 'Add to existing')
+                            h.button(a.class('btn', 'btn-danger'), on.click(() => done('override')), 'Replace'),
+                            h.button(a.class('btn', 'btn-primary'), on.click(() => done('add')), 'Add new songs')
                         )
                     )
                 )

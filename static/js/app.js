@@ -184,6 +184,17 @@ export class RainyApp {
             this.savePreferences({ theme_color: defaultColor });
         });
 
+        // Chromecast Setup copy origin
+        document.getElementById('chromecast-copy-origin-btn')?.addEventListener('click', (e) => {
+            const txt = (document.getElementById('chromecast-origin-url')?.textContent || '').trim();
+            if (!txt || txt === '—') return;
+            try { navigator.clipboard?.writeText(txt); } catch (err) { /* ignore */ }
+            const btn = e.currentTarget;
+            const old = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = old; }, 1500);
+        });
+
         // Radio button groups (Fullscreen Mode, Lyrics Effect, …)
         document.querySelectorAll('.settings-radio-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -2670,14 +2681,17 @@ export class RainyApp {
             const serverCategory = document.getElementById('settings-nav-server-category');
             const jobsNav = document.getElementById('settings-nav-jobs');
             const usersNav = document.getElementById('settings-nav-users');
+            const httpsNav = document.getElementById('settings-nav-https');
             if (this.user.role === 'sysadmin') {
                 serverCategory?.classList.remove('hidden');
                 jobsNav?.classList.remove('hidden');
                 usersNav?.classList.remove('hidden');
+                httpsNav?.classList.remove('hidden');
             } else {
                 serverCategory?.classList.add('hidden');
                 jobsNav?.classList.add('hidden');
                 usersNav?.classList.add('hidden');
+                httpsNav?.classList.add('hidden');
             }
         }
 
@@ -2788,7 +2802,8 @@ export class RainyApp {
             'account': 'Account',
             'library': 'Library',
             'jobs': 'Jobs',
-            'users': 'Users'
+            'users': 'Users',
+            'chromecast': 'Chromecast Setup'
         };
         const title = document.getElementById('settings-page-title');
         if (title) title.textContent = titleMap[sectionName] || 'Settings';
@@ -2816,6 +2831,22 @@ export class RainyApp {
         if (sectionName === 'users') {
             this.setCreateUserFormOpen(false);
             this.loadUsers();
+        }
+
+        // Load Chromecast setup info when switching to chromecast section
+        if (sectionName === 'chromecast') {
+            this._loadChromecastInfo();
+        }
+    }
+
+    async _loadChromecastInfo() {
+        const originEl = document.getElementById('chromecast-origin-url');
+        const fallbackOrigin = `http://${window.location.hostname || 'localhost'}:6969`;
+        if (originEl) originEl.textContent = fallbackOrigin;
+
+        const res = await useServerService().chromecastInfo();
+        if (res.value && res.value.origin_url && originEl) {
+            originEl.textContent = res.value.origin_url;
         }
     }
 
