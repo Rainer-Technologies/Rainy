@@ -259,6 +259,13 @@ export class NewViews {
     }
 
     async loadRecentTab(tab) {
+        // Keep the tab pills in sync no matter which entry point
+        // (sidebar nav vs. pill click) triggered the load. Without this,
+        // opening the view via the sidebar left the previously-selected
+        // pill (e.g. "Listening Stats") highlighted over the wrong content.
+        document.querySelectorAll('.recent-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tab);
+        });
         const content = document.getElementById('recent-content');
         const stats = document.getElementById('recent-stats');
         content.classList.remove('hidden');
