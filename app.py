@@ -10,6 +10,7 @@ from routes.smartmix import smartmix_bp
 from routes.achievements import achievements_bp
 from routes.connect import connect_bp
 from routes.plugins import plugins_bp
+from routes.youtube import youtube_bp
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = Config.FLASK_SECRET_KEY
@@ -30,6 +31,7 @@ app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
 app.register_blueprint(achievements_bp, url_prefix='/api/achievements')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
 app.register_blueprint(plugins_bp, url_prefix='/api/plugins')
+app.register_blueprint(youtube_bp)
 
 @app.route('/')
 def serve_index():

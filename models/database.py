@@ -466,6 +466,17 @@ class Database:
             )
         """)
 
+        # YouTube Music OAuth tokens (device flow) — one row per user.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS youtube_auth (
+                user_id INT PRIMARY KEY,
+                token_blob TEXT NULL,
+                pending_device_code VARCHAR(255) NULL,
+                account_name VARCHAR(255) DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

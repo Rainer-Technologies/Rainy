@@ -966,3 +966,58 @@
         order: -1;
     }
 }
+/* ==================== YouTube OAuth ==================== */
+.yt-code {
+    font-family: monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    text-align: center;
+    padding: var(--spacing-lg);
+    margin: var(--spacing-md) 0;
+    background: var(--bg-tertiary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    user-select: all;
+}
+
+.yt-playlist-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.yt-playlist-item:last-child {
+    border-bottom: none;
+}
+
+.yt-playlist-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--bg-tertiary);
+    flex-shrink: 0;
+}
+
+.yt-playlist-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.yt-playlist-title {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.yt-playlist-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+}

@@ -11,6 +11,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-rainy}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?Set FLASK_SECRET_KEY in .env}
+      YT_OAUTH_CLIENT_ID: ${YT_OAUTH_CLIENT_ID:-}
+      YT_OAUTH_CLIENT_SECRET: ${YT_OAUTH_CLIENT_SECRET:-}
     volumes:
       - ${MUSIC_LIBRARY_PATH:-./music}:/music
     depends_on:

@@ -802,6 +802,13 @@
                     </svg>
                     <span>Library</span>
                 </a>
+                <a class="settings-nav-item" data-section="youtube">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.75 2 12 2 12s0 3.25.42 4.81c.23.86.91 1.54 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77C22 15.25 22 12 22 12s0-3.25-.42-4.81zM10 15V9l5.2 3-5.2 3z" />
+                    </svg>
+                    <span>YouTube</span>
+                </a>
 
                 <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category">Server
                     Settings</div>
@@ -1140,6 +1147,51 @@
                                     <button type="submit" class="btn btn-primary">Update Password</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: YouTube -->
+                <div class="settings-section" id="settings-section-youtube">
+                    <div class="settings-group">
+                        <div class="settings-group-title">YouTube Music Account</div>
+                        <div class="settings-group-description">Connect your YouTube account to access your private
+                            playlists and library. Uses Google's device login flow — no password is ever shared with
+                            Rainy.
+                        </div>
+
+                        <div class="settings-card" id="yt-status-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" id="yt-status-label">Not connected</div>
+                                    <div class="settings-row-hint" id="yt-status-hint">Link your account to browse
+                                        private playlists</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-primary" id="yt-connect-btn">Connect</button>
+                                    <button class="btn btn-danger hidden" id="yt-disconnect-btn">Disconnect</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card hidden" id="yt-auth-card">
+                            <div class="settings-group-title">Authorize on YouTube</div>
+                            <div class="settings-group-description">Open the link below and enter this code to grant
+                                access.</div>
+                            <div class="yt-code" id="yt-user-code">----</div>
+                            <div class="modal-actions">
+                                <a class="btn btn-primary" id="yt-auth-link" href="#" target="_blank"
+                                    rel="noopener">Open YouTube</a>
+                                <button class="btn btn-secondary" id="yt-cancel-btn">Cancel</button>
+                            </div>
+                            <div class="settings-row-hint" id="yt-poll-hint">Waiting for you to authorize…</div>
+                        </div>
+
+                        <div class="settings-card hidden" id="yt-playlists-card">
+                            <div class="settings-group-title">Your Playlists</div>
+                            <div id="yt-playlists-list">
+                                <div class="settings-row-hint">Connect your account to see playlists.</div>
+                            </div>
                         </div>
                     </div>
                 </div>

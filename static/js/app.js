@@ -149,6 +149,11 @@ export class RainyApp {
             this.handleSettingsSearch(e.target.value);
         });
 
+        // YouTube OAuth buttons
+        document.getElementById('yt-connect-btn')?.addEventListener('click', () => this.startYouTubeAuth());
+        document.getElementById('yt-disconnect-btn')?.addEventListener('click', () => this.disconnectYouTube());
+        document.getElementById('yt-cancel-btn')?.addEventListener('click', () => this.cancelYouTubeAuth());
+
         // Color Picker Logic
         const colorInput = document.getElementById('settings-accent-color');
 
@@ -2787,6 +2792,7 @@ export class RainyApp {
             'player': 'Player',
             'account': 'Account',
             'library': 'Library',
+            'youtube': 'YouTube',
             'jobs': 'Jobs',
             'users': 'Users'
         };
@@ -2817,6 +2823,11 @@ export class RainyApp {
             this.setCreateUserFormOpen(false);
             this.loadUsers();
         }
+
+        // Load YouTube connection status when switching to youtube section
+        if (sectionName === 'youtube') {
+            this.loadYouTubeStatus();
+        }
     }
 
     handleSettingsSearch(query) {
@@ -2828,6 +2839,7 @@ export class RainyApp {
             'appearance': ['appearance', 'theme', 'color', 'accent', 'color picker', 'preset', 'reset', 'style', 'look'],
             'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
             'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
+            'youtube': ['youtube', 'google', 'oauth', 'connect', 'private playlists', 'library', 'account', 'device login'],
             'jobs': ['jobs', 'library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata', 'server'],
             'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
         };
@@ -2999,6 +3011,142 @@ export class RainyApp {
         list.querySelectorAll('.user-delete').forEach(btn => {
             btn.addEventListener('click', () => this.openDeleteUserModal(btn.dataset.id, btn.dataset.username));
         });
+    }
+
+    // ==================== YouTube OAuth ====================
+
+    async loadYouTubeStatus() {
+        const label = document.getElementById('yt-status-label');
+        const hint = document.getElementById('yt-status-hint');
+        const connectBtn = document.getElementById('yt-connect-btn');
+        const disconnectBtn = document.getElementById('yt-disconnect-btn');
+        const playlistsCard = document.getElementById('yt-playlists-card');
+        if (!label) return;
+
+        let data;
+        try {
+            const res = await fetch('/api/youtube/status', { credentials: 'include' });
+            data = await res.json();
+        } catch (e) {
+            label.textContent = 'Failed to load status';
+            return;
+        }
+
+        if (!data.configured) {
+            label.textContent = 'Not configured';
+            hint.textContent = 'Set YT_OAUTH_CLIENT_ID and YT_OAUTH_CLIENT_SECRET on the server to enable this feature.';
+            connectBtn.disabled = true;
+            disconnectBtn.classList.add('hidden');
+            playlistsCard?.classList.add('hidden');
+            return;
+        }
+
+        connectBtn.disabled = false;
+        if (data.connected) {
+            label.textContent = `Connected as ${data.account_name || 'YouTube Account'}`;
+            hint.textContent = data.connected_at ? `Linked ${new Date(data.connected_at).toLocaleString()}` : 'Account linked';
+            connectBtn.classList.add('hidden');
+            disconnectBtn.classList.remove('hidden');
+            playlistsCard?.classList.remove('hidden');
+            this.loadYouTubePlaylists();
+        } else {
+            label.textContent = 'Not connected';
+            hint.textContent = 'Link your account to browse private playlists';
+            connectBtn.classList.remove('hidden');
+            disconnectBtn.classList.add('hidden');
+            playlistsCard?.classList.add('hidden');
+        }
+    }
+
+    async startYouTubeAuth() {
+        const authCard = document.getElementById('yt-auth-card');
+        const codeEl = document.getElementById('yt-user-code');
+        const linkEl = document.getElementById('yt-auth-link');
+        const hint = document.getElementById('yt-poll-hint');
+        try {
+            const res = await fetch('/api/youtube/start', { method: 'POST', credentials: 'include' });
+            const data = await res.json();
+            if (!res.ok) {
+                this.showToast(data.error || 'Failed to start authorization', 'error');
+                return;
+            }
+            codeEl.textContent = data.user_code;
+            linkEl.href = data.verification_url;
+            hint.textContent = 'Waiting for you to authorize…';
+            authCard.classList.remove('hidden');
+            this._ytPoll(data.interval || 5);
+        } catch (e) {
+            this.showToast('Failed to start authorization', 'error');
+        }
+    }
+
+    _ytPoll(intervalSec) {
+        if (this._ytPollTimer) clearInterval(this._ytPollTimer);
+        this._ytPollTimer = setInterval(async () => {
+            try {
+                const res = await fetch('/api/youtube/poll', { method: 'POST', credentials: 'include' });
+                const data = await res.json();
+                if (data.status === 'connected') {
+                    clearInterval(this._ytPollTimer);
+                    this._ytPollTimer = null;
+                    document.getElementById('yt-auth-card').classList.add('hidden');
+                    this.showToast(`Connected as ${data.account_name}`, 'success');
+                    this.loadYouTubeStatus();
+                } else if (data.error) {
+                    clearInterval(this._ytPollTimer);
+                    this._ytPollTimer = null;
+                    document.getElementById('yt-poll-hint').textContent = data.error;
+                }
+            } catch (e) { /* keep polling */ }
+        }, intervalSec * 1000);
+    }
+
+    cancelYouTubeAuth() {
+        if (this._ytPollTimer) {
+            clearInterval(this._ytPollTimer);
+            this._ytPollTimer = null;
+        }
+        document.getElementById('yt-auth-card')?.classList.add('hidden');
+    }
+
+    async disconnectYouTube() {
+        try {
+            await fetch('/api/youtube/disconnect', { method: 'POST', credentials: 'include' });
+            this.showToast('YouTube account disconnected', 'success');
+            this.loadYouTubeStatus();
+        } catch (e) {
+            this.showToast('Failed to disconnect', 'error');
+        }
+    }
+
+    async loadYouTubePlaylists() {
+        const list = document.getElementById('yt-playlists-list');
+        if (!list) return;
+        list.innerHTML = '<div class="settings-row-hint">Loading playlists…</div>';
+        try {
+            const res = await fetch('/api/youtube/playlists?limit=25', { credentials: 'include' });
+            const data = await res.json();
+            const playlists = data.playlists || [];
+            if (!playlists.length) {
+                list.innerHTML = '<div class="settings-row-hint">No playlists found.</div>';
+                return;
+            }
+            list.innerHTML = playlists.map(p => {
+                const thumb = (p.thumbnails && p.thumbnails.length) ? p.thumbnails[p.thumbnails.length - 1].url : '';
+                const title = Utils.escapeHtml(p.title || 'Untitled');
+                const count = p.count != null ? `${p.count} songs` : '';
+                return `
+                    <div class="yt-playlist-item">
+                        ${thumb ? `<img class="yt-playlist-thumb" src="${thumb}" alt="" loading="lazy">` : '<div class="yt-playlist-thumb"></div>'}
+                        <div class="yt-playlist-info">
+                            <div class="yt-playlist-title">${title}</div>
+                            <div class="yt-playlist-meta">${count}</div>
+                        </div>
+                    </div>`;
+            }).join('');
+        } catch (e) {
+            list.innerHTML = '<div class="settings-row-hint">Failed to load playlists.</div>';
+        }
     }
 
     setCreateUserFormOpen(open) {
