@@ -171,8 +171,8 @@ def _search_and_filter(queries, user_id):
             if not vid or vid in seen_vids:
                 continue
             title = (s.get('title') or '').strip()
-            # Skip hour-long DJ mixes / compilations — they're not songs.
-            if _is_mix_title(title) or (s.get('duration') or 0) > 900:
+            # Skip mixes/compilations/channel uploads — they're not songs.
+            if _is_bad_song_result(s):
                 continue
             key = _norm(title) + '||' + _norm(s.get('artist'))
             if key in seen_keys or key in lib_index:
@@ -183,24 +183,89 @@ def _search_and_filter(queries, user_id):
     return results
 
 
+# Compilation/mix/live title markers. "mix" is checked ANYWHERE in the
+# title (not just at the start) — uploads like "REGGAETON MIX 2025",
+# "El Mix del Verano 2025" or "Latin Vibe Mix 2026" are channel-made
+# compilations, not single songs (bug fixed Aug 2026: the old
+# `start() <= 3` check let every mid-title mix through).
 _MIX_TITLE_RE = re.compile(
-    r'\b(mix|mega mix|megamix|enganchado|sesi[oó]n|live|en vivo|cover|'
-    r'karaoke|remix compilation|top hits|grandes exitos|best of|'
-    r'party mix|perreo mix)\b',
+    r'\b(mega ?mix|megamix|mix 20\d\d|mix 2\d|enganchado|sesi[oó]n|'
+    r'en vivo|live|karaoke|remix compilation|top hits|grandes exitos|'
+    r'best of|party mix|perreo mix|latino mix|latin mix|dance mix|'
+    r'gym mix|workout mix|musica mix|música mix|audio mix|compilation|'
+    r'compilaci[oó]n|lo mejor|nonstop|non stop|full album|1 hour|'
+    r'one hour|60 minutes|hits mix|mega hits|super hits)\b',
     re.IGNORECASE,
 )
 
+# Standalone "mix"/"remix" at the START or END of a title (e.g. "Mix 2025
+# Reggaeton", "El Mix del Verano", "Reggaeton Mix") — anything that reads
+# like a compilation label rather than "(Remix)" appended to a real song.
+_MIX_EDGE_RE = re.compile(
+    r'^(mix|the mix|el mix|la mix|musica mix|música mix|mega mix)\b|'
+    r'\b(mix 20\d\d|mix$|mega mix$|megamix$|the mix$|el mix$|del mix|'
+    r'del verano|de verano|del año|del anio|202\d mix|verano 20\d\d|'
+    r'top 20\d\d|hits 20\d\d)\b',
+    re.IGNORECASE,
+)
+
+_COMPILATION_ARTIST_RE = re.compile(
+    r'^\s*(dj|various artists|va|unknown artist|mix|studio|records|'
+    r'music|hits|mega|latino|latin|reggaeton|bachata|salsa|pop|'
+    r'remix|dance|party|soundtrack|lo mejor|top hits)\b|'
+    r'\b(music|studio|records?|hits|mixes?|dj)\s*$|'
+    # Channel-style names: ALLCAPS + generic word (ALSTUDIO, LATINABRAZ),
+    # or "prod", "producer", "official", "vevo" suffixed uploaders.
+    r'^(alstudio|latinabraz|latino?music|popmusic|musicaviral|'
+    r'prod\.?\s|producer|official|.*vevo)\b',
+    re.IGNORECASE,
+)
+
+# Titles that are just years/generic words with no song name.
+_GENERIC_TITLE_RE = re.compile(
+    r'^(musica|música|music|songs|hits|pop|reggaeton|latin|latino|'
+    r'dance|party|mix|remix|202\d|best of|top)\b|'
+    r'(^|\s)(202\d|20\d\d hits|verano|summer)(\s|$)|'
+    r'\b(latina|latino|latin)\s+20\d\d\b|'
+    r'\b(spanish|español|english) (pop|version|mix)\b',
+    re.IGNORECASE,
+)
 
 def _is_mix_title(title):
     """True for compilation/mix/live titles that aren't a single song."""
     if not title:
         return True
-    low = title.lower()
-    m = _MIX_TITLE_RE.search(low)
-    if m:
-        # "X (Remix)" featuring artists is a real song — only flag when the
-        # mix/cover word starts the title or appears standalone.
-        return m.start() <= 3
+    low = title.strip().lower()
+    if _MIX_EDGE_RE.search(low) or _GENERIC_TITLE_RE.search(low):
+        return True
+    # "(Remix)" at the end of a real song title (e.g. "X (Remix) (feat.
+    # Maluma & Ozuna)") is a genuine single — don't flag it. Everything
+    # else containing a mix word is a compilation.
+    stripped = re.sub(r'\s*\((feat|ft)[^)]*\)\s*$', '', low).strip()
+    if stripped.endswith('(remix)'):
+        return False
+    return bool(_MIX_TITLE_RE.search(low))
+
+
+def _is_compilation_artist(artist):
+    """True when the 'artist' is a channel/compilation label, not a band."""
+    if not artist or artist.strip().lower() in ('unknown artist', 'va', 'various artists'):
+        return True
+    return bool(_COMPILATION_ARTIST_RE.search(artist or ''))
+
+
+def _is_bad_song_result(s):
+    """Combined quality gate for search results (mixes, channels, too long)."""
+    title = (s.get('title') or '').strip()
+    if _is_mix_title(title):
+        return True
+    if _is_compilation_artist(s.get('artist')):
+        return True
+    # Real songs are ~2-6 min; a 10-min cap still kills 30-60 min mixes
+    # while letting long-but-real tracks through (e.g. 10-min remastered
+    # versions). The old >900s cap let 5-7 min compilations through.
+    if (s.get('duration') or 0) > 600:
+        return True
     return False
 
 

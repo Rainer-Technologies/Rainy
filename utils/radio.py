@@ -25,7 +25,7 @@ from models.database import Database
 from models.settings import SettingsModel
 from utils.metadata import MetadataSearcher
 from models.duplicates import _norm
-from utils.discovery_feed import _is_mix_title
+from utils.discovery_feed import _is_bad_song_result
 
 BATCH_SIZE = 8
 SEARCH_PER_QUERY = 12
@@ -176,7 +176,12 @@ SEED's STYLE — the kind of tracks you'd play next on a radio station built aro
 Mix of: genre/subgenre searches, similar-artist phrasing, mood/style searches derived
 from the seed's audio vibe, and (if the seed is from a soundtrack/video game) related
 composers or adjacent genres. Avoid the seed's own exact artist as the whole query.
-Keep queries under 8 words. Return ONLY a JSON object: {{"queries": ["...", ...]}}"""
+IMPORTANT: queries must return SINGLE SONGS — never include words like "mix",
+"mega mix", "compilation", "live", "session", "nonstop", "1 hour", "best of",
+"hits" or year-only phrases (e.g. "reggaeton 2025" surfaces auto-generated
+compilations). Prefer "song", "songs", "like", "similar", or named-artist
+pairings (e.g. "reggaeton like Bad Bunny"). Keep queries under 8 words. Return
+ONLY a JSON object: {{"queries": ["...", ...]}}"""
     try:
         out = ai_client.chat_json(
             [{'role': 'user', 'content': prompt}], max_tokens=4096, timeout=120)
@@ -194,13 +199,17 @@ def _heuristic_queries(session):
     genre = (seed.get('genre') or '').strip()
     artist = (seed.get('artist') or '').split(',')[0].strip()
     queries = []
-    if genre and genre not in ('Music', 'Gaming', ''):
-        queries.append(f"{genre} 2025")
-        queries.append(f"best {genre} songs")
+    # Named-artist pairings return real songs; bare "<genre> 2025" queries
+    # surface auto-generated mix compilations (fixed Aug 2026).
     if artist and artist != 'Unknown Artist':
-        queries.append(f"songs similar to {artist}")
+        queries.append(f"songs like {artist}")
         queries.append(f"{artist} type songs")
-    return [q for q in queries if q][:MAX_QUERIES] or ['new music 2026']
+    if genre and genre not in ('Music', 'Gaming', ''):
+        queries.append(f"{genre} songs")
+        queries.append(f"best {genre} songs ever")
+    # Fall back to a multi-genre random-ish pick so the same seed doesn't
+    # always produce the same handful of hits.
+    return [q for q in queries if q][:MAX_QUERIES] or ['new music this week']
 
 
 # ---------------------------------------------------------- search/filter
@@ -220,6 +229,7 @@ def _search_batch(session, exclude_video_ids, direction=None, fast=False):
                else _llm_queries(session, direction=direction) or _heuristic_queries(session))
     excluded = set(exclude_video_ids or [])
     seen_vids, seen_keys, results = set(excluded), set(), []
+    artist_counts = {}   # diversify: max 2 tracks per artist in one batch
 
     for q in queries:
         try:
@@ -232,11 +242,19 @@ def _search_batch(session, exclude_video_ids, direction=None, fast=False):
             if not vid or vid in seen_vids:
                 continue
             title = (s.get('title') or '').strip()
-            if _is_mix_title(title) or (s.get('duration') or 0) > 900:
+            if _is_bad_song_result(s):
                 continue
             key = _norm(title) + '||' + _norm(s.get('artist'))
             if key in seen_keys or key in lib_index:
                 continue
+            # Artist diversity: "songs like <seed artist>" returns a wall of
+            # that same artist — cap at 2 per artist so a batch feels like a
+            # radio station, not an artist discography (Aug 2026).
+            artist_norm = _norm((s.get('artist') or '').split(',')[0])
+            if artist_norm:
+                artist_counts[artist_norm] = artist_counts.get(artist_norm, 0) + 1
+                if artist_counts[artist_norm] > 2:
+                    continue
             seen_vids.add(vid)
             seen_keys.add(key)
             results.append(s)
@@ -268,8 +286,10 @@ Candidate songs found online (index. title — artist (album, year)):
 
 Pick the {BATCH_SIZE} tracks that best continue this radio's vibe. Keep it cohesive
 with the seed but don't just repeat the same artist. Skip mixes/lives/covers and
-anything that sounds like a duplicate. Return ONLY a JSON object:
-{{"picks": [{{"index": 3, "reason": "why it fits"}}, ...]}}"""
+anything that sounds like a duplicate. VARY the picks: avoid the most obvious
+megahits of the genre (Despacito, Gasolina, Mi Gente and similar) unless they're
+the only fit — radio should DISCOVER, not replay the top-10 playlist. Return ONLY
+a JSON object: {{"picks": [{{"index": 3, "reason": "why it fits"}}, ...]}}"""
     try:
         out = ai_client.chat_json(
             [{'role': 'user', 'content': prompt}], max_tokens=8192, timeout=180)
