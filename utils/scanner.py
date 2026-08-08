@@ -145,8 +145,18 @@ class MusicScanner:
                             metadata['path'] = relative_path
                             metadata['file_size'] = file_size
                             metadata['file_modified'] = file_modified
-                            SongModel.add_song(metadata)
+                            song_id = SongModel.add_song(metadata)
                             stats['files_added'] += 1
+                            # Queue background enrichment (audio analysis +
+                            # local genre classification + external tags).
+                            # Best-effort — never let it break a scan.
+                            try:
+                                from models.enrichment_job import EnrichmentJobModel
+                                from utils import enrichment_worker
+                                EnrichmentJobModel.enqueue_song(song_id)
+                                enrichment_worker.notify()
+                            except Exception as e:  # noqa: BLE001
+                                print(f"[scanner] failed to queue enrichment for song {song_id}: {e}")
             
             # Remove songs that no longer exist on disk (only for quick scan)
             if not full_scan and existing_songs:

@@ -208,7 +208,8 @@
     display: block;
 }
 
-#fs-lightshow-canvas {
+#fs-lightshow-canvas,
+#fs-lightshow-canvas-3d {
     position: absolute;
     top: 0;
     left: 0;
@@ -219,7 +220,8 @@
     transition: opacity 0.5s ease;
 }
 
-#fs-lightshow-canvas.hidden {
+#fs-lightshow-canvas.hidden,
+#fs-lightshow-canvas-3d.hidden {
     opacity: 0;
 }
 

@@ -229,6 +229,24 @@ export class SongContextMenu extends Component {
         this._insertCurrentSongAtPosition(player.currentIndex + 1);
     }
 
+    /** Start a radio session seeded on the right-clicked song. */
+    startRadioForCurrentSong() {
+        this.hide();
+
+        /** @type {SongModel?} */
+        const currentSong = this.get('current-song');
+        if (!currentSong || !currentSong.id) return;
+
+        /** @type {import('./player.js').Player?} */
+        const player = window.player;
+        if (!player) return;
+
+        player.startRadio(currentSong.id, {
+            title: currentSong.title,
+            artist: currentSong.artist,
+        });
+    }
+
     findMetadataForCurrentSong() {
         this.hide();
 
@@ -308,6 +326,10 @@ export class SongContextMenu extends Component {
             H.of(ContextMenuItem, on.click(() => this.playCurrentSongAsNext()),
                 I.Next(),
                 h.span('Play Next'),
+            ),
+            H.of(ContextMenuItem, on.click(() => this.startRadioForCurrentSong()),
+                I.Radio(),
+                h.span('Start Radio'),
             ),
             H.of(ContextMenuItem, on.click(() => this.addCurrentSongToQueue()),
                 I.ListWithPlay(),

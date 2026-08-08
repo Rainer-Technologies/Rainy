@@ -20,6 +20,98 @@ def login_required(f):
     return decorated
 
 
+def _legacy_radio(seed_song_id, limit, disliked_ids, params):
+    """Fallback radio: score songs by same artist/genre/tags/album.
+
+    Used when the audio-feature recommender has nothing to work with
+    (e.g. songs without enrichment features yet). Kept as the previous
+    behavior so radio never regresses to empty.
+    """
+    seed = Database.execute_query(
+        "SELECT id, file_path, title, artist, album, duration, "
+        "track_number, year, genre, cover_path "
+        "FROM songs WHERE id = %s",
+        (seed_song_id,), fetch_one=True
+    )
+    if not seed:
+        return []
+
+    seed_artist = (seed.get('artist') or '').split(',')[0].strip()
+
+    seed_tag_rows = Database.execute_query(
+        "SELECT tag_name FROM song_tags WHERE song_id = %s "
+        "ORDER BY weight DESC LIMIT 8",
+        (seed_song_id,), fetch_all=True
+    ) or []
+    seed_tags = [r['tag_name'] for r in seed_tag_rows]
+
+    score_terms = [
+        "CASE WHEN s.artist = %s THEN 3 ELSE 0 END",
+        "CASE WHEN s.genre = %s AND s.genre IS NOT NULL AND s.genre != '' THEN 2 ELSE 0 END",
+        "CASE WHEN EXISTS (SELECT 1 FROM artist_relations ar "
+        "WHERE ar.artist_name = %s AND ar.related_artist = s.artist) THEN 2 ELSE 0 END",
+        "CASE WHEN s.album = %s THEN 1 ELSE 0 END",
+    ]
+    score_params = [
+        seed['artist'],
+        seed.get('genre', '') or '',
+        seed_artist,
+        seed.get('album', '') or '',
+    ]
+    if seed_tags:
+        placeholders = ', '.join(['%s'] * len(seed_tags))
+        score_terms.append(
+            f"LEAST((SELECT COUNT(DISTINCT tag_name) FROM song_tags "
+            f"WHERE song_id = s.id AND tag_name IN ({placeholders})), 3)"
+        )
+        score_params.extend(seed_tags)
+
+    score_expr = ' + '.join(score_terms)
+    disliked_filter = ""
+    if disliked_ids:
+        placeholders = ', '.join(['%s'] * len(disliked_ids))
+        disliked_filter = f" AND s.id NOT IN ({placeholders})"
+
+    query = f"""
+        SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+               s.track_number, s.year, s.genre, s.cover_path,
+               ({score_expr}) as similarity
+        FROM songs s
+        WHERE s.id != %s{disliked_filter}
+        HAVING similarity > 0
+        ORDER BY similarity DESC, RAND()
+        LIMIT %s
+    """
+    results = Database.execute_query(
+        query, tuple(score_params + [seed_song_id] + list(disliked_ids) + [limit]),
+        fetch_all=True
+    ) or []
+
+    # If not enough similar songs, fill with random
+    if len(results) < limit:
+        existing_ids = {r['id'] for r in results}
+        existing_ids.add(seed_song_id)
+        fill_placeholders = ', '.join(['%s'] * len(existing_ids))
+        fill_query = f"""
+            SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                   s.track_number, s.year, s.genre, s.cover_path, 0 as similarity
+            FROM songs s
+            WHERE s.id NOT IN ({fill_placeholders}){disliked_filter}
+            ORDER BY RAND()
+            LIMIT %s
+        """
+        fill_results = Database.execute_query(
+            fill_query, tuple(list(existing_ids) + list(disliked_ids) + [limit - len(results)]),
+            fetch_all=True
+        ) or []
+        results.extend(fill_results)
+
+    # Include the seed track itself so the "now playing" song leads
+    # the radio queue instead of being excluded.
+    results.insert(0, seed)
+    return results
+
+
 
 @smartmix_bp.route('/generate', methods=['POST'])
 @login_required
@@ -62,18 +154,76 @@ def generate_mix(user_id):
         results = Database.execute_query(query, tuple(liked_ids + params + [limit]), fetch_all=True)
 
     elif mode == 'discovery':
-        # Songs the user hasn't played yet
-        query = f"""
-            SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
-                   s.track_number, s.year, s.genre, s.cover_path
-            FROM songs s
-            WHERE s.id NOT IN (
-                SELECT DISTINCT song_id FROM play_history WHERE user_id = %s
-            ){disliked_filter}
-            ORDER BY RAND()
-            LIMIT %s
-        """
-        results = Database.execute_query(query, tuple([user_id] + params + [limit]), fetch_all=True)
+        # Songs the user hasn't played yet, ranked by audio-feature similarity
+        # to their taste profile (play-count-weighted average of what they
+        # listen to). Falls back to random unplayed if the recommender has no
+        # features to work with yet.
+        results = []
+        try:
+            from utils.recommender import discovery as discover_music
+            ranked_ids = discover_music(user_id, limit=limit)
+            if ranked_ids:
+                placeholders = ', '.join(['%s'] * len(ranked_ids))
+                query = f"""
+                    SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                           s.track_number, s.year, s.genre, s.cover_path
+                    FROM songs s
+                    WHERE s.id IN ({placeholders}){disliked_filter}
+                    ORDER BY FIELD(s.id, {placeholders})
+                """
+                results = Database.execute_query(
+                    query, tuple(ranked_ids + params + ranked_ids), fetch_all=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"[smartmix] discovery recommender failed, falling back: {e}")
+
+        if not results:
+            # Fallback: random unplayed songs
+            query = f"""
+                SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                       s.track_number, s.year, s.genre, s.cover_path
+                FROM songs s
+                WHERE s.id NOT IN (
+                    SELECT DISTINCT song_id FROM play_history WHERE user_id = %s
+                ){disliked_filter}
+                ORDER BY RAND()
+                LIMIT %s
+            """
+            results = Database.execute_query(query, tuple([user_id] + params + [limit]), fetch_all=True)
+
+    elif mode == 'similar':
+        # Pure audio-similarity radio: "songs that sound like this one"
+        # (Discogs-EffNet genre tags + essentia audio features).
+        if not seed_song_id:
+            return jsonify({'error': 'seed_song_id required for similar mode'}), 400
+        try:
+            from utils.recommender import radio as audio_radio
+            ranked_ids = audio_radio(seed_song_id, limit=limit, user_id=user_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"[smartmix] audio radio failed, falling back to legacy: {e}")
+            ranked_ids = []
+        if ranked_ids:
+            placeholders = ', '.join(['%s'] * len(ranked_ids))
+            query = f"""
+                SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                       s.track_number, s.year, s.genre, s.cover_path
+                FROM songs s
+                WHERE s.id IN ({placeholders}){disliked_filter}
+                ORDER BY FIELD(s.id, {placeholders})
+            """
+            results = Database.execute_query(
+                query, tuple(ranked_ids + params + ranked_ids), fetch_all=True)
+            # Lead with the seed track like the legacy radio did
+            seed = Database.execute_query(
+                "SELECT id, file_path, title, artist, album, duration, "
+                "track_number, year, genre, cover_path "
+                "FROM songs WHERE id = %s",
+                (seed_song_id,), fetch_one=True
+            )
+            if seed:
+                results.insert(0, seed)
+        else:
+            # Fallback: legacy radio (same artist/genre/tags scoring)
+            results = _legacy_radio(seed_song_id, limit, disliked_ids, params)
 
     else:
         # Radio mode: find songs similar to seed (same artist, genre, album)
@@ -87,91 +237,7 @@ def generate_mix(user_id):
             """
             results = Database.execute_query(query, tuple(params + [limit]), fetch_all=True)
         else:
-            seed = Database.execute_query(
-                "SELECT id, file_path, title, artist, album, duration, "
-                "track_number, year, genre, cover_path "
-                "FROM songs WHERE id = %s",
-                (seed_song_id,), fetch_one=True
-            )
-            if not seed:
-                return jsonify({'error': 'Seed song not found'}), 404
-
-            seed_artist = (seed.get('artist') or '').split(',')[0].strip()
-
-            # Crowd-sourced tags for the seed (strongest first) — used to reward
-            # candidates that share genre/mood/style labels with the seed.
-            seed_tag_rows = Database.execute_query(
-                "SELECT tag_name FROM song_tags WHERE song_id = %s "
-                "ORDER BY weight DESC LIMIT 8",
-                (seed_song_id,), fetch_all=True
-            ) or []
-            seed_tags = [r['tag_name'] for r in seed_tag_rows]
-
-            # Score songs by similarity:
-            #   same artist  -> 3 pts
-            #   same genre   -> 2 pts
-            #   similar artist (Last.fm graph) -> 2 pts
-            #   shared tags  -> 1 pt each, capped at 3
-            #   same album   -> 1 pt
-            score_terms = [
-                "CASE WHEN s.artist = %s THEN 3 ELSE 0 END",
-                "CASE WHEN s.genre = %s AND s.genre IS NOT NULL AND s.genre != '' THEN 2 ELSE 0 END",
-                "CASE WHEN EXISTS (SELECT 1 FROM artist_relations ar "
-                "WHERE ar.artist_name = %s AND ar.related_artist = s.artist) THEN 2 ELSE 0 END",
-                "CASE WHEN s.album = %s THEN 1 ELSE 0 END",
-            ]
-            score_params = [
-                seed['artist'],
-                seed.get('genre', '') or '',
-                seed_artist,
-                seed.get('album', '') or '',
-            ]
-            if seed_tags:
-                placeholders = ', '.join(['%s'] * len(seed_tags))
-                score_terms.append(
-                    f"LEAST((SELECT COUNT(DISTINCT tag_name) FROM song_tags "
-                    f"WHERE song_id = s.id AND tag_name IN ({placeholders})), 3)"
-                )
-                score_params.extend(seed_tags)
-
-            score_expr = ' + '.join(score_terms)
-            query = f"""
-                SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
-                       s.track_number, s.year, s.genre, s.cover_path,
-                       ({score_expr}) as similarity
-                FROM songs s
-                WHERE s.id != %s{disliked_filter}
-                HAVING similarity > 0
-                ORDER BY similarity DESC, RAND()
-                LIMIT %s
-            """
-            results = Database.execute_query(
-                query, tuple(score_params + [seed_song_id] + params + [limit]),
-                fetch_all=True
-            )
-
-            # If not enough similar songs, fill with random
-            if len(results) < limit:
-                existing_ids = {r['id'] for r in results}
-                existing_ids.add(seed_song_id)
-                fill_placeholders = ', '.join(['%s'] * len(existing_ids))
-                fill_query = f"""
-                    SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
-                           s.track_number, s.year, s.genre, s.cover_path, 0 as similarity
-                    FROM songs s
-                    WHERE s.id NOT IN ({fill_placeholders}){disliked_filter}
-                    ORDER BY RAND()
-                    LIMIT %s
-                """
-                fill_results = Database.execute_query(
-                    fill_query, tuple(list(existing_ids) + params + [limit - len(results)]),
-                    fetch_all=True
-                )
-                results.extend(fill_results)
-
-            # Include the seed track itself so the "now playing" song leads
-            # the radio queue instead of being excluded.
-            results.insert(0, seed)
+            results = _legacy_radio(seed_song_id, limit, disliked_ids, params)
 
     songs = []
     for row in results:

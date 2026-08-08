@@ -497,6 +497,22 @@ class Database:
             )
         """)
 
+        # Migration: extend song_tags.source with the local genre classifier.
+        # The source enum started as ('lastfm','musicbrainz'); Discogs-EffNet
+        # (local, no API key) adds a third origin for genre/style labels.
+        cursor.execute("""
+            SELECT column_type FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'song_tags'
+              AND column_name = 'source'
+        """, (Config.MYSQL_DATABASE,))
+        row = cursor.fetchone()
+        if row and 'discogs-effnet' not in (row[0] or ''):
+            cursor.execute(
+                "ALTER TABLE song_tags MODIFY COLUMN source "
+                "ENUM('lastfm', 'musicbrainz', 'discogs-effnet') "
+                "NOT NULL DEFAULT 'lastfm'"
+            )
+
         conn.commit()
         cursor.close()
         conn.close()

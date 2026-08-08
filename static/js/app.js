@@ -593,6 +593,7 @@ export class RainyApp {
         });
 
         this.initDiscoverView();
+        this.initAiSettings();
     }
 
     closeDropdown() {
@@ -2096,100 +2097,12 @@ export class RainyApp {
                 return;
             }
 
-            results.forEach(song => {
-                const item = document.createElement('div');
-                const matchedLibrarySong = this.isSongInLibrary(song);
-                const alreadyDownloaded = matchedLibrarySong !== null;
-                item.className = alreadyDownloaded ? 'discover-item in-library' : 'discover-item';
-                
-                const info = document.createElement('div');
-                info.className = 'discover-item-info';
-
-                const cover = document.createElement('img');
-                cover.className = 'discover-item-cover';
-                cover.referrerPolicy = 'no-referrer';
-                cover.onerror = () => {
-                    cover.onerror = null;
-                    cover.src = DEFAULT_COVER_BASE64;
-                };
-                cover.src = song.cover_url || DEFAULT_COVER_BASE64;
-
-                const meta = document.createElement('div');
-                meta.className = 'discover-item-meta';
-
-                const title = document.createElement('span');
-                title.className = 'discover-item-title';
-                title.textContent = song.title;
-
-                const artistAlbum = document.createElement('span');
-                artistAlbum.className = 'discover-item-artist-album';
-                
-                const artistSpan = document.createElement('span');
-                artistSpan.className = 'discover-clickable-artist';
-                artistSpan.textContent = song.artist;
-                artistSpan.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    searchInput.value = song.artist;
-                    performSearch();
-                });
-                
-                artistAlbum.appendChild(artistSpan);
-                artistAlbum.appendChild(document.createTextNode(` • ${song.album || 'Single'}`));
-
-                meta.appendChild(title);
-                meta.appendChild(artistAlbum);
-                info.appendChild(cover);
-                info.appendChild(meta);
-
-                const actions = document.createElement('div');
-                actions.className = 'discover-item-actions';
-
-                const duration = document.createElement('span');
-                duration.className = 'discover-item-duration';
-                duration.textContent = song.duration_text || Utils.formatDuration(song.duration);
-
-                const previewBtn = document.createElement('button');
-                previewBtn.className = 'discover-btn discover-btn-preview';
-                previewBtn.textContent = alreadyDownloaded ? 'Play' : 'Preview';
-                previewBtn.addEventListener('click', () => {
-                    const currentMatch = this.isSongInLibrary(song);
-                    if (currentMatch) {
-                        // Play local song in main player
-                        if (window.player) {
-                            if (previewAudio && !previewAudio.paused) {
-                                previewAudio.pause();
-                                previewAudio.src = '';
-                                previewBar.classList.add('hidden');
-                            }
-                            window.player.playSong(0, [currentMatch], { type: 'library', id: 'library' });
-                        }
-                    } else {
-                        this.playDiscoverPreview(song);
-                    }
-                });
-
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'discover-btn discover-btn-download';
-                if (alreadyDownloaded) {
-                    downloadBtn.textContent = 'In Library';
-                    downloadBtn.disabled = true;
-                } else {
-                    downloadBtn.textContent = 'Download';
-                }
-                downloadBtn.addEventListener('click', () => {
-                    this.downloadDiscoverSong(song, downloadBtn);
-                });
-
-                actions.appendChild(duration);
-                actions.appendChild(previewBtn);
-                actions.appendChild(downloadBtn);
-
-                item.appendChild(info);
-                item.appendChild(actions);
-
-                resultsList.appendChild(item);
-            });
+            this.renderDiscoverResults(results);
         };
+
+        // "For You" — AI-driven new-music feed
+        const feedBtn = document.getElementById('discover-feed-btn');
+        feedBtn?.addEventListener('click', () => this.loadDiscoverFeed());
 
         searchBtn?.addEventListener('click', performSearch);
         searchInput?.addEventListener('keypress', (e) => {
@@ -2243,6 +2156,247 @@ export class RainyApp {
             previewAudio.pause();
             previewAudio.src = '';
             previewBar.classList.add('hidden');
+        });
+    }
+
+    /** Render a list of discover results (shared by search + For You feed). */
+    renderDiscoverResults(songs) {
+        const resultsList = document.getElementById('discover-results');
+        const empty = document.getElementById('discover-empty');
+        const searchInput = document.getElementById('discover-search-input');
+        if (!resultsList) return;
+
+        resultsList.innerHTML = '';
+        empty.classList.add('hidden');
+
+        if (!songs || songs.length === 0) {
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        const feedMode = songs[0] && songs[0].reason !== undefined;
+        const feedHeader = document.createElement('div');
+        if (feedMode) {
+            feedHeader.className = 'discover-feed-header';
+            feedHeader.textContent = 'For You — AI-curated new music';
+            resultsList.appendChild(feedHeader);
+        }
+
+        songs.forEach(song => {
+            const item = document.createElement('div');
+            const matchedLibrarySong = this.isSongInLibrary(song);
+            const alreadyDownloaded = matchedLibrarySong !== null;
+            item.className = alreadyDownloaded ? 'discover-item in-library' : 'discover-item';
+
+            const info = document.createElement('div');
+            info.className = 'discover-item-info';
+
+            const cover = document.createElement('img');
+            cover.className = 'discover-item-cover';
+            cover.referrerPolicy = 'no-referrer';
+            cover.onerror = () => {
+                cover.onerror = null;
+                cover.src = DEFAULT_COVER_BASE64;
+            };
+            cover.src = song.cover_url || DEFAULT_COVER_BASE64;
+
+            const meta = document.createElement('div');
+            meta.className = 'discover-item-meta';
+
+            const title = document.createElement('span');
+            title.className = 'discover-item-title';
+            title.textContent = song.title;
+
+            const artistAlbum = document.createElement('span');
+            artistAlbum.className = 'discover-item-artist-album';
+
+            const artistSpan = document.createElement('span');
+            artistSpan.className = 'discover-clickable-artist';
+            artistSpan.textContent = song.artist;
+            artistSpan.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (searchInput) {
+                    searchInput.value = song.artist;
+                    document.getElementById('discover-search-btn')?.click();
+                }
+            });
+
+            artistAlbum.appendChild(artistSpan);
+            artistAlbum.appendChild(document.createTextNode(` • ${song.album || 'Single'}`));
+
+            meta.appendChild(title);
+            meta.appendChild(artistAlbum);
+
+            if (feedMode && song.reason) {
+                const reason = document.createElement('span');
+                reason.className = 'discover-item-reason';
+                reason.textContent = song.reason;
+                meta.appendChild(reason);
+            }
+
+            info.appendChild(cover);
+            info.appendChild(meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'discover-item-actions';
+
+            const duration = document.createElement('span');
+            duration.className = 'discover-item-duration';
+            duration.textContent = song.duration_text || Utils.formatDuration(song.duration);
+
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'discover-btn discover-btn-preview';
+            previewBtn.textContent = alreadyDownloaded ? 'Play' : 'Preview';
+            previewBtn.addEventListener('click', () => {
+                const currentMatch = this.isSongInLibrary(song);
+                if (currentMatch) {
+                    if (window.player) {
+                        const previewAudio = document.getElementById('discover-preview-audio');
+                        const previewBar = document.getElementById('discover-preview-bar');
+                        if (previewAudio && !previewAudio.paused) {
+                            previewAudio.pause();
+                            previewAudio.src = '';
+                            previewBar?.classList.add('hidden');
+                        }
+                        window.player.playSong(0, [currentMatch], { type: 'library', id: 'library' });
+                    }
+                } else {
+                    this.playDiscoverPreview(song);
+                }
+            });
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'discover-btn discover-btn-download';
+            if (alreadyDownloaded) {
+                downloadBtn.textContent = 'In Library';
+                downloadBtn.disabled = true;
+            } else {
+                downloadBtn.textContent = 'Download';
+            }
+            downloadBtn.addEventListener('click', () => {
+                this.downloadDiscoverSong(song, downloadBtn);
+            });
+
+            actions.appendChild(duration);
+            actions.appendChild(previewBtn);
+            actions.appendChild(downloadBtn);
+
+            item.appendChild(info);
+            item.appendChild(actions);
+
+            resultsList.appendChild(item);
+        });
+    }
+
+    /** AI-driven "For You" feed: new music based on listening history. */
+    async loadDiscoverFeed() {
+        const resultsList = document.getElementById('discover-results');
+        const empty = document.getElementById('discover-empty');
+        const loading = document.getElementById('discover-loading');
+        const searchInput = document.getElementById('discover-search-input');
+        if (!resultsList) return;
+
+        resultsList.innerHTML = '';
+        empty.classList.add('hidden');
+        loading.classList.remove('hidden');
+        if (searchInput) searchInput.value = '';
+
+        try {
+            const res = await fetch('/api/music/discover/feed?limit=20', {
+                credentials: 'same-origin',
+            });
+            const data = await res.json();
+            loading.classList.add('hidden');
+
+            if (!res.ok || data.error) {
+                this.showToast('For You failed: ' + (data.error || 'Unknown error'), 'error');
+                return;
+            }
+
+            if (data.meta && data.meta.error) {
+                empty.querySelector('h3').textContent = 'Not enough history';
+                empty.querySelector('p').textContent = data.meta.error;
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            this.renderDiscoverResults(data.songs || []);
+        } catch (e) {
+            loading.classList.add('hidden');
+            this.showToast('For You failed: ' + (e.message || 'Network error'), 'error');
+        }
+    }
+
+    /** Load the saved AI provider config into the settings form. */
+    async loadAiConfig() {
+        const urlInput = document.getElementById('ai-base-url');
+        const modelInput = document.getElementById('ai-model');
+        const keyInput = document.getElementById('ai-api-key');
+        const hint = document.getElementById('ai-key-hint');
+        if (!urlInput) return;
+        try {
+            const res = await fetch('/api/server/ai-config', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (res.ok && !data.error) {
+                urlInput.value = data.base_url || '';
+                modelInput.value = data.model || '';
+                keyInput.value = '';
+                if (data.api_key_set && hint) {
+                    hint.textContent = `Current key: ${data.api_key_masked} — leave blank to keep it.`;
+                }
+            }
+        } catch (e) {
+            this.showToast('Failed to load AI config: ' + (e.message || 'Error'), 'error');
+        }
+    }
+
+    /** Wire the AI settings form buttons. */
+    initAiSettings() {
+        const testBtn = document.getElementById('ai-test-btn');
+        const saveBtn = document.getElementById('ai-save-btn');
+        const statusHint = document.getElementById('ai-status-hint');
+
+        testBtn?.addEventListener('click', async () => {
+            if (statusHint) statusHint.textContent = 'Testing…';
+            try {
+                const res = await fetch('/api/server/ai-config/test', {
+                    method: 'POST', credentials: 'same-origin',
+                });
+                const data = await res.json();
+                if (statusHint) {
+                    statusHint.textContent = data.success
+                        ? `Connected ✓ — ${data.detail}`
+                        : `Failed: ${data.detail || 'unknown error'}`;
+                }
+            } catch (e) {
+                if (statusHint) statusHint.textContent = 'Failed: ' + (e.message || 'Network error');
+            }
+        });
+
+        saveBtn?.addEventListener('click', async () => {
+            const urlInput = document.getElementById('ai-base-url');
+            const modelInput = document.getElementById('ai-model');
+            const keyInput = document.getElementById('ai-api-key');
+            try {
+                const res = await fetch('/api/server/ai-config', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        base_url: urlInput?.value || '',
+                        model: modelInput?.value || '',
+                        api_key: keyInput?.value || '',
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    this.showToast('AI config saved', 'success');
+                    this.loadAiConfig();
+                } else {
+                    this.showToast('Save failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Save failed: ' + (e.message || 'Network error'), 'error');
+            }
         });
     }
 
@@ -2702,6 +2856,7 @@ export class RainyApp {
         let currentColor = '#3d7dc4';
         let currentFsMode = 'standard';
         let currentLyricsEffect = 'default';
+        let currentLightshowStyle = 'original';
         let swap = false;
         let disableLasers = false;
         let showBgBlur = false;
@@ -2718,6 +2873,7 @@ export class RainyApp {
                 if (prefs.theme_color) currentColor = prefs.theme_color;
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
                 if (prefs.lyrics_effect) currentLyricsEffect = prefs.lyrics_effect;
+                if (prefs.lightshow_style) currentLightshowStyle = prefs.lightshow_style;
                 if (typeof prefs.fullscreen_swap_sides !== 'undefined') swap = !!prefs.fullscreen_swap_sides;
                 if (typeof prefs.disable_lasers !== 'undefined') disableLasers = !!prefs.disable_lasers;
                 if (typeof prefs.show_bg_blur !== 'undefined') showBgBlur = !!prefs.show_bg_blur;
@@ -2732,7 +2888,7 @@ export class RainyApp {
         if (colorValue) colorValue.textContent = currentColor;
 
         // Set radio button groups to their saved values
-        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect };
+        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect, lightshow_style: currentLightshowStyle };
         document.querySelectorAll('.settings-radio-group').forEach(group => {
             const pref = group.dataset.pref;
             const current = radioValues[pref];
@@ -2803,7 +2959,8 @@ export class RainyApp {
             'library': 'Library',
             'jobs': 'Jobs',
             'users': 'Users',
-            'chromecast': 'Chromecast Setup'
+            'chromecast': 'Chromecast Setup',
+            'ai': 'AI & Discovery'
         };
         const title = document.getElementById('settings-page-title');
         if (title) title.textContent = titleMap[sectionName] || 'Settings';
@@ -2825,6 +2982,11 @@ export class RainyApp {
         if (sectionName === 'jobs') {
             this.loadScanStatus();
             this.loadImportJobs();
+        }
+
+        // Load AI config when switching to the AI section
+        if (sectionName === 'ai') {
+            this.loadAiConfig();
         }
 
         // Load users when switching to users section

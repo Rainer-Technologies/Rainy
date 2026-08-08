@@ -93,6 +93,20 @@ export class AudioPlayer {
         this._controllerPollFailures = 0;
         this._lastControllerCommandMs = 0;
 
+        // --- Radio mode (seed-anchored autoplay, YouTube-style) ---
+        this.radioSessionId = null;
+        this.radioSeed = null;       // {title, artist, ...} of the seed library song
+        this.radioPrefetching = false;
+        this.radioPrefetchThreshold = 4; // prefetch when fewer songs remain
+
+        // --- AI DJ mode ---
+        this.djEnabled = false;
+        this.djAudio = null;         // hidden <audio> element for DJ clips
+        this.djCard = null;
+        this.djCardText = null;
+        this.djSongCount = 0;        // songs played since DJ start (for "stops")
+        this.djIntroRequested = false;
+
         this.init();
     }
 
@@ -188,6 +202,7 @@ export class AudioPlayer {
         this.fsDislikeBtn = document.getElementById('fs-dislike-btn');
         this.fsLightShowBtn = document.getElementById('fs-lightshow-btn');
         this.fsLightShowCanvas = document.getElementById('fs-lightshow-canvas');
+        this.fsLightShowCanvas3d = document.getElementById('fs-lightshow-canvas-3d');
         this.fsLyricsContainer = document.getElementById('fs-lyrics-container');
         this.fsLyricsScroll = document.getElementById('fs-lyrics-scroll');
         this.fsLyricsContent = document.getElementById('fs-lyrics-content');
@@ -262,6 +277,29 @@ export class AudioPlayer {
             const queueTab = document.querySelector('.fs-tab[data-tab="queue"]');
             if (queueTab) queueTab.click();
         });
+
+        // AI DJ toggle
+        const djBtn = document.getElementById('dj-btn');
+        if (djBtn) djBtn.addEventListener('click', () => this.toggleDj());
+
+        // Radio badge stop button
+        const radioStop = document.getElementById('radio-badge-stop');
+        if (radioStop) radioStop.addEventListener('click', () => this.stopRadio());
+
+        // DJ card close button
+        const djClose = document.getElementById('dj-card-close');
+        if (djClose) djClose.addEventListener('click', () => this.hideDjCard());
+
+        // DJ audio ended -> hide the card
+        this.djAudio = document.getElementById('dj-audio');
+        this.djCard = document.getElementById('dj-card');
+        this.djCardText = document.getElementById('dj-card-text');
+        if (this.djAudio) {
+            this.djAudio.addEventListener('ended', () => {
+                // Small delay so the card lingers after speech ends
+                setTimeout(() => this.hideDjCard(), 2500);
+            });
+        }
 
         // Fullscreen events
         if (this.nowPlayingContainer) {
@@ -479,8 +517,11 @@ export class AudioPlayer {
         // Clear any A-B section loop from the previous song
         this.clearAbRepeat();
 
-        // Update audio source - API now uses database ID
-        const streamUrl = `/api/music/stream/${song.id}`;
+        // Update audio source - API now uses database ID; radio songs use the
+        // YouTube preview proxy instead.
+        const streamUrl = song.videoId
+            ? `/api/music/discover/preview/${song.videoId}`
+            : `/api/music/stream/${song.id}`;
         // Revoke any blob URL from a previous crossfade before replacing src
         if (this._activeBlobUrl) {
             URL.revokeObjectURL(this._activeBlobUrl);
@@ -491,8 +532,8 @@ export class AudioPlayer {
         // Update now playing info
         this.updateNowPlaying(song);
 
-        // Refresh lyrics for the new song if the panel is open
-        if (this.lyricsActive) {
+        // Refresh lyrics for the new song if the panel is open (library only)
+        if (this.lyricsActive && !song.videoId) {
             this.loadLyrics(song.id);
         }
 
@@ -503,6 +544,10 @@ export class AudioPlayer {
         this.audio.play().catch(err => {
             Logger.error('Playback error:', err);
         });
+
+        // Radio: prefetch the next batch when the queue is running low.
+        // DJ: trigger a line for this song change.
+        this._onSongStarted();
     }
 
     updateNowPlaying(song) {
@@ -510,7 +555,8 @@ export class AudioPlayer {
         this.nowPlayingTitle.textContent = song.title;
 
         // Swap in the choreographed light show for this song, if one exists
-        if (this.lightShow) this.lightShow.loadScript(song.id);
+        // (library songs only — radio tracks have no choreography)
+        if (this.lightShow && !song.videoId) this.lightShow.loadScript(song.id);
 
         // Render clickable artist links in player bar
         const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
@@ -520,6 +566,9 @@ export class AudioPlayer {
         // Update cover art if available
         if (song.cover_path) {
             this.nowPlayingArtwork.innerHTML = `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}?t=${Date.now()}" alt="Cover" loading="lazy">`;
+        } else if (song.cover_url) {
+            // Radio tracks carry a remote cover URL
+            this.nowPlayingArtwork.innerHTML = `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`;
         } else {
             this.nowPlayingArtwork.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
@@ -540,8 +589,9 @@ export class AudioPlayer {
         // Push to Media Session API (lock screen / OS media controls)
         if (this.mediaSession) this.mediaSession.updateMetadata(song);
 
-        // Start tracking real listening time for this song
-        this._startListenTracking(song);
+        // Start tracking real listening time for this song (library only —
+        // radio tracks don't write play history)
+        if (!song.videoId) this._startListenTracking(song);
 
         // Update fullscreen view if active
         if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
@@ -549,7 +599,7 @@ export class AudioPlayer {
         }
 
         // Update playing state in library
-        if (window.app) {
+        if (window.app && !song.videoId) {
             window.app.updatePlayingState(song.id);
         }
 
@@ -1273,6 +1323,350 @@ export class AudioPlayer {
         this.isBuffering = false;
     }
 
+    // ============================================================ RADIO
+
+    /**
+     * Start a radio session from a library song (YouTube-style autoplay).
+     * @param {number|string} songId - library song id
+     * @param {object} songMeta - {title, artist, genre} for the DJ intro
+     */
+    async startRadio(songId, songMeta = {}) {
+        try {
+            const res = await fetch('/api/radio/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ song_id: songId }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                window.showToast?.('Radio failed: ' + (data.error || 'Unknown error'), 'error');
+                return;
+            }
+
+            this.radioSessionId = data.session_id;
+            this.radioSeed = data.seed || songMeta;
+            this.djSongCount = 0;
+            this.djIntroRequested = false;
+
+            // Build the radio queue: seed first, then poll for the curated
+            // batch (generation runs in the background — no more blocking).
+            const queue = [];
+            if (data.seed) {
+                queue.push({
+                    id: data.seed.id,
+                    title: data.seed.title,
+                    artist: data.seed.artist,
+                    genre: data.seed.genre,
+                    cover_path: data.seed.cover_path || null,
+                });
+            }
+
+            this._showRadioBadge(true);
+            this._showRadioLoading(true);
+            const batch = await this._waitForRadioBatch(this.radioSessionId);
+            this._showRadioLoading(false);
+            for (const s of (batch || [])) {
+                queue.push(this._radioSongToPlayerSong(s));
+            }
+
+            this.playSong(this.radioSeed ? 0 : 0, queue, { type: 'radio', id: this.radioSessionId });
+
+            // Prefetch DJ lines for the upcoming songs (background).
+            if (this.djEnabled) {
+                this._prefetchDjLines(batch || [], this.radioSeed);
+            }
+            window.showToast?.(`Radio started from "${data.seed?.title || 'song'}"`, 'success');
+        } catch (e) {
+            Logger.error('startRadio failed:', e);
+            window.showToast?.('Radio failed: ' + (e.message || 'Network error'), 'error');
+        } finally {
+            this._showRadioLoading(false);
+        }
+    }
+
+    /** Poll a radio session until its first batch is ready. */
+    async _waitForRadioBatch(sessionId) {
+        const maxAttempts = 40; // ~3 min at 5s intervals
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                const res = await fetch(`/api/radio/status?session_id=${encodeURIComponent(sessionId)}`, {
+                    credentials: 'same-origin',
+                });
+                const st = await res.json();
+                if (st.status === 'ready' || st.status === 'error') break;
+            } catch (e) { /* transient — keep polling */ }
+            await new Promise(r => setTimeout(r, 5000));
+        }
+        const res = await fetch('/api/radio/next', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+        });
+        const data = await res.json();
+        return (data.songs || []);
+    }
+
+    /** Show/hide the radio "building…" indicator in the badge. */
+    _showRadioLoading(on) {
+        const badge = document.getElementById('radio-badge');
+        if (!badge) return;
+        const text = document.getElementById('radio-badge-text');
+        if (text) text.textContent = on ? 'Radio: building…' : `Radio: ${this.radioSeed?.title || ''}`;
+    }
+
+    /** Map an API radio song dict to a player song object. */
+    _radioSongToPlayerSong(s) {
+        return {
+            videoId: s.videoId,
+            id: null,
+            title: s.title,
+            artist: s.artist,
+            album: s.album || '',
+            duration: s.duration || 0,
+            genre: null,
+            cover_url: s.cover_url || null,
+            reason: s.reason || '',
+            radio: true,
+        };
+    }
+
+    /** Stop radio mode (keeps the current queue playing). */
+    async stopRadio() {
+        const sessionId = this.radioSessionId;
+        this.radioSessionId = null;
+        this.radioSeed = null;
+        this._showRadioBadge(false);
+        if (sessionId) {
+            try {
+                await fetch('/api/radio/stop', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId }),
+                });
+            } catch (e) { /* best effort */ }
+        }
+        window.showToast?.('Radio stopped', 'info');
+    }
+
+    /** True when the current queue is radio-driven. */
+    get isRadio() {
+        return this.radioSessionId !== null;
+    }
+
+    _showRadioBadge(on) {
+        const badge = document.getElementById('radio-badge');
+        if (!badge) return;
+        badge.classList.toggle('hidden', !on);
+        if (on && this.radioSeed) {
+            const text = document.getElementById('radio-badge-text');
+            if (text) text.textContent = `Radio: ${this.radioSeed.title || ''}`;
+        }
+    }
+
+    /** Called from playSong after a song starts (radio prefetch + DJ lines). */
+    _onSongStarted() {
+        if (this.isRadio) this._maybePrefetchRadio();
+        if (this.djEnabled) {
+            this._onDjSongChange();
+            // Prefetch the NEXT queue song's line so the DJ is ready ahead of
+            // time (LLM takes ~60s; songs are minutes long).
+            this._prefetchNextQueueDjLine();
+        }
+    }
+
+    /** Prefetch a DJ line for the next song in the current queue. */
+    _prefetchNextQueueDjLine() {
+        const next = this.playlist && this.playlist[this.currentIndex + 1];
+        if (!next || !next.title) return;
+        fetch('/api/dj/prefetch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seed: this.radioSeed ? { title: this.radioSeed.title, artist: this.radioSeed.artist } : null,
+                songs: [{ title: next.title, artist: next.artist || '', genre: next.genre || '' }],
+                include_intro: false,
+            }),
+        }).catch(() => {});
+    }
+
+    /** Prefetch the next radio batch when the queue is nearly exhausted. */
+    async _maybePrefetchRadio() {
+        if (!this.radioSessionId || this.radioPrefetching) return;
+        const remaining = this.playlist ? this.playlist.length - this.currentIndex - 1 : 0;
+        if (remaining >= this.radioPrefetchThreshold) return;
+
+        this.radioPrefetching = true;
+        try {
+            let data = await (await fetch('/api/radio/next', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: this.radioSessionId }),
+            })).json();
+            // If the next batch is still generating, poll until ready.
+            if (data.status === 'generating') {
+                for (let attempt = 0; attempt < 40; attempt++) {
+                    await new Promise(r => setTimeout(r, 5000));
+                    const st = await (await fetch(
+                        `/api/radio/status?session_id=${encodeURIComponent(this.radioSessionId)}`,
+                        { credentials: 'same-origin' })).json();
+                    if (st.status === 'ready' || st.status === 'error') break;
+                }
+                data = await (await fetch('/api/radio/next', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: this.radioSessionId }),
+                })).json();
+            }
+            if (!data.songs || !data.songs.length) return;
+            const newSongs = data.songs.map(s => this._radioSongToPlayerSong(s));
+            if (this.playlist) this.playlist.push(...newSongs);
+            if (this.djEnabled) this._prefetchDjLines(data.songs, this.radioSeed);
+            // Re-render the fullscreen queue if visible
+            if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
+                this.renderFullscreenQueue?.();
+            }
+        } catch (e) {
+            Logger.error('Radio prefetch failed:', e);
+        } finally {
+            this.radioPrefetching = false;
+        }
+    }
+
+    // ============================================================ AI DJ
+
+    async toggleDj() {
+        this.djEnabled = !this.djEnabled;
+        const btn = document.getElementById('dj-btn');
+        if (btn) btn.classList.toggle('active', this.djEnabled);
+        if (this.djEnabled) {
+            window.showToast?.('AI DJ on — your station: music + talk every few songs', 'success');
+            if (this.currentSong) {
+                // Talking over the current track, then keep playing + discovering.
+                this._requestDjLine('intro', this.currentSong);
+                if (!this.radioSessionId) this.startRadioFromTaste();
+            } else if (!this.radioSessionId) {
+                // Nothing playing — start a TASTE radio (your top artists)
+                // so the DJ drives the whole station.
+                this.startRadioFromTaste();
+            }
+        } else {
+            this.hideDjCard();
+            if (this.djAudio) { this.djAudio.pause(); this.djAudio.src = ''; }
+            window.showToast?.('AI DJ off', 'info');
+        }
+    }
+
+    /** Start a taste-based radio (no seed — server builds it from play history). */
+    async startRadioFromTaste() {
+        try {
+            const res = await fetch('/api/radio/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fast: true }),  // music in seconds; LLM refines later batches
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) return;
+            this.radioSessionId = data.session_id;
+            this.radioSeed = data.seed || null;
+            this.djSongCount = 0;
+            this.djIntroRequested = false;
+            this._showRadioBadge(true);
+            this._showRadioLoading(true);
+            const batch = await this._waitForRadioBatch(this.radioSessionId);
+            this._showRadioLoading(false);
+            const queue = [];
+            for (const s of (batch || [])) {
+                queue.push(this._radioSongToPlayerSong(s));
+            }
+            if (queue.length) {
+                this.playSong(0, queue, { type: 'radio', id: this.radioSessionId });
+            }
+            if (this.djEnabled) this._prefetchDjLines(batch || [], this.radioSeed);
+        } catch (e) {
+            Logger.error('Taste radio start failed:', e);
+        }
+    }
+
+    /** Called on every song change while DJ mode is on. */
+    _onDjSongChange() {
+        if (!this.djEnabled || !this.currentSong) return;
+        // Radio/talk items never retrigger the DJ.
+        if (this.currentSong.id === undefined || this.currentSong.id === null) return;
+        this.djSongCount++;
+        // The DJ only TALKS every 3rd song (a longer "stop" that chats about
+        // the flow + suggests a style direction); the rest just play music.
+        // (Synced to the mobile cadence, Aug 2026.)
+        if (this.djSongCount > 1 && (this.djSongCount % 3 === 0)) {
+            this._requestDjLine('stop', this.currentSong);
+        }
+    }
+
+    /** Fetch a DJ line (cached = instant) and play it + show the card. */
+    async _requestDjLine(lineType, song) {
+        if (!song || !song.title) return;
+        try {
+            const res = await fetch('/api/dj/line', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    line_type: lineType,
+                    song: { title: song.title, artist: song.artist || '', genre: song.genre || '' },
+                    played: [],
+                    seed: this.radioSeed ? { title: this.radioSeed.title, artist: this.radioSeed.artist } : null,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error || !data.text) return;
+            this._showDjLine(data);
+        } catch (e) {
+            Logger.error('DJ line failed:', e);
+        }
+    }
+
+    /** Prefetch DJ lines for upcoming radio songs (background, cached). */
+    _prefetchDjLines(songs, seed) {
+        if (!songs || !songs.length) return;
+        fetch('/api/dj/prefetch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seed: seed ? { title: seed.title, artist: seed.artist } : null,
+                songs: songs.map(s => ({ title: s.title, artist: s.artist, genre: s.genre || '' })),
+                include_intro: !this.djIntroRequested && seed != null,
+            }),
+        }).catch(() => {});
+        if (seed && !this.djIntroRequested) {
+            this.djIntroRequested = true;
+        }
+    }
+
+    /** Show the DJ card with text and play the clip if audio exists. */
+    _showDjLine(line) {
+        if (!this.djCard || !this.djCardText) return;
+        this.djCardText.textContent = line.text || '';
+        this.djCard.classList.remove('hidden');
+        this.djCard.classList.add('dj-card-visible');
+        if (line.audio_url && this.djAudio) {
+            this.djAudio.src = line.audio_url;
+            this.djAudio.play().catch(() => {});
+        }
+    }
+
+    hideDjCard() {
+        if (!this.djCard) return;
+        this.djCard.classList.add('hidden');
+        this.djCard.classList.remove('dj-card-visible');
+    }
+
     handleWaiting() {
         // Audio is waiting for data (buffering)
         this.isBuffering = true;
@@ -1481,6 +1875,7 @@ export class AudioPlayer {
             if (!this.lightShow) {
                 this.lightShow = new LightShowEngine({
                     canvas: this.fsLightShowCanvas,
+                    canvas3d: this.fsLightShowCanvas3d,
                     backdrop: this.fsBackdrop,
                     container: this.fsContainer,
                     isPlaying: () => this.isPlaying
@@ -1493,6 +1888,7 @@ export class AudioPlayer {
             if (this.fsLightShowBtn) this.fsLightShowBtn.classList.remove('active');
             if (this.lightShow) this.lightShow.stop();
             if (this.fsLightShowCanvas) this.fsLightShowCanvas.classList.add('hidden');
+            if (this.fsLightShowCanvas3d) this.fsLightShowCanvas3d.classList.add('hidden');
 
             // Reset backdrop to original styles
             if (this.fsBackdrop) {
@@ -2102,6 +2498,13 @@ export class AudioPlayer {
                 if (this.fsBackdrop) {
                     this.fsBackdrop.style.backgroundImage = `url('/api/music/cover/${encodeURIComponent(song.cover_path)}?t=${Date.now()}')`;
                 }
+            } else if (song.cover_url) {
+                // Radio tracks carry a remote cover URL
+                const imgHtml = `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`;
+                this.fsArtwork.innerHTML = imgHtml;
+                if (this.fsBackdrop) {
+                    this.fsBackdrop.style.backgroundImage = `url('${song.cover_url}')`;
+                }
             } else {
                 this.fsArtwork.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
                 if (this.fsBackdrop) {
@@ -2122,7 +2525,9 @@ export class AudioPlayer {
             const isActive = index === this.currentIndex;
             const coverHtml = song.cover_path
                 ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                : song.cover_url
+                    ? `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`
+                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
                 <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}" draggable="true">
@@ -3972,6 +4377,10 @@ export class AudioPlayer {
 
         const song = this.playlist[this.currentIndex];
         if (!song) return;
+
+        // Radio songs are ephemeral (videoId-based, not in the library) —
+        // don't persist resume state or push to the cross-device sync.
+        if (song.videoId) return;
 
         const state = {
             songId: song.id,

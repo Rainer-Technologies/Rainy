@@ -13,7 +13,7 @@ import time
 
 from models.database import Database
 from models.enrichment_job import EnrichmentJobModel
-from models.song_metadata import SongFeaturesModel, SongMetadataModel
+from models.song_metadata import SongFeaturesModel, SongMetadataModel, SongTagsModel
 from utils import audio_analyzer, lastfm
 
 _worker_thread = None
@@ -63,13 +63,27 @@ def _enrich_one_song(song, music_path, on_progress, force=False):
             if features:
                 SongFeaturesModel.upsert(song_id, features)
 
-    # 2. External metadata (Last.fm + MusicBrainz).
+    # 2. Local genre classification (Discogs-EffNet, on-device — no API key).
+    on_progress(15, 'Classifying genre…')
+    full = _full_path(music_path, song['file_path'])
+    if os.path.isfile(full):
+        from utils.genre_classifier import classify_file, top_level_genre
+        results = classify_file(full)
+        if results:
+            # Fill songs.genre (replacing junk ID3 placeholders like 'Music')
+            # and store the top labels as tag chips.
+            SongMetadataModel.set_genre_if_placeholder(
+                song_id, top_level_genre(results))
+            SongTagsModel.replace_for_song(
+                song_id, results, source='discogs-effnet')
+
+    # 3. External metadata (Last.fm + MusicBrainz).
     summary = lastfm.enrich_song(
         song_id, song.get('artist'), song.get('title'),
         on_progress=on_progress,
     )
 
-    # 3. Mark the song as enriched so future "analyse unanalysed" jobs skip it.
+    # 4. Mark the song as enriched so future "analyse unanalysed" jobs skip it.
     SongMetadataModel.mark_enriched(song_id)
     return summary
 

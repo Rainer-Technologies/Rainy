@@ -11,6 +11,8 @@ from routes.achievements import achievements_bp
 from routes.connect import connect_bp
 from routes.plugins import plugins_bp
 from routes.server import server_bp
+from routes.radio import radio_bp
+from routes.dj import dj_bp
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = Config.FLASK_SECRET_KEY
@@ -32,6 +34,8 @@ app.register_blueprint(achievements_bp, url_prefix='/api/achievements')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
 app.register_blueprint(plugins_bp, url_prefix='/api/plugins')
 app.register_blueprint(server_bp)
+app.register_blueprint(radio_bp)
+app.register_blueprint(dj_bp)
 
 @app.route('/')
 def serve_index():
@@ -46,6 +50,24 @@ def serve_static(path):
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     Database.close_db(exception)
+
+
+def warm_ai_stack():
+    """Pre-warm the AI stack in the background at startup.
+
+    The Kokoro TTS daemon takes ~60-80s to load its model on the first line
+    request; warming it now means the user's FIRST DJ toggle works instead of
+    failing with "DJ unavailable" while the daemon is still loading. Runs in
+    a daemon thread so startup is unaffected. Only warms when the AI is
+    actually configured.
+    """
+    try:
+        from utils import ai_client, dj
+        if ai_client.is_configured():
+            dj._warm_daemon_async()
+            print("[startup] AI stack warm-up scheduled (TTS daemon loading…)")
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] AI warm-up skipped: {e}")
 
 def init_app():
     """Initialize the application."""
@@ -100,6 +122,7 @@ def _ensure_enrichment_worker():
 
 if __name__ == '__main__':
     init_app()
+    warm_ai_stack()
 
     print(f"Starting server on http://localhost:{Config.HTTP_PORT}")
     print("=" * 40)

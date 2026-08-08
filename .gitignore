@@ -12,3 +12,7 @@ rainy-env
 
 # Self-signed HTTPS certs (generated in Settings → HTTPS)
 certs/
+
+# Pre-trained genre classifier model (auto-downloaded)
+classifier/
+dj_audio/

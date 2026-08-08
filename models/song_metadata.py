@@ -177,6 +177,30 @@ class SongMetadataModel:
             (genre, song_id),
         )
 
+    # Genres that are generic ID3 placeholders (iTunes' "Music", game-ripped
+    # "Gaming", etc.) — the local classifier's verdict beats these.
+    _PLACEHOLDER_GENRES = {'music', 'gaming', 'other', 'unknown', 'various'}
+
+    @staticmethod
+    def set_genre_if_placeholder(song_id, genre):
+        """Fill in the genre unless the song has a real one.
+
+        Unlike ``set_genre_if_missing`` this also replaces junk ID3 genres
+        (e.g. 'Music', 'Gaming') with the classifier's verdict — but keeps any
+        genre that looks like a genuine tag (e.g. 'Rock', 'Electronic').
+        """
+        if not genre:
+            return
+        Database.execute_query(
+            """
+            UPDATE songs SET genre = %s
+            WHERE id = %s
+              AND (genre IS NULL OR genre = ''
+                   OR LOWER(TRIM(genre)) IN (%s, %s, %s, %s, %s))
+            """,
+            (genre, song_id, *sorted(SongMetadataModel._PLACEHOLDER_GENRES)),
+        )
+
     @staticmethod
     def get_full(song_id):
         """Return features + tags + artist relations for a song.

@@ -76,7 +76,7 @@ export class LightShowEngine {
      * @param {HTMLElement} opts.container  Fullscreen container (visibility + layout mode)
      * @param {() => boolean} opts.isPlaying
      */
-    constructor({ canvas, backdrop, container, isPlaying }) {
+    constructor({ canvas, backdrop, container, isPlaying, canvas3d }) {
         this.canvas = canvas;
         this.ctx = canvas ? canvas.getContext('2d') : null;
         this.backdrop = backdrop;
@@ -86,6 +86,15 @@ export class LightShowEngine {
         this.active = false;
         this._raf = null;
         this._lastTs = 0;
+
+        // --- Renderer style ('original' 2D canvas | 'nebula' Three.js 3D) ---
+        // The brain below (analysis, beat grid, choreography, scenes, heads)
+        // is renderer-agnostic; only _render() differs per style. The 3D
+        // renderer is lazy-loaded so three.js never loads for 2D users.
+        this.canvas3d = canvas3d || null;
+        this.style = 'original';
+        this._r3d = null;
+        this._r3dLoading = false;
 
         // --- Audio graph ---
         this.audioCtx = null;
@@ -191,6 +200,9 @@ export class LightShowEngine {
         this._adaptUntil = performance.now() / 1000 + 5;
         this._readAccent();
         this._ensureScenes();
+        // Apply the saved renderer style before the first frame paints
+        this._getPrefs(true);
+        if (this._prefs.style) this.setStyle(this._prefs.style);
         this._resize();
         this._lastTs = 0;
         this._startLoop();
@@ -213,6 +225,50 @@ export class LightShowEngine {
             this.audioCtx.resume().catch(() => {});
         }
         this._startLoop();
+    }
+
+    /**
+     * Switch renderers. 'original' = 2D canvas, 'nebula' = Three.js 3D.
+     * During the (lazy) 3D load the 2D renderer keeps painting, then the
+     * canvases crossfade via their CSS opacity transitions.
+     */
+    setStyle(style) {
+        style = style === 'nebula' ? 'nebula' : 'original';
+        if (style === this.style) return;
+        this.style = style;
+        if (style === 'nebula') {
+            if (this._r3d) {
+                if (this.canvas3d) this.canvas3d.classList.remove('hidden');
+                if (this.canvas) this.canvas.classList.add('hidden');
+            } else {
+                this._ensure3d();
+            }
+        } else {
+            if (this.canvas3d) this.canvas3d.classList.add('hidden');
+            if (this.canvas) this.canvas.classList.remove('hidden');
+        }
+    }
+
+    async _ensure3d() {
+        if (this._r3d || this._r3dLoading) return;
+        if (!this.canvas3d) { this.style = 'original'; return; }
+        this._r3dLoading = true;
+        try {
+            const mod = await import('./lightshow3d.js');
+            this._r3d = mod.createRenderer(this.canvas3d);
+            if (this.style === 'nebula') {
+                this.canvas3d.classList.remove('hidden');
+                if (this.canvas) this.canvas.classList.add('hidden');
+            }
+            Logger.log('LightShow: Nebula 3D renderer ready.');
+        } catch (e) {
+            Logger.error('LightShow: failed to load 3D renderer, staying on Original.', e);
+            this._r3d = null;
+            this.style = 'original';
+            if (this.canvas) this.canvas.classList.remove('hidden');
+        } finally {
+            this._r3dLoading = false;
+        }
     }
 
     /**
@@ -316,6 +372,7 @@ export class LightShowEngine {
         this.lastHotTime = -999;
         this.section = 'intro';
         this.sectionUntil = 0;
+        this.flash = 0; // stale flash must not carry into the next track
         this._onSectionChange(); // settle the rig into calm targets between songs
     }
 
@@ -976,8 +1033,8 @@ export class LightShowEngine {
 
     // ------------------------------------------------------------ Rendering
 
-    _getPrefs() {
-        if (this._now - this._prefsAt < 0.5) return this._prefs;
+    _getPrefs(force = false) {
+        if (!force && this._now - this._prefsAt < 0.5) return this._prefs;
         this._prefsAt = this._now || 0;
         let prefs = {};
         try {
@@ -990,6 +1047,7 @@ export class LightShowEngine {
         this._prefs = {
             disableLasers: !!prefs.disable_lasers,
             showBgBlur: !!prefs.show_bg_blur,
+            style: prefs.lightshow_style === 'nebula' ? 'nebula' : 'original',
         };
         return this._prefs;
     }
@@ -1085,6 +1143,11 @@ export class LightShowEngine {
     }
 
     _render(now, dt) {
+        // Nebula style: hand the choreographed state to the Three.js renderer
+        if (this.style === 'nebula' && this._r3d) {
+            this._r3d.render(this, now, dt);
+            return;
+        }
         const ctx = this.ctx;
         const w = this.canvas.width, h = this.canvas.height;
         const isStandard = this.container && this.container.classList.contains('mode-standard');
@@ -1288,6 +1351,8 @@ export class LightShowEngine {
 
         this._resize();
         this._getPrefs();
+        // Live style switching: the pref poller (0.5s) picks up changes
+        if (this._prefs.style !== this.style) this.setStyle(this._prefs.style);
         this._analyse(now, dt);
         this._updateBeatGrid(now, dt);
         this._updateHeads(dt);
