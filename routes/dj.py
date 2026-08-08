@@ -46,7 +46,7 @@ def dj_prefetch():
     """Pre-generate DJ lines for upcoming songs (background).
 
     Body: {seed: {title, artist}?, songs: [{title, artist, genre}, ...],
-           include_intro: bool}
+           include_intro: bool, line_type?: 'transition'|'stop'}
     Returns: {queued: N}
     """
     from utils import dj
@@ -55,6 +55,7 @@ def dj_prefetch():
         seed=data.get('seed'),
         songs=data.get('songs') or [],
         include_intro=bool(data.get('include_intro', True)),
+        line_type=data.get('line_type', 'transition'),
     )
     return jsonify({'queued': queued})
 

@@ -105,7 +105,10 @@ export class AudioPlayer {
         this.djCard = null;
         this.djCardText = null;
         this.djSongCount = 0;        // songs played since DJ start (for "stops")
+        this._djLastSongKey = null;  // 'title||artist' dedup for talk trigger
         this.djIntroRequested = false;
+        this.djStartedRadio = false; // radio session started BY the DJ?
+        this._djPlayedTitles = [];   // recent songs this session (DJ context)
 
         this.init();
     }
@@ -518,10 +521,12 @@ export class AudioPlayer {
         this.clearAbRepeat();
 
         // Update audio source - API now uses database ID; radio songs use the
-        // YouTube preview proxy instead.
-        const streamUrl = song.videoId
-            ? `/api/music/discover/preview/${song.videoId}`
-            : `/api/music/stream/${song.id}`;
+        // YouTube preview proxy instead; DJ talk items stream the TTS clip.
+        const streamUrl = song.djTalk
+            ? song.djAudioUrl
+            : song.videoId
+                ? `/api/music/discover/preview/${song.videoId}`
+                : `/api/music/stream/${song.id}`;
         // Revoke any blob URL from a previous crossfade before replacing src
         if (this._activeBlobUrl) {
             URL.revokeObjectURL(this._activeBlobUrl);
@@ -555,8 +560,8 @@ export class AudioPlayer {
         this.nowPlayingTitle.textContent = song.title;
 
         // Swap in the choreographed light show for this song, if one exists
-        // (library songs only — radio tracks have no choreography)
-        if (this.lightShow && !song.videoId) this.lightShow.loadScript(song.id);
+        // (library songs only — radio tracks and DJ talk have no choreography)
+        if (this.lightShow && !song.videoId && !song.djTalk) this.lightShow.loadScript(song.id);
 
         // Render clickable artist links in player bar
         const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
@@ -564,7 +569,10 @@ export class AudioPlayer {
         this.nowPlayingArtist.innerHTML = artistLinksHtml;
 
         // Update cover art if available
-        if (song.cover_path) {
+        if (song.djTalk) {
+            // DJ talk items show the Rainy logo, like the mobile app.
+            this.nowPlayingArtwork.innerHTML = `<img src="/icons/icon-192.png" alt="Rainy" loading="lazy">`;
+        } else if (song.cover_path) {
             this.nowPlayingArtwork.innerHTML = `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}?t=${Date.now()}" alt="Cover" loading="lazy">`;
         } else if (song.cover_url) {
             // Radio tracks carry a remote cover URL
@@ -590,8 +598,8 @@ export class AudioPlayer {
         if (this.mediaSession) this.mediaSession.updateMetadata(song);
 
         // Start tracking real listening time for this song (library only —
-        // radio tracks don't write play history)
-        if (!song.videoId) this._startListenTracking(song);
+        // radio tracks and DJ talk don't write play history)
+        if (!song.videoId && !song.djTalk) this._startListenTracking(song);
 
         // Update fullscreen view if active
         if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
@@ -599,7 +607,7 @@ export class AudioPlayer {
         }
 
         // Update playing state in library
-        if (window.app && !song.videoId) {
+        if (window.app && !song.videoId && !song.djTalk) {
             window.app.updatePlayingState(song.id);
         }
 
@@ -1336,7 +1344,7 @@ export class AudioPlayer {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ song_id: songId }),
+                body: JSON.stringify({ song_id: songId, fast: true }),
             });
             const data = await res.json();
             if (!res.ok || data.error) {
@@ -1345,20 +1353,39 @@ export class AudioPlayer {
             }
 
             this.radioSessionId = data.session_id;
-            this.radioSeed = data.seed || songMeta;
+            // Prefer the song the user actually picked for the badge text —
+            // the API's seed dict should match, but songMeta is the ground
+            // truth the user sees in the queue (glitch fix: badge sometimes
+            // showed a different song than the one playing).
+            this.radioSeed = (songMeta && songMeta.id != null) ? songMeta : (data.seed || songMeta);
             this.djSongCount = 0;
+            this._djLastSongKey = null;
             this.djIntroRequested = false;
+            // A manual (seed-based) radio is NOT DJ-owned.
+            this.djStartedRadio = false;
 
             // Build the radio queue: seed first, then poll for the curated
             // batch (generation runs in the background — no more blocking).
             const queue = [];
-            if (data.seed) {
+            // Use the FULL library song the user picked (cover, duration,
+            // album) for the seed — the API's seed dict is minimal and
+            // dropping it in loses the cover + playing time (bug fixed
+            // Aug 2026). Fall back to the API seed for taste-radio (no
+            // library song involved).
+            const seedSong = (songMeta && songMeta.id != null)
+                ? songMeta
+                : data.seed;
+            if (seedSong) {
                 queue.push({
-                    id: data.seed.id,
-                    title: data.seed.title,
-                    artist: data.seed.artist,
-                    genre: data.seed.genre,
-                    cover_path: data.seed.cover_path || null,
+                    id: seedSong.id ?? null,
+                    title: seedSong.title,
+                    artist: seedSong.artist,
+                    genre: seedSong.genre,
+                    // Normalize Windows-style cover paths (covers\\x.jpg) —
+                    // the Linux server 404s backslashes (bug fixed Aug 2026).
+                    cover_path: (seedSong.cover_path || seedSong.cover || '').replace(/\\/g, '/') || null,
+                    duration: seedSong.duration || 0,
+                    album: seedSong.album || '',
                 });
             }
 
@@ -1413,7 +1440,11 @@ export class AudioPlayer {
         const badge = document.getElementById('radio-badge');
         if (!badge) return;
         const text = document.getElementById('radio-badge-text');
-        if (text) text.textContent = on ? 'Radio: building…' : `Radio: ${this.radioSeed?.title || ''}`;
+        if (text) {
+            text.textContent = this.djEnabled
+                ? (on ? 'AI DJ: building…' : 'AI DJ')
+                : (on ? 'Radio: building…' : `Radio: ${this.radioSeed?.title || ''}`);
+        }
     }
 
     /** Map an API radio song dict to a player song object. */
@@ -1460,9 +1491,15 @@ export class AudioPlayer {
         const badge = document.getElementById('radio-badge');
         if (!badge) return;
         badge.classList.toggle('hidden', !on);
-        if (on && this.radioSeed) {
+        if (on) {
             const text = document.getElementById('radio-badge-text');
-            if (text) text.textContent = `Radio: ${this.radioSeed.title || ''}`;
+            if (text) {
+                // In DJ mode the badge says DJ — the station IS the DJ.
+                // In plain radio mode it shows the seed song.
+                text.textContent = this.djEnabled
+                    ? 'AI DJ'
+                    : `Radio: ${this.radioSeed?.title || ''}`;
+            }
         }
     }
 
@@ -1470,6 +1507,12 @@ export class AudioPlayer {
     _onSongStarted() {
         if (this.isRadio) this._maybePrefetchRadio();
         if (this.djEnabled) {
+            // Record the song that actually played — the DJ uses this to
+            // talk about the REAL session, not pre-DJ history.
+            if (this.currentSong && !this.currentSong.djTalk && this.currentSong.title) {
+                this._djPlayedTitles.push(`${this.currentSong.title} — ${this.currentSong.artist || ''}`);
+                if (this._djPlayedTitles.length > 8) this._djPlayedTitles.shift();
+            }
             this._onDjSongChange();
             // Prefetch the NEXT queue song's line so the DJ is ready ahead of
             // time (LLM takes ~60s; songs are minutes long).
@@ -1545,19 +1588,22 @@ export class AudioPlayer {
         const btn = document.getElementById('dj-btn');
         if (btn) btn.classList.toggle('active', this.djEnabled);
         if (this.djEnabled) {
-            window.showToast?.('AI DJ on — your station: music + talk every few songs', 'success');
-            if (this.currentSong) {
-                // Talking over the current track, then keep playing + discovering.
-                this._requestDjLine('intro', this.currentSong);
-                if (!this.radioSessionId) this.startRadioFromTaste();
-            } else if (!this.radioSessionId) {
-                // Nothing playing — start a TASTE radio (your top artists)
-                // so the DJ drives the whole station.
-                this.startRadioFromTaste();
-            }
+            window.showToast?.('AI DJ on — your station starts playing', 'success');
+            // DJ is its OWN station: it always starts a taste radio from
+            // your history, independent of what's currently playing
+            // (Spotify-DJ concept — not a commentator on the current queue).
+            this._djPlayedTitles = [];   // fresh session context
+            if (!this.radioSessionId) this.startRadioFromTaste();
         } else {
             this.hideDjCard();
             if (this.djAudio) { this.djAudio.pause(); this.djAudio.src = ''; }
+            this.djSongCount = 0;
+            this._djLastSongKey = null;
+            // DJ off ends the DJ station: stop the taste radio session and
+            // hide the badge (it stays visible while the station plays).
+            if (this.radioSessionId && this.djStartedRadio) {
+                this.stopRadio();
+            }
             window.showToast?.('AI DJ off', 'info');
         }
     }
@@ -1576,6 +1622,7 @@ export class AudioPlayer {
             this.radioSessionId = data.session_id;
             this.radioSeed = data.seed || null;
             this.djSongCount = 0;
+            this._djLastSongKey = null;
             this.djIntroRequested = false;
             this._showRadioBadge(true);
             this._showRadioLoading(true);
@@ -1587,7 +1634,12 @@ export class AudioPlayer {
             }
             if (queue.length) {
                 this.playSong(0, queue, { type: 'radio', id: this.radioSessionId });
+                // No intro talk — the DJ only speaks every 3rd song (a
+                // constant "welcome" felt chatty, bug report Aug 2026).
             }
+            // Remember this session was started BY the DJ — turning DJ off
+            // should end it (and hide the badge).
+            this.djStartedRadio = this.djEnabled;
             if (this.djEnabled) this._prefetchDjLines(batch || [], this.radioSeed);
         } catch (e) {
             Logger.error('Taste radio start failed:', e);
@@ -1597,20 +1649,57 @@ export class AudioPlayer {
     /** Called on every song change while DJ mode is on. */
     _onDjSongChange() {
         if (!this.djEnabled || !this.currentSong) return;
-        // Radio/talk items never retrigger the DJ.
-        if (this.currentSong.id === undefined || this.currentSong.id === null) return;
+        // DJ talk items don't count toward the cadence and never retrigger.
+        if (this.currentSong.djTalk) return;
+        // Radio songs have id null — dedup by title+artist, not id, or the
+        // DJ goes permanently silent on its own station (bug fixed Aug 2026).
+        const key = `${this.currentSong.title}||${this.currentSong.artist || ''}`;
+        if (this._djLastSongKey === key) return;
+        this._djLastSongKey = key;
         this.djSongCount++;
         // The DJ only TALKS every 3rd song (a longer "stop" that chats about
         // the flow + suggests a style direction); the rest just play music.
-        // (Synced to the mobile cadence, Aug 2026.)
+        // Talk is queued as a skippable item, never overlaid on the music.
         if (this.djSongCount > 1 && (this.djSongCount % 3 === 0)) {
-            this._requestDjLine('stop', this.currentSong);
+            this._queueDjTalk('stop', this.currentSong);
+        } else if ((this.djSongCount + 1) % 3 === 0 && this.playlist) {
+            // The NEXT song will trigger a stop — prefetch its line NOW
+            // while the current song plays. Lines take 60-90s (LLM + TTS);
+            // without this the talk arrives late or never on short radio
+            // previews (bug fixed Aug 2026).
+            const next = this.playlist[this.currentIndex + 1];
+            if (next && next.title) this._prefetchStopLine(next);
         }
     }
 
-    /** Fetch a DJ line (cached = instant) and play it + show the card. */
-    async _requestDjLine(lineType, song) {
+    /** Prefetch a 'stop' line for an upcoming song (background, cached). */
+    _prefetchStopLine(song) {
+        fetch('/api/dj/prefetch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seed: this.radioSeed ? { title: this.radioSeed.title, artist: this.radioSeed.artist } : null,
+                songs: [{ title: song.title, artist: song.artist || '', genre: song.genre || '' }],
+                include_intro: false,
+                line_type: 'stop',
+            }),
+        }).catch(() => {});
+    }
+
+    /** Fetch a DJ line and insert it into the queue as a skippable talk
+     *  item (Rainy logo) — the DJ NEVER talks over the music. The item
+     *  streams the TTS clip through the normal player, like mobile.
+     *  Lines without audio are skipped (a silent queue item is pointless —
+     *  this was the "talking every song" bug: audio-less items died
+     *  instantly and every song change retriggered). */
+    async _queueDjTalk(lineType, song) {
         if (!song || !song.title) return;
+        // Capture WHICH song triggered the talk NOW. The line fetch is slow
+        // (LLM) — by the time it returns, the player may have advanced, and
+        // inserting at "currentIndex + 1" puts the talk after the wrong
+        // song / about a song that already played (bug fixed Aug 2026).
+        const triggerIndex = this.playlist ? this.playlist.indexOf(song) : -1;
         try {
             const res = await fetch('/api/dj/line', {
                 method: 'POST',
@@ -1619,16 +1708,79 @@ export class AudioPlayer {
                 body: JSON.stringify({
                     line_type: lineType,
                     song: { title: song.title, artist: song.artist || '', genre: song.genre || '' },
-                    played: [],
+                    // ACTUAL session history — the server needs to know what
+                    // really played so the DJ talks about the right songs.
+                    // (Was sent as [] — the LLM then free-formed and
+                    // referenced the seed, i.e. a pre-DJ song. Bug fixed
+                    // Aug 2026.)
+                    played: this._djPlayedTitles || [],
                     seed: this.radioSeed ? { title: this.radioSeed.title, artist: this.radioSeed.artist } : null,
                 }),
             });
             const data = await res.json();
-            if (!res.ok || data.error || !data.text) return;
-            this._showDjLine(data);
+            if (!res.ok || data.error) {
+                // Surface failures — a silent return made the DJ look dead
+                // (e.g. TTS daemon still warming → every line 503'd and the
+                // user thought the DJ never speaks. Bug fixed Aug 2026.)
+                Logger.warn('DJ line unavailable:', data.error || res.status);
+                return;
+            }
+            if (!data.text || !data.audio_url) return;
+            this._insertDjTalkItem(data, triggerIndex);
+            // A stop line may suggest a style direction — steer the station.
+            if (lineType === 'stop' && data.next_direction && this.radioSessionId) {
+                this._steerRadioDirection(data.next_direction);
+            }
         } catch (e) {
             Logger.error('DJ line failed:', e);
         }
+    }
+
+    /** Insert a DJ talk item into the queue right after the song that
+     *  triggered it (like mobile). If that song has already been skipped
+     *  past, insert after the currently playing song instead.
+     *  Title "AI DJ", the Rainy logo as artwork, audio = the clip;
+     *  plays through the normal player and is skippable. */
+    _insertDjTalkItem(line, triggerIndex = -1) {
+        if (!this.playlist) return;
+        const talkItem = {
+            djTalk: true,
+            id: null,
+            videoId: null,
+            title: 'AI DJ',
+            artist: line.text || '',
+            djAudioUrl: line.audio_url || null,
+            duration: 0,
+            genre: null,
+            radio: true,
+        };
+        // Prefer right after the triggering song; fall back to "next".
+        let insertAt = this.currentIndex + 1;
+        if (triggerIndex > this.currentIndex && triggerIndex < this.playlist.length) {
+            // Trigger song is still upcoming — talk goes right after it.
+            insertAt = triggerIndex + 1;
+        }
+        this.playlist.splice(insertAt, 0, talkItem);
+        if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
+            this.renderFullscreenQueue?.();
+        }
+        // No overlay bubble: the talk item itself IS the DJ's speech — it
+        // shows in the player bar + queue with the Rainy logo, skippable.
+        // (The old DJ card overlay confused people — removed Aug 2026.)
+    }
+
+    /** Ask the station for its next batch biased toward a style direction. */
+    async _steerRadioDirection(direction) {
+        if (!this.radioSessionId) return;
+        try {
+            await fetch('/api/radio/next', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: this.radioSessionId, direction }),
+            });
+            this._maybePrefetchRadio();
+        } catch (e) { /* best effort */ }
     }
 
     /** Prefetch DJ lines for upcoming radio songs (background, cached). */
@@ -1649,22 +1801,25 @@ export class AudioPlayer {
         }
     }
 
-    /** Show the DJ card with text and play the clip if audio exists. */
+    /** Show the DJ card as a BRIEF TEXT notice only. The audio never plays
+     *  here — the talk is a queue item that streams through the main player
+     *  (like mobile), so the card just shows what the DJ said. */
     _showDjLine(line) {
         if (!this.djCard || !this.djCardText) return;
         this.djCardText.textContent = line.text || '';
         this.djCard.classList.remove('hidden');
         this.djCard.classList.add('dj-card-visible');
-        if (line.audio_url && this.djAudio) {
-            this.djAudio.src = line.audio_url;
-            this.djAudio.play().catch(() => {});
-        }
+        // Hide after a short linger — the card is a text notice, not an
+        // audio overlay (audio plays via the queue item).
+        setTimeout(() => this.hideDjCard(), 6000);
     }
 
     hideDjCard() {
         if (!this.djCard) return;
         this.djCard.classList.add('hidden');
         this.djCard.classList.remove('dj-card-visible');
+        // Stop any stale overlay audio (shouldn't be playing, but be safe).
+        if (this.djAudio) { this.djAudio.pause(); this.djAudio.src = ''; }
     }
 
     handleWaiting() {
@@ -2491,7 +2646,14 @@ export class AudioPlayer {
 
         // Update Artwork
         if (this.fsArtwork) {
-            if (song.cover_path) {
+            if (song.djTalk) {
+                // DJ talk items show the Rainy logo, like the mobile app.
+                this.fsArtwork.innerHTML = `<img src="/icons/icon-192.png" alt="Rainy">`;
+                if (this.fsBackdrop) {
+                    this.fsBackdrop.style.backgroundImage = 'none';
+                    this.fsBackdrop.style.backgroundColor = 'var(--bg-primary)';
+                }
+            } else if (song.cover_path) {
                 const imgHtml = `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}?t=${Date.now()}" alt="Cover">`;
                 this.fsArtwork.innerHTML = imgHtml;
                 // Update backdrop
@@ -2523,11 +2685,13 @@ export class AudioPlayer {
 
         const html = this.playlist.map((song, index) => {
             const isActive = index === this.currentIndex;
-            const coverHtml = song.cover_path
-                ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy">`
-                : song.cover_url
-                    ? `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`
-                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+            const coverHtml = song.djTalk
+                ? `<img src="/icons/icon-192.png" alt="Rainy" loading="lazy">`
+                : song.cover_path
+                    ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy">`
+                    : song.cover_url
+                        ? `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`
+                        : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
                 <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}" draggable="true">
@@ -4380,7 +4544,8 @@ export class AudioPlayer {
 
         // Radio songs are ephemeral (videoId-based, not in the library) —
         // don't persist resume state or push to the cross-device sync.
-        if (song.videoId) return;
+        // DJ talk items are ephemeral too.
+        if (song.videoId || song.djTalk) return;
 
         const state = {
             songId: song.id,

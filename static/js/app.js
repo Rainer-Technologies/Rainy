@@ -1295,11 +1295,26 @@ export class RainyApp {
             e.preventDefault();
 
             const menuBtn = songElement.querySelector('.song-menu-btn');
-            const songData = menuBtn ? menuBtn.dataset : {
+            let songData = menuBtn ? menuBtn.dataset : {
                 songId: songElement.dataset.id,
                 songTitle: songElement.querySelector('.song-title, .track-title')?.textContent || '',
                 songArtist: songElement.querySelector('.song-artist, .track-artists')?.textContent || ''
             };
+            // Prefer the FULL library song object (cover, duration, album,
+            // genre) — the DOM fallback is a shell and loses the seed's
+            // cover + duration when starting radio (bug fixed Aug 2026).
+            const full = this.librarySongs.find(s => String(s.id) === String(songData.songId));
+            if (full) {
+                songData = {
+                    songId: full.id,
+                    songTitle: full.title,
+                    songArtist: full.artist,
+                    songAlbum: full.album || '',
+                    songDuration: full.duration || 0,
+                    songCover: (full.cover_path || full.cover || '').replace(/\\/g, '/') || null,
+                    songGenre: full.genre || null,
+                };
+            }
 
             this.showContextMenu(e, songData);
         });
@@ -1643,7 +1658,11 @@ export class RainyApp {
         songContextMenu.setCurrentSong({
             id: songData.songId,
             title: songData.songTitle,
-            artist: songData.songArtist
+            artist: songData.songArtist,
+            album: songData.songAlbum || '',
+            duration: Number(songData.songDuration) || 0,
+            cover_path: songData.songCover || null,
+            genre: songData.songGenre || null,
         });
 
         songContextMenu.show({ 
@@ -3624,7 +3643,7 @@ export class RainyApp {
                     <div class="track-album-col">${escapeHtml(song.album || 'Single')}</div>
                     <div class="track-duration-col">${Utils.formatDuration(song.duration)}</div>
                     <div class="track-actions-col">
-                        <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                        <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}" data-song-cover="${escapeHtml(song.cover_path || song.cover || '')}" data-song-duration="${song.duration || 0}" data-song-album="${escapeHtml(song.album || '')}">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                 <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                             </svg>
@@ -3672,7 +3691,7 @@ export class RainyApp {
 
                 return `
                 <div class="song-card fade-in" data-index="${globalIndex}" data-id="${song.id}">
-                    <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                    <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}" data-song-cover="${escapeHtml(song.cover_path || song.cover || '')}" data-song-duration="${song.duration || 0}" data-song-album="${escapeHtml(song.album || '')}">
                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                         </svg>

@@ -56,13 +56,17 @@ class RadioSession:
         self.generation_started = time.time()
 
     def to_public(self):
+        cover = (self.seed.get('cover_path') or '').replace('\\', '/')
         return {
             'session_id': self.session_id,
             'seed': {
                 'id': self.seed.get('id'),
                 'title': self.seed.get('title'),
                 'artist': self.seed.get('artist'),
+                'album': self.seed.get('album'),
                 'genre': self.seed.get('genre'),
+                'cover_path': cover or None,
+                'duration': self.seed.get('duration') or 0,
             },
         }
 
@@ -320,7 +324,7 @@ def start(user_id, song_id=None, fast=False):
     """
     if song_id is not None:
         song = Database.execute_query(
-            "SELECT id, title, artist, album, genre FROM songs WHERE id = %s",
+            "SELECT id, title, artist, album, genre, cover_path, duration FROM songs WHERE id = %s",
             (song_id,), fetch_one=True,
         )
         if not song:
@@ -344,29 +348,29 @@ def _taste_seed(user_id):
     only uses title/artist/genre for queries.
     """
     rows = Database.execute_query(
-        """SELECT s.id, s.title, s.artist, s.album, s.genre, COUNT(ph.id) AS n
-           FROM play_history ph
-           JOIN songs s ON s.id = ph.song_id
-           WHERE ph.user_id = %s
-           GROUP BY s.id, s.title, s.artist, s.album, s.genre
-           ORDER BY n DESC, MAX(ph.played_at) DESC
-           LIMIT 5""",
+        """SELECT s.id, s.title, s.artist, s.album, s.genre, s.cover_path, s.duration, COUNT(ph.id) AS n
+          FROM play_history ph
+          JOIN songs s ON s.id = ph.song_id
+          WHERE ph.user_id = %s
+          GROUP BY s.id, s.title, s.artist, s.album, s.genre, s.cover_path, s.duration
+          ORDER BY n DESC, MAX(ph.played_at) DESC
+          LIMIT 5""",
         (user_id,), fetch_all=True,
     ) or []
     if not rows:
         # Fallback 1: liked songs.
         rows = Database.execute_query(
-            """SELECT s.id, s.title, s.artist, s.album, s.genre
-               FROM song_ratings sr JOIN songs s ON s.id = sr.song_id
-               WHERE sr.user_id = %s AND sr.rating = 'like'
-               ORDER BY sr.created_at DESC LIMIT 5""",
+            """SELECT s.id, s.title, s.artist, s.album, s.genre, s.cover_path, s.duration
+              FROM song_ratings sr JOIN songs s ON s.id = sr.song_id
+              WHERE sr.user_id = %s AND sr.rating = 'like'
+              ORDER BY sr.created_at DESC LIMIT 5""",
             (user_id,), fetch_all=True,
         ) or []
     if not rows:
         # Fallback 2: most recently added library songs.
         rows = Database.execute_query(
-            """SELECT id, title, artist, album, genre FROM songs
-               ORDER BY id DESC LIMIT 5""",
+            """SELECT id, title, artist, album, genre, cover_path, duration FROM songs
+              ORDER BY id DESC LIMIT 5""",
             fetch_all=True,
         ) or []
     if not rows:
@@ -383,6 +387,8 @@ def _taste_seed(user_id):
         'artist': top.get('artist'),
         'album': top.get('album'),
         'genre': genre,
+        'cover_path': top.get('cover_path'),
+        'duration': top.get('duration') or 0,
         '_taste_seed': True,
     }
 

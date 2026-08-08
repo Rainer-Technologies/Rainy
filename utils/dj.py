@@ -43,18 +43,32 @@ def _line_key(title, artist):
     return f"{(title or '').strip().lower()}||{(artist or '').strip().lower()}"
 
 
-def cached_line(song):
-    """Return a pre-generated line for a song, or None."""
+def cached_line(song, line_type=None):
+    """Return a pre-generated line for a song, or None.
+
+    `line_type` (if given) must match — a cached 'transition' line must
+    never be served for a 'stop' request (they say completely different
+    things; serving the wrong one made the DJ sound confused — it talked
+    about a song as if introducing it when the user asked for a recap).
+    """
     key = _line_key((song or {}).get('title'), (song or {}).get('artist'))
     with _line_cache_lock:
-        return _line_cache.get(key)
+        entry = _line_cache.get(key)
+        if entry and (line_type is None or entry.get('line_type') == line_type):
+            return entry
+        return None
 
 
-def prefetch_lines(seed, songs, include_intro=True, voice=DJ_VOICE):
+def prefetch_lines(seed, songs, include_intro=True, line_type='transition', voice=DJ_VOICE):
     """Generate + synthesize DJ lines for upcoming songs in a background thread.
 
     The LLM calls are slow (~60s each), so prefetching happens while the
     current song plays. Returns immediately with the number of lines queued.
+    `line_type` controls what kind of line to generate ('transition' for
+    song intros, 'stop' for the every-N-songs chatty segment — the client
+    prefetches the next stop line while the current song still plays, so
+    the talk is READY when the stop moment arrives instead of arriving
+    60-90s late with short radio previews).
     """
     if not songs:
         return 0
@@ -62,23 +76,23 @@ def prefetch_lines(seed, songs, include_intro=True, voice=DJ_VOICE):
     if include_intro and seed:
         jobs.append(('intro', seed))
     for s in songs:
-        jobs.append(('transition', s))
+        jobs.append((line_type, s))
 
     def _worker():
-        for line_type, song in jobs:
+        for line_type_i, song in jobs:
             key = _line_key(song.get('title'), song.get('artist'))
             with _line_cache_lock:
                 if key in _line_cache:
                     continue
             try:
-                line = _llm_line(line_type, _context_for(song, seed=seed))
+                line = _llm_line(line_type_i, _context_for(song, seed=seed))
                 if not line:
                     continue
                 path = _synth(line, voice=voice)
                 audio_url = f"/api/dj/audio/{os.path.basename(path)}" if path else None
                 with _line_cache_lock:
                     _line_cache[key] = {'text': line, 'audio_url': audio_url,
-                                        'line_type': line_type}
+                                        'line_type': line_type_i}
             except Exception as e:  # noqa: BLE001
                 print(f"[dj] prefetch failed for {song.get('title')}: {e}")
 
@@ -178,12 +192,11 @@ def _llm_line(line_type, context):
         'transition': "Write a SHORT DJ transition line (max 25 words) introducing "
                       "the next song. One or two sentences, conversational, like a "
                       "real radio DJ. No emojis.",
-        'stop': "Write a casual, fun DJ segment (max 60 words) chatting about what "
-                "we've been listening to — the flow, the vibe, maybe a light "
-                "recommendation. Like a friend who knows music. No emojis. "
-                "End by returning a suggested NEXT DIRECTION for the radio "
-                "(what style/mood to shift toward next) as a JSON object: "
-                "{\"text\": \"...\", \"next_direction\": \"...\"}",
+        'stop': "Write a casual, fun DJ segment (max 60 words) chatting about " \
+                "the songs that actually played on this session (see PLAYED " \
+                "SO FAR below). Talk about the flow and vibe of those songs. " \
+                "Only mention songs from the played list. A light " \
+                "recommendation is fine. No emojis, no JSON, plain text only.",
         'chat': "Answer the listener's question as a friendly, knowledgeable DJ "
                 "(max 50 words). No emojis.",
     }
@@ -192,9 +205,13 @@ def _llm_line(line_type, context):
         prompt += f"\n\nContext:\n{context}"
 
     try:
+        # Reasoning models burn token budget thinking — max_tokens must be
+        # generous (512 caused empty replies on the verbose stop prompt;
+        # also NO JSON demands: asking for JSON made it spend everything
+        # thinking and return '' — verified Aug 2026).
         return ai_client.chat(
             [{'role': 'user', 'content': prompt}],
-            max_tokens=512, timeout=90,
+            max_tokens=768, timeout=90,
         ).strip()
     except Exception as e:  # noqa: BLE001
         print(f"[dj] LLM line failed: {e}")
@@ -225,7 +242,7 @@ def get_dj_line(line_type='transition', song=None, played=None, seed=None,
     `next_direction` style hint the radio uses to rotate its vibe.
     """
     if song:
-        cached = cached_line(song)
+        cached = cached_line(song, line_type=line_type)
         if cached:
             return cached
     # Start the TTS daemon FIRST, in the background (it takes ~60-80s to

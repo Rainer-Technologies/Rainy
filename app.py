@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import Config
@@ -122,7 +124,12 @@ def _ensure_enrichment_worker():
 
 if __name__ == '__main__':
     init_app()
-    warm_ai_stack()
+    # Warm the AI stack (TTS daemon etc.) ONLY in the reloader child — the
+    # parent process also runs this block and would spawn a SECOND daemon,
+    # which competes for the model load and wedges both (daemons froze at
+    # 0:26 CPU, 503s until killed, Aug 2026).
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        warm_ai_stack()
 
     print(f"Starting server on http://localhost:{Config.HTTP_PORT}")
     print("=" * 40)

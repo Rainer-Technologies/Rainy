@@ -503,6 +503,12 @@ def serve_cover(cover_path):
         
         relative_path = unquote(cover_path)
         
+        # Normalize Windows-style separators stored in the DB (covers\\x.jpg)
+        # to POSIX ones — otherwise the Linux server 404s every backslash
+        # cover, breaking seed covers the moment a radio starts (bug fixed
+        # Aug 2026).
+        relative_path = relative_path.replace('\\', '/')
+        
         # Security: only allow access to 'covers' directory
         # Check standard path separators
         is_covers_dir = relative_path.startswith('covers/') or relative_path.startswith('covers\\')

@@ -175,7 +175,10 @@ a:hover {
     }
 
     .player-extra {
-        display: none;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: var(--spacing-sm);
     }
 
     .player-controls {

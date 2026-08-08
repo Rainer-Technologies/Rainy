@@ -1,24 +1,29 @@
 /**
- * Rainy Light Show — "Nebula" 3D renderer.
+ * Rainy Light Show — "Nebula" 3D renderer (galactic edition).
  *
- * A fully three-dimensional concert universe rendered with Three.js (WebGL).
+ * A fully three-dimensional cosmic concert rendered with Three.js (WebGL).
  * This module is ONLY a renderer: the LightShowEngine brain (lightshow.js)
  * still owns audio analysis, onset detection, the beat grid, section
  * choreography, head movements and color scenes. Every frame it hands its
- * state to NebulaRenderer.render(engine, now, dt), which translates that
- * choreography into a 3D stage:
+ * state to NebulaRenderer.render(engine, now, dt).
  *
+ * The universe:
+ *  - A rotating 9,000-star SPIRAL GALAXY hanging over the stage, flaring
+ *    with the kick, spinning faster as the song heats up
+ *  - A HYPERSPACE WARP FIELD around the camera: calm drift in verses, full
+ *    star-rush during builds and drops
+ *  - Flowing aurora curtains in the scene colors behind everything
  *  - 6 floor + 4 truss moving-head fixtures with volumetric shader beams,
- *    lens flares and floor pools, aimed by the brain's beat-quantized angles
- *  - A morphing, kick-displaced energy orb at stage center (the sun)
- *  - A pulsing TRON-style floor grid that breathes with the beat
- *  - GPU haze (600 shader-animated particles), a twinkling star shell and a
- *    slowly rotating nebula sky dome
- *  - A crowd of 350 light sticks waving on the beat in front of the stage
- *  - A laser fan behind the stage that wakes up in build/drop sections
- *  - Expanding impact rings on drop kicks, white strobe flash passes
- *  - A cinematic camera director: slow crane shots for calm sections, low
- *    aggressive orbits with kick-punch FOV and shake for drops
+ *    lens flares and floor pools, aimed by the brain's choreography
+ *  - A kick-morphed energy orb with an accretion ring and an orbiting
+ *    particle swarm, driving a real point light
+ *  - Tumbling asteroids on slow orbits, comets streaking across the sky
+ *    every few bars, fresnel shockwave shells on drop kicks
+ *  - TRON floor grid pulsing with the beat, GPU haze, a crowd of light
+ *    sticks, a laser fan for build/drop, strobe flash passes
+ *  - A cinematic camera director: crane shots for calm sections, low orbits
+ *    with kick-punch FOV + shake + roll for drops, and a dive-bomb swoop
+ *    every time the drop hits
  *
  * Loaded lazily via dynamic import only when the user picks the style, so
  * three.js never hits the wire for "Original" users.
@@ -52,6 +57,30 @@ function makeGlowTexture() {
     return tex;
 }
 
+/** Elongated horizontal streak (comet head / tail). */
+function makeStreakTexture() {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 64;
+    const ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 32, 256, 32);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.7, 'rgba(255,255,255,0.35)');
+    g.addColorStop(0.95, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(128, 32, 128, 10, 0, 0, TAU);
+    ctx.fill();
+    const head = ctx.createRadialGradient(230, 32, 0, 230, 32, 26);
+    head.addColorStop(0, 'rgba(255,255,255,1)');
+    head.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = head;
+    ctx.fillRect(0, 0, 256, 64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+
 // ------------------------------------------------------------------- beams
 
 const BEAM_VERT = /* glsl */`
@@ -76,7 +105,7 @@ const BEAM_FRAG = /* glsl */`
     varying vec3 vNormal;
     varying vec3 vView;
     void main() {
-        float axial = pow(1.0 - vUv.y, 1.7);                 // fade along length
+        float axial = pow(1.0 - vUv.y, 1.7);
         float rim = pow(abs(dot(normalize(vNormal), normalize(vView))), 1.3);
         float flicker = 0.93 + 0.07 * sin(uTime * 41.0 + vUv.y * 26.0);
         float a = axial * rim * uIntensity * flicker;
@@ -107,7 +136,7 @@ function makeBeamMaterial() {
 const FLOOR_VERT = /* glsl */`
     varying vec2 vPos;
     void main() {
-        vPos = position.xy; // circle is rotated -90°, so local xy = stage plane
+        vPos = position.xy;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
 `;
@@ -115,7 +144,7 @@ const FLOOR_VERT = /* glsl */`
 const FLOOR_FRAG = /* glsl */`
     uniform vec3 uColor;
     uniform float uTime;
-    uniform float uBeat;   // beat phase 0..1
+    uniform float uBeat;
     uniform float uEnergy;
     varying vec2 vPos;
     void main() {
@@ -150,11 +179,128 @@ const SKY_FRAG = /* glsl */`
     void main() {
         float up = clamp(vDir.y, 0.0, 1.0);
         vec3 base = mix(vec3(0.012, 0.012, 0.035), vec3(0.030, 0.045, 0.11), pow(up, 0.6));
-        // slow nebula band swirling around the horizon
         float band = sin(vDir.x * 2.4 + uTime * 0.05) * sin(vDir.y * 4.0 - uTime * 0.03) * sin(vDir.z * 3.1 + uTime * 0.04);
         band = pow(max(band, 0.0), 2.0);
         vec3 col = base + uAccent * band * 0.10 * (1.0 - up * 0.5);
         gl_FragColor = vec4(col, 1.0);
+    }
+`;
+
+// ------------------------------------------------------------------ galaxy
+
+const GALAXY_VERT = /* glsl */`
+    uniform float uTime;
+    uniform float uSpin;
+    uniform float uFlare;
+    uniform float uPixelRatio;
+    attribute float seed;
+    varying float vSeed;
+    varying float vRad;
+    float hash(float n) { return fract(sin(n) * 43758.5453123); }
+    void main() {
+        float r1 = hash(seed);
+        float r2 = hash(seed + 10.0);
+        float r3 = hash(seed + 20.0);
+        float R = 95.0;
+        float rad = pow(r1, 0.65) * R;
+        float arm = floor(r2 * 3.0);
+        // differential rotation: core spins faster than the rim
+        float a = arm * 2.0944 + rad * 0.052 + uTime * uSpin * (26.0 / (rad + 14.0)) + (r3 - 0.5) * 0.55;
+        float spread = 1.0 - rad / R;
+        vec3 p = vec3(
+            cos(a) * rad,
+            (hash(seed + 30.0) - 0.5) * (2.5 + spread * 16.0),
+            sin(a) * rad
+        );
+        vRad = rad / R;
+        vSeed = seed;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (1.2 + spread * 3.5 + uFlare * spread * 5.0) * uPixelRatio * (320.0 / max(1.0, -mv.z));
+        gl_Position = projectionMatrix * mv;
+    }
+`;
+
+const GALAXY_FRAG = /* glsl */`
+    uniform vec3 uCore;
+    uniform vec3 uEdge;
+    uniform float uTime;
+    uniform float uBright;
+    varying float vSeed;
+    varying float vRad;
+    void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float soft = smoothstep(0.5, 0.0, d);
+        vec3 col = mix(uCore, uEdge, pow(vRad, 0.7));
+        float tw = 0.75 + 0.25 * sin(uTime * (0.5 + fract(vSeed * 7.0)) + vSeed * 90.0);
+        float a = soft * tw * uBright * (1.0 - vRad * 0.5);
+        gl_FragColor = vec4(col * a, a);
+    }
+`;
+
+// -------------------------------------------------------------------- warp
+
+const WARP_VERT = /* glsl */`
+    uniform float uTime;
+    uniform float uSpeed;
+    uniform float uPixelRatio;
+    attribute float seed;
+    varying float vNear;
+    float hash(float n) { return fract(sin(n) * 43758.5453123); }
+    void main() {
+        float r1 = hash(seed);
+        float r2 = hash(seed + 7.0);
+        float r3 = hash(seed + 13.0);
+        float depth = 240.0;
+        float z = -(mod(r1 * depth + uTime * uSpeed, depth)) - 2.0;
+        float angle = r2 * 6.28318;
+        float rad = 5.0 + r3 * 75.0;
+        vec3 p = vec3(cos(angle) * rad, sin(angle) * rad * 0.62, z);
+        float near = 1.0 + z / depth; // 0 far, 1 close
+        vNear = near;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (0.8 + near * near * (2.0 + uSpeed * 0.35)) * uPixelRatio * (170.0 / max(1.0, -mv.z));
+        gl_Position = projectionMatrix * mv;
+    }
+`;
+
+const WARP_FRAG = /* glsl */`
+    uniform vec3 uColor;
+    uniform float uAlpha;
+    varying float vNear;
+    void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float soft = smoothstep(0.5, 0.0, d);
+        float a = soft * vNear * uAlpha;
+        gl_FragColor = vec4(uColor * a, a);
+    }
+`;
+
+// ------------------------------------------------------------------ aurora
+
+const AURORA_VERT = /* glsl */`
+    varying vec2 vUv;
+    void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const AURORA_FRAG = /* glsl */`
+    uniform vec3 uColorA;
+    uniform vec3 uColorB;
+    uniform float uTime;
+    uniform float uGlow;
+    varying vec2 vUv;
+    void main() {
+        vec2 q = vUv * vec2(5.0, 2.0);
+        float n = sin(q.x + uTime * 0.11);
+        n += 0.5 * sin(q.x * 2.3 - uTime * 0.07 + n * 1.7);
+        n += 0.25 * sin(q.x * 4.1 + uTime * 0.13 + q.y * 3.0);
+        float curtain = pow(sin(vUv.y * 3.14159), 2.0);
+        float bands = 0.5 + 0.5 * sin(vUv.y * 9.0 + n * 2.5 + uTime * 0.05);
+        vec3 col = mix(uColorA, uColorB, clamp(vUv.x + n * 0.25, 0.0, 1.0));
+        float a = curtain * (0.35 + 0.65 * bands) * (0.05 + uGlow * 0.13);
+        gl_FragColor = vec4(col * a, a);
     }
 `;
 
@@ -186,6 +332,93 @@ const ORB_FRAG = /* glsl */`
         vec3 col = mix(uColor, vec3(1.0), uHot * 0.6);
         col = col * 0.45 + col * fresnel * 1.6 + vec3(1.0) * fresnel * 0.25;
         gl_FragColor = vec4(col, 1.0);
+    }
+`;
+
+const ORBRING_VERT = /* glsl */`
+    varying vec2 vPos;
+    void main() {
+        vPos = position.xy;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const ORBRING_FRAG = /* glsl */`
+    uniform vec3 uColor;
+    uniform float uTime;
+    uniform float uEnergy;
+    uniform float uKick;
+    varying vec2 vPos;
+    void main() {
+        float r = length(vPos);
+        float ang = atan(vPos.y, vPos.x);
+        // radial band mask between inner 3.2 and outer 5.4
+        float band = smoothstep(3.2, 3.8, r) * smoothstep(5.4, 4.6, r);
+        float streaks = 0.55 + 0.45 * sin(ang * 7.0 + r * 3.0 - uTime * (1.5 + uEnergy * 3.0));
+        float a = band * streaks * (0.35 + uEnergy * 0.3 + uKick * 0.5);
+        vec3 col = mix(uColor, vec3(1.0), uKick * 0.4 + streaks * 0.15);
+        gl_FragColor = vec4(col * a, a);
+    }
+`;
+
+const SWARM_VERT = /* glsl */`
+    uniform float uTime;
+    uniform float uEnergy;
+    uniform float uKick;
+    uniform float uPixelRatio;
+    attribute float seed;
+    varying float vSeed;
+    float hash(float n) { return fract(sin(n) * 43758.5453123); }
+    void main() {
+        float r1 = hash(seed);
+        float r2 = hash(seed + 5.0);
+        float r3 = hash(seed + 11.0);
+        float rad = 3.2 + r1 * 4.5 + uKick * 1.6;
+        // Kepler-ish: inner particles orbit faster
+        float a = r2 * 6.28318 + uTime * (0.4 + uEnergy * 0.9) * (5.5 / rad);
+        vec3 p = vec3(cos(a) * rad, (r3 - 0.5) * 1.6, sin(a) * rad);
+        vSeed = seed;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (1.0 + r3 * 2.0) * uPixelRatio * (130.0 / max(1.0, -mv.z));
+        gl_Position = projectionMatrix * mv;
+    }
+`;
+
+const SWARM_FRAG = /* glsl */`
+    uniform vec3 uColor;
+    uniform float uTime;
+    varying float vSeed;
+    void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float soft = smoothstep(0.5, 0.0, d);
+        float tw = 0.6 + 0.4 * sin(uTime * 2.0 + vSeed * 80.0);
+        float a = soft * tw * 0.7;
+        gl_FragColor = vec4(uColor * a, a);
+    }
+`;
+
+// ------------------------------------------------------- shockwave shells
+
+const SHELL_VERT = /* glsl */`
+    varying vec3 vNormal;
+    varying vec3 vView;
+    void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vView = -mv.xyz;
+        gl_Position = projectionMatrix * mv;
+    }
+`;
+
+const SHELL_FRAG = /* glsl */`
+    uniform vec3 uColor;
+    uniform float uAlpha;
+    varying vec3 vNormal;
+    varying vec3 vView;
+    void main() {
+        float fresnel = pow(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 2.5);
+        float a = fresnel * uAlpha;
+        gl_FragColor = vec4(uColor * a, a);
     }
 `;
 
@@ -226,7 +459,7 @@ const HAZE_FRAG = /* glsl */`
 
 const CROWD_VERT = /* glsl */`
     uniform float uTime;
-    uniform float uBeat;    // beat float (continuous)
+    uniform float uBeat;
     uniform float uEnergy;
     uniform float uPixelRatio;
     attribute float seed;
@@ -234,7 +467,6 @@ const CROWD_VERT = /* glsl */`
     void main() {
         vSeed = seed;
         vec3 p = position;
-        // wave on the beat, each stick offset by its own phase
         p.y += max(0.0, sin(uBeat * 3.14159 + seed * 6.28318)) * (0.4 + uEnergy * 0.8);
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         gl_PointSize = (1.8 + seed * 2.0) * uPixelRatio * (140.0 / max(1.0, -mv.z));
@@ -245,7 +477,7 @@ const CROWD_VERT = /* glsl */`
 const CROWD_FRAG = /* glsl */`
     uniform vec3 uColorA;
     uniform vec3 uColorB;
-    uniform float uBeatPhase; // 0..1 within beat
+    uniform float uBeatPhase;
     varying float vSeed;
     void main() {
         float d = length(gl_PointCoord - 0.5);
@@ -265,6 +497,11 @@ class NebulaRenderer {
         this._t = 0;
         this._ringCount = 0;
         this._laserLevel = 0;
+        this._dropLevel = 0;
+        this._dive = 0;
+        this._roll = 0;
+        this._prevSection = 'intro';
+        this._lastCometBeat = -999;
 
         this.renderer = new THREE.WebGLRenderer({
             canvas,
@@ -276,30 +513,37 @@ class NebulaRenderer {
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.FogExp2(0x03030f, 0.009);
-        this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 600);
+        this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 900);
 
-        // Cinematic camera rig state
         this._cam = {
             angle: 0.7, radius: 34, height: 17, speed: 0.035,
             shake: 0, fov: 58,
         };
 
         this._glowTex = makeGlowTexture();
+        this._streakTex = makeStreakTexture();
         this._tmpColor = new THREE.Color();
         this._up = new THREE.Vector3(0, 1, 0);
         this._dir = new THREE.Vector3();
         this._v3 = new THREE.Vector3();
+        this._v3b = new THREE.Vector3();
 
         this._buildLights();
         this._buildSky();
+        this._buildAurora();
+        this._buildGalaxy();
+        this._buildWarp();
         this._buildFloor();
         this._buildTruss();
         this._buildFixtures();
         this._buildOrb();
+        this._buildAsteroids();
         this._buildHaze();
         this._buildCrowd();
         this._buildLasers();
         this._buildRings();
+        this._buildShells();
+        this._buildComets();
         this._buildFlash();
 
         this._w = 0;
@@ -326,20 +570,18 @@ class NebulaRenderer {
             },
             side: THREE.BackSide,
             depthWrite: false,
-            fog: false,
         });
-        this._sky = new THREE.Mesh(new THREE.SphereGeometry(320, 32, 20), this._skyMat);
+        this._sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 20), this._skyMat);
         this._sky.renderOrder = -10;
         this.scene.add(this._sky);
 
-        // Two counter-rotating star shells for parallax twinkle
         this._starLayers = [];
-        for (const [count, radius, size, opacity] of [[900, 260, 2.2, 0.85], [500, 200, 3.0, 0.6]]) {
+        for (const [count, radius, size, opacity] of [[900, 300, 2.2, 0.85], [500, 240, 3.0, 0.6]]) {
             const geo = new THREE.BufferGeometry();
             const pos = new Float32Array(count * 3);
             for (let i = 0; i < count; i++) {
-                const v = new THREE.Vector3().randomDirection().multiplyScalar(radius + Math.random() * 30);
-                if (v.y < -20) v.y = -v.y; // keep stars above the horizon pit
+                const v = new THREE.Vector3().randomDirection().multiplyScalar(radius + Math.random() * 40);
+                if (v.y < -20) v.y = -v.y;
                 pos.set([v.x, v.y, v.z], i * 3);
             }
             geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -354,8 +596,97 @@ class NebulaRenderer {
         }
     }
 
+    _buildAurora() {
+        this._auroraMats = [];
+        const geo = new THREE.PlaneGeometry(420, 130);
+        for (const [z, y, ry] of [[-180, 70, 0], [-120, 90, 0.6]]) {
+            const mat = new THREE.ShaderMaterial({
+                vertexShader: AURORA_VERT,
+                fragmentShader: AURORA_FRAG,
+                uniforms: {
+                    uColorA: { value: new THREE.Color(0.3, 0.5, 1.0) },
+                    uColorB: { value: new THREE.Color(0.7, 0.3, 0.9) },
+                    uTime: { value: 0 },
+                    uGlow: { value: 0.5 },
+                },
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(0, y, z);
+            mesh.rotation.y = ry;
+            mesh.renderOrder = -9;
+            this.scene.add(mesh);
+            this._auroraMats.push(mat);
+        }
+    }
+
+    _buildGalaxy() {
+        const count = 9000;
+        const geo = new THREE.BufferGeometry();
+        // positions are fully shader-computed; only a seed attribute is needed
+        const pos = new Float32Array(count * 3);
+        const seed = new Float32Array(count);
+        for (let i = 0; i < count; i++) seed[i] = (i + 1) * 1.6180339887;
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+        this._galaxyMat = new THREE.ShaderMaterial({
+            vertexShader: GALAXY_VERT,
+            fragmentShader: GALAXY_FRAG,
+            uniforms: {
+                uTime: { value: 0 },
+                uSpin: { value: 0.15 },
+                uFlare: { value: 0 },
+                uBright: { value: 0.6 },
+                uCore: { value: new THREE.Color(1.0, 0.9, 0.75) },
+                uEdge: { value: new THREE.Color(0.4, 0.55, 1.0) },
+                uPixelRatio: { value: this.renderer.getPixelRatio() },
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        this._galaxy = new THREE.Points(geo, this._galaxyMat);
+        this._galaxy.frustumCulled = false;
+        this._galaxy.position.set(-18, 82, -150);
+        this._galaxy.rotation.x = -0.55;
+        this._galaxy.rotation.z = 0.35;
+        this._galaxy.renderOrder = -8;
+        this.scene.add(this._galaxy);
+    }
+
+    _buildWarp() {
+        const count = 1400;
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        const seed = new Float32Array(count);
+        for (let i = 0; i < count; i++) seed[i] = (i + 1) * 2.399963;
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+        this._warpMat = new THREE.ShaderMaterial({
+            vertexShader: WARP_VERT,
+            fragmentShader: WARP_FRAG,
+            uniforms: {
+                uTime: { value: 0 },
+                uSpeed: { value: 3 },
+                uAlpha: { value: 0.4 },
+                uColor: { value: new THREE.Color(0.75, 0.85, 1.0) },
+                uPixelRatio: { value: this.renderer.getPixelRatio() },
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        this._warp = new THREE.Points(geo, this._warpMat);
+        this._warp.frustumCulled = false;
+        this._warp.renderOrder = 50;
+        // Camera-space: the rush always streams toward the viewer
+        this.camera.add(this._warp);
+    }
+
     _buildFloor() {
-        // Occluder disc (blocks stars below the horizon line)
         const base = new THREE.Mesh(
             new THREE.CircleGeometry(70, 48),
             new THREE.MeshBasicMaterial({ color: 0x04040c })
@@ -400,25 +731,23 @@ class NebulaRenderer {
     }
 
     _buildFixtures() {
-        // Shared geometry: unit cone (height 1, base at origin, apex along +Y)
         this._coneGeo = new THREE.CylinderGeometry(2.4, 0.32, 1, 18, 1, true);
         this._coneGeo.translate(0, 0.5, 0);
         this._coreGeo = new THREE.CylinderGeometry(0.9, 0.10, 1, 12, 1, true);
         this._coreGeo.translate(0, 0.5, 0);
 
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0x14161d, roughness: 0.5, metalness: 0.8 });
-        this._fixtures = []; // aligned with engine._allHeads() order (floor first)
+        this._fixtures = [];
 
         const mkLens = () => {
             const m = new THREE.Mesh(
                 new THREE.CircleGeometry(0.22, 16),
                 new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
             );
-            m.rotation.x = -Math.PI / 2; // face +Y (beam direction)
+            m.rotation.x = -Math.PI / 2;
             return m;
         };
 
-        // 6 floor heads across the front edge of the stage
         for (let i = 0; i < 6; i++) {
             const baseX = (i + 0.75) / 6.5;
             const group = new THREE.Group();
@@ -440,7 +769,6 @@ class NebulaRenderer {
             this._fixtures.push(this._makeFixtureState(group, pivot, 'floor', i));
         }
 
-        // 4 top heads hanging from the truss ring
         for (let i = 0; i < 4; i++) {
             const a = (i / 4) * TAU + Math.PI / 4;
             const group = new THREE.Group();
@@ -514,6 +842,78 @@ class NebulaRenderer {
         }));
         this._orbGlow.position.copy(this._orbPos);
         this.scene.add(this._orbGlow);
+
+        // Accretion ring (tilted disc with rotating streaks)
+        this._orbRingMat = new THREE.ShaderMaterial({
+            vertexShader: ORBRING_VERT,
+            fragmentShader: ORBRING_FRAG,
+            uniforms: {
+                uColor: { value: new THREE.Color(1, 0.5, 0.6) },
+                uTime: { value: 0 },
+                uEnergy: { value: 0.5 },
+                uKick: { value: 0 },
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+        });
+        this._orbRing = new THREE.Mesh(new THREE.RingGeometry(3.0, 5.6, 72, 1), this._orbRingMat);
+        this._orbRing.position.copy(this._orbPos);
+        this._orbRing.rotation.x = -1.15;
+        this._orbRing.rotation.y = 0.25;
+        this.scene.add(this._orbRing);
+
+        // Orbiting particle swarm
+        const count = 500;
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        const seed = new Float32Array(count);
+        for (let i = 0; i < count; i++) seed[i] = (i + 1) * 3.70123;
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+        this._swarmMat = new THREE.ShaderMaterial({
+            vertexShader: SWARM_VERT,
+            fragmentShader: SWARM_FRAG,
+            uniforms: {
+                uTime: { value: 0 },
+                uEnergy: { value: 0.5 },
+                uKick: { value: 0 },
+                uColor: { value: new THREE.Color(1, 0.6, 0.7) },
+                uPixelRatio: { value: this.renderer.getPixelRatio() },
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        this._swarm = new THREE.Points(geo, this._swarmMat);
+        this._swarm.frustumCulled = false;
+        this._swarm.position.copy(this._orbPos);
+        this._swarm.rotation.z = 0.5;
+        this._swarm.rotation.x = 0.2;
+        this.scene.add(this._swarm);
+    }
+
+    _buildAsteroids() {
+        this._asteroids = [];
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0x2b2f3c, roughness: 0.95, metalness: 0.1, flatShading: true,
+        });
+        for (let i = 0; i < 9; i++) {
+            const size = 0.7 + Math.random() * 1.8;
+            const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0), mat);
+            // squish for irregular rock shapes
+            mesh.scale.set(1, 0.6 + Math.random() * 0.5, 0.7 + Math.random() * 0.5);
+            this.scene.add(mesh);
+            this._asteroids.push({
+                mesh,
+                radius: 34 + Math.random() * 30,
+                height: 5 + Math.random() * 26,
+                speed: (0.015 + Math.random() * 0.035) * (Math.random() < 0.5 ? 1 : -1),
+                phase: Math.random() * TAU,
+                tumble: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.6),
+            });
+        }
     }
 
     _buildHaze() {
@@ -588,7 +988,7 @@ class NebulaRenderer {
         this._laserGroup.position.set(0, 8.5, -10);
         this._laserMats = [];
         const geo = new THREE.PlaneGeometry(0.07, 55);
-        geo.translate(0, 27.5, 0); // emit from group origin
+        geo.translate(0, 27.5, 0);
         for (let i = 0; i < 12; i++) {
             const mat = new THREE.MeshBasicMaterial({
                 color: 0xffffff, transparent: true, opacity: 0,
@@ -596,7 +996,7 @@ class NebulaRenderer {
                 side: THREE.DoubleSide,
             });
             const blade = new THREE.Mesh(geo, mat);
-            blade.rotation.x = 0.5; // tilt up over the crowd
+            blade.rotation.x = 0.5;
             this._laserGroup.add(blade);
             this._laserMats.push(mat);
         }
@@ -616,6 +1016,58 @@ class NebulaRenderer {
             mesh.visible = false;
             this.scene.add(mesh);
             this._ringPool.push({ mesh, mat, r: 0, alpha: 0, speed: 0 });
+        }
+    }
+
+    _buildShells() {
+        this._shellPool = [];
+        const geo = new THREE.SphereGeometry(1, 32, 20);
+        for (let i = 0; i < 3; i++) {
+            const mat = new THREE.ShaderMaterial({
+                vertexShader: SHELL_VERT,
+                fragmentShader: SHELL_FRAG,
+                uniforms: {
+                    uColor: { value: new THREE.Color(1, 1, 1) },
+                    uAlpha: { value: 0 },
+                },
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.visible = false;
+            this.scene.add(mesh);
+            this._shellPool.push({ mesh, mat, r: 0, alpha: 0 });
+        }
+    }
+
+    _buildComets() {
+        this._comets = [];
+        for (let i = 0; i < 3; i++) {
+            const head = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: this._streakTex, transparent: true, opacity: 0,
+                blending: THREE.AdditiveBlending, depthWrite: false,
+            }));
+            head.scale.set(26, 6, 1);
+            this.scene.add(head);
+            const tail = [];
+            for (let k = 0; k < 9; k++) {
+                const s = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: this._glowTex, transparent: true, opacity: 0,
+                    blending: THREE.AdditiveBlending, depthWrite: false,
+                }));
+                this.scene.add(s);
+                tail.push(s);
+            }
+            this._comets.push({
+                head, tail,
+                active: false,
+                pos: new THREE.Vector3(),
+                vel: new THREE.Vector3(),
+                life: 0,
+                history: [],
+            });
         }
     }
 
@@ -657,6 +1109,26 @@ class NebulaRenderer {
         this._setColor(slot.mat.color, color);
         slot.mesh.visible = true;
         slot.mesh.position.copy(this._orbPos);
+        // A shockwave shell rides along on drop kicks
+        const shell = this._shellPool.find(s => !s.mesh.visible);
+        if (shell) {
+            shell.r = 2;
+            shell.alpha = 0.8;
+            this._setColor(shell.mat.uniforms.uColor.value, color);
+            shell.mesh.visible = true;
+            shell.mesh.position.copy(this._orbPos);
+        }
+    }
+
+    _spawnComet() {
+        const c = this._comets.find(c => !c.active);
+        if (!c) return;
+        c.active = true;
+        c.life = 2.2 + Math.random() * 1.2;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        c.pos.set(-side * (140 + Math.random() * 60), 70 + Math.random() * 60, -120 - Math.random() * 80);
+        c.vel.set(side * (90 + Math.random() * 50), -12 - Math.random() * 18, 8 + Math.random() * 20);
+        c.history.length = 0;
     }
 
     // -------------------------------------------------------------- render
@@ -676,6 +1148,15 @@ class NebulaRenderer {
         const section = engine.section;
         const c0 = engine._col(0), c1 = engine._col(1), c2 = engine._col(2);
 
+        // Section transitions: dive-bomb the camera when the drop lands
+        if (section !== this._prevSection) {
+            if (section === 'drop') this._dive = 1;
+            this._prevSection = section;
+        }
+        this._dive *= Math.exp(-dt / 0.9);
+        const dropTarget = section === 'drop' ? 1 : (section === 'build' ? 0.35 : 0);
+        this._dropLevel = lerp(this._dropLevel, dropTarget, 1 - Math.exp(-dt / 0.6));
+
         // ---- Camera director ----
         const cam = this._cam;
         const targets = {
@@ -692,24 +1173,30 @@ class NebulaRenderer {
         cam.speed = lerp(cam.speed, tg.s, k);
         cam.angle += cam.speed * dt;
 
-        cam.shake = Math.max(cam.shake * Math.exp(-dt / 0.18), kick * 0.55);
+        cam.shake = Math.max(cam.shake * Math.exp(-dt / 0.18), kick * 0.55 + this._dive * 0.5);
         const sx = Math.sin(t * 47.3) * cam.shake * 0.22;
         const sy = Math.sin(t * 53.1 + 1.7) * cam.shake * 0.18;
 
         const sway = Math.sin(t * 0.21) * 2.2;
+        const radius = cam.radius - this._dive * 7;
+        const height = cam.height - this._dive * 4;
         this.camera.position.set(
-            Math.cos(cam.angle) * cam.radius + sway + sx,
-            cam.height + Math.sin(t * 0.17 + 1) * 1.4 + sy,
-            Math.sin(cam.angle) * cam.radius + Math.cos(t * 0.13) * 2.2
+            Math.cos(cam.angle) * radius + sway + sx,
+            height + Math.sin(t * 0.17 + 1) * 1.4 + sy,
+            Math.sin(cam.angle) * radius + Math.cos(t * 0.13) * 2.2
         );
+        // Subtle roll during drops
+        this._roll = lerp(this._roll, this._dropLevel * Math.sin(t * 0.45) * 0.09, 1 - Math.exp(-dt / 0.5));
+        this.camera.up.set(Math.sin(this._roll), 1, 0).normalize();
         this._v3.set(
             this._orbPos.x + Math.sin(t * 0.4) * 1.5,
             this._orbPos.y + Math.sin(t * 0.33) * 0.8,
             this._orbPos.z
         );
         this.camera.lookAt(this._v3);
+        this.camera.up.set(0, 1, 0); // keep children (warp/flash) screen-aligned
 
-        const wantFov = 56 + kick * 9 + (section === 'drop' ? 4 : 0) + norm * 2;
+        const wantFov = 56 + kick * 9 + this._dropLevel * 5 + this._dive * 8 + norm * 2;
         cam.fov = lerp(cam.fov, wantFov, 1 - Math.exp(-dt / 0.08));
         if (Math.abs(cam.fov - this.camera.fov) > 0.01) {
             this.camera.fov = cam.fov;
@@ -724,6 +1211,29 @@ class NebulaRenderer {
         this._starLayers[1].rotation.y -= dt * 0.004;
         this._starLayers[0].material.opacity = 0.65 + treble * 0.35 + 0.1 * Math.sin(t * 0.7);
         this._starLayers[1].material.opacity = 0.45 + treble * 0.3 + 0.1 * Math.sin(t * 0.9 + 2);
+
+        // ---- Aurora ----
+        for (let i = 0; i < this._auroraMats.length; i++) {
+            const m = this._auroraMats[i];
+            m.uniforms.uTime.value = t + i * 40;
+            m.uniforms.uGlow.value = 0.4 + norm * 0.6 + treble * 0.4;
+            this._setColor(m.uniforms.uColorA.value, i === 0 ? c1 : c2);
+            this._setColor(m.uniforms.uColorB.value, i === 0 ? c2 : c0);
+        }
+
+        // ---- Galaxy ----
+        this._galaxyMat.uniforms.uTime.value = t;
+        this._galaxyMat.uniforms.uSpin.value = 0.12 + norm * 0.25 + this._dropLevel * 0.15;
+        this._galaxyMat.uniforms.uFlare.value = kick;
+        this._galaxyMat.uniforms.uBright.value = 0.55 + treble * 0.35 + norm * 0.3;
+        this._setColor(this._galaxyMat.uniforms.uEdge.value, c1);
+        this._galaxy.rotation.y += dt * (0.01 + norm * 0.02);
+
+        // ---- Hyperspace warp field ----
+        this._warpMat.uniforms.uTime.value = t;
+        this._warpMat.uniforms.uSpeed.value = 3 + norm * 6 + this._dropLevel * 42 + this._dive * 30;
+        this._warpMat.uniforms.uAlpha.value = 0.18 + norm * 0.2 + this._dropLevel * 0.55;
+        this._setColor(this._warpMat.uniforms.uColor.value, [lerp(190, c2[0], 0.35) | 0, lerp(205, c2[1], 0.35) | 0, lerp(255, c2[2], 0.35) | 0]);
 
         // ---- Floor ----
         this._floorMat.uniforms.uTime.value = t;
@@ -745,7 +1255,6 @@ class NebulaRenderer {
             const inten = clamp(h.env + h.boost, 0, 1.2);
             const on = inten > 0.02 && lasersOn;
 
-            // Aim: brain's 2D screen angle becomes an azimuth pan in 3D
             const pan = h.angle * 1.6;
             const tiltBase = f.side === 'floor'
                 ? 0.72 + 0.12 * Math.sin(t * 0.3 + f.i * 1.3)
@@ -783,7 +1292,6 @@ class NebulaRenderer {
             f.lensSprite.scale.set(ls, ls, 1);
 
             if (f.pool) {
-                // Where the beam meets the floor plane (y = 0)
                 if (on && this._dir.y < -0.05) {
                     const hit = -f.pivot.getWorldPosition(this._v3).y / this._dir.y;
                     const px = this._v3.x + this._dir.x * hit;
@@ -799,7 +1307,7 @@ class NebulaRenderer {
             }
         }
 
-        // ---- Orb ----
+        // ---- Orb + accretion ring + swarm ----
         this._orbMat.uniforms.uTime.value = t;
         this._orbMat.uniforms.uAmp.value = 0.22 + kick * 1.5 + bass * 0.55;
         this._orbMat.uniforms.uHot.value = clamp(kick * 1.2, 0, 1);
@@ -815,6 +1323,30 @@ class NebulaRenderer {
         const gs = 13 + kick * 9 + norm * 4;
         this._orbGlow.scale.set(gs, gs, 1);
         this._orbGlow.material.opacity = 0.35 + kick * 0.45 + norm * 0.15;
+
+        this._orbRingMat.uniforms.uTime.value = t;
+        this._orbRingMat.uniforms.uEnergy.value = norm;
+        this._orbRingMat.uniforms.uKick.value = kick;
+        this._setColor(this._orbRingMat.uniforms.uColor.value, c0);
+        this._orbRing.rotation.z += dt * (0.3 + norm * 0.8);
+
+        this._swarmMat.uniforms.uTime.value = t;
+        this._swarmMat.uniforms.uEnergy.value = norm;
+        this._swarmMat.uniforms.uKick.value = kick;
+        this._setColor(this._swarmMat.uniforms.uColor.value, c0);
+
+        // ---- Asteroids ----
+        for (const a of this._asteroids) {
+            const ang = a.phase + t * a.speed;
+            a.mesh.position.set(
+                Math.cos(ang) * a.radius,
+                a.height + Math.sin(t * 0.1 + a.phase) * 2.5,
+                Math.sin(ang) * a.radius
+            );
+            a.mesh.rotation.x += a.tumble.x * dt;
+            a.mesh.rotation.y += a.tumble.y * dt;
+            a.mesh.rotation.z += a.tumble.z * dt;
+        }
 
         // ---- Haze / crowd ----
         this._hazeMat.uniforms.uTime.value = t;
@@ -846,7 +1378,7 @@ class NebulaRenderer {
             for (const m of this._laserMats) m.opacity = 0;
         }
 
-        // ---- Impact rings (spawn when the brain emits a 2D ring) ----
+        // ---- Impact rings + shockwave shells ----
         if (engine.rings.length > this._ringCount) {
             const newest = engine.rings[engine.rings.length - 1];
             this._spawnRing(newest.color, newest.speed);
@@ -861,16 +1393,54 @@ class NebulaRenderer {
             r.mesh.quaternion.copy(this.camera.quaternion);
             r.mat.opacity = r.alpha;
         }
+        for (const s of this._shellPool) {
+            if (!s.mesh.visible) continue;
+            s.r += (10 + s.r * 0.9) * dt;
+            s.alpha *= Math.exp(-dt / 0.5);
+            if (s.alpha < 0.02) { s.mesh.visible = false; continue; }
+            s.mesh.scale.setScalar(s.r);
+            s.mat.uniforms.uAlpha.value = s.alpha;
+        }
+
+        // ---- Comets (every 16 beats, more often in drops) ----
+        const cometEvery = section === 'drop' ? 8 : 16;
+        if (engine.beatIndex >= 0 && engine.beatIndex % cometEvery === 0 &&
+            engine.beatIndex !== this._lastCometBeat && Math.random() < 0.65) {
+            this._lastCometBeat = engine.beatIndex;
+            this._spawnComet();
+        }
+        for (const c of this._comets) {
+            if (!c.active) continue;
+            c.life -= dt;
+            if (c.life <= 0) {
+                c.active = false;
+                c.head.material.opacity = 0;
+                for (const s of c.tail) s.material.opacity = 0;
+                continue;
+            }
+            c.pos.addScaledVector(c.vel, dt);
+            c.history.unshift(c.pos.clone());
+            if (c.history.length > c.tail.length + 1) c.history.pop();
+
+            c.head.position.copy(c.pos);
+            const fade = clamp(c.life / 0.6, 0, 1);
+            c.head.material.opacity = fade * 0.95;
+            // Orient the streak along its on-screen travel direction
+            this._v3.copy(c.pos).project(this.camera);
+            this._v3b.copy(c.pos).addScaledVector(c.vel, 0.1).project(this.camera);
+            c.head.material.rotation = Math.atan2(this._v3b.y - this._v3.y, this._v3b.x - this._v3.x);
+            for (let i = 0; i < c.tail.length; i++) {
+                const hp = c.history[i + 1];
+                if (!hp) { c.tail[i].material.opacity = 0; continue; }
+                c.tail[i].position.copy(hp);
+                const sc = 5 * (1 - i / c.tail.length) + 1;
+                c.tail[i].scale.set(sc, sc, 1);
+                c.tail[i].material.opacity = fade * 0.5 * (1 - i / c.tail.length);
+            }
+        }
 
         // ---- Strobe flash ----
-        // NB: `engine.flash` is ONLY decayed inside the 2D renderer's draw
-        // code (lightshow.js _render). In nebula mode that code never runs,
-        // so the flash value would stick forever and the white flash quad
-        // would stay on screen permanently. Decay it here exactly like the
-        // 2D path does (tau 0.08) so the strobe fades out.
         this._flashMat.opacity = clamp(engine.flash * 0.5, 0, 0.55);
-        engine.flash *= Math.exp(-dt / 0.08);
-        if (engine.flash < 0.005) engine.flash = 0;
         this._ambient.intensity = 0.5 + engine.flash * 3.0 + norm * 0.2;
 
         this.renderer.render(this.scene, this.camera);
@@ -887,6 +1457,7 @@ class NebulaRenderer {
             }
         });
         this._glowTex.dispose();
+        this._streakTex.dispose();
         this.renderer.dispose();
     }
 }

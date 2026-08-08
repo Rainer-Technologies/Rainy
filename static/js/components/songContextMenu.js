@@ -241,10 +241,9 @@ export class SongContextMenu extends Component {
         const player = window.player;
         if (!player) return;
 
-        player.startRadio(currentSong.id, {
-            title: currentSong.title,
-            artist: currentSong.artist,
-        });
+        // Pass the FULL song object so the radio keeps the seed's cover,
+        // duration and album in the queue (the API seed dict is minimal).
+        player.startRadio(currentSong.id, currentSong);
     }
 
     findMetadataForCurrentSong() {
