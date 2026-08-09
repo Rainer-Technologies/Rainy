@@ -214,8 +214,98 @@ def _heuristic_queries(session):
 
 # ---------------------------------------------------------- search/filter
 
+def _musicbrainz_song_queries(genre, artist='', fast=False, session=None):
+    """Exact-song-name search queries from the MusicBrainz catalog.
+
+    Returns ["Artist1 Title1", "Artist2 Title2", ...] for REAL songs in the
+    seed's genre (and artist, when given). Searching YouTube for these exact
+    pairs finds the actual track — raw genre queries are what surface
+    auto-generated mix compilations. Rate-limited to ~1 req/s (throttled in
+    lastfm.py); returns [] on any failure so callers fall back gracefully.
+
+    Genre resolution chain (the songs.genre column is usually the generic
+    "Music", which is useless for catalog search):
+      1. seed's top Discogs-EffNet tag (song_tags, source=discogs-effnet)
+      2. seed's MusicBrainz genre tags
+      3. the songs.genre column if it's a real genre
+    When nothing resolves, falls back to the seed ARTIST's own catalog
+    (artist:"X" returns that artist's real songs).
+    """
+    from utils.lastfm import musicbrainz_search_songs
+    genre = _resolve_seed_genre(session, genre)
+    try:
+        if genre:
+            # Genre-only search spreads across many artists of that genre
+            # (the artist cap in _search_batch then thins to ~2/artist).
+            songs = musicbrainz_search_songs(
+                genre=genre, artist=None,
+                related_to=artist or None, limit=25)
+        elif artist:
+            # No usable genre — search the seed artist's own catalog.
+            songs = musicbrainz_search_songs(
+                genre=None, artist=artist,
+                related_to=artist, limit=15)
+        else:
+            return []
+    except Exception as e:  # noqa: BLE001
+        print(f"[radio] MusicBrainz song search failed: {e}")
+        return []
+    queries = []
+    for s in songs:
+        title = (s.get('title') or '').strip()
+        art = (s.get('artist') or '').strip()
+        if not title or not art:
+            continue
+        # "Artist Title" — YouTube's exact-song query. Skip feature-length
+        # entries (>8 min) that the result filter would reject anyway.
+        if (s.get('length') or 0) > 600:
+            continue
+        primary = art.split(',')[0].strip()
+        queries.append(f"{primary} {title}")
+    return queries[:10]
+
+
+def _resolve_seed_genre(session, fallback_genre=''):
+    """Best real genre label for the seed song, or '' if unknown.
+
+    Prefers the Discogs-EffNet genre tag (the classifier output), then
+    MusicBrainz genre tags, then the songs.genre column if it's a real
+    genre rather than the generic 'Music'/'Gaming' placeholder.
+    """
+    seed = (session.seed if session else None)
+    song_id = (seed or {}).get('id') if seed else None
+    if song_id:
+        rows = Database.execute_query(
+            "SELECT tag_name FROM song_tags WHERE song_id = %s "
+            "AND source = 'discogs-effnet' ORDER BY weight DESC LIMIT 3",
+            (song_id,), fetch_all=True) or []
+        for r in rows:
+            g = (r.get('tag_name') or '').strip()
+            if g and g.lower() not in ('music', 'gaming', 'unknown'):
+                return g
+        rows = Database.execute_query(
+            "SELECT tag_name FROM song_tags WHERE song_id = %s "
+            "AND source = 'musicbrainz' ORDER BY weight DESC LIMIT 3",
+            (song_id,), fetch_all=True) or []
+        for r in rows:
+            g = (r.get('tag_name') or '').strip()
+            if g and g.lower() not in ('music', 'gaming', 'unknown'):
+                return g
+    g = (fallback_genre or '').strip()
+    if g and g.lower() not in ('music', 'gaming', 'unknown', 'various'):
+        return g
+    return ''
+
+
 def _search_batch(session, exclude_video_ids, direction=None, fast=False):
-    """Search + filter a fresh batch; returns list of candidate dicts."""
+    """Search + filter a fresh batch; returns list of candidate dicts.
+
+    Queries are EXACT SONG NAMES where possible: we first ask MusicBrainz
+    (free, no key) for real catalogued tracks in the seed's genre/artist
+    neighborhood, then search YouTube for those specific "Artist Title"
+    pairs. Raw genre/LLM queries are the fallback — they're what surface
+    auto-generated mix compilations (Aug 2026).
+    """
     searcher = MetadataSearcher()
     lib_rows = Database.execute_query(
         "SELECT id, title, artist FROM songs", fetch_all=True) or []
@@ -224,9 +314,17 @@ def _search_batch(session, exclude_video_ids, direction=None, fast=False):
         key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))
         lib_index.setdefault(key, row['id'])
 
-    # Fast mode: skip the LLM query generation (~60s) — use heuristics.
-    queries = (_heuristic_queries(session) if fast
-               else _llm_queries(session, direction=direction) or _heuristic_queries(session))
+    seed = session.seed
+    seed_artist = (seed.get('artist') or '').split(',')[0].strip()
+    seed_genre = (seed.get('genre') or '').strip()
+
+    # 1) REAL SONG NAMES from the MusicBrainz catalog — the primary source.
+    queries = _musicbrainz_song_queries(seed_genre, seed_artist, fast=fast, session=session)
+
+    # 2) Fall back to LLM/heuristic queries if MB gave us nothing.
+    if not queries:
+        queries = (_heuristic_queries(session) if fast
+                   else _llm_queries(session, direction=direction) or _heuristic_queries(session))
     excluded = set(exclude_video_ids or [])
     seen_vids, seen_keys, results = set(excluded), set(), []
     artist_counts = {}   # diversify: max 2 tracks per artist in one batch

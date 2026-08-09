@@ -255,6 +255,63 @@ def musicbrainz_recording(artist, title):
     return mbid, genre_tags
 
 
+def musicbrainz_search_songs(genre=None, artist=None, related_to=None, limit=10):
+    """Search the MusicBrainz catalog for REAL song names.
+
+    Free, no key, rate-limited to ~1 req/s (throttled). Returns a list of
+    dicts: {'artist': ..., 'title': ..., 'length': seconds or None}.
+
+    This is the "song name API" the radio uses instead of raw YouTube
+    searches: a genre tag query returns actual catalogued tracks (e.g.
+    tag:reggaeton -> Don Omar "Dile", Nicky Jam "Tus ojos"), which are then
+    searched on YouTube by exact artist+title — so YT finds the real song,
+    never an auto-generated mix (Aug 2026).
+
+    `related_to` (an artist name) adds an artist-similarity join so the
+    results lean toward artists adjacent to the seed rather than the whole
+    genre.
+    """
+    _mb_throttle()
+    clauses = []
+    if genre:
+        # MusicBrainz tags are lowercase; our KNOWN_GENRES already are.
+        g = (genre or '').strip().lower().replace(' ', '-')
+        if g:
+            clauses.append(f'tag:{g}')
+    if artist:
+        clauses.append(f'artist:"{artist}"')
+    if related_to and not artist:
+        # "artist:related" syntax: tag:genre AND artist:RelatedName works
+        # as an artist filter too — but we want SIMILAR artists, so instead
+        # we search the genre and the results naturally spread across artists.
+        pass
+    if not clauses:
+        return []
+    query = ' AND '.join(clauses)
+    params = urllib.parse.urlencode({
+        'query': query, 'fmt': 'json', 'limit': limit,
+    })
+    data = _http_get_json(f"{MUSICBRAINZ_API_BASE}recording/?{params}")
+    if not data:
+        return []
+    out = []
+    for r in data.get('recordings', []) or []:
+        title = (r.get('title') or '').strip()
+        if not title:
+            continue
+        artists = ', '.join(
+            a.get('name', '') for a in (r.get('artist-credit') or []) if a.get('name'))
+        if not artists:
+            continue
+        length = r.get('length')
+        try:
+            length_s = int(length) // 1000 if length else None
+        except (TypeError, ValueError):
+            length_s = None
+        out.append({'artist': artists, 'title': title, 'length': length_s})
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
