@@ -535,6 +535,27 @@ class Database:
             )
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS playlist_sync_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sync_id INT NOT NULL,
+                playlist_id INT NOT NULL,
+                ran_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                added_count INT DEFAULT 0,
+                removed_count INT DEFAULT 0,
+                kept_count INT DEFAULT 0,
+                failed_count INT DEFAULT 0,
+                total_remote INT DEFAULT 0,
+                status VARCHAR(20) NOT NULL DEFAULT 'success',
+                message TEXT NULL,
+                details_json MEDIUMTEXT NULL,
+                FOREIGN KEY (sync_id) REFERENCES playlist_syncs(id) ON DELETE CASCADE,
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                INDEX idx_sync_ran (sync_id, ran_at),
+                INDEX idx_playlist_ran (playlist_id, ran_at)
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

@@ -133,3 +133,40 @@ class PlaylistSyncModel:
         next_sync = datetime.now() + timedelta(hours=int(interval_hours))
         query = "UPDATE playlist_syncs SET next_sync_at = %s WHERE id = %s"
         return Database.execute_query(query, (next_sync, sync_id))
+
+    # ---- History ----
+
+    @staticmethod
+    def add_history(sync_id, playlist_id, added=0, removed=0, kept=0, failed=0, total_remote=0, status='success', message=None, details=None):
+        import json as _json
+        details_json = _json.dumps(details) if details is not None else None
+        query = """
+            INSERT INTO playlist_sync_history
+                (sync_id, playlist_id, added_count, removed_count, kept_count, failed_count, total_remote, status, message, details_json)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        return Database.execute_query(query, (
+            sync_id, playlist_id, added, removed, kept, failed, total_remote, status, message[:1000] if message else None, details_json
+        ))
+
+    @staticmethod
+    def get_history(sync_id, limit=20):
+        query = """
+            SELECT * FROM playlist_sync_history
+            WHERE sync_id = %s
+            ORDER BY ran_at DESC, id DESC
+            LIMIT %s
+        """
+        return Database.execute_query(query, (sync_id, limit), fetch_all=True)
+
+    @staticmethod
+    def get_all_history(limit=50):
+        query = """
+            SELECT h.*, p.name as playlist_name
+            FROM playlist_sync_history h
+            JOIN playlist_syncs ps ON ps.id = h.sync_id
+            JOIN playlists p ON p.id = h.playlist_id
+            ORDER BY h.ran_at DESC, h.id DESC
+            LIMIT %s
+        """
+        return Database.execute_query(query, (limit,), fetch_all=True)

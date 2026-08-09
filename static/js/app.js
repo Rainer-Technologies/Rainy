@@ -2426,7 +2426,9 @@ export class RainyApp {
         const refreshBtn = document.getElementById('syncs-refresh-btn');
         const createBtn = document.getElementById('sync-create-btn');
         const sourceGroup = document.getElementById('sync-source-group');
-        refreshBtn?.addEventListener('click', () => this.loadPlaylistSyncs());
+        const histRefresh = document.getElementById('syncs-history-refresh-btn');
+        refreshBtn?.addEventListener('click', () => { this.loadPlaylistSyncs(); this.loadSyncHistory(); });
+        histRefresh?.addEventListener('click', () => this.loadSyncHistory());
         createBtn?.addEventListener('click', () => this.createPlaylistSync());
         sourceGroup?.querySelectorAll('.settings-radio-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -2444,7 +2446,7 @@ export class RainyApp {
 
         // Populate playlist dropdown
         try {
-            const plData = await usePlaylistService().list();
+            const plData = await usePlaylistService().all();
             if (selectEl && !plData.error && plData.value) {
                 const currentVal = selectEl.value;
                 selectEl.innerHTML = '';
@@ -2584,6 +2586,7 @@ export class RainyApp {
                 if (!res.ok || !d.success) throw new Error(d.error || 'Sync failed');
                 this.showToast(`Synced: +${d.result.added} -${d.result.removed}`, 'success');
                 this.loadPlaylistSyncs();
+                this.loadSyncHistory();
                 this.loadPlaylists?.();
             } catch (err) {
                 this.showToast(err.message, 'error');
@@ -2691,6 +2694,60 @@ export class RainyApp {
             this.showToast(e.message, 'error');
         } finally {
             if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create sync'; }
+        }
+    }
+
+    async loadSyncHistory() {
+        const listEl = document.getElementById('syncs-history-list');
+        const emptyEl = document.getElementById('syncs-history-empty');
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="import-jobs-empty">Loading history…</div>';
+        if (emptyEl) emptyEl.style.display = 'none';
+        try {
+            const res = await fetch('/api/playlist-syncs/history?limit=30', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load history');
+            const rows = data.history || [];
+            if (rows.length === 0) {
+                listEl.innerHTML = '';
+                if (emptyEl) emptyEl.style.display = '';
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = 'none';
+            listEl.innerHTML = '';
+            rows.forEach(r => {
+                const when = r.ran_at ? new Date(r.ran_at).toLocaleString() : '—';
+                const statusColor = r.status === 'success' ? '#4ade80' : r.status === 'failed' ? '#f87171' : 'var(--text-tertiary)';
+                const details = r.details || {};
+                const added = details.added || [];
+                const removed = details.removed || [];
+                const card = document.createElement('div');
+                card.className = 'import-job-row';
+                card.style.flexDirection = 'column';
+                card.style.alignItems = 'stretch';
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <div style="font-weight:600; color:var(--text-primary);">${this._esc(r.playlist_name || 'Playlist #' + r.playlist_id)} <span style="font-weight:400; color:var(--text-tertiary); font-size:0.85rem;">· ${this._esc(when)}</span></div>
+                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(r.status)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">
+                        +${r.added_count} added · -${r.removed_count} removed · ${r.kept_count} kept · ${r.failed_count} failed · ${r.total_remote} remote
+                    </div>
+                    ${r.message ? `<div style="font-size:0.78rem; color:var(--text-tertiary); margin-top:2px;">${this._esc(r.message)}</div>` : ''}
+                    ${(added.length || removed.length) ? `
+                        <details style="margin-top:8px;">
+                            <summary style="cursor:pointer; font-size:0.8rem; color:var(--accent-primary);">Details</summary>
+                            <div style="margin-top:8px; display:grid; gap:8px;">
+                                ${added.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#4ade80;">Added (${added.length}):</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${added.map(t=>this._esc(t)).join('<br>')}</div></div>` : ''}
+                                ${removed.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#f87171;">Removed (${removed.length}):</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${removed.map(t=>this._esc(t)).join('<br>')}</div></div>` : ''}
+                            </div>
+                        </details>
+                    ` : ''}
+                `;
+                listEl.appendChild(card);
+            });
+        } catch (e) {
+            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">Error: ${this._esc(e.message)}</div>`;
         }
     }
 
@@ -3281,6 +3338,7 @@ export class RainyApp {
 
         if (sectionName === 'syncs') {
             this.loadPlaylistSyncs();
+            this.loadSyncHistory();
         }
 
         // Load AI config when switching to the AI section

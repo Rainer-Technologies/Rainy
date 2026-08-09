@@ -33,15 +33,32 @@ def _run_single_sync(sync_row, music_path):
         if result.get('success'):
             msg = f"Added {result.get('added',0)}, removed {result.get('removed',0)}, kept {result.get('kept',0)}, failed {result.get('failed',0)}"
             PlaylistSyncModel.mark_completed(sync_id, msg, interval_hours)
+            # history
+            try:
+                PlaylistSyncModel.add_history(
+                    sync_id, playlist_id,
+                    added=result.get('added',0), removed=result.get('removed',0),
+                    kept=result.get('kept',0), failed=result.get('failed',0),
+                    total_remote=result.get('total_remote',0),
+                    status='success', message=msg,
+                    details={'added': result.get('added_details') or [], 'removed': result.get('removed_details') or []}
+                )
+            except Exception as he:
+                print(f"[sync-worker] history write failed: {he}")
             print(f"[sync-worker] sync {sync_id} success: {msg}")
         else:
             err = result.get('error', 'Sync failed')
             PlaylistSyncModel.mark_failed(sync_id, err, interval_hours)
+            try:
+                PlaylistSyncModel.add_history(sync_id, playlist_id, status='failed', message=str(err))
+            except Exception:
+                pass
             print(f"[sync-worker] sync {sync_id} failed: {err}")
     except Exception as e:  # noqa
         print(f"[sync-worker] sync {sync_id} crashed: {e}")
         try:
             PlaylistSyncModel.mark_failed(sync_id, str(e), interval_hours)
+            PlaylistSyncModel.add_history(sync_id, playlist_id, status='failed', message=str(e))
         except Exception:
             pass
 

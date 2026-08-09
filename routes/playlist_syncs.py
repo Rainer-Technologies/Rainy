@@ -187,10 +187,110 @@ def run_sync_now(sync_id):
         if result.get('success'):
             msg = f"Added {result.get('added',0)}, removed {result.get('removed',0)}, kept {result.get('kept',0)}, failed {result.get('failed',0)}"
             PlaylistSyncModel.mark_completed(sync_id, msg, row.get('interval_hours') or 24)
+            try:
+                PlaylistSyncModel.add_history(
+                    sync_id, row['playlist_id'],
+                    added=result.get('added',0), removed=result.get('removed',0),
+                    kept=result.get('kept',0), failed=result.get('failed',0),
+                    total_remote=result.get('total_remote',0),
+                    status='success', message=msg,
+                    details={'added': result.get('added_details') or [], 'removed': result.get('removed_details') or []}
+                )
+            except Exception:
+                pass
             return jsonify({'success': True, 'result': result})
         else:
             PlaylistSyncModel.mark_failed(sync_id, result.get('error','failed'), row.get('interval_hours') or 24)
+            try:
+                PlaylistSyncModel.add_history(sync_id, row['playlist_id'], status='failed', message=str(result.get('error','failed')))
+            except Exception:
+                pass
             return jsonify({'success': False, 'error': result.get('error')}), 500
     except Exception as e:
         PlaylistSyncModel.mark_failed(sync_id, str(e), row.get('interval_hours') or 24)
+        try:
+            PlaylistSyncModel.add_history(sync_id, row['playlist_id'], status='failed', message=str(e))
+        except Exception:
+            pass
         return jsonify({'error': str(e)}), 500
+
+
+@playlist_syncs_bp.route('/<int:sync_id>/history', methods=['GET'])
+@require_auth
+def get_sync_history(sync_id):
+    row = PlaylistSyncModel.get(sync_id)
+    if not row:
+        return jsonify({'error': 'Sync not found'}), 404
+    pl = PlaylistModel.get_playlist_by_id(row['playlist_id'])
+    user_id = session.get('user_id')
+    if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+        return jsonify({'error': 'Forbidden'}), 403
+    try:
+        limit = int(request.args.get('limit', '20'))
+        limit = max(1, min(limit, 100))
+    except:
+        limit = 20
+    rows = PlaylistSyncModel.get_history(sync_id, limit) or []
+    import json as _json
+    out = []
+    for r in rows:
+        details = None
+        try:
+            details = _json.loads(r.get('details_json')) if r.get('details_json') else None
+        except:
+            details = None
+        out.append({
+            'id': r['id'],
+            'sync_id': r['sync_id'],
+            'playlist_id': r['playlist_id'],
+            'ran_at': r['ran_at'].isoformat() if hasattr(r['ran_at'], 'isoformat') else r['ran_at'],
+            'added_count': r['added_count'],
+            'removed_count': r['removed_count'],
+            'kept_count': r['kept_count'],
+            'failed_count': r['failed_count'],
+            'total_remote': r['total_remote'],
+            'status': r['status'],
+            'message': r['message'],
+            'details': details,
+        })
+    return jsonify({'success': True, 'history': out})
+
+
+@playlist_syncs_bp.route('/history', methods=['GET'])
+@require_auth
+def get_all_sync_history():
+    try:
+        limit = int(request.args.get('limit', '30'))
+        limit = max(1, min(limit, 100))
+    except:
+        limit = 30
+    rows = PlaylistSyncModel.get_all_history(limit) or []
+    import json as _json
+    out = []
+    user_id = session.get('user_id')
+    for r in rows:
+        # filter private playlists not visible
+        pl = PlaylistModel.get_playlist_by_id(r['playlist_id'])
+        if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+            continue
+        details = None
+        try:
+            details = _json.loads(r.get('details_json')) if r.get('details_json') else None
+        except:
+            details = None
+        out.append({
+            'id': r['id'],
+            'sync_id': r['sync_id'],
+            'playlist_id': r['playlist_id'],
+            'playlist_name': r.get('playlist_name'),
+            'ran_at': r['ran_at'].isoformat() if hasattr(r['ran_at'], 'isoformat') else r['ran_at'],
+            'added_count': r['added_count'],
+            'removed_count': r['removed_count'],
+            'kept_count': r['kept_count'],
+            'failed_count': r['failed_count'],
+            'total_remote': r['total_remote'],
+            'status': r['status'],
+            'message': r['message'],
+            'details': details,
+        })
+    return jsonify({'success': True, 'history': out})
