@@ -15,20 +15,54 @@ Line types:
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
 
 from models.database import Database
 
-TTS_DAEMON = '/opt/data/.tts/kokoro_daemon.py'
-TTS_PYTHON = '/opt/data/whisper-env/bin/python'
+# TTS daemon resolution — hermes docker uses absolute host paths that don't
+# exist on a normal desktop. Try them first (zero cost on hermes, fast
+# exists() check on desktop), then fall back to the portable daemon that
+# ships with this repo and the current interpreter. Env vars let power users
+# override without editing code.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def _resolve_tts_daemon():
+    candidates = [
+        os.environ.get('DJ_TTS_DAEMON'),
+        '/opt/data/.tts/kokoro_daemon.py',
+        os.path.join(_PROJECT_ROOT, 'utils', 'kokoro_daemon.py'),
+        os.path.join(_PROJECT_ROOT, 'dj_audio', 'kokoro_daemon.py'),
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    # Return the portable path even if it doesn't exist yet — callers can
+    # check existence and degrade gracefully to text-only DJ.
+    return os.path.join(_PROJECT_ROOT, 'utils', 'kokoro_daemon.py')
+
+def _resolve_tts_python():
+    candidates = [
+        os.environ.get('DJ_TTS_PYTHON'),
+        '/opt/data/whisper-env/bin/python',
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    return sys.executable
+
+TTS_DAEMON = _resolve_tts_daemon()
+TTS_PYTHON = _resolve_tts_python()
 DJ_VOICE = os.environ.get('DJ_VOICE', 'am_fenrir')
-AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dj_audio')
+AUDIO_DIR = os.path.join(_PROJECT_ROOT, 'dj_audio')
 
 _daemon = None
 _daemon_lock = threading.Lock()
 _daemon_ready = False
+_daemon_unavailable = False  # set after a hard failure to avoid spamming
+_daemon_unavailable_reason = ''
 
 STOP_EVERY = 4          # a "stop" (longer talk) every N songs
 
@@ -110,29 +144,97 @@ def _daemon_alive():
     return _daemon is not None and _daemon.poll() is None
 
 
+def _tts_available():
+    """Return (True, '') if TTS can be attempted, else (False, reason)."""
+    if _daemon_unavailable:
+        return False, _daemon_unavailable_reason
+    if not os.path.isfile(TTS_DAEMON):
+        return False, f"daemon file not found: {TTS_DAEMON}"
+    if not os.path.isfile(TTS_PYTHON) and TTS_PYTHON != sys.executable:
+        # sys.executable is always valid; only check custom paths
+        return False, f"TTS python not found: {TTS_PYTHON}"
+    # If the portable daemon is used, check if a backend is actually installed.
+    # Herme's docker has whisper-env with kokoro, but a plain desktop won't.
+    # Checking here avoids spawning a doomed daemon that just exits with ERROR.
+    if TTS_DAEMON == os.path.join(_PROJECT_ROOT, 'utils', 'kokoro_daemon.py'):
+        import importlib.util
+        if not importlib.util.find_spec('kokoro') and not importlib.util.find_spec('kokoro_onnx'):
+            return False, "no TTS backend installed (pip install kokoro or kokoro-onnx)"
+    return True, ''
+
+
 def _start_daemon():
     """Spawn (or reuse) the persistent TTS daemon. Returns True when ready."""
-    global _daemon, _daemon_ready
+    global _daemon, _daemon_ready, _daemon_unavailable, _daemon_unavailable_reason
     with _daemon_lock:
         if _daemon_alive() and _daemon_ready:
             return True
+        if _daemon_unavailable:
+            return False
+        ok, reason = _tts_available()
+        if not ok:
+            # Log once, then silence until process restart — avoids flooding
+            # the console on every DJ line when TTS isn't installed.
+            if not _daemon_unavailable:
+                print(f"[dj] TTS unavailable — DJ will be text-only. {reason}")
+                print("[dj] To enable voice: pip install kokoro (or kokoro-onnx) and ensure utils/kokoro_daemon.py exists.")
+                _daemon_unavailable = True
+                _daemon_unavailable_reason = reason
+            return False
         _ensure_audio_dir()
         try:
             _daemon = subprocess.Popen(
                 [TTS_PYTHON, TTS_DAEMON],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL, text=True, bufsize=1,
+                stderr=subprocess.PIPE, text=True, bufsize=1,
             )
-            # Wait for the READY banner (model load takes ~60-80s first time)
-            ready = _daemon.stdout.readline().strip()
+            # Wait for the READY banner (model load takes ~60-80s first time).
+            # Use a timeout so a missing/broken daemon doesn't block forever.
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(_daemon.stdout.readline)
+                try:
+                    ready = fut.result(timeout=90).strip()
+                except concurrent.futures.TimeoutError:
+                    print("[dj] TTS daemon timed out waiting for READY (is model downloading?)")
+                    try:
+                        _daemon.kill()
+                    except Exception:
+                        pass
+                    _daemon = None
+                    return False
             _daemon_ready = ready == 'READY'
             if not _daemon_ready:
-                print(f"[dj] TTS daemon failed to start: {ready}")
-                _daemon.kill()
+                # Capture stderr for a hint (truncated)
+                try:
+                    err = _daemon.stderr.read() or ''
+                except Exception:
+                    err = ''
+                hint = err.strip().splitlines()[-1][:200] if err.strip() else ready
+                # Prefer the stdout READY-line error if stderr was empty
+                if not hint:
+                    hint = ready[:200]
+                print(f"[dj] TTS daemon failed to start: {hint}")
+                # If the daemon reports a missing backend (common on desktop
+                # without kokoro installed), don't retry forever — mark
+                # unavailable so DJ stays text-only and doesn't spam the log.
+                if any(s in hint for s in ('ModuleNotFoundError', 'No module named', 'no TTS backend', 'ERROR:')):
+                    _daemon_unavailable = True
+                    _daemon_unavailable_reason = hint
+                try:
+                    _daemon.kill()
+                except Exception:
+                    pass
                 _daemon = None
                 return False
             print("[dj] TTS daemon ready")
             return True
+        except FileNotFoundError as e:
+            print(f"[dj] TTS daemon spawn failed: [WinError 2] {e} — DJ will be text-only.")
+            _daemon_unavailable = True
+            _daemon_unavailable_reason = str(e)
+            _daemon = None
+            return False
         except Exception as e:  # noqa: BLE001
             print(f"[dj] TTS daemon spawn failed: {e}")
             _daemon = None
@@ -145,8 +247,12 @@ def _warm_daemon_async():
     Called from a request thread so the ~80s cold model load overlaps with
     whatever else is happening (LLM line generation, radio batch building).
     The caller should NOT wait on this; _synth will block on _start_daemon()
-    anyway if it isn't ready by then.
+    anyway if it isn't ready by then. No-ops gracefully when TTS isn't
+    installed (text-only mode).
     """
+    ok, _ = _tts_available()
+    if not ok:
+        return
 
     def _warm():
         try:
@@ -161,6 +267,9 @@ def _warm_daemon_async():
 def _synth(text, voice=DJ_VOICE, speed=1.0):
     """Synthesize text -> wav path. Returns path or None."""
     if not text:
+        return None
+    ok, _ = _tts_available()
+    if not ok:
         return None
     if not _start_daemon():
         return None

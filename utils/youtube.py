@@ -140,6 +140,9 @@ class YouTubeDownloader:
                 cover_path = self._download_thumbnail(thumbnail_url, base_filename)
             
             # Configure yt-dlp options for audio download
+            # --embed-metadata + --embed-thumbnail make the mp3 fully
+            # self-contained so a full rescan (DB wipe) still recovers
+            # title/artist/cover from the file itself.
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'postprocessors': [{
@@ -148,14 +151,21 @@ class YouTubeDownloader:
                     'preferredquality': '320',
                 }],
                 'outtmpl': os.path.join(self.music_path, f"{base_filename}.%(ext)s"),
+                'writethumbnail': True,
                 'quiet': True,
                 'no_warnings': True,
             }
-            
-            # Add metadata embedding
+
+            # Bake metadata + thumbnail directly into the mp3
+            # (equivalent to --embed-metadata --embed-thumbnail).
+            # Order: extract audio -> embed thumbnail -> add metadata.
             ydl_opts['postprocessors'].append({
                 'key': 'FFmpegMetadata',
                 'add_metadata': True,
+            })
+            ydl_opts['postprocessors'].append({
+                'key': 'EmbedThumbnail',
+                'already_have_thumbnail': False,
             })
             
             # Download audio (with retries)
@@ -331,13 +341,18 @@ class YouTubeDownloader:
                     'preferredquality': '320',
                 }],
                 'outtmpl': os.path.join(self.music_path, f"{base_filename}.%(ext)s"),
+                'writethumbnail': True,
                 'quiet': True,
                 'no_warnings': True,
             }
-            
+
             ydl_opts['postprocessors'].append({
                 'key': 'FFmpegMetadata',
                 'add_metadata': True,
+            })
+            ydl_opts['postprocessors'].append({
+                'key': 'EmbedThumbnail',
+                'already_have_thumbnail': False,
             })
             
             video_url = info.get('url')
@@ -401,13 +416,18 @@ class YouTubeDownloader:
                     'preferredquality': '320',
                 }],
                 'outtmpl': os.path.join(self.music_path, f"{base_filename}.%(ext)s"),
+                'writethumbnail': True,
                 'quiet': True,
                 'no_warnings': True,
             }
-            
+
             ydl_opts['postprocessors'].append({
                 'key': 'FFmpegMetadata',
                 'add_metadata': True,
+            })
+            ydl_opts['postprocessors'].append({
+                'key': 'EmbedThumbnail',
+                'already_have_thumbnail': False,
             })
             
             ok, dl_err = self._retry_ydl(ydl_opts, [url], label=f"download \"{title}\"")

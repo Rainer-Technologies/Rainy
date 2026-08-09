@@ -410,6 +410,81 @@
     gap: var(--spacing-sm);
 }
 
+/* Text inputs inside settings cards (e.g. AI & Discovery provider fields) */
+.settings-text-input {
+    box-sizing: border-box;
+    width: 360px;
+    max-width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.settings-text-input:hover {
+    border-color: var(--border-color);
+    background: var(--bg-elevated);
+}
+
+.settings-text-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: var(--bg-tertiary);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.settings-text-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.settings-row-control {
+    min-width: 0;
+}
+
+/* Action button group inside a settings row (Test Connection / Save) */
+.settings-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+/* AI connection status hint can be wider than the default row hint */
+.settings-row-hint--wide {
+    max-width: 460px;
+}
+
+@media (max-width: 640px) {
+    .settings-row:has(.settings-text-input),
+    .settings-row:has(.settings-actions) {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .settings-row:has(.settings-text-input) .settings-row-control,
+    .settings-row:has(.settings-actions) .settings-row-control {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .settings-text-input {
+        width: 100%;
+    }
+
+    .settings-actions {
+        width: 100%;
+    }
+
+    .settings-actions .btn {
+        flex: 1;
+    }
+}
+
 /* Radio Group (Discord style) */
 .settings-radio-group {
     display: flex;
