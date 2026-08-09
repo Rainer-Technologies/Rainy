@@ -862,6 +862,12 @@
                     </svg>
                     <span>Library</span>
                 </a>
+                <a class="settings-nav-item" data-section="syncs" id="settings-nav-syncs">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                    </svg>
+                    <span>Playlist Sync</span>
+                </a>
 
                 <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category">Server
                     Settings</div>
@@ -1290,6 +1296,83 @@
                     </div>
                 </div>
 
+                <!-- Section: Playlist Sync -->
+                <div class="settings-section" id="settings-section-syncs">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Playlist Sync</div>
+                        <div class="settings-group-description">Link a local playlist to a remote Spotify or YouTube Music playlist. Rainy will automatically check the remote playlist every X hours and sync new tracks (optionally removing tracks no longer in the remote).</div>
+
+                        <div class="settings-card">
+                            <div class="settings-row" style="border-bottom:none; padding-bottom:0;">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Automatic sync jobs</div>
+                                    <div class="settings-row-hint">Runs in the background — no action needed after setup</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="syncs-refresh-btn">Refresh</button>
+                                </div>
+                            </div>
+                            <div id="syncs-list" style="margin-top:14px;"></div>
+                            <div id="syncs-empty" class="import-jobs-empty" style="margin-top:12px;">No syncs configured yet.</div>
+                        </div>
+
+                        <div class="settings-card" id="syncs-create-card">
+                            <div class="settings-group-title" style="font-size:0.95rem; margin-bottom:12px;">Create new sync</div>
+                            <div class="form-group" style="margin-bottom:12px;">
+                                <label class="form-label" for="sync-playlist-select">Local playlist</label>
+                                <select id="sync-playlist-select" class="form-input"></select>
+                            </div>
+                            <div class="form-group" style="margin-bottom:12px;">
+                                <label class="form-label">Source</label>
+                                <div class="settings-radio-group settings-radio-group--horizontal" id="sync-source-group" style="margin-top:6px;">
+                                    <div class="settings-radio-item selected" data-value="spotify">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content"><div class="settings-radio-title">Spotify</div><div class="settings-radio-description">Paste a spotify.com/playlist/... link</div></div>
+                                    </div>
+                                    <div class="settings-radio-item" data-value="youtube">
+                                        <div class="settings-radio-circle"></div>
+                                        <div class="settings-radio-content"><div class="settings-radio-title">YouTube Music</div><div class="settings-radio-description">Paste a youtube.com/playlist?list=... link</div></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom:12px;">
+                                <label class="form-label" for="sync-url-input">Playlist URL</label>
+                                <input type="text" id="sync-url-input" class="form-input" placeholder="https://open.spotify.com/playlist/... or https://www.youtube.com/playlist?list=...">
+                            </div>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label class="form-label" for="sync-interval-select">Check every</label>
+                                    <select id="sync-interval-select" class="form-input">
+                                        <option value="1">1 hour</option>
+                                        <option value="3">3 hours</option>
+                                        <option value="6">6 hours</option>
+                                        <option value="12">12 hours</option>
+                                        <option value="24" selected>24 hours (daily)</option>
+                                        <option value="48">48 hours</option>
+                                        <option value="72">3 days</option>
+                                        <option value="168">7 days (weekly)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label class="form-label" for="sync-mode-select">Sync mode</label>
+                                    <select id="sync-mode-select" class="form-input">
+                                        <option value="mirror" selected>Mirror — add &amp; remove to match remote</option>
+                                        <option value="add_only">Add only — never remove</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                                <label class="toggle-switch"><input type="checkbox" id="sync-enabled-check" checked><span class="toggle-slider"></span></label>
+                                <span style="font-size:0.9rem; color:var(--text-secondary);">Enabled</span>
+                            </div>
+                            <div class="modal-actions" style="justify-content:flex-end; margin-top:8px;">
+                                <button class="btn btn-primary" id="sync-create-btn">Create sync</button>
+                            </div>
+                            <div id="sync-create-error" style="margin-top:10px; font-size:0.85rem; color:#f87171; display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Section: Jobs (Server Settings) -->
                 <div class="settings-section" id="settings-section-jobs">
                     <div class="settings-group">
@@ -1679,7 +1762,7 @@
                                     <div class="settings-row-hint">Full chat completions endpoint (e.g. <code>https://opencode.ai/zen/go/v1/chat/completions</code>)</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <input type="text" class="settings-text-input" id="ai-base-url" placeholder="https://.../v1/chat/completions" style="min-width: 320px;">
+                                    <input type="text" class="settings-text-input" id="ai-base-url" placeholder="https://.../v1/chat/completions">
                                 </div>
                             </div>
                             <div class="settings-row">
@@ -1688,26 +1771,28 @@
                                     <div class="settings-row-hint">e.g. <code>deepseek-v4-flash</code></div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <input type="text" class="settings-text-input" id="ai-model" placeholder="deepseek-v4-flash" style="min-width: 320px;">
+                                    <input type="text" class="settings-text-input" id="ai-model" placeholder="deepseek-v4-flash">
                                 </div>
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
                                     <div class="settings-row-label">API Key</div>
-                                    <div class="settings-row-hint" id="ai-key-hint">Leave blank to keep the current key.</div>
+                                    <div class="settings-row-hint settings-row-hint--wide" id="ai-key-hint">Leave blank to keep the current key.</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <input type="password" class="settings-text-input" id="ai-api-key" placeholder="sk-..." style="min-width: 320px;" autocomplete="off">
+                                    <input type="password" class="settings-text-input" id="ai-api-key" placeholder="sk-..." autocomplete="off">
                                 </div>
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
                                     <div class="settings-row-label" id="ai-status-label">Connection</div>
-                                    <div class="settings-row-hint" id="ai-status-hint">Not tested yet.</div>
+                                    <div class="settings-row-hint settings-row-hint--wide" id="ai-status-hint">Not tested yet.</div>
                                 </div>
-                                <div class="settings-row-control" style="display: flex; gap: 8px;">
-                                    <button type="button" class="btn btn-secondary btn-sm" id="ai-test-btn">Test Connection</button>
-                                    <button type="button" class="btn btn-primary btn-sm" id="ai-save-btn">Save</button>
+                                <div class="settings-row-control">
+                                    <div class="settings-actions">
+                                        <button type="button" class="btn btn-secondary btn-sm" id="ai-test-btn">Test Connection</button>
+                                        <button type="button" class="btn btn-primary btn-sm" id="ai-save-btn">Save</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

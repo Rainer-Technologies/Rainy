@@ -513,6 +513,28 @@ class Database:
                 "NOT NULL DEFAULT 'lastfm'"
             )
 
+        # Playlist sync — periodic mirroring of remote Spotify / YouTube playlists.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS playlist_syncs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                playlist_id INT NOT NULL,
+                source ENUM('youtube', 'spotify') NOT NULL,
+                url TEXT NOT NULL,
+                interval_hours INT NOT NULL DEFAULT 24,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                sync_mode ENUM('add_only', 'mirror') NOT NULL DEFAULT 'mirror',
+                last_synced_at DATETIME NULL,
+                next_sync_at DATETIME NULL,
+                last_status VARCHAR(20) NULL,
+                last_message TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                UNIQUE KEY uniq_playlist (playlist_id),
+                INDEX idx_next_sync (enabled, next_sync_at)
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

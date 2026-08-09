@@ -594,6 +594,7 @@ export class RainyApp {
 
         this.initDiscoverView();
         this.initAiSettings();
+        this.initPlaylistSyncs();
     }
 
     closeDropdown() {
@@ -2419,6 +2420,280 @@ export class RainyApp {
         });
     }
 
+    // ==================== Playlist Sync (Settings -> Playlist Sync) ====================
+
+    initPlaylistSyncs() {
+        const refreshBtn = document.getElementById('syncs-refresh-btn');
+        const createBtn = document.getElementById('sync-create-btn');
+        const sourceGroup = document.getElementById('sync-source-group');
+        refreshBtn?.addEventListener('click', () => this.loadPlaylistSyncs());
+        createBtn?.addEventListener('click', () => this.createPlaylistSync());
+        sourceGroup?.querySelectorAll('.settings-radio-item').forEach(item => {
+            item.addEventListener('click', () => {
+                sourceGroup.querySelectorAll('.settings-radio-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+            });
+        });
+    }
+
+    async loadPlaylistSyncs() {
+        const listEl = document.getElementById('syncs-list');
+        const emptyEl = document.getElementById('syncs-empty');
+        const selectEl = document.getElementById('sync-playlist-select');
+        if (!listEl) return;
+
+        // Populate playlist dropdown
+        try {
+            const plData = await usePlaylistService().list();
+            if (selectEl && !plData.error && plData.value) {
+                const currentVal = selectEl.value;
+                selectEl.innerHTML = '';
+                const playlists = Array.isArray(plData.value) ? plData.value : (plData.value.playlists || []);
+                playlists.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name + (p.song_count != null ? ` (${p.song_count} tracks)` : '');
+                    selectEl.appendChild(opt);
+                });
+                if (currentVal) selectEl.value = currentVal;
+                if (!selectEl.value && playlists.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No playlists yet — create one first';
+                    opt.disabled = true;
+                    opt.selected = true;
+                    selectEl.appendChild(opt);
+                }
+            }
+        } catch (_) {}
+
+        listEl.innerHTML = '<div class="import-jobs-empty">Loading syncs…</div>';
+        if (emptyEl) emptyEl.style.display = 'none';
+
+        try {
+            const res = await fetch('/api/playlist-syncs', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load syncs');
+            const syncs = data.syncs || [];
+            if (syncs.length === 0) {
+                listEl.innerHTML = '';
+                if (emptyEl) emptyEl.style.display = '';
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = 'none';
+            listEl.innerHTML = '';
+            syncs.forEach(s => listEl.appendChild(this._renderSyncRow(s)));
+        } catch (e) {
+            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">Error: ${this._esc(e.message)}</div>`;
+        }
+    }
+
+    _renderSyncRow(s) {
+        const wrap = document.createElement('div');
+        wrap.className = 'import-job-row';
+        wrap.style.flexDirection = 'column';
+        wrap.style.alignItems = 'stretch';
+        wrap.style.gap = '0';
+
+        const intervalLabel = (() => {
+            const h = parseInt(s.interval_hours, 10);
+            if (h === 1) return 'Every hour';
+            if (h < 24) return `Every ${h} hours`;
+            if (h === 24) return 'Daily';
+            if (h === 48) return 'Every 2 days';
+            if (h === 72) return 'Every 3 days';
+            if (h === 168) return 'Weekly';
+            return `Every ${h}h`;
+        })();
+        const sourceBadge = s.source === 'spotify' ? 'Spotify' : 'YouTube';
+        const modeBadge = s.sync_mode === 'mirror' ? 'Mirror' : 'Add only';
+        const statusColor = s.last_status === 'success' ? '#4ade80' : s.last_status === 'failed' ? '#f87171' : s.last_status === 'running' ? '#60a5fa' : 'var(--text-tertiary)';
+        const enabled = !!s.enabled;
+        const nextSync = s.next_sync_at ? new Date(s.next_sync_at).toLocaleString() : '—';
+        const lastSync = s.last_synced_at ? new Date(s.last_synced_at).toLocaleString() : 'Never';
+
+        wrap.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:180px;">
+                    <div style="font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span>${this._esc(s.playlist_name || 'Playlist #' + s.playlist_id)}</span>
+                        <span class="import-job-badge" style="background:rgba(61,125,196,0.12); color:var(--accent-primary);">${sourceBadge}</span>
+                        <span class="import-job-badge">${modeBadge}</span>
+                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(s.last_status || 'pending')}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:3px; word-break:break-all;">
+                        <span>${this._esc(intervalLabel)}</span> · Next: ${this._esc(nextSync)} · Last: ${this._esc(lastSync)}
+                    </div>
+                    ${s.last_message ? `<div style="font-size:0.8rem; color:var(--text-tertiary); margin-top:2px;">${this._esc(s.last_message)}</div>` : ''}
+                    <div style="font-size:0.75rem; color:var(--text-tertiary); margin-top:2px; word-break:break-all;">${this._esc(s.url)}</div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <label class="toggle-switch" title="Enabled">
+                        <input type="checkbox" class="sync-enabled-toggle" data-sync-id="${s.id}" ${enabled ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <button class="btn btn-secondary btn-sm sync-run-btn" data-sync-id="${s.id}">Run now</button>
+                    <button class="btn btn-secondary btn-sm sync-delete-btn" data-sync-id="${s.id}" style="color:var(--error);">Delete</button>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                <select class="form-input sync-interval-select" data-sync-id="${s.id}" style="flex:1; min-width:140px; padding:6px 10px; font-size:0.85rem;">
+                    <option value="1" ${s.interval_hours==1?'selected':''}>1 hour</option>
+                    <option value="3" ${s.interval_hours==3?'selected':''}>3 hours</option>
+                    <option value="6" ${s.interval_hours==6?'selected':''}>6 hours</option>
+                    <option value="12" ${s.interval_hours==12?'selected':''}>12 hours</option>
+                    <option value="24" ${s.interval_hours==24?'selected':''}>24 hours (daily)</option>
+                    <option value="48" ${s.interval_hours==48?'selected':''}>48 hours</option>
+                    <option value="72" ${s.interval_hours==72?'selected':''}>3 days</option>
+                    <option value="168" ${s.interval_hours==168?'selected':''}>7 days (weekly)</option>
+                </select>
+                <select class="form-input sync-mode-select" data-sync-id="${s.id}" style="flex:1; min-width:140px; padding:6px 10px; font-size:0.85rem;">
+                    <option value="mirror" ${s.sync_mode==='mirror'?'selected':''}>Mirror — add & remove</option>
+                    <option value="add_only" ${s.sync_mode==='add_only'?'selected':''}>Add only</option>
+                </select>
+            </div>
+        `;
+
+        // Wire events
+        const toggle = wrap.querySelector('.sync-enabled-toggle');
+        toggle?.addEventListener('change', async (e) => {
+            const id = parseInt(e.target.dataset.syncId, 10);
+            try {
+                const res = await fetch(`/api/playlist-syncs/${id}`, {
+                    method: 'PUT', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: e.target.checked })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Update failed');
+                this.showToast(e.target.checked ? 'Sync enabled' : 'Sync disabled', 'success');
+            } catch (err) {
+                this.showToast(err.message, 'error');
+                e.target.checked = !e.target.checked;
+            }
+        });
+
+        const runBtn = wrap.querySelector('.sync-run-btn');
+        runBtn?.addEventListener('click', async (e) => {
+            const id = parseInt(e.target.dataset.syncId, 10);
+            e.target.disabled = true;
+            e.target.textContent = 'Syncing…';
+            try {
+                const res = await fetch(`/api/playlist-syncs/${id}/run`, { method: 'POST', credentials: 'same-origin' });
+                const d = await res.json();
+                if (!res.ok || !d.success) throw new Error(d.error || 'Sync failed');
+                this.showToast(`Synced: +${d.result.added} -${d.result.removed}`, 'success');
+                this.loadPlaylistSyncs();
+                this.loadPlaylists?.();
+            } catch (err) {
+                this.showToast(err.message, 'error');
+                e.target.disabled = false;
+                e.target.textContent = 'Run now';
+            }
+        });
+
+        const delBtn = wrap.querySelector('.sync-delete-btn');
+        delBtn?.addEventListener('click', async (e) => {
+            const id = parseInt(e.target.dataset.syncId, 10);
+            if (!confirm('Delete this sync? The playlist itself will not be deleted.')) return;
+            try {
+                const res = await fetch(`/api/playlist-syncs/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Delete failed');
+                this.showToast('Sync deleted', 'success');
+                this.loadPlaylistSyncs();
+            } catch (err) {
+                this.showToast(err.message, 'error');
+            }
+        });
+
+        const intervalSel = wrap.querySelector('.sync-interval-select');
+        intervalSel?.addEventListener('change', async (e) => {
+            const id = parseInt(e.target.dataset.syncId, 10);
+            try {
+                const res = await fetch(`/api/playlist-syncs/${id}`, {
+                    method: 'PUT', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interval_hours: parseInt(e.target.value, 10) })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Update failed');
+                this.showToast('Interval updated', 'success');
+                this.loadPlaylistSyncs();
+            } catch (err) {
+                this.showToast(err.message, 'error');
+            }
+        });
+
+        const modeSel = wrap.querySelector('.sync-mode-select');
+        modeSel?.addEventListener('change', async (e) => {
+            const id = parseInt(e.target.dataset.syncId, 10);
+            try {
+                const res = await fetch(`/api/playlist-syncs/${id}`, {
+                    method: 'PUT', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sync_mode: e.target.value })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Update failed');
+                this.showToast('Sync mode updated', 'success');
+            } catch (err) {
+                this.showToast(err.message, 'error');
+            }
+        });
+
+        return wrap;
+    }
+
+    async createPlaylistSync() {
+        const selectEl = document.getElementById('sync-playlist-select');
+        const urlEl = document.getElementById('sync-url-input');
+        const intervalEl = document.getElementById('sync-interval-select');
+        const modeEl = document.getElementById('sync-mode-select');
+        const enabledEl = document.getElementById('sync-enabled-check');
+        const errorEl = document.getElementById('sync-create-error');
+        const createBtn = document.getElementById('sync-create-btn');
+        const sourceGroup = document.getElementById('sync-source-group');
+
+        const playlistId = parseInt(selectEl?.value, 10);
+        const url = (urlEl?.value || '').trim();
+        const interval_hours = parseInt(intervalEl?.value || '24', 10);
+        const sync_mode = modeEl?.value || 'mirror';
+        const enabled = !!enabledEl?.checked;
+        const selectedSource = sourceGroup?.querySelector('.settings-radio-item.selected')?.dataset.value || 'spotify';
+
+        if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+
+        if (!playlistId) {
+            if (errorEl) { errorEl.textContent = 'Select a local playlist.'; errorEl.style.display = ''; }
+            return;
+        }
+        if (!url) {
+            if (errorEl) { errorEl.textContent = 'Paste a playlist URL.'; errorEl.style.display = ''; }
+            return;
+        }
+
+        if (createBtn) { createBtn.disabled = true; createBtn.textContent = 'Creating…'; }
+
+        try {
+            const res = await fetch('/api/playlist-syncs', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlist_id: playlistId, source: selectedSource, url, interval_hours, sync_mode, enabled })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create sync');
+            this.showToast('Playlist sync created', 'success');
+            if (urlEl) urlEl.value = '';
+            await this.loadPlaylistSyncs();
+        } catch (e) {
+            if (errorEl) { errorEl.textContent = e.message; errorEl.style.display = ''; }
+            this.showToast(e.message, 'error');
+        } finally {
+            if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create sync'; }
+        }
+    }
+
     async playDiscoverPreview(song) {
         const previewBar = document.getElementById('discover-preview-bar');
         const previewCover = document.getElementById('preview-cover');
@@ -2976,6 +3251,7 @@ export class RainyApp {
             'player': 'Player',
             'account': 'Account',
             'library': 'Library',
+            'syncs': 'Playlist Sync',
             'jobs': 'Jobs',
             'users': 'Users',
             'chromecast': 'Chromecast Setup',
@@ -3001,6 +3277,10 @@ export class RainyApp {
         if (sectionName === 'jobs') {
             this.loadScanStatus();
             this.loadImportJobs();
+        }
+
+        if (sectionName === 'syncs') {
+            this.loadPlaylistSyncs();
         }
 
         // Load AI config when switching to the AI section
@@ -3040,6 +3320,8 @@ export class RainyApp {
             'appearance': ['appearance', 'theme', 'color', 'accent', 'color picker', 'preset', 'reset', 'style', 'look'],
             'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
             'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
+            'library': ['library', 'duplicate', 'dup', 'merge'],
+            'syncs': ['sync', 'playlist sync', 'interval', 'mirror', 'spotify', 'youtube'],
             'jobs': ['jobs', 'library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata', 'server'],
             'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
         };
