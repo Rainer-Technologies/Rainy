@@ -71,9 +71,18 @@ class MetadataSearcher:
                 if result.get('resultType') != 'song':
                     continue
                     
-                # Extract artist names
+                # Extract artist names (deduplicate — YTMusic can return the same
+                # artist multiple times for e.g. "Magic" by John Michael Howell)
                 artists = result.get('artists', [])
-                artist_names = ', '.join([a.get('name', '') for a in artists if a.get('name')])
+                raw_names = [a.get('name', '').strip() for a in artists if a.get('name') and a.get('name').strip()]
+                seen_meta = set()
+                deduped_names = []
+                for n in raw_names:
+                    key = n.lower()
+                    if key not in seen_meta:
+                        seen_meta.add(key)
+                        deduped_names.append(n)
+                artist_names = ', '.join(deduped_names)
                 
                 # Extract album info
                 album = result.get('album', {})

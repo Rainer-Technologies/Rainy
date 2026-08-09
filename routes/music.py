@@ -438,7 +438,19 @@ def apply_metadata(song_id):
         if data.get('title'):
             metadata['title'] = data['title']
         if data.get('artist'):
-            metadata['artist'] = data['artist']
+            # Deduplicate comma-separated artists (e.g. "A, A, A" -> "A")
+            raw_artist = str(data['artist']).strip()
+            seen_a = set()
+            deduped_a = []
+            for part in raw_artist.split(','):
+                name = part.strip()
+                if not name:
+                    continue
+                key = name.lower()
+                if key not in seen_a:
+                    seen_a.add(key)
+                    deduped_a.append(name)
+            metadata['artist'] = ', '.join(deduped_a) if deduped_a else raw_artist
         if data.get('album'):
             metadata['album'] = data['album']
         if data.get('year'):
@@ -2594,6 +2606,18 @@ def merge_duplicates():
         if not result.get('success'):
             return jsonify(result), 400
         return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/artists/fix', methods=['POST'])
+@require_auth
+def fix_artist_metadata():
+    """Fix duplicate artist names in existing songs (e.g. 'A, A, A' -> 'A')."""
+    try:
+        from models.song import SongModel
+        fixed = SongModel.fix_artist_duplicates()
+        return jsonify({'success': True, 'fixed': fixed})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

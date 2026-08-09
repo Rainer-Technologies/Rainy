@@ -563,8 +563,9 @@ export class AudioPlayer {
         // (library songs only — radio tracks and DJ talk have no choreography)
         if (this.lightShow && !song.videoId && !song.djTalk) this.lightShow.loadScript(song.id);
 
-        // Render clickable artist links in player bar
-        const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+        // Render clickable artist links in player bar (deduplicated)
+        const _splitP = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
+        const artistNames = _splitP(song.artist || 'Unknown Artist');
         const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${Utils.escapeHtml(name)}">${Utils.escapeHtml(name)}</span>`).join(', ');
         this.nowPlayingArtist.innerHTML = artistLinksHtml;
 

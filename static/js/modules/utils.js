@@ -74,6 +74,49 @@ export const Utils = {
     },
 
     /**
+     * Deduplicate a comma-separated artist string (case-insensitive, preserve first casing).
+     * Also useful for splitting raw artist strings into unique names.
+     * @param {string} raw
+     * @returns {string}
+     */
+    dedupeArtists(raw) {
+        if (!raw || !String(raw).trim()) return 'Unknown Artist';
+        const seen = new Set();
+        const out = [];
+        for (const part of String(raw).split(',')) {
+            const name = part.trim();
+            if (!name) continue;
+            const key = name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                out.push(name);
+            }
+        }
+        return out.length ? out.join(', ') : 'Unknown Artist';
+    },
+
+    /**
+     * Split a comma-separated artist string into deduplicated names.
+     * @param {string} raw
+     * @returns {string[]}
+     */
+    splitArtists(raw) {
+        if (!raw || !String(raw).trim()) return ['Unknown Artist'];
+        const seen = new Set();
+        const out = [];
+        for (const part of String(raw).split(',')) {
+            const name = part.trim();
+            if (!name) continue;
+            const key = name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                out.push(name);
+            }
+        }
+        return out.length ? out : ['Unknown Artist'];
+    },
+
+    /**
      * Handle cover image loading errors with retry and fallback
      * @param {HTMLImageElement} img - The image element that failed to load
      */

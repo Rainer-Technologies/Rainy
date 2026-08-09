@@ -3415,7 +3415,8 @@ export class RainyApp {
 
         librarySongs.forEach(song => {
             const rawArtist = song.artist || 'Unknown Artist';
-            const artistNames = rawArtist.split(',').map(s => s.trim()).filter(Boolean);
+            const _dedupe = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists(rawArtist) : (()=>{ const seen=new Set(); const out=[]; for(const p of String(rawArtist).split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; })();
+            const artistNames = _dedupe;
 
             artistNames.forEach(artistName => {
                 const key = artistName.toLowerCase();
@@ -3620,7 +3621,8 @@ export class RainyApp {
                     : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
                 const globalIndex = this.librarySongs.findIndex(s => s.id === song.id);
-                const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+                const _splitA = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists(song.artist || 'Unknown Artist') : (()=>{ const seen=new Set(); const out=[]; for(const p of String(song.artist||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out; })();
+                const artistNames = _splitA;
                 const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
                 return `
@@ -3685,8 +3687,8 @@ export class RainyApp {
                     ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                     : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
-                const globalIndex = this.librarySongs.findIndex(s => s.id === song.id);
-                const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+                const _splitB = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists(song.artist || 'Unknown Artist') : (()=>{ const seen=new Set(); const out=[]; for(const p of String(song.artist||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out; })();
+                const artistNames = _splitB;
                 const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
                 return `
@@ -3996,8 +3998,9 @@ export class RainyApp {
                         closeModal();
                         const librarySongs = this.librarySongs || [];
                         const matchedSongs = librarySongs.filter(song => {
-                            const artistNames = (song.artist || '').split(',').map(s => s.trim()).filter(Boolean);
-                            return artistNames.includes(artistName);
+                            const _splitC = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists(song.artist || '') : (()=>{ const seen=new Set(); const out=[]; for(const p of String(song.artist||'').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out; })();
+                            const artistNames = _splitC;
+                            return artistNames.map(n=>n.toLowerCase()).includes(artistName.toLowerCase());
                         });
                         this.renderArtistProfile(artistName, matchedSongs);
                     } else {

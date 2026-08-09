@@ -10,6 +10,23 @@ from mutagen.wave import WAVE
 from config import Config
 
 
+def normalize_artist(raw):
+    """Deduplicate a comma-separated artist string (case-insensitive, preserve order)."""
+    if not raw or not str(raw).strip():
+        return 'Unknown Artist'
+    seen = set()
+    out = []
+    for part in str(raw).split(','):
+        name = part.strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(name)
+    return ', '.join(out) if out else 'Unknown Artist'
+
+
 class MusicScanner:
     def __init__(self, music_path):
         self.music_path = music_path
@@ -206,7 +223,8 @@ class MusicScanner:
             # Extract common tags
             if audio:
                 metadata['title'] = self._get_tag(audio, 'title', metadata['title'])
-                metadata['artist'] = self._get_tag(audio, 'artist', metadata['artist'])
+                raw_artist = self._get_tag(audio, 'artist', metadata['artist'])
+                metadata['artist'] = normalize_artist(raw_artist)
                 metadata['album'] = self._get_tag(audio, 'album', metadata['album'])
                 metadata['genre'] = self._get_tag(audio, 'genre', None)
                 metadata['year'] = self._get_tag(audio, 'date', None)
@@ -330,13 +348,25 @@ class MusicScanner:
         return os.path.join('covers', f"{cover_filename}{img_ext}").replace('\\', '/')
     
     def _get_tag(self, audio, tag_name, default=None):
-        """Safely get a tag value from audio metadata."""
+        """Safely get a tag value from audio metadata.
+
+        For `artist` we join *all* list entries with ', ' so multi-artist
+        collaborations (multiple ARTIST frames / TPE1 values) are preserved.
+        Callers are expected to de-duplicate the resulting comma-separated
+        string via normalize_artist().
+        """
         try:
             if tag_name in audio:
                 value = audio[tag_name]
                 if isinstance(value, list) and len(value) > 0:
-                    return str(value[0])
-                return str(value)
+                    # Join every non-empty entry instead of silently dropping
+                    # all but the first — otherwise collaborations lose artists
+                    # and duplicate frames are not visible for deduplication.
+                    parts = [str(v).strip() for v in value if str(v).strip()]
+                    if parts:
+                        return ', '.join(parts)
+                elif value is not None:
+                    return str(value)
         except:
             pass
         return default

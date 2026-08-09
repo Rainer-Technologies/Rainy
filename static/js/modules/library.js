@@ -43,7 +43,8 @@ export const Library = {
 
             const globalIndex = allSongs.findIndex(s => s.id === song.id);
 
-            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+            const _split = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
+            const artistNames = _split(song.artist || 'Unknown Artist');
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
@@ -93,7 +94,8 @@ export const Library = {
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
-            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+            const _split2 = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
+            const artistNames = _split2(song.artist || 'Unknown Artist');
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
@@ -164,7 +166,8 @@ export const Library = {
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
                 : `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
-            const artistNames = (song.artist || 'Unknown Artist').split(',').map(s => s.trim()).filter(Boolean);
+            const _split3 = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
+            const artistNames = _split3(song.artist || 'Unknown Artist');
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `

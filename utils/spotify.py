@@ -112,13 +112,37 @@ class SpotifyImporter:
         """Extract a comma-separated artist string from an entity.
 
         Tracks expose an 'artists' array; playlist track items use 'subtitle'.
+        Deduplicates case-insensitively to avoid 'A, A, A' artefacts.
         """
+        def _dedupe(raw):
+            seen = set()
+            out = []
+            for part in str(raw).split(','):
+                name = part.strip()
+                if not name:
+                    continue
+                key = name.lower()
+                if key not in seen:
+                    seen.add(key)
+                    out.append(name)
+            return ', '.join(out) if out else ''
+
         artists = entity.get("artists")
         if isinstance(artists, list) and artists:
-            names = [a.get("name") for a in artists if a.get("name")]
-            if names:
-                return ", ".join(names)
-        return (entity.get("subtitle") or "").strip() or "Unknown Artist"
+            names = [a.get("name", "").strip() for a in artists if a.get("name") and a.get("name").strip()]
+            # dedupe while preserving order
+            seen = set()
+            deduped = []
+            for n in names:
+                key = n.lower()
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(n)
+            if deduped:
+                return _dedupe(', '.join(deduped)) or "Unknown Artist"
+        raw_sub = (entity.get("subtitle") or "").strip()
+        deduped_sub = _dedupe(raw_sub)
+        return deduped_sub or "Unknown Artist"
 
     def fetch_playlist(self, url):
         """Fetch playlist name and track list from a Spotify playlist URL.

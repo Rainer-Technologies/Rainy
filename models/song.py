@@ -6,6 +6,21 @@ class SongModel:
     @staticmethod
     def add_song(song_data):
         """Insert a new song into the database."""
+        # Deduplicate artist string before insert
+        raw_artist = song_data.get('artist', 'Unknown Artist')
+        if raw_artist and isinstance(raw_artist, str):
+            seen = set()
+            deduped = []
+            for part in raw_artist.split(','):
+                name = part.strip()
+                if not name:
+                    continue
+                key = name.lower()
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(name)
+            if deduped:
+                raw_artist = ', '.join(deduped)
         query = """
             INSERT INTO songs (file_path, title, artist, album, duration, 
                              track_number, year, genre, cover_path, file_size, file_modified)
@@ -14,7 +29,7 @@ class SongModel:
         return Database.execute_query(query, (
             song_data['path'],
             song_data['title'],
-            song_data.get('artist', 'Unknown Artist'),
+            raw_artist,
             song_data.get('album', 'Unknown Album'),
             song_data.get('duration', 0),
             song_data.get('track', 0),
@@ -28,6 +43,20 @@ class SongModel:
     @staticmethod
     def update_song(file_path, song_data):
         """Update an existing song in the database."""
+        raw_artist = song_data.get('artist', 'Unknown Artist')
+        if raw_artist and isinstance(raw_artist, str):
+            seen = set()
+            deduped = []
+            for part in raw_artist.split(','):
+                name = part.strip()
+                if not name:
+                    continue
+                key = name.lower()
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(name)
+            if deduped:
+                raw_artist = ', '.join(deduped)
         query = """
             UPDATE songs 
             SET title = %s, artist = %s, album = %s, duration = %s,
@@ -37,7 +66,7 @@ class SongModel:
         """
         return Database.execute_query(query, (
             song_data['title'],
-            song_data.get('artist', 'Unknown Artist'),
+            raw_artist,
             song_data.get('album', 'Unknown Album'),
             song_data.get('duration', 0),
             song_data.get('track', 0),
@@ -52,6 +81,23 @@ class SongModel:
     @staticmethod
     def update_song_metadata(file_path, metadata):
         """Update only specific metadata fields for a song."""
+        # Normalize artist to remove duplicate names (e.g. "A, A, A" -> "A")
+        if 'artist' in metadata and metadata['artist'] is not None:
+            raw = str(metadata['artist']).strip()
+            seen = set()
+            deduped = []
+            for part in raw.split(','):
+                name = part.strip()
+                if not name:
+                    continue
+                key = name.lower()
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(name)
+            if deduped:
+                metadata = dict(metadata)
+                metadata['artist'] = ', '.join(deduped)
+
         # Build dynamic query based on provided fields
         fields = []
         values = []
@@ -183,6 +229,39 @@ class SongModel:
         query = "SELECT COUNT(*) as count FROM songs"
         result = Database.execute_query(query, fetch_one=True)
         return result['count'] if result else 0
+
+    @staticmethod
+    def _dedupe_artist_string(raw):
+        """Deduplicate a comma-separated artist string, case-insensitive."""
+        if not raw or not str(raw).strip():
+            return raw
+        seen = set()
+        out = []
+        for part in str(raw).split(','):
+            name = part.strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key not in seen:
+                seen.add(key)
+                out.append(name)
+        return ', '.join(out) if out else raw
+
+    @staticmethod
+    def fix_artist_duplicates():
+        """Fix existing songs where artist contains duplicate comma-separated names.
+
+        Returns number of songs fixed.
+        """
+        rows = Database.execute_query("SELECT id, artist FROM songs", fetch_all=True) or []
+        fixed = 0
+        for row in rows:
+            raw = row.get('artist') or ''
+            deduped = SongModel._dedupe_artist_string(raw)
+            if deduped != raw:
+                Database.execute_query("UPDATE songs SET artist = %s WHERE id = %s", (deduped, row['id']))
+                fixed += 1
+        return fixed
 
 
 class ScanHistoryModel:
