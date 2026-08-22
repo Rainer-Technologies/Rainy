@@ -19,6 +19,7 @@ import { Service } from "./index.js";
  * @property {string} year
  * @property {string} genre
  * @property {string} cover_path
+ * @property {?number} tempo_bpm
  */
 
 /**
@@ -59,6 +60,11 @@ export class MusicService extends Service {
     /** @returns {Promise<Result<LibraryModel, ErrorModel | ResponseError>>} */
     library() {
         return this.wrap(RequestHelper.request(this.url('/library')));
+    }
+
+    /** @returns {Promise<Result<{ tempos: Array<{ song_id: number, tempo_bpm: number }> }, ErrorModel | ResponseError>>} */
+    tempoMap() {
+        return this.wrap(RequestHelper.request(this.url('/tempo')));
     }
 
     /**

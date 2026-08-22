@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, session, send_file, request
 from models.settings import SettingsModel
 from models.song import SongModel, ScanHistoryModel
+from models.database import Database
 from utils.scanner import MusicScanner
 from routes.auth import require_auth, get_current_user_id
 import os
@@ -60,6 +61,33 @@ def get_library():
             'total': len(all_songs)
         })
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/tempo', methods=['GET'])
+@require_auth
+def get_tempo_map():
+    """Return analysed BPM values keyed by song ID for tempo-aware shuffle."""
+    try:
+        rows = Database.execute_query(
+            """
+            SELECT song_id, tempo_bpm
+            FROM song_features
+            WHERE tempo_bpm IS NOT NULL AND tempo_bpm > 0
+            """,
+            fetch_all=True,
+        ) or []
+
+        return jsonify({
+            'tempos': [
+                {
+                    'song_id': row['song_id'],
+                    'tempo_bpm': float(row['tempo_bpm']),
+                }
+                for row in rows
+            ]
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

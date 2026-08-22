@@ -22,6 +22,7 @@ const SHELL_ASSETS = [
   '/js/services/playback.js',
   '/js/services/album.js',
   '/js/modules/utils.js',
+  '/js/modules/bpmShuffle.js',
   '/js/modules/keyboardShortcuts.js',
   '/js/modules/sleepTimer.js',
   '/js/modules/globalSearch.js',

@@ -11,6 +11,7 @@ import { useConnectService } from './services/connect.js';
 import { useMusicService } from './services/music.js';
 import { useContext } from './helper/context.js';
 import { Utils } from './modules/utils.js';
+import { pickBpmAwareShuffleIndex } from './modules/bpmShuffle.js';
 import { MediaSessionController } from './modules/mediaSession.js';
 import { SleepTimer } from './modules/sleepTimer.js';
 
@@ -22,6 +23,9 @@ export class AudioPlayer {
         this.isPlaying = false;
         this.isShuffle = false;
         this.repeatMode = 'none'; // 'none', 'all', 'one'
+        this.tempoBySongId = new Map();
+        this._tempoMapLoaded = false;
+        this._tempoMapPromise = null;
         this.isBuffering = false;
         this.lastDisplayedTime = 0;
         this.isDraggingProgress = false;
@@ -511,6 +515,10 @@ export class AudioPlayer {
             this.queueOperations = [];
         }
 
+        if (this.playlist.length > 1) {
+            this._ensureTempoMap();
+        }
+
         // Update playback context if provided
         if (context) {
             this.playbackContext = context;
@@ -704,13 +712,21 @@ export class AudioPlayer {
         this.playSong(newIndex);
     }
 
-    playNext() {
+    async playNext() {
         if (this.isControllerMode) { this._controllerCommand('next'); return; }
+        if (!this.playlist.length) return;
+
+        if (this.isShuffle) {
+            await this._ensureTempoMap();
+        }
+
         let newIndex = this.currentIndex + 1;
 
         if (this.isShuffle) {
-            newIndex = Math.floor(Math.random() * this.playlist.length);
+            newIndex = this._pickShuffleIndex();
         }
+
+        if (newIndex < 0) return;
 
         if (newIndex >= this.playlist.length) {
             if (this.repeatMode === 'all') {
@@ -724,9 +740,52 @@ export class AudioPlayer {
         this.playSong(newIndex);
     }
 
+    _pickShuffleIndex() {
+        return pickBpmAwareShuffleIndex(
+            this.playlist,
+            this.currentIndex,
+            this.tempoBySongId,
+        );
+    }
+
+    async _ensureTempoMap() {
+        if (this._tempoMapLoaded) return this.tempoBySongId;
+        if (this._tempoMapPromise) return this._tempoMapPromise;
+
+        this._tempoMapPromise = useMusicService().tempoMap()
+            .then(result => {
+                if (result.error) {
+                    Logger.warn('Tempo map unavailable, using normal shuffle:', result.error);
+                    return this.tempoBySongId;
+                }
+
+                for (const entry of (result.value?.tempos || [])) {
+                    const bpm = Number(entry?.tempo_bpm);
+                    if (entry?.song_id != null && Number.isFinite(bpm) && bpm > 0) {
+                        this.tempoBySongId.set(String(entry.song_id), bpm);
+                    }
+                }
+                return this.tempoBySongId;
+            })
+            .catch(error => {
+                Logger.warn('Tempo map unavailable, using normal shuffle:', error);
+                return this.tempoBySongId;
+            })
+            .finally(() => {
+                // Do not keep retrying on every timeupdate if an older server
+                // has no feature table yet. Missing data already has a safe
+                // random-shuffle fallback.
+                this._tempoMapLoaded = true;
+                this._tempoMapPromise = null;
+            });
+
+        return this._tempoMapPromise;
+    }
+
     toggleShuffle() {
         if (this.isControllerMode) { this._controllerCommand('shuffle', { enabled: !(this._controllerState?.is_shuffled) }); return; }
         this.isShuffle = !this.isShuffle;
+        if (this.isShuffle) this._ensureTempoMap();
         const color = this.isShuffle ? 'var(--accent-primary)' : '';
         const fill = this.isShuffle ? 'var(--accent-primary)' : '';
 
@@ -3642,7 +3701,11 @@ export class AudioPlayer {
             // Determine next index
             let nextIndex = this.currentIndex + 1;
             if (this.isShuffle) {
-                nextIndex = Math.floor(Math.random() * this.playlist.length);
+                if (!this._tempoMapLoaded) {
+                    this._ensureTempoMap();
+                    return;
+                }
+                nextIndex = this._pickShuffleIndex();
             }
             if (nextIndex >= this.playlist.length) {
                 if (this.repeatMode === 'all') nextIndex = 0;
