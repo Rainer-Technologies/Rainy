@@ -118,6 +118,12 @@ export class NewViews {
         await this.loadAlbums();
     }
 
+    async openAlbumFromSearch(albumName) {
+        if (!albumName) return;
+        await this.switchToAlbums();
+        await this.openAlbumDetail(albumName);
+    }
+
     async loadAlbums(search = '', sort = 'name') {
         try {
             const res = await useAlbumService().getAll(search, sort);

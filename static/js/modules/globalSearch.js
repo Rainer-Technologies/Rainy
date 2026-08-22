@@ -191,7 +191,9 @@ export class GlobalSearch {
             if (artist && app.switchToArtistsView) app.switchToArtistsView(artist);
         } else if (type === 'album') {
             const album = this.results.albums[index];
-            if (app.openAlbumView) app.openAlbumView(album);
+            if (album && window.newViews?.openAlbumFromSearch) {
+                window.newViews.openAlbumFromSearch(album);
+            }
         } else if (type === 'playlist') {
             const pl = this.results.playlists[index];
             if (pl && app.openPlaylist) app.openPlaylist(pl.id);
