@@ -98,11 +98,21 @@ export const Playlists = {
     renderSidebar(container, playlists, currentPlaylistId, currentViewType, escapeHtml, onOpenPlaylist) {
         if (!container) return;
 
-        const visiblePlaylists = (playlists || []).filter(p => (p.name || '').toLowerCase() !== 'liked music');
+        const likedPlaylist = (playlists || []).find(p => (p.name || '').toLowerCase() === 'liked music');
+        const visiblePlaylists = [
+            ...(likedPlaylist ? [likedPlaylist] : []),
+            ...(playlists || []).filter(p => (p.name || '').toLowerCase() !== 'liked music')
+        ];
         container.innerHTML = visiblePlaylists.map(playlist => {
-            const iconId = playlist.icon || 'music-note';
-            const iconColor = playlist.icon_color || '#888888';
+            const isLiked = (playlist.name || '').toLowerCase() === 'liked music';
+            const iconId = playlist.icon || (isLiked ? 'like' : 'music-note');
+            const iconColor = playlist.icon_color || (isLiked ? '#fa586a' : '#888888');
             const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['music-note'];
+            const classes = [
+                'nav-item',
+                isLiked ? 'nav-liked-item' : '',
+                currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''
+            ].filter(Boolean).join(' ');
 
             // Prefer the auto-generated cover image; fall back to the icon.
             const media = playlist.cover_path
@@ -112,10 +122,10 @@ export const Playlists = {
                 : `<svg viewBox="0 0 24 24" fill="${iconColor}" class="playlist-icon"><path d="${icon.path}"/></svg>`;
 
             return `
-            <a href="/playlists/${encodeURIComponent(playlist.id)}" class="nav-item ${currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''}"
+            <a href="/playlists/${encodeURIComponent(playlist.id)}" class="${classes}"
                  data-id="${playlist.id}">
-                ${media}
-                <span>${escapeHtml(playlist.name)}</span>
+                 ${media}
+                 <span>${escapeHtml(playlist.name)}</span>
             </a>
         `}).join('');
 

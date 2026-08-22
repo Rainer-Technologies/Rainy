@@ -24,10 +24,16 @@
 }
 
 .btn-primary {
-    width: 100%;
+    width: auto;
+    min-height: var(--hit-target);
     background: var(--accent-gradient);
     color: white;
     box-shadow: var(--shadow-sm);
+}
+
+.setup-card .btn-primary,
+.login-container .btn-primary {
+    width: 100%;
 }
 
 .btn-primary:hover {
@@ -49,6 +55,10 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
+}
+
+.btn-secondary {
+    min-height: var(--hit-target);
 }
 
 .btn-secondary:hover {
@@ -97,6 +107,8 @@
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
+    min-width: var(--hit-target);
+    min-height: var(--hit-target);
 }
 
 .icon-btn:hover {
@@ -120,6 +132,8 @@
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
+    min-width: var(--hit-target);
+    min-height: var(--hit-target);
 }
 
 .icon-btn-small:hover {
@@ -150,6 +164,8 @@
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
+    min-width: var(--hit-target);
+    min-height: var(--hit-target);
 }
 
 .view-toggle-btn svg {

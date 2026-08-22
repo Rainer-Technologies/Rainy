@@ -557,7 +557,7 @@
     .recent-song-time { display: none; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .player-bar { flex-wrap: wrap; }
-    .player-extra { width: 100%; justify-content: center; }
+    .player-extra { width: min(300px, calc(100vw - 16px)); justify-content: flex-start; }
     .gs-panel { width: 95%; }
 }
 @media (max-width: 480px) {
@@ -1183,5 +1183,47 @@
 @media (max-width: 600px) {
     .so-body {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   Shell overrides
+   These rules intentionally sit at the end of the feature stylesheet so
+   older feature-specific responsive rules cannot re-introduce the wrapped
+   player or the disconnected mobile drawer.
+   ============================================ */
+@media (max-width: 768px) {
+    .app-sidebar {
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(300px, 84vw);
+        height: 100dvh;
+        margin-bottom: 0;
+        transform: translateX(-100%);
+        transition: transform var(--transition-base);
+        z-index: 1000;
+    }
+
+    .app-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    .app-sidebar.collapsed:not(.mobile-open) {
+        width: min(300px, 84vw);
+        transform: translateX(-100%);
+    }
+
+    .sidebar-backdrop {
+        display: block;
+    }
+
+    .player-bar {
+        flex-wrap: nowrap;
+    }
+
+    .player-extra {
+        width: min(300px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
     }
 }

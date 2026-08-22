@@ -253,6 +253,11 @@
     z-index: 10;
 }
 
+.song-menu-btn {
+    min-width: var(--hit-target);
+    min-height: var(--hit-target);
+}
+
 .song-card:hover .song-menu-btn,
 .song-row:hover .song-menu-btn {
     opacity: 1;
@@ -267,4 +272,25 @@
     width: 16px;
     height: 16px;
     fill: white;
+}
+
+/* Hover should decorate an action, not be the only way to discover it. */
+@media (hover: none), (pointer: coarse) {
+    .song-card .song-menu-btn,
+    .song-card-horizontal .song-menu-btn,
+    .song-row .song-menu-btn {
+        opacity: 1 !important;
+    }
+
+    .song-card:hover,
+    .song-card-horizontal:hover {
+        transform: none;
+        box-shadow: none;
+    }
+}
+
+.song-card:focus-visible,
+.song-card-horizontal:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 3px;
 }

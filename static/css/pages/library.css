@@ -402,3 +402,77 @@
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
 }
+
+/* ============================================
+   Quiet library hierarchy
+   ============================================ */
+.library-stats {
+    align-items: baseline;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.library-stats .stat-card {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    backdrop-filter: none;
+}
+
+.library-stats .stat-value {
+    font-size: var(--font-size-base);
+    line-height: 1.2;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--text-primary);
+}
+
+.library-stats .stat-label {
+    margin-top: 0;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+}
+
+.songs-list {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.song-row {
+    min-height: 68px;
+}
+
+.song-row:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -2px;
+}
+
+@media (max-width: 768px) {
+    .app-main {
+        padding: var(--spacing-lg);
+    }
+
+    .library-stats {
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .section-header {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .section-title {
+        font-size: var(--font-size-xl);
+    }
+
+    .view-toggle-btn {
+        min-width: var(--hit-target);
+        min-height: var(--hit-target);
+    }
+}

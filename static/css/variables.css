@@ -14,6 +14,13 @@
     --bg-hover: rgba(255, 255, 255, 0.05);
     --bg-highlight: rgba(255, 255, 255, 0.08);
 
+    /* Shared surface language. Pages should choose a level, not invent one. */
+    --surface-base: var(--bg-primary);
+    --surface-raised: var(--bg-secondary);
+    --surface-elevated: var(--bg-tertiary);
+    --surface-popover: var(--bg-elevated);
+    --surface-accent: var(--accent-bg-subtle, rgba(61, 125, 196, 0.08));
+
     /* Accent Colors — derived from the Rainy logo (cobalt hair + cyan raindrops) */
     --accent-primary: #3d7dc4;
     --accent-secondary: #2b497c;
@@ -66,15 +73,20 @@
     --radius-lg: 16px;
     --radius-xl: 24px;
     --radius-full: 9999px;
+    --radius-card: 12px;
+    --radius-control: 8px;
 
     /* Transitions */
     --transition-fast: 150ms ease;
     --transition-base: 250ms ease;
     --transition-slow: 400ms ease;
     --transition-normal: 200ms ease;
+    --focus-ring: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.45);
+    --hit-target: 44px;
 
     /* Layout */
     --header-height: 60px;
-    --player-height: 90px;
-    --sidebar-width: 280px;
+    --player-height: 76px;
+    --sidebar-width: 220px;
+    --mobile-player-height: 68px;
 }

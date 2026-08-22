@@ -312,6 +312,12 @@ export class AudioPlayer {
                 if (e.target.closest('.now-playing-artist')) return;
                 this.toggleFullscreen();
             });
+            this.nowPlayingContainer.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                if (e.target.closest('button')) return;
+                e.preventDefault();
+                this.toggleFullscreen();
+            });
         }
         if (this.fsCloseBtn) {
             this.fsCloseBtn.addEventListener('click', () => this.toggleFullscreen());
@@ -726,10 +732,12 @@ export class AudioPlayer {
 
         this.shuffleBtn.style.color = color;
         this.shuffleBtn.querySelector('svg').style.fill = fill;
+        this.shuffleBtn.setAttribute('aria-pressed', String(this.isShuffle));
 
         if (this.fsShuffleBtn) {
             this.fsShuffleBtn.style.color = color;
             this.fsShuffleBtn.querySelector('svg').style.fill = fill;
+            this.fsShuffleBtn.setAttribute('aria-pressed', String(this.isShuffle));
         }
     }
 
@@ -755,16 +763,22 @@ export class AudioPlayer {
                 case 'none':
                     svg.style.fill = '';
                     btn.title = 'Repeat Off';
+                    btn.setAttribute('aria-pressed', 'false');
+                    btn.setAttribute('aria-label', 'Repeat off');
                     svg.innerHTML = `<path d="${baseLoopPath}" />`;
                     break;
                 case 'all':
                     svg.style.fill = 'var(--accent-primary)';
                     btn.title = 'Repeat All';
+                    btn.setAttribute('aria-pressed', 'true');
+                    btn.setAttribute('aria-label', 'Repeat all');
                     svg.innerHTML = `<path d="${baseLoopPath}" /><circle cx="12" cy="12" r="2" />`;
                     break;
                 case 'one':
                     svg.style.fill = 'var(--accent-primary)';
                     btn.title = 'Repeat One';
+                    btn.setAttribute('aria-pressed', 'true');
+                    btn.setAttribute('aria-label', 'Repeat one');
                     // Add the "1" inside
                     svg.innerHTML = `<path d="${baseLoopPath}" /><path d="M13 15V9h-1l-2 1v1h1.5v4H13z" />`;
                     break;
@@ -988,6 +1002,10 @@ export class AudioPlayer {
         setBtnState(this.fsLikeBtn, 'var(--accent-primary)', !!isLiked);
         setBtnState(this.dislikeBtn, 'var(--error)', !!isDisliked);
         setBtnState(this.fsDislikeBtn, 'var(--error)', !!isDisliked);
+        this.likeBtn?.setAttribute('aria-pressed', String(!!isLiked));
+        this.dislikeBtn?.setAttribute('aria-pressed', String(!!isDisliked));
+        this.fsLikeBtn?.setAttribute('aria-pressed', String(!!isLiked));
+        this.fsDislikeBtn?.setAttribute('aria-pressed', String(!!isDisliked));
     }
 
     async toggleLike() {
@@ -1285,6 +1303,8 @@ export class AudioPlayer {
 
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
+        this.playPauseBtn?.setAttribute('aria-label', 'Pause');
+        this.playPauseBtn?.setAttribute('aria-pressed', 'true');
         this.nowPlayingArtwork.classList.add('playing');
 
         // Sync Media Session playback state
@@ -1317,6 +1337,8 @@ export class AudioPlayer {
         if (this._listenTracker) this._listenTracker.lastTick = Date.now();
         this.iconPlay.classList.remove('hidden');
         this.iconPause.classList.add('hidden');
+        this.playPauseBtn?.setAttribute('aria-label', 'Play');
+        this.playPauseBtn?.setAttribute('aria-pressed', 'false');
         this.nowPlayingArtwork.classList.remove('playing');
 
         // Sync Media Session playback state

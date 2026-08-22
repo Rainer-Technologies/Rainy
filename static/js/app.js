@@ -50,7 +50,8 @@ export class RainyApp {
         this.user = null;
         this.songs = [];
         this.filteredSongs = [];
-        this.currentViewMode = 'grid'; // 'grid' or 'list'
+        const savedViewMode = localStorage.getItem('rainy_library_view_mode');
+        this.currentViewMode = savedViewMode === 'grid' ? 'grid' : 'list'; // 'grid' or 'list'
         this.selectedSong = null; // For context menu
         this.listSortOrder = 'none'; // 'none', 'asc', 'desc'
         this.currentSort = 'default';
@@ -74,10 +75,14 @@ export class RainyApp {
 
         // Restore sidebar state
         const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-        if (isCollapsed) {
+        if (isCollapsed && !this.isMobileViewport()) {
             document.querySelector('.app-sidebar')?.classList.add('collapsed');
             document.querySelector('.header-left')?.classList.add('collapsed');
         }
+        document.getElementById('sidebar-toggle')?.setAttribute(
+            'aria-expanded',
+            String(!this.isMobileViewport() && !isCollapsed)
+        );
 
         // Bind event listeners
         this.bindEvents();
@@ -121,9 +126,12 @@ export class RainyApp {
             this.closeSettings();
         });
 
-        // Close settings with Escape key
+        // Close transient surfaces and settings with Escape.
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                if (this.closeMobileSidebar()) return;
+                if (this.closePlayerTools()) return;
+
                 const createGroup = document.getElementById('users-create-group');
                 if (createGroup && !createGroup.classList.contains('hidden')) {
                     this.setCreateUserFormOpen(false);
@@ -135,25 +143,95 @@ export class RainyApp {
                     this.closeSettings();
                 }
             }
-        });
 
-        // Settings sidebar navigation
-        document.querySelectorAll('.settings-nav-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                if (!this.shouldHandleInternalClick(e)) return;
-                e.preventDefault();
-                const section = item.dataset.section;
-                if (section) this.switchSettingsSection(section);
-            });
+            const settingsPage = document.getElementById('settings-page');
+            if (e.key === 'Tab' && settingsPage && !settingsPage.classList.contains('hidden')) {
+                this.trapFocus(settingsPage, e);
+            }
         });
 
         window.addEventListener('popstate', () => {
             this.handleRoute();
         });
 
+        // Settings sidebar navigation
+        document.querySelectorAll('.settings-nav-item').forEach(item => {
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+            item.addEventListener('click', (e) => {
+                if (!this.shouldHandleInternalClick(e)) return;
+                e.preventDefault();
+                const section = item.dataset.section;
+                if (section) this.switchSettingsSection(section);
+            });
+            item.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                const section = item.dataset.section;
+                if (section) this.switchSettingsSection(section);
+            });
+        });
+
         // Settings search functionality
         document.getElementById('settings-search-input')?.addEventListener('input', (e) => {
             this.handleSettingsSearch(e.target.value);
+        });
+
+        // The header is a single global search entry point. Local page search
+        // fields remain available where their scope is meaningful.
+        const openGlobalSearch = () => {
+            this.closeMobileSidebar();
+            this.closePlayerTools();
+            this.closeDropdown();
+            if (window.__globalSearch) {
+                window.__globalSearch.open();
+            } else {
+                document.getElementById('search-input')?.focus();
+            }
+        };
+        document.getElementById('search-input')?.addEventListener('click', openGlobalSearch);
+        document.getElementById('search-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openGlobalSearch();
+            }
+        });
+        document.getElementById('mobile-search-btn')?.addEventListener('click', openGlobalSearch);
+
+        // Keep the desktop collapse state separate from the mobile drawer.
+        window.addEventListener('resize', () => {
+            const sidebar = document.querySelector('.app-sidebar');
+            const headerLeft = document.querySelector('.header-left');
+            if (this.isMobileViewport()) {
+                sidebar?.classList.remove('collapsed');
+                headerLeft?.classList.remove('collapsed');
+            } else {
+                this.closeMobileSidebar();
+                const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+                sidebar?.classList.toggle('collapsed', isCollapsed);
+                headerLeft?.classList.toggle('collapsed', isCollapsed);
+                document.getElementById('sidebar-toggle')?.setAttribute('aria-expanded', String(!isCollapsed));
+            }
+        });
+
+        document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
+            this.closeMobileSidebar();
+        });
+
+        document.getElementById('nav-more-toggle')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.toggleMoreNavigation();
+        });
+
+        document.getElementById('player-more-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePlayerTools();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#player-extra') && !e.target.closest('#player-more-btn')) {
+                this.closePlayerTools();
+            }
         });
 
         // Color Picker Logic
@@ -306,12 +384,6 @@ export class RainyApp {
             this.performDeleteUser();
         });
 
-        // Search
-        const searchInput = document.getElementById('search-input');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
-        }
-
         // View toggle
         const gridViewBtn = document.getElementById('grid-view-btn');
         const listViewBtn = document.getElementById('list-view-btn');
@@ -331,8 +403,14 @@ export class RainyApp {
         if (userMenuTrigger) {
             userMenuTrigger.addEventListener('click', (e) => {
                 e.stopPropagation();
-                userMenu.classList.toggle('open');
-                userDropdown.classList.toggle('hidden');
+                const isOpen = userMenu.classList.toggle('open');
+                userDropdown.classList.toggle('hidden', !isOpen);
+                userMenuTrigger.setAttribute('aria-expanded', String(isOpen));
+            });
+            userMenuTrigger.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                userMenuTrigger.click();
             });
         }
 
@@ -341,6 +419,7 @@ export class RainyApp {
             if (userMenu) {
                 userMenu.classList.remove('open');
                 userDropdown?.classList.add('hidden');
+                userMenuTrigger?.setAttribute('aria-expanded', 'false');
             }
         });
 
@@ -523,6 +602,16 @@ export class RainyApp {
             this.toggleSidebar();
         });
 
+        // Selecting any destination should dismiss the mobile drawer.
+        document.addEventListener('click', (e) => {
+            const navItem = e.target.closest('.app-sidebar .nav-item');
+            if (!navItem) return;
+            if (navItem.classList.contains('nav-secondary-item')) {
+                this.setMoreNavigationOpen(true);
+            }
+            this.closeMobileSidebar();
+        });
+
         // Playlist Settings action download
         document.getElementById('action-download-playlist')?.addEventListener('click', () => {
             document.getElementById('playlist-settings-dropdown').classList.add('hidden');
@@ -656,6 +745,9 @@ export class RainyApp {
         const route = segments[0].toLowerCase();
         const query = new URLSearchParams(window.location.search);
         const needsNewViews = ['albums', 'recent', 'recently-played', 'smart-mix', 'smartmix'].includes(route);
+        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover', 'achievements'].includes(route)) {
+            this.setMoreNavigationOpen(true);
+        }
         if (needsNewViews && !window.newViews) {
             // main.js creates NewViews just after RainyApp. Keep the route
             // pending if authentication finishes during that small window.
@@ -719,20 +811,82 @@ export class RainyApp {
         const userDropdown = document.getElementById('user-dropdown');
         userMenu?.classList.remove('open');
         userDropdown?.classList.add('hidden');
+        document.getElementById('user-menu-trigger')?.setAttribute('aria-expanded', 'false');
     }
 
     toggleSidebar() {
         const sidebar = document.querySelector('.app-sidebar');
         const headerLeft = document.querySelector('.header-left');
-        if (sidebar) {
-            sidebar.classList.toggle('collapsed');
-            const isCollapsed = sidebar.classList.contains('collapsed');
-            // Sync header-left width for browsers without :has() support
-            if (headerLeft) {
-                headerLeft.classList.toggle('collapsed', isCollapsed);
-            }
-            localStorage.setItem('sidebarCollapsed', isCollapsed);
+        if (!sidebar) return;
+
+        if (this.isMobileViewport()) {
+            const isOpen = sidebar.classList.toggle('mobile-open');
+            sidebar.classList.remove('collapsed');
+            headerLeft?.classList.remove('collapsed');
+            this.setSidebarBackdrop(isOpen);
+            document.getElementById('sidebar-toggle')?.setAttribute('aria-expanded', String(isOpen));
+            return;
         }
+
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        // Sync header-left width for browsers without :has() support
+        if (headerLeft) {
+            headerLeft.classList.toggle('collapsed', isCollapsed);
+        }
+        localStorage.setItem('sidebarCollapsed', isCollapsed);
+        document.getElementById('sidebar-toggle')?.setAttribute('aria-expanded', String(!isCollapsed));
+    }
+
+    isMobileViewport() {
+        return window.matchMedia?.('(max-width: 768px)').matches || window.innerWidth <= 768;
+    }
+
+    setSidebarBackdrop(isOpen) {
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (!backdrop) return;
+        backdrop.classList.toggle('hidden', !isOpen);
+        backdrop.setAttribute('aria-hidden', String(!isOpen));
+    }
+
+    closeMobileSidebar() {
+        const sidebar = document.querySelector('.app-sidebar');
+        if (!sidebar || !sidebar.classList.contains('mobile-open')) return false;
+        sidebar.classList.remove('mobile-open');
+        this.setSidebarBackdrop(false);
+        document.getElementById('sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+        return true;
+    }
+
+    setMoreNavigationOpen(isOpen) {
+        const sidebar = document.querySelector('.app-sidebar');
+        const toggle = document.getElementById('nav-more-toggle');
+        if (!sidebar) return;
+        sidebar.classList.toggle('more-open', isOpen);
+        toggle?.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    toggleMoreNavigation() {
+        const sidebar = document.querySelector('.app-sidebar');
+        if (!sidebar) return;
+        this.setMoreNavigationOpen(!sidebar.classList.contains('more-open'));
+    }
+
+    togglePlayerTools() {
+        const tools = document.getElementById('player-extra');
+        const button = document.getElementById('player-more-btn');
+        if (!tools) return;
+        const isOpen = tools.classList.toggle('hidden') === false;
+        button?.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    closePlayerTools() {
+        const tools = document.getElementById('player-extra');
+        const button = document.getElementById('player-more-btn');
+        if (!tools || tools.classList.contains('hidden')) return false;
+        tools.classList.add('hidden');
+        button?.setAttribute('aria-expanded', 'false');
+        return true;
     }
 
     async loadScanStatus() {
@@ -1308,6 +1462,7 @@ export class RainyApp {
             this.sections = library.sections || [];
             this.librarySections = JSON.parse(JSON.stringify(this.sections));
             this.filteredSongs = [...this.songs];
+            this.updateViewModeControls();
             this.renderSections();
             this.updateStats();
 
@@ -1379,6 +1534,12 @@ export class RainyApp {
                         : { type: 'library', id: null };
                     window.player.playSong(index, this.songs, context);
                 }
+            });
+            card.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                if (e.target.closest('.song-menu-btn')) return;
+                e.preventDefault();
+                card.click();
             });
         });
 
@@ -1479,6 +1640,12 @@ export class RainyApp {
                 const context = { type: 'search', id: null };
                 window.player.playSong(index, this.filteredSongs, context);
             });
+            card.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                if (e.target.closest('.song-menu-btn')) return;
+                e.preventDefault();
+                card.click();
+            });
         });
 
         // Add menu button listeners
@@ -1524,6 +1691,12 @@ export class RainyApp {
                         ? { type: 'library', id: null }
                         : { type: 'search', id: null };
                 window.player.playSong(index, this.filteredSongs, context);
+            });
+            row.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                if (e.target.closest('.song-menu-btn')) return;
+                e.preventDefault();
+                row.click();
             });
         });
 
@@ -1609,11 +1782,11 @@ export class RainyApp {
     }
 
     setViewMode(mode) {
+        if (mode !== 'grid' && mode !== 'list') return;
         this.currentViewMode = mode;
+        localStorage.setItem('rainy_library_view_mode', mode);
 
-        // Update toggle buttons
-        document.getElementById('grid-view-btn').classList.toggle('active', mode === 'grid');
-        document.getElementById('list-view-btn').classList.toggle('active', mode === 'list');
+        this.updateViewModeControls();
 
         // Re-render with sections
         if (this.sections && this.sections.length > 0) {
@@ -1621,6 +1794,18 @@ export class RainyApp {
         } else {
             this.renderSongs();
         }
+    }
+
+    updateViewModeControls() {
+        const gridViewBtn = document.getElementById('grid-view-btn');
+        const listViewBtn = document.getElementById('list-view-btn');
+        const isGrid = this.currentViewMode === 'grid';
+
+        // Update toggle buttons
+        gridViewBtn?.classList.toggle('active', isGrid);
+        listViewBtn?.classList.toggle('active', !isGrid);
+        gridViewBtn?.setAttribute('aria-pressed', String(isGrid));
+        listViewBtn?.setAttribute('aria-pressed', String(!isGrid));
     }
 
     handleSearch(query) {
@@ -1815,47 +2000,6 @@ export class RainyApp {
             (id) => this.openPlaylist(id)
         );
 
-        // Render "Liked Music" under the Library section (not in playlists list)
-        const liked = (this.playlists || []).find(p => (p.name || '').toLowerCase() === 'liked music');
-        const navLibrary = document.getElementById('nav-library');
-        const existingLiked = document.getElementById('nav-liked');
-        if(liked && navLibrary) {
-            const iconId = liked.icon || 'like';
-            const iconColor = liked.icon_color || '#fa586a';
-            const icon = PLAYLIST_ICONS[iconId] || PLAYLIST_ICONS['like'];
-            if(!existingLiked) {
-                const a = document.createElement('a');
-                a.className = 'nav-item';
-                a.id = 'nav-liked';
-                a.dataset.id = String(liked.id);
-                a.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="${iconColor}">
-                        <path d="${icon.path}" />
-                    </svg>
-                    <span>Liked Music</span>
-                `;
-                a.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    this.openPlaylist(liked.id);
-                });
-                navLibrary.parentElement?.insertBefore(a, navLibrary.nextSibling);
-            } else {
-                existingLiked.dataset.id = String(liked.id);
-                const svg = existingLiked.querySelector('svg');
-                const path = existingLiked.querySelector('path');
-                if (svg) svg.setAttribute('fill', iconColor);
-                if (path) path.setAttribute('d', icon.path);
-            }
-            // Active state
-            if(useContext().get('current-view-type') === 'playlist' && this.currentPlaylistId === liked.id) {
-                existingLiked ? existingLiked.classList.add('active') : null;
-                navLibrary.classList.remove('active');
-            } else {
-                existingLiked ? existingLiked.classList.remove('active') : null;
-            }
-        } else if(existingLiked) {
-            existingLiked.remove();
-        }
     }
 
     initIconPicker(pickerContainerId, colorInputId, colorPresetsId, selectedIcon = 'music-note', selectedColor = '#888888', previewContainerId = null) {
@@ -2647,21 +2791,21 @@ export class RainyApp {
         const lastSync = s.last_synced_at ? new Date(s.last_synced_at).toLocaleString() : 'Never';
 
         wrap.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                <div style="flex:1; min-width:180px;">
-                    <div style="font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div class="sync-row-layout">
+                <div class="sync-row-info">
+                    <div class="sync-row-title">
                         <span>${this._esc(s.playlist_name || 'Playlist #' + s.playlist_id)}</span>
                         <span class="import-job-badge" style="background:rgba(61,125,196,0.12); color:var(--accent-primary);">${sourceBadge}</span>
                         <span class="import-job-badge">${modeBadge}</span>
                         <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(s.last_status || 'pending')}</span>
                     </div>
-                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:3px; word-break:break-all;">
+                    <div class="sync-row-meta">
                         <span>${this._esc(intervalLabel)}</span> · Next: ${this._esc(nextSync)} · Last: ${this._esc(lastSync)}
                     </div>
-                    ${s.last_message ? `<div style="font-size:0.8rem; color:var(--text-tertiary); margin-top:2px;">${this._esc(s.last_message)}</div>` : ''}
-                    <div style="font-size:0.75rem; color:var(--text-tertiary); margin-top:2px; word-break:break-all;">${this._esc(s.url)}</div>
+                    ${s.last_message ? `<div class="sync-row-message">${this._esc(s.last_message)}</div>` : ''}
+                    <div class="sync-row-url">${this._esc(s.url)}</div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <div class="sync-row-actions">
                     <label class="toggle-switch" title="Enabled">
                         <input type="checkbox" class="sync-enabled-toggle" data-sync-id="${s.id}" ${enabled ? 'checked' : ''}>
                         <span class="toggle-slider"></span>
@@ -2670,8 +2814,8 @@ export class RainyApp {
                     <button class="btn btn-secondary btn-sm sync-delete-btn" data-sync-id="${s.id}" style="color:var(--error);">Delete</button>
                 </div>
             </div>
-            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                <select class="form-input sync-interval-select" data-sync-id="${s.id}" style="flex:1; min-width:140px; padding:6px 10px; font-size:0.85rem;">
+            <div class="sync-row-fields">
+                <select class="form-input sync-interval-select" data-sync-id="${s.id}">
                     <option value="1" ${s.interval_hours==1?'selected':''}>1 hour</option>
                     <option value="3" ${s.interval_hours==3?'selected':''}>3 hours</option>
                     <option value="6" ${s.interval_hours==6?'selected':''}>6 hours</option>
@@ -2681,7 +2825,7 @@ export class RainyApp {
                     <option value="72" ${s.interval_hours==72?'selected':''}>3 days</option>
                     <option value="168" ${s.interval_hours==168?'selected':''}>7 days (weekly)</option>
                 </select>
-                <select class="form-input sync-mode-select" data-sync-id="${s.id}" style="flex:1; min-width:140px; padding:6px 10px; font-size:0.85rem;">
+                <select class="form-input sync-mode-select" data-sync-id="${s.id}">
                     <option value="mirror" ${s.sync_mode==='mirror'?'selected':''}>Mirror — add & remove</option>
                     <option value="add_only" ${s.sync_mode==='add_only'?'selected':''}>Add only</option>
                 </select>
@@ -3310,8 +3454,15 @@ export class RainyApp {
             return this.navigateTo(`/settings/${encodeURIComponent(section)}`);
         }
 
+        this.closeMobileSidebar();
+        this.closePlayerTools();
         const settingsPage = document.getElementById('settings-page');
+        const activeElement = document.activeElement;
+        this._settingsReturnFocus = activeElement instanceof HTMLElement && activeElement !== document.body
+            ? activeElement
+            : document.getElementById('menu-settings');
         settingsPage?.classList.remove('hidden');
+        requestAnimationFrame(() => document.getElementById('settings-close')?.focus());
 
         // Update user profile in settings sidebar
         if (this.user) {
@@ -3430,7 +3581,29 @@ export class RainyApp {
             setTimeout(() => {
                 settingsPage.classList.add('hidden');
                 settingsPage.classList.remove('closing');
+                this._settingsReturnFocus?.focus?.();
+                this._settingsReturnFocus = null;
             }, 200);
+        }
+    }
+
+    trapFocus(container, event) {
+        const focusable = [...container.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )].filter(el => !el.classList.contains('hidden') && el.offsetParent !== null);
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!container.contains(document.activeElement)) {
+            event.preventDefault();
+            first.focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
         }
     }
 
@@ -3451,6 +3624,11 @@ export class RainyApp {
         // Update navigation active state
         document.querySelectorAll('.settings-nav-item').forEach(item => {
             item.classList.toggle('active', item.dataset.section === sectionName);
+            if (item.dataset.section === sectionName) {
+                item.setAttribute('aria-current', 'page');
+            } else {
+                item.removeAttribute('aria-current');
+            }
         });
 
         // Update title
@@ -4015,9 +4193,7 @@ export class RainyApp {
                     }).catch(err => Logger.error(err));
 
                 card.addEventListener('click', () => {
-                    gridView.classList.add('hidden');
-                    profileView.classList.remove('hidden');
-                    this.renderArtistProfile(artistName, artistMap[key].songs);
+                    this.switchToArtistsView(artistName);
                 });
             });
         };

@@ -3,7 +3,7 @@
    ============================================ */
 
 .app-sidebar {
-    width: 240px;
+    width: var(--sidebar-width);
     background: var(--bg-secondary);
     border-right: 1px solid var(--border-subtle);
     display: flex;
@@ -35,6 +35,8 @@
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
+    min-width: var(--hit-target);
+    min-height: var(--hit-target);
 }
 
 .sidebar-toggle:hover {
@@ -80,7 +82,7 @@
 }
 
 .sidebar-nav {
-    padding: var(--spacing-lg) 0;
+    padding: var(--spacing-md) 0;
     flex: 1;
     overflow: hidden;
     display: flex;
@@ -88,7 +90,7 @@
 }
 
 .nav-section {
-    margin-bottom: var(--spacing-xl);
+    margin-bottom: var(--spacing-lg);
 }
 
 .sidebar-nav .nav-section:last-child {
@@ -147,26 +149,27 @@
     color: var(--text-tertiary);
     font-weight: 700;
     letter-spacing: 0.05em;
-    padding: 0 var(--spacing-xl);
-    margin-bottom: var(--spacing-sm);
+    padding: 0 var(--spacing-lg);
+    margin-bottom: var(--spacing-xs);
 }
 
 .nav-header-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-right: var(--spacing-md);
+    padding-right: var(--spacing-sm);
 }
 
 .nav-item {
     display: flex;
     align-items: center;
-    gap: var(--spacing-md);
-    padding: var(--spacing-sm) var(--spacing-xl);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-lg);
     color: var(--text-secondary);
     font-weight: 500;
     transition: all var(--transition-fast);
     border-left: 3px solid transparent;
+    min-height: var(--hit-target);
 }
 
 .nav-item:hover {
@@ -205,6 +208,78 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.nav-more-toggle {
+    width: calc(100% - (2 * var(--spacing-lg)));
+    min-height: var(--hit-target);
+    margin: 0 var(--spacing-lg) var(--spacing-xs);
+    padding: var(--spacing-xs) 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    color: var(--text-tertiary);
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border-subtle);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.nav-more-toggle:hover {
+    color: var(--text-primary);
+}
+
+.nav-more-toggle svg {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    transition: transform var(--transition-fast);
+}
+
+.app-sidebar.more-open .nav-more-toggle svg {
+    transform: rotate(180deg);
+}
+
+.app-sidebar:not(.more-open) .nav-secondary-items {
+    display: none;
+}
+
+.app-sidebar.collapsed .nav-more-toggle {
+    justify-content: center;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-top: 0;
+}
+
+.app-sidebar.collapsed .nav-more-toggle span {
+    display: none;
+}
+
+.app-sidebar.collapsed .nav-more-toggle svg {
+    transform: none;
+}
+
+.app-sidebar.collapsed.more-open .nav-more-toggle svg {
+    transform: rotate(180deg);
+}
+
+/* Backdrop is only used by the mobile drawer. */
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    border: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
 }
 
 .title-row {

@@ -22,6 +22,9 @@ export class GlobalSearch {
         const overlay = document.createElement('div');
         overlay.id = 'global-search-overlay';
         overlay.className = 'global-search-overlay hidden';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Global search');
         overlay.innerHTML = `
             <div class="gs-backdrop"></div>
             <div class="gs-panel">
@@ -122,7 +125,7 @@ export class GlobalSearch {
                 const cover = s.cover_path
                     ? `<img src="/api/music/cover/${encodeURIComponent(s.cover_path)}" alt="" loading="lazy">`
                     : `<div class="gs-no-cover">♪</div>`;
-                html += `<div class="gs-item" data-type="song" data-index="${i}">
+                html += `<div class="gs-item" role="button" tabindex="0" data-type="song" data-index="${i}">
                     <div class="gs-item-cover">${cover}</div>
                     <div class="gs-item-text">
                         <div class="gs-item-title">${Utils.escapeHtml(s.title)}</div>
@@ -136,7 +139,7 @@ export class GlobalSearch {
         if (artists.length) {
             html += `<div class="gs-group"><div class="gs-group-title">Artists</div>`;
             artists.forEach((a, i) => {
-                html += `<div class="gs-item" data-type="artist" data-index="${i}">
+                html += `<div class="gs-item" role="button" tabindex="0" data-type="artist" data-index="${i}">
                     <div class="gs-item-cover"><div class="gs-no-cover">👤</div></div>
                     <div class="gs-item-text"><div class="gs-item-title">${Utils.escapeHtml(a)}</div></div>
                 </div>`;
@@ -147,7 +150,7 @@ export class GlobalSearch {
         if (albums.length) {
             html += `<div class="gs-group"><div class="gs-group-title">Albums</div>`;
             albums.forEach((a, i) => {
-                html += `<div class="gs-item" data-type="album" data-index="${i}">
+                html += `<div class="gs-item" role="button" tabindex="0" data-type="album" data-index="${i}">
                     <div class="gs-item-cover"><div class="gs-no-cover">💿</div></div>
                     <div class="gs-item-text"><div class="gs-item-title">${Utils.escapeHtml(a)}</div></div>
                 </div>`;
@@ -158,7 +161,7 @@ export class GlobalSearch {
         if (playlists.length) {
             html += `<div class="gs-group"><div class="gs-group-title">Playlists</div>`;
             playlists.forEach((p, i) => {
-                html += `<div class="gs-item" data-type="playlist" data-index="${i}">
+                html += `<div class="gs-item" role="button" tabindex="0" data-type="playlist" data-index="${i}">
                     <div class="gs-item-cover"><div class="gs-no-cover">📁</div></div>
                     <div class="gs-item-text"><div class="gs-item-title">${Utils.escapeHtml(p.name)}</div></div>
                 </div>`;
@@ -169,6 +172,12 @@ export class GlobalSearch {
         this.resultsEl.innerHTML = html;
         this.resultsEl.querySelectorAll('.gs-item').forEach(el => {
             el.addEventListener('click', () => this._onSelect(el.dataset.type, parseInt(el.dataset.index)));
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this._onSelect(el.dataset.type, parseInt(el.dataset.index));
+                }
+            });
         });
     }
 
@@ -177,7 +186,7 @@ export class GlobalSearch {
         if (this.results.songs.length) this._onSelect('song', 0);
     }
 
-    _onSelect(type, index) {
+    async _onSelect(type, index) {
         const app = this.app;
         if (type === 'song') {
             const song = this.results.songs[index];
@@ -192,7 +201,7 @@ export class GlobalSearch {
         } else if (type === 'album') {
             const album = this.results.albums[index];
             if (album && window.newViews?.openAlbumFromSearch) {
-                window.newViews.openAlbumFromSearch(album);
+                await window.newViews.openAlbumFromSearch(album);
             }
         } else if (type === 'playlist') {
             const pl = this.results.playlists[index];

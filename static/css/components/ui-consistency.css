@@ -1,0 +1,158 @@
+/* ============================================
+   Shared UI consistency layer
+   Keep feature views aligned with the compact app shell.
+   ============================================ */
+
+/* Feature pages live inside .app-main, so they should not add a second
+   horizontal gutter of their own. */
+.albums-view,
+.album-detail-view,
+.recent-view,
+.smartmix-view {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.albums-header-bar,
+.recent-header-bar {
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+/* Shared control geometry */
+.albums-search-input,
+.albums-sort-select,
+.settings-text-input,
+.settings-search,
+.btn,
+.album-play-btn,
+.smartmix-play-all,
+.clear-history-btn,
+.recent-tab {
+    border-radius: var(--radius-control);
+}
+
+.albums-search-input,
+.albums-sort-select,
+.recent-tab,
+.clear-history-btn,
+.album-play-btn,
+.smartmix-play-all {
+    min-height: var(--hit-target);
+}
+
+.albums-search-input,
+.albums-sort-select {
+    background: var(--surface-raised);
+    border-color: var(--border-color);
+}
+
+.albums-search-input:focus,
+.settings-text-input:focus,
+.settings-search:focus-within {
+    box-shadow: var(--focus-ring);
+}
+
+.album-back-btn {
+    min-height: var(--hit-target);
+    border-radius: var(--radius-control);
+}
+
+/* Cards use one surface, border, and radius language across pages. */
+.stat-card,
+.album-card,
+.smartmix-mode-card,
+.settings-card,
+.stats-list-item,
+.discover-item,
+.sleep-timer-menu {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    backdrop-filter: none;
+}
+
+.album-card,
+.smartmix-mode-card,
+.discover-item {
+    transition: background var(--transition-fast), border-color var(--transition-fast),
+        box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.album-card:hover,
+.smartmix-mode-card:hover,
+.discover-item:hover {
+    background: var(--surface-elevated);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
+}
+
+/* Rows share the library's compact rhythm. */
+.album-track-row,
+.recent-song-row,
+.smartmix-song-row {
+    gap: var(--spacing-md);
+    border-radius: var(--radius-control);
+}
+
+.album-track-row,
+.recent-song-row,
+.smartmix-song-row {
+    min-height: 56px;
+    padding-top: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+}
+
+.album-card-cover,
+.recent-song-cover,
+.smartmix-song-cover {
+    border-radius: var(--radius-sm);
+}
+
+.album-detail-cover {
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-md);
+}
+
+/* Keep primary actions readable without a second visual language of glows
+   and scaling effects. */
+.album-play-btn:hover,
+.smartmix-play-all:hover,
+.discover-btn-download:hover:not(:disabled),
+.search-btn-pill:hover,
+.discover-feed-btn:hover {
+    transform: translateY(-1px);
+    filter: none;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Settings should feel like the same app, not a separate product. */
+.settings-sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+}
+
+.settings-nav-item {
+    min-height: var(--hit-target);
+    border-radius: var(--radius-control);
+}
+
+.settings-card {
+    border-radius: var(--radius-card);
+}
+
+.settings-close {
+    width: var(--hit-target);
+    height: var(--hit-target);
+    border-radius: var(--radius-control);
+}
+
+@media (max-width: 768px) {
+    .albums-view,
+    .album-detail-view,
+    .recent-view,
+    .smartmix-view {
+        padding-bottom: var(--spacing-lg);
+    }
+}

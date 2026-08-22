@@ -48,8 +48,8 @@ export const Library = {
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
-            <div class="song-card-horizontal fade-in" data-index="${globalIndex}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+            <div class="song-card-horizontal fade-in" role="button" tabindex="0" aria-label="Play ${escapeHtml(song.title)} by ${escapeHtml(song.artist)}" data-index="${globalIndex}" data-id="${song.id}">
+                <button class="song-menu-btn" type="button" aria-label="More actions for ${escapeHtml(song.title)}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
@@ -99,8 +99,8 @@ export const Library = {
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
-            <div class="song-card fade-in" data-index="${index}" data-id="${song.id}">
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+            <div class="song-card fade-in" role="button" tabindex="0" aria-label="Play ${escapeHtml(song.title)} by ${escapeHtml(song.artist)}" data-index="${index}" data-id="${song.id}">
+                <button class="song-menu-btn" type="button" aria-label="More actions for ${escapeHtml(song.title)}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
@@ -171,7 +171,7 @@ export const Library = {
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
-            <div class="song-row fade-in" data-index="${index}" data-id="${song.id}">
+            <div class="song-row fade-in" role="button" tabindex="0" aria-label="Play ${escapeHtml(song.title)} by ${escapeHtml(song.artist)}" data-index="${index}" data-id="${song.id}">
                 <span class="song-row-number">${index + 1}</span>
                 <div class="song-row-main">
                     <div class="song-row-artwork">${coverHtml}</div>
@@ -182,7 +182,7 @@ export const Library = {
                 </div>
                 <span class="song-row-album">${escapeHtml(song.album || '')}</span>
                 <span class="song-row-duration">${formatDuration(song.duration)}</span>
-                <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                <button class="song-menu-btn" type="button" aria-label="More actions for ${escapeHtml(song.title)}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                     <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                 </button>
             </div>

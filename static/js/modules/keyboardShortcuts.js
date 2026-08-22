@@ -131,6 +131,10 @@ export class KeyboardShortcuts {
     }
 
     _focusHeaderSearch() {
+        if (window.__globalSearch) {
+            window.__globalSearch.open();
+            return;
+        }
         const search = document.getElementById('search-input') || document.querySelector('.search-bar input');
         if (search) { search.focus(); search.select(); }
     }

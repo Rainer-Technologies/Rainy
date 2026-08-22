@@ -50,6 +50,24 @@ a:hover {
     color: var(--accent-secondary);
 }
 
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+/* One predictable keyboard affordance across the app. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    box-shadow: var(--focus-ring);
+}
+
+:where(button, a, input[type="checkbox"], input[type="radio"], input[type="range"], select) {
+    -webkit-tap-highlight-color: transparent;
+}
+
 /* Utility Classes */
 .hidden {
     display: none !important;
@@ -135,7 +153,7 @@ a:hover {
 
 @media (max-width: 768px) {
     :root {
-        --player-height: 140px;
+        --player-height: var(--mobile-player-height);
     }
 
     .header-search {
@@ -163,31 +181,6 @@ a:hover {
         display: none;
     }
 
-    .player-bar {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto;
-        padding: var(--spacing-md);
-        gap: var(--spacing-sm);
-    }
-
-    .now-playing {
-        display: none;
-    }
-
-    .player-extra {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: var(--spacing-sm);
-    }
-
-    .player-controls {
-        width: 100%;
-    }
-
-    .progress-container {
-        max-width: 100%;
-    }
 }
 
 @media (max-width: 480px) {
@@ -206,5 +199,16 @@ a:hover {
     .stat-card {
         flex: 1;
         min-width: 120px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
     }
 }
