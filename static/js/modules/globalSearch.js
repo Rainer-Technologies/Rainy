@@ -80,14 +80,20 @@ export class GlobalSearch {
             (s.album || '').toLowerCase().includes(q)
         ).slice(0, 8);
 
-        // Unique artists & albums from matches
-        const artistSet = new Set();
+        // Unique artists & albums from matches. Artist metadata can contain
+        // comma-separated collaborators, so index each name independently.
+        const artistMap = new Map();
         const albumSet = new Set();
         (app.songs || []).forEach(s => {
-            if ((s.artist || '').toLowerCase().includes(q) && s.artist) artistSet.add(s.artist);
+            if (s.artist) {
+                Utils.splitArtists(s.artist).forEach(artist => {
+                    const key = artist.toLowerCase();
+                    if (key.includes(q) && !artistMap.has(key)) artistMap.set(key, artist);
+                });
+            }
             if ((s.album || '').toLowerCase().includes(q) && s.album && s.album !== 'Unknown Album') albumSet.add(s.album);
         });
-        const artists = [...artistSet].slice(0, 5);
+        const artists = [...artistMap.values()].slice(0, 5);
         const albums = [...albumSet].slice(0, 5);
 
         const playlists = (app.playlists || []).filter(p =>
@@ -182,7 +188,7 @@ export class GlobalSearch {
             }
         } else if (type === 'artist') {
             const artist = this.results.artists[index];
-            if (app.openArtistView) app.openArtistView(artist);
+            if (artist && app.switchToArtistsView) app.switchToArtistsView(artist);
         } else if (type === 'album') {
             const album = this.results.albums[index];
             if (app.openAlbumView) app.openAlbumView(album);
