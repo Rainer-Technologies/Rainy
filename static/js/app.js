@@ -56,6 +56,8 @@ export class RainyApp {
         this.currentSort = 'default';
         this.coverVersion = {};
         this.coverOverride = {};
+        this._routingStarted = false;
+        this._settingsReturnPath = null;
 
         useContext().set('app', this);
 
@@ -138,10 +140,15 @@ export class RainyApp {
         // Settings sidebar navigation
         document.querySelectorAll('.settings-nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
+                if (!this.shouldHandleInternalClick(e)) return;
                 e.preventDefault();
                 const section = item.dataset.section;
                 if (section) this.switchSettingsSection(section);
             });
+        });
+
+        window.addEventListener('popstate', () => {
+            this.handleRoute();
         });
 
         // Settings search functionality
@@ -506,6 +513,7 @@ export class RainyApp {
         });
 
         document.getElementById('nav-library')?.addEventListener('click', (e) => {
+            if (!this.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToLibraryView();
         });
@@ -565,18 +573,21 @@ export class RainyApp {
 
         // Discover Music click
         document.getElementById('nav-discover')?.addEventListener('click', (e) => {
+            if (!this.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToDiscoverView();
         });
 
         // Artists click
         document.getElementById('nav-artists')?.addEventListener('click', (e) => {
+            if (!this.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToArtistsView();
         });
 
         // Achievements click
         document.getElementById('nav-achievements')?.addEventListener('click', (e) => {
+            if (!this.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToAchievementsView();
         });
@@ -595,6 +606,112 @@ export class RainyApp {
         this.initDiscoverView();
         this.initAiSettings();
         this.initPlaylistSyncs();
+    }
+
+    shouldHandleInternalClick(event) {
+        return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+    }
+
+    startRouting() {
+        if (!this.user || this._routingStarted) return;
+        this._routingStarted = true;
+        this.handleRoute().catch((error) => Logger.error('Initial route error:', error));
+    }
+
+    navigateTo(path, { replace = false } = {}) {
+        const target = new URL(path, window.location.origin);
+        if (target.origin !== window.location.origin) return;
+
+        const next = `${target.pathname}${target.search}${target.hash}`;
+        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (next !== current) {
+            const method = replace ? 'replaceState' : 'pushState';
+            window.history[method]({}, '', next);
+        }
+
+        return this.handleRoute();
+    }
+
+    async handleRoute() {
+        if (!this.user || document.getElementById('app-view')?.classList.contains('hidden')) return;
+
+        const decodeSegment = (segment) => {
+            try {
+                return decodeURIComponent(segment);
+            } catch (error) {
+                return segment;
+            }
+        };
+
+        let segments = window.location.pathname
+            .split('/')
+            .filter(Boolean)
+            .map(decodeSegment);
+
+        if (segments.length === 0) {
+            window.history.replaceState({}, '', '/library');
+            segments = ['library'];
+        }
+
+        const route = segments[0].toLowerCase();
+        const query = new URLSearchParams(window.location.search);
+        const needsNewViews = ['albums', 'recent', 'recently-played', 'smart-mix', 'smartmix'].includes(route);
+        if (needsNewViews && !window.newViews) {
+            // main.js creates NewViews just after RainyApp. Keep the route
+            // pending if authentication finishes during that small window.
+            this._routingStarted = false;
+            return;
+        }
+
+        if (route === 'settings') {
+            return this.openSettings(segments[1] || 'appearance', { updateUrl: false });
+        }
+
+        const settingsPage = document.getElementById('settings-page');
+        if (settingsPage && !settingsPage.classList.contains('hidden')) {
+            this.closeSettings({ updateUrl: false });
+        }
+
+        switch (route) {
+            case 'library':
+                return this.switchToLibraryView({ updateUrl: false });
+            case 'albums':
+                await window.newViews.switchToAlbums({ updateUrl: false });
+                if (segments[1]) {
+                    await window.newViews.openAlbumDetail(
+                        segments[1],
+                        query.get('artist') || '',
+                        { updateUrl: false }
+                    );
+                }
+                return;
+            case 'artists':
+                return this.switchToArtistsView(segments[1] || null, { updateUrl: false });
+            case 'recent':
+            case 'recently-played':
+                return window.newViews.switchToRecent({ updateUrl: false });
+            case 'smart-mix':
+            case 'smartmix':
+                return window.newViews.switchToSmartMix({ updateUrl: false });
+            case 'discover':
+                return this.switchToDiscoverView(query.get('q'), { updateUrl: false });
+            case 'achievements':
+                return this.switchToAchievementsView({ updateUrl: false });
+            case 'playlist':
+            case 'playlists': {
+                const playlistId = Number(segments[1]);
+                if (Number.isInteger(playlistId) && playlistId > 0) {
+                    return this.openPlaylist(playlistId, { updateUrl: false });
+                }
+                break;
+            }
+            default:
+                break;
+        }
+
+        // Unknown frontend paths resolve to the canonical library route.
+        window.history.replaceState({}, '', '/library');
+        return this.switchToLibraryView({ updateUrl: false });
     }
 
     closeDropdown() {
@@ -1932,7 +2049,11 @@ export class RainyApp {
         this.showToast('Playlist deleted', 'success');
     }
 
-    async openPlaylist(playlistId) {
+    async openPlaylist(playlistId, { updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.navigateTo(`/playlists/${encodeURIComponent(playlistId)}`);
+        }
+
         const data = await usePlaylistService().fetch(playlistId);
         // FIXME: Show toast notification
         if (data.error) return Logger.error(data.error);
@@ -1983,7 +2104,11 @@ export class RainyApp {
         }
     }
 
-    switchToLibraryView() {
+    switchToLibraryView({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.navigateTo('/library');
+        }
+
         if (useContext().get('current-view-type') === 'library') return;
 
         useContext().set('current-view-type', 'library')
@@ -2026,7 +2151,14 @@ export class RainyApp {
         this.renderSections();
     }
 
-    switchToDiscoverView(query = null) {
+    switchToDiscoverView(query = null, { updateUrl = true } = {}) {
+        if (updateUrl) {
+            const params = new URLSearchParams();
+            if (query) params.set('q', query);
+            const suffix = params.toString() ? `?${params.toString()}` : '';
+            return this.navigateTo(`/discover${suffix}`);
+        }
+
         // Pause discover audio preview if it exists
         const previewAudio = document.getElementById('discover-preview-audio');
         if (previewAudio) {
@@ -3169,7 +3301,15 @@ export class RainyApp {
     }
 
     // Discord-style Settings Page Methods
-    openSettings(section = 'appearance') {
+    openSettings(section = 'appearance', { updateUrl = true } = {}) {
+        if (updateUrl) {
+            const currentPath = `${window.location.pathname}${window.location.search}`;
+            if (!currentPath.startsWith('/settings')) {
+                this._settingsReturnPath = currentPath || '/library';
+            }
+            return this.navigateTo(`/settings/${encodeURIComponent(section)}`);
+        }
+
         const settingsPage = document.getElementById('settings-page');
         settingsPage?.classList.remove('hidden');
 
@@ -3273,10 +3413,17 @@ export class RainyApp {
         });
 
         // Switch to the requested section (loadScanStatus runs inside for the jobs section)
-        this.switchSettingsSection(section);
+        this.switchSettingsSection(section, { updateUrl: false });
     }
 
-    closeSettings() {
+    closeSettings({ updateUrl = true } = {}) {
+        if (updateUrl && window.location.pathname.startsWith('/settings')) {
+            const returnPath = this._settingsReturnPath || '/library';
+            this._settingsReturnPath = null;
+            this.closeSettings({ updateUrl: false });
+            return this.navigateTo(returnPath, { replace: true });
+        }
+
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
             settingsPage.classList.add('closing');
@@ -3296,7 +3443,11 @@ export class RainyApp {
         cb.disabled = !available;
     }
 
-    switchSettingsSection(sectionName) {
+    switchSettingsSection(sectionName, { updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.navigateTo(`/settings/${encodeURIComponent(sectionName)}`, { replace: true });
+        }
+
         // Update navigation active state
         document.querySelectorAll('.settings-nav-item').forEach(item => {
             item.classList.toggle('active', item.dataset.section === sectionName);
@@ -3644,7 +3795,14 @@ export class RainyApp {
         await this.loadUsers();
     }
 
-    switchToArtistsView(targetArtistName = null) {
+    switchToArtistsView(targetArtistName = null, { updateUrl = true } = {}) {
+        if (updateUrl) {
+            const suffix = targetArtistName
+                ? `/${encodeURIComponent(targetArtistName)}`
+                : '';
+            return this.navigateTo(`/artists${suffix}`);
+        }
+
         // Pause discover audio preview if it exists
         const previewAudio = document.getElementById('discover-preview-audio');
         if (previewAudio) {
@@ -3693,7 +3851,11 @@ export class RainyApp {
         this.renderArtistsView(targetArtistName);
     }
 
-    switchToAchievementsView() {
+    switchToAchievementsView({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.navigateTo('/achievements');
+        }
+
         // Pause discover audio preview if it exists
         const previewAudio = document.getElementById('discover-preview-audio');
         if (previewAudio) {

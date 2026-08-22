@@ -24,6 +24,7 @@ export class NewViews {
     init() {
         // Albums
         document.getElementById('nav-albums')?.addEventListener('click', (e) => {
+            if (!this.app.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToAlbums();
         });
@@ -39,6 +40,7 @@ export class NewViews {
 
         // Recently Played
         document.getElementById('nav-recent')?.addEventListener('click', (e) => {
+            if (!this.app.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToRecent();
         });
@@ -55,6 +57,7 @@ export class NewViews {
 
         // Smart Mix
         document.getElementById('nav-smartmix')?.addEventListener('click', (e) => {
+            if (!this.app.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToSmartMix();
         });
@@ -103,7 +106,11 @@ export class NewViews {
 
     // --- Albums View ---
 
-    async switchToAlbums() {
+    async switchToAlbums({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.app.navigateTo('/albums');
+        }
+
         this.currentView = 'albums';
         useContext().set('current-view-type', 'albums');
         this.hideAllViews();
@@ -114,14 +121,18 @@ export class NewViews {
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('library-stats')?.classList.add('hidden');
         document.getElementById('playlist-menu-container')?.classList.add('hidden');
-        this.showAlbumGrid();
+        this.showAlbumGrid({ updateUrl: false });
         await this.loadAlbums();
     }
 
     async openAlbumFromSearch(albumName) {
         if (!albumName) return;
-        await this.switchToAlbums();
-        await this.openAlbumDetail(albumName);
+        const match = (this.app.songs || []).find(song => song.album === albumName);
+        const artistName = match?.artist || '';
+        const params = new URLSearchParams();
+        if (artistName) params.set('artist', artistName);
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        return this.app.navigateTo(`/albums/${encodeURIComponent(albumName)}${suffix}`);
     }
 
     async loadAlbums(search = '', sort = 'name') {
@@ -189,12 +200,23 @@ export class NewViews {
         this.renderAlbums(sorted);
     }
 
-    showAlbumGrid() {
+    showAlbumGrid({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.app.navigateTo('/albums');
+        }
+
         document.getElementById('albums-grid-list').classList.remove('hidden');
         document.getElementById('album-detail-view').classList.add('hidden');
     }
 
-    async openAlbumDetail(albumName, artistName) {
+    async openAlbumDetail(albumName, artistName, { updateUrl = true } = {}) {
+        if (updateUrl) {
+            const params = new URLSearchParams();
+            if (artistName) params.set('artist', artistName);
+            const suffix = params.toString() ? `?${params.toString()}` : '';
+            return this.app.navigateTo(`/albums/${encodeURIComponent(albumName)}${suffix}`);
+        }
+
         try {
             const res = await useAlbumService().getDetail(albumName, artistName);
             if (res.error) {
@@ -250,7 +272,11 @@ export class NewViews {
 
     // --- Recently Played View ---
 
-    async switchToRecent() {
+    async switchToRecent({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.app.navigateTo('/recent');
+        }
+
         this.currentView = 'recent';
         useContext().set('current-view-type', 'recent');
         this.hideAllViews();
@@ -424,7 +450,11 @@ export class NewViews {
 
     // --- Smart Mix View ---
 
-    async switchToSmartMix() {
+    async switchToSmartMix({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.app.navigateTo('/smart-mix');
+        }
+
         this.currentView = 'smartmix';
         useContext().set('current-view-type', 'smartmix');
         this.hideAllViews();

@@ -112,16 +112,17 @@ export const Playlists = {
                 : `<svg viewBox="0 0 24 24" fill="${iconColor}" class="playlist-icon"><path d="${icon.path}"/></svg>`;
 
             return `
-            <div class="nav-item ${currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''}"
+            <a href="/playlists/${encodeURIComponent(playlist.id)}" class="nav-item ${currentViewType === 'playlist' && currentPlaylistId === playlist.id ? 'active' : ''}"
                  data-id="${playlist.id}">
                 ${media}
                 <span>${escapeHtml(playlist.name)}</span>
-            </div>
+            </a>
         `}).join('');
 
         // Add click listeners
         container.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
+                if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                 e.preventDefault();
                 onOpenPlaylist(parseInt(item.dataset.id));
             });

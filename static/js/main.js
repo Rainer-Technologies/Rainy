@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize new views (Albums, Recently Played, Smart Mix)
     window.newViews = new NewViews(window.app, window.player);
+    window.app?.startRouting?.();
 
     // Register service worker for PWA support
     registerServiceWorker();

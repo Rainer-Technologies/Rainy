@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from werkzeug.exceptions import NotFound
 from config import Config
 from models.database import Database
 from routes import auth_bp, setup_bp, music_bp, ratings_bp, users_bp
@@ -17,7 +18,10 @@ from routes.radio import radio_bp
 from routes.dj import dj_bp
 from routes.playlist_syncs import playlist_syncs_bp
 
-app = Flask(__name__, static_folder='static', static_url_path='')
+# Static files are served by the explicit catch-all below so frontend routes
+# such as /albums can fall back to index.html instead of Flask's built-in
+# static-file rule returning a 404 first.
+app = Flask(__name__, static_folder=None)
 app.secret_key = Config.FLASK_SECRET_KEY
 
 # Enable CORS for development
@@ -48,8 +52,20 @@ def serve_index():
 
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files."""
-    return send_from_directory('static', path)
+    """Serve static files and the SPA shell for frontend routes."""
+    try:
+        return send_from_directory('static', path)
+    except NotFound:
+        # API paths should keep their normal 404 behavior. Frontend routes,
+        # however, need index.html so refreshing a deep link still boots the SPA.
+        frontend_route = path.split('/', 1)[0]
+        if frontend_route in {
+            'library', 'albums', 'artists', 'recent', 'recently-played',
+            'smart-mix', 'smartmix', 'discover', 'achievements',
+            'playlist', 'playlists', 'settings'
+        }:
+            return send_from_directory('static', 'index.html')
+        raise
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
