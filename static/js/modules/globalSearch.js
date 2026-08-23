@@ -1,5 +1,5 @@
 /**
- * Global Search Overlay (Ctrl+K / Cmd+K).
+ * Global Search Overlay (º key / / key).
  * Searches songs, artists, albums, and playlists simultaneously.
  * Renders a command-palette-style overlay with grouped results.
  */

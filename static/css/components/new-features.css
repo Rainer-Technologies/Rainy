@@ -1159,6 +1159,12 @@
     font-size: 10px;
     color: var(--text-tertiary, #6e6e6e);
 }
+.so-or {
+    font-size: 10px;
+    color: var(--text-tertiary, #6e6e6e);
+    margin: 0 4px;
+    text-transform: lowercase;
+}
 .so-action {
     font-size: var(--font-size-sm, 0.875rem);
     color: var(--text-secondary, #a1a1a1);

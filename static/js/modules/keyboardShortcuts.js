@@ -1,6 +1,6 @@
 /**
  * Global keyboard shortcuts for Rainy.
- * Space=play/pause, arrows=seek/track, /=focus search, Ctrl+K=global search,
+ * Space=play/pause, arrows=seek/track, º / /=global search,
  * M=mute, F=fullscreen player, L=like current song, B=A-B repeat (section loop),
  * [/]=speed down/up (0.25x steps), 0=reset speed to 1x, E=equalizer, X=crossfade,
  * ?=keyboard shortcut cheat sheet overlay.
@@ -26,13 +26,6 @@ export class KeyboardShortcuts {
 
     _onKeyDown(e) {
         if (!this.enabled) return;
-
-        // Ctrl+K / Cmd+K — global search overlay (works even while typing)
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-            e.preventDefault();
-            this._toggleGlobalSearch();
-            return;
-        }
 
         // Escape — close overlays
         if (e.key === 'Escape') {
@@ -111,6 +104,10 @@ export class KeyboardShortcuts {
             case 'x':
             case 'X':
                 if (p.toggleCrossfadeEnabled) p.toggleCrossfadeEnabled();
+                break;
+            case 'º':
+            case 'ª':
+                this._toggleGlobalSearch();
                 break;
             case '/':
                 e.preventDefault();

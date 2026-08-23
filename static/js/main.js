@@ -35,10 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initSetup();
     initLogin();
 
-    // Initialize global keyboard shortcuts (Space, arrows, Ctrl+K, etc.)
+    // Initialize global keyboard shortcuts (Space, arrows, º, etc.)
     window.keyboardShortcuts = new KeyboardShortcuts(window.player, window.app);
 
-    // Initialize global search overlay (Ctrl+K / Cmd+K)
+    // Initialize global search overlay (º key / / key)
     window.globalSearch = new GlobalSearch(window.app, window.player);
 
     // Initialize keyboard shortcut cheat sheet overlay (? key)

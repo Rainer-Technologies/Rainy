@@ -50,8 +50,7 @@ const SHORTCUT_GROUPS = [
         title: 'Search & Navigation',
         icon: `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>`,
         shortcuts: [
-            { keys: ['/'], action: 'Focus search bar' },
-            { keys: ['Ctrl', 'K'], action: 'Global search overlay' },
+            { keys: [['º'], ['/']], action: 'Open global search' },
         ],
     },
     {
@@ -63,6 +62,16 @@ const SHORTCUT_GROUPS = [
         ],
     },
 ];
+
+// keys: flat array of strings = one combo (joined with +).
+// Array of arrays = alternative combos (joined with "or"), e.g. [['/'], ['Ctrl', 'K']].
+const renderKeys = (keys) => {
+    const combos = keys.some(Array.isArray) ? keys : [keys];
+    return combos.map(combo => {
+        const ks = Array.isArray(combo) ? combo : [combo];
+        return `<span class="so-keys">${ks.map(k => `<kbd>${k}</kbd>`).join('<span class="so-plus">+</span>')}</span>`;
+    }).join('<span class="so-or">or</span>');
+};
 
 export class ShortcutOverlay {
     constructor() {
@@ -87,7 +96,7 @@ export class ShortcutOverlay {
                 <div class="so-group-items">
                     ${group.shortcuts.map(s => `
                         <div class="so-item">
-                            <span class="so-keys">${s.keys.map(k => `<kbd>${k}</kbd>`).join('<span class="so-plus">+</span>')}</span>
+                            ${renderKeys(s.keys)}
                             <span class="so-action">${s.action}</span>
                         </div>
                     `).join('')}
