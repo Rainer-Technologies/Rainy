@@ -173,3 +173,18 @@ def require_auth(f):
     return decorated
 
 
+def require_sysadmin(f):
+    """Decorator requiring an authenticated sysadmin (role == 'sysadmin')."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user_id = get_current_user_id()
+        if user_id is None:
+            return jsonify({'error': 'Authentication required'}), 401
+        user = UserModel.get_user_by_id(user_id)
+        if not user or user['role'] != 'sysadmin':
+            return jsonify({'error': 'Forbidden'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+

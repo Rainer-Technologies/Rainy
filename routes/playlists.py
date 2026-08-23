@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, session
 from models.playlist import PlaylistModel
-from routes.auth import require_auth
+from routes.auth import require_auth, require_sysadmin
 
 playlists_bp = Blueprint('playlists', __name__)
 
@@ -85,7 +85,7 @@ def get_playlist(playlist_id):
     })
 
 @playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])
-@require_auth
+@require_sysadmin
 def delete_playlist(playlist_id):
     """Delete a playlist."""
     try:

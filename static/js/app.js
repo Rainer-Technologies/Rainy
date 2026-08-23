@@ -111,6 +111,7 @@ export class RainyApp {
         this.user = user;
         this.applyThemeFromPreferences();
         this.applyPlayerBarPreferences();
+        this.applyRoleVisibility();
 
         Router.navigate(new View('app', user), this);
     }
@@ -3442,6 +3443,14 @@ export class RainyApp {
             const visible = controls[key] !== false; // default: visible
             el.classList.toggle('hidden', !visible);
         }
+    }
+
+    // Show/hide sysadmin-only UI (e.g. delete song/playlist) based on role
+    applyRoleVisibility() {
+        const isAdmin = this.user?.role === 'sysadmin';
+        document.querySelectorAll('.sysadmin-only').forEach(el => {
+            el.classList.toggle('hidden', !isAdmin);
+        });
     }
 
     // Discord-style Settings Page Methods
