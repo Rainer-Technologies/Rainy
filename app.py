@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
@@ -22,6 +23,14 @@ from routes.playlist_syncs import playlist_syncs_bp
 # static-file rule returning a 404 first.
 app = Flask(__name__, static_folder=None)
 app.secret_key = Config.FLASK_SECRET_KEY
+
+# Persistent login: without these, the session cookie carries no Max-Age and
+# dies with the browser tab/app (mobile browsers purge it even sooner), so
+# users had to log in again constantly. 30-day sliding cookie by default,
+# refreshed on every request; override with SESSION_LIFETIME_DAYS env.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
+    days=int(os.getenv('SESSION_LIFETIME_DAYS', '30')))
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
 # Enable CORS for development
 CORS(app, supports_credentials=True)

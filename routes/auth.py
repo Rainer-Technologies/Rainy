@@ -20,7 +20,9 @@ def login():
         if not user:
             return jsonify({'error': 'Invalid email or password'}), 401
         
-        # Create session
+        # Create session — permanent so the cookie survives browser/app
+        # restarts (matches the SESSION_LIFETIME_DAYS config in app.py).
+        session.permanent = True
         session['user_id'] = user['id']
         
         return jsonify({
