@@ -148,3 +148,58 @@ def delete_user(user_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ── Per-account library isolation: publishing ────────────────────────────
+
+@users_bp.route('/library/imports', methods=['GET'])
+@require_admin
+def library_import_stats():
+    """Per-user counts of personal (unpublished) imported songs."""
+    try:
+        from models.library_access import LibraryAccessModel
+        return jsonify({'stats': LibraryAccessModel.import_stats()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/library/publish/<int:song_id>', methods=['POST'])
+@require_admin
+def publish_song(song_id):
+    """Publish a personally-imported song to every account."""
+    try:
+        from models.library_access import LibraryAccessModel
+        from models.song import SongModel
+
+        song = SongModel.get_song_by_id(song_id)
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+
+        LibraryAccessModel.publish_to_all(song_id)
+        return jsonify({
+            'success': True,
+            'message': f'"{song["title"]}" is now visible to all accounts',
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/library/publish-user/<int:user_id>', methods=['POST'])
+@require_admin
+def publish_user_imports(user_id):
+    """Publish ALL personal imports of one user to every account."""
+    try:
+        from models.library_access import LibraryAccessModel
+
+        target = UserModel.get_user_by_id(user_id)
+        if not target:
+            return jsonify({'error': 'User not found'}), 404
+
+        LibraryAccessModel.publish_all_imported_by(user_id)
+        return jsonify({
+            'success': True,
+            'message': f'All imports by {target["username"]} are now public',
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

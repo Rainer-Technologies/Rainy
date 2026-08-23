@@ -17,6 +17,7 @@
       "endpoint": "/api/music/youtube-import",
       "method": "POST",
       "streaming": false,
+      "background": true,
       "fields": [
         {
           "key": "url",
@@ -39,6 +40,7 @@
       "endpoint": "/api/music/youtube-playlist-import",
       "method": "POST",
       "streaming": true,
+      "background": true,
       "precheck": {
         "endpoint": "/api/music/import-playlist-precheck",
         "source": "youtube"
@@ -65,6 +67,7 @@
       "endpoint": "/api/music/spotify-import",
       "method": "POST",
       "streaming": false,
+      "background": true,
       "fields": [
         {
           "key": "url",
@@ -87,6 +90,7 @@
       "endpoint": "/api/music/spotify-playlist-import",
       "method": "POST",
       "streaming": true,
+      "background": true,
       "precheck": {
         "endpoint": "/api/music/import-playlist-precheck",
         "source": "spotify"

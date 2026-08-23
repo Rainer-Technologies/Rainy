@@ -307,8 +307,11 @@ def _search_batch(session, exclude_video_ids, direction=None, fast=False):
     auto-generated mix compilations (Aug 2026).
     """
     searcher = MetadataSearcher()
+    # Only match against songs the session owner can see (in-library flag).
     lib_rows = Database.execute_query(
-        "SELECT id, title, artist FROM songs", fetch_all=True) or []
+        """SELECT s.id, s.title, s.artist FROM songs s
+           JOIN library_access la ON la.song_id = s.id AND la.user_id = %s""",
+        (session.user_id,), fetch_all=True) or []
     lib_index = {}
     for row in lib_rows:
         key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))
@@ -441,6 +444,10 @@ def start(user_id, song_id=None, fast=False):
     Batch generation happens in the background; poll `status`/`take_batch`.
     """
     if song_id is not None:
+        # Isolation: the seed must be in the user's own library.
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(user_id, song_id):
+            return None, {'error': 'Song not found'}
         song = Database.execute_query(
             "SELECT id, title, artist, album, genre, cover_path, duration FROM songs WHERE id = %s",
             (song_id,), fetch_one=True,

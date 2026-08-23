@@ -142,15 +142,30 @@ class SongModel:
         return Database.execute_query(query, (song_id,))
     
     @staticmethod
-    def get_all_songs():
-        """Get all songs from the database, sorted by artist/album/track."""
-        query = """
-            SELECT id, file_path, title, artist, album, duration, 
-                   track_number, year, genre, cover_path, file_size, file_modified
-            FROM songs 
-            ORDER BY artist, album, track_number
+    def get_all_songs(user_id=None):
+        """Get songs from the database, sorted by artist/album/track.
+
+        With user_id: only songs that user has library_access for.
+        Without: every song (admin/maintenance surfaces).
         """
-        results = Database.execute_query(query, fetch_all=True)
+        if user_id is not None:
+            query = """
+                SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                       s.track_number, s.year, s.genre, s.cover_path,
+                       s.file_size, s.file_modified
+                FROM songs s
+                JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+                ORDER BY s.artist, s.album, s.track_number
+            """
+            results = Database.execute_query(query, (user_id,), fetch_all=True)
+        else:
+            query = """
+                SELECT id, file_path, title, artist, album, duration,
+                       track_number, year, genre, cover_path, file_size, file_modified
+                FROM songs
+                ORDER BY artist, album, track_number
+            """
+            results = Database.execute_query(query, fetch_all=True)
         
         # Transform to match the expected format for the API
         songs = []
@@ -170,17 +185,32 @@ class SongModel:
         return songs
     
     @staticmethod
-    def get_recently_added(limit=20):
-        """Get recently added songs, ordered by scan date (newest first)."""
-        query = """
-            SELECT id, file_path, title, artist, album, duration, 
-                   track_number, year, genre, cover_path, scanned_at
-            FROM songs 
-            ORDER BY scanned_at DESC
-            LIMIT %s
+    def get_recently_added(limit=20, user_id=None):
+        """Get recently added songs, ordered by scan date (newest first).
+
+        Honours per-account library access when user_id is given.
         """
-        results = Database.execute_query(query, (limit,), fetch_all=True)
-        
+        if user_id is not None:
+            query = """
+                SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                       s.track_number, s.year, s.genre, s.cover_path, s.scanned_at
+                FROM songs s
+                JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+                ORDER BY s.scanned_at DESC
+                LIMIT %s
+            """
+            results = Database.execute_query(query, (user_id, limit),
+                                             fetch_all=True)
+        else:
+            query = """
+                SELECT id, file_path, title, artist, album, duration,
+                       track_number, year, genre, cover_path, scanned_at
+                FROM songs
+                ORDER BY scanned_at DESC
+                LIMIT %s
+            """
+            results = Database.execute_query(query, (limit,), fetch_all=True)
+
         songs = []
         for row in results:
             songs.append({

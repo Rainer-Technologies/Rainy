@@ -40,6 +40,7 @@ def _process_job(job, music_path):
         result = handler(
             job['url'], music_path, on_progress=on_progress,
             conflict_mode=job.get('conflict_mode'),
+            owner_user_id=job.get('user_id'),
         )
         if result.get('success'):
             ImportJobModel.complete(job_id, result)

@@ -18,6 +18,8 @@ export class NewPlaylistModal extends Component {
         this._colorPresets = useRef();
         /** @type {Ref<HTMLInputElement>} */
         this._nameInput = useRef();
+        /** @type {Ref<HTMLInputElement>} */
+        this._privateInput = useRef();
 
         this.set('current-icon', 'music-note', { silent: true });
         this.set('current-color', '#888888', { silent: true });
@@ -137,8 +139,9 @@ export class NewPlaylistModal extends Component {
 
         const currentIcon = this.get('current-icon');
         const currentColor = this.get('current-color');
+        const isPrivate = !!(this._privateInput.value && this._privateInput.value.checked);
 
-        const data = await usePlaylistService().create(name, currentIcon, currentColor);
+        const data = await usePlaylistService().create(name, currentIcon, currentColor, isPrivate);
         if (data.error) {
             Logger.error(data.error);
             app.showToast('Failed to create playlist', 'error');
@@ -174,6 +177,12 @@ export class NewPlaylistModal extends Component {
                             h.input(a.type('color'), a.class('color-input'), a.value('#888888'), on.change((ev) => this._changeColor(ev))),
                             h.div(this._colorPresets, a.class('color-presets'))
                         )
+                    )
+                ),
+                h.div(a.class('customize-row'),
+                    h.label(a.class('playlist-private-toggle'),
+                        h.input(this._privateInput, a.type('checkbox'), a.class('playlist-private-check')),
+                        h.span(a.class('playlist-private-text'), '🔒 Private (only visible to you)')
                     )
                 )
             ),

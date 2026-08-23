@@ -364,6 +364,16 @@ def discovery(user_id, limit=30):
         return 0.0
 
     unplayed = [sid for sid in data['ids'] if sid not in played_set]
+
+    # Per-account isolation: only rank songs the user actually has.
+    try:
+        from models.library_access import LibraryAccessModel
+        visible = LibraryAccessModel.visible_song_ids(user_id)
+        if visible:
+            unplayed = [sid for sid in unplayed if sid in visible]
+    except Exception:  # noqa: BLE001
+        pass
+
     return _rank_candidates(
         taste, wmask, unplayed, songs,
         weights={'limit': limit},

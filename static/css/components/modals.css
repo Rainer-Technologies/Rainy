@@ -2122,6 +2122,28 @@ rainy-song-settings-modal .ss-cover svg {
     gap: var(--spacing-lg);
 }
 
+/* Private (per-account) playlist toggle */
+.playlist-private-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    padding: var(--spacing-xs) 0;
+}
+
+.playlist-private-check {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-primary, #3d7dc4);
+    cursor: pointer;
+}
+
+.playlist-private-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+
 .customize-row {
     display: flex;
     flex-direction: column;

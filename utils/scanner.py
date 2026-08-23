@@ -164,6 +164,13 @@ class MusicScanner:
                             metadata['file_modified'] = file_modified
                             song_id = SongModel.add_song(metadata)
                             stats['files_added'] += 1
+                            # Communal rule: scan-origin songs are visible to
+                            # every account (the music folder is shared).
+                            try:
+                                from models.library_access import LibraryAccessModel
+                                LibraryAccessModel.on_scan_added([song_id])
+                            except Exception:
+                                pass
                             # Queue background enrichment (audio analysis +
                             # local genre classification + external tags).
                             # Best-effort — never let it break a scan.

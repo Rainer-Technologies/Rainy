@@ -171,7 +171,43 @@ class Database:
         result = cursor.fetchone()
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE playlists ADD COLUMN cover_path VARCHAR(768) NULL")
-        
+
+        # ── Per-account library isolation ─────────────────────────────
+        # A song row stays global (one file on disk = one row). Visibility
+        # is granted per user via library_access:
+        #   - No row for (user_id, song_id) → the song is NOT in that
+        #     user's library.
+        #   - Row present → visible. origin 'scan' rows are "public":
+        #     every NEW user automatically gets a copy at first login
+        #     (backfill), while origin 'import' rows stay personal until
+        #     a sysadmin publishes them.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS library_access (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                song_id INT NOT NULL,
+                origin ENUM('scan', 'import') NOT NULL DEFAULT 'import',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_user_song (user_id, song_id),
+                INDEX idx_user_origin (user_id, origin),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Migration: grant existing users access to the whole current
+        # library (pre-isolation songs were shared by definition).
+        cursor.execute("""
+            INSERT IGNORE INTO library_access (user_id, song_id, origin)
+            SELECT u.id, s.id, 'scan'
+            FROM users u
+            CROSS JOIN songs s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM library_access la
+                WHERE la.user_id = u.id AND la.song_id = s.id
+            )
+        """)
+
         
         # Playlist Songs table (linking table)
         cursor.execute("""
@@ -578,7 +614,7 @@ class Database:
         
         try:
             cursor.execute(query, params or ())
-            
+
             if fetch_one:
                 result = cursor.fetchone()
             elif fetch_all:
@@ -586,8 +622,16 @@ class Database:
             else:
                 conn.commit()
                 result = cursor.lastrowid
-            
+
             return result
+        except Exception:
+            # A failed write must not leave the connection's transaction
+            # half-open — subsequent statements on it would silently no-op.
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            raise
         finally:
             cursor.close()
             if should_close:

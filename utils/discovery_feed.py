@@ -153,7 +153,9 @@ def _search_and_filter(queries, user_id):
         pass
 
     lib_rows = Database.execute_query(
-        "SELECT id, title, artist FROM songs", fetch_all=True) or []
+        """SELECT s.id, s.title, s.artist FROM songs s
+           JOIN library_access la ON la.song_id = s.id AND la.user_id = %s""",
+        (user_id,), fetch_all=True) or []
     lib_index = {}
     for row in lib_rows:
         key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))

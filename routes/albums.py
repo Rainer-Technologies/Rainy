@@ -41,17 +41,18 @@ def get_albums(user_id):
     sort = request.args.get('sort', 'name')  # name, artist, year, recent
 
     query = """
-        SELECT album,
-               GROUP_CONCAT(DISTINCT TRIM(artist) ORDER BY TRIM(artist) SEPARATOR ', ') as artist,
+        SELECT s.album,
+               GROUP_CONCAT(DISTINCT TRIM(s.artist) ORDER BY TRIM(s.artist) SEPARATOR ', ') as artist,
                COUNT(*) as song_count,
-               SUM(duration) as total_duration,
-               MAX(year) as year,
-               MAX(cover_path) as cover_path,
-               MAX(scanned_at) as last_scanned
-        FROM songs
-        WHERE album IS NOT NULL AND album != '' AND album != 'Unknown Album'
+               SUM(s.duration) as total_duration,
+               MAX(s.year) as year,
+               MAX(s.cover_path) as cover_path,
+               MAX(s.scanned_at) as last_scanned
+        FROM songs s
+        JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+        WHERE s.album IS NOT NULL AND s.album != '' AND s.album != 'Unknown Album'
     """
-    params = []
+    params = [user_id]
 
     if search:
         query += " AND (album LIKE %s OR artist LIKE %s)"
@@ -94,14 +95,15 @@ def get_album_detail(user_id):
         return jsonify({'error': 'album parameter is required'}), 400
 
     query = """
-        SELECT id, file_path, title, artist, album, duration,
-               track_number, year, genre, cover_path
-        FROM songs
-        WHERE album = %s
+        SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+               s.track_number, s.year, s.genre, s.cover_path
+        FROM songs s
+        JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+        WHERE s.album = %s
     """
-    params = [album]
+    params = [user_id, album]
 
-    query += " ORDER BY track_number ASC, title ASC"
+    query += " ORDER BY s.track_number ASC, s.title ASC"
 
     results = Database.execute_query(query, tuple(params), fetch_all=True)
 
@@ -120,17 +122,19 @@ def get_album_detail(user_id):
             'cover_path': row['cover_path']
         })
 
-    # Get album metadata
+    # Get album metadata (scoped to the user's visible songs)
     meta_query = """
-        SELECT album,
-               GROUP_CONCAT(DISTINCT artist ORDER BY artist SEPARATOR ', ') as artist,
+        SELECT s.album,
+               GROUP_CONCAT(DISTINCT s.artist ORDER BY s.artist SEPARATOR ', ') as artist,
                COUNT(*) as song_count,
-               SUM(duration) as total_duration, MAX(year) as year,
-               MAX(cover_path) as cover_path
-        FROM songs WHERE album = %s
+               SUM(s.duration) as total_duration, MAX(s.year) as year,
+               MAX(s.cover_path) as cover_path
+        FROM songs s
+        JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+        WHERE s.album = %s
     """
-    meta_params = [album]
-    meta_query += " GROUP BY album"
+    meta_params = [user_id, album]
+    meta_query += " GROUP BY s.album"
 
     meta = Database.execute_query(meta_query, tuple(meta_params), fetch_one=True)
 

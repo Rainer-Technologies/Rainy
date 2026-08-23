@@ -38,7 +38,24 @@ def _noop(*_args, **_kwargs):
     pass
 
 
-def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None):
+def _grant_import(owner_user_id, song_id):
+    """Grant the importing user access to a song (personal import origin).
+
+    Best-effort: never break an import over an ACL hiccup.
+    """
+    if not owner_user_id or not song_id:
+        return
+    try:
+        from models.library_access import LibraryAccessModel
+        LibraryAccessModel.grant(int(owner_user_id), int(song_id),
+                                 origin='import')
+    except Exception as e:  # noqa: BLE001
+        print(f"[import-jobs] grant failed (user={owner_user_id}, "
+              f"song={song_id}): {e}")
+
+
+def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None,
+                        owner_user_id=None):
     """Import a single song from a YouTube / YouTube Music URL."""
     from utils.youtube import YouTubeDownloader
     from utils.scanner import MusicScanner
@@ -54,6 +71,14 @@ def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None):
         return {'success': False, 'error': result.get('error', 'Download failed')}
 
     if result.get('already_exists'):
+        # Importer still needs to SEE an already-present song.
+        try:
+            rel = os.path.relpath(result.get('file_path'), music_path)
+            existing = SongModel.get_song_by_path(rel)
+            if existing:
+                _grant_import(owner_user_id, existing['id'])
+        except Exception as e:  # noqa: BLE001
+            print(f"[import-jobs] grant-on-existing failed: {e}")
         return {
             'success': True,
             'already_exists': True,
@@ -65,6 +90,8 @@ def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None):
     if result.get('file_path'):
         scanner = MusicScanner(music_path)
         metadata = scanner.scan_single_file(result['file_path'])
+        if metadata and metadata.get('id'):
+            _grant_import(owner_user_id, metadata['id'])
         if result.get('cover_path') and metadata:
             SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
 
@@ -76,7 +103,8 @@ def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None):
     }
 
 
-def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='add'):
+def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='add',
+                            owner_user_id=None):
     """Import a full YouTube / YouTube Music playlist, creating a Rainy playlist."""
     from utils.youtube import YouTubeDownloader
     from utils.scanner import MusicScanner
@@ -143,6 +171,7 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
                     metadata = scanner.scan_single_file(file_path)
                     if metadata and metadata.get('id'):
                         song_id = metadata['id']
+                        _grant_import(owner_user_id, song_id)
                         if song.get('cover_path') and metadata:
                             SongModel.update_song_metadata(
                                 metadata['path'], {'cover_path': song['cover_path']}
@@ -166,7 +195,8 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
     }
 
 
-def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None):
+def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None,
+                        owner_user_id=None):
     """Import a single song from a Spotify track link (matched on YouTube Music)."""
     from utils.spotify import SpotifyImporter
     from utils.metadata import MetadataSearcher
@@ -204,6 +234,14 @@ def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None):
         return {'success': False, 'error': result.get('error', 'Download failed')}
 
     if result.get('already_exists'):
+        # Importer still needs to SEE an already-present song.
+        try:
+            rel = os.path.relpath(result.get('file_path'), music_path)
+            existing = SongModel.get_song_by_path(rel)
+            if existing:
+                _grant_import(owner_user_id, existing['id'])
+        except Exception as e:  # noqa: BLE001
+            print(f"[import-jobs] grant-on-existing failed: {e}")
         return {
             'success': True,
             'already_exists': True,
@@ -215,6 +253,8 @@ def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None):
     if result.get('file_path'):
         scanner = MusicScanner(music_path)
         metadata = scanner.scan_single_file(result['file_path'])
+        if metadata and metadata.get('id'):
+            _grant_import(owner_user_id, metadata['id'])
         if result.get('cover_path') and metadata:
             SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
 
@@ -226,7 +266,8 @@ def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None):
     }
 
 
-def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='add'):
+def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='add',
+                            owner_user_id=None):
     """Import a Spotify playlist (each track matched + downloaded from YouTube Music)."""
     from utils.spotify import SpotifyImporter
     from utils.metadata import MetadataSearcher
@@ -308,6 +349,7 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
                 metadata = scanner.scan_single_file(file_path)
                 if metadata and metadata.get('id'):
                     song_id = metadata['id']
+                    _grant_import(owner_user_id, song_id)
                     if song_result.get('cover_path') and metadata:
                         SongModel.update_song_metadata(
                             metadata['path'], {'cover_path': song_result['cover_path']}

@@ -23,6 +23,10 @@ export class SongContextMenu extends Component {
         this._removeFromPlaylist = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._playlistList = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._removeSongItem = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._publishSongItem = useRef(null);
 
         this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
@@ -43,6 +47,26 @@ export class SongContextMenu extends Component {
      */
     setCurrentSong(song) {
         this.set('current-song', song);
+    }
+
+    /** Sysadmin: publish a personally-imported song to every account. */
+    async publishCurrentSong() {
+        this.hide();
+
+        const song = this.get('current-song');
+        if(!song) return;
+
+        try {
+            const res = await fetch(`/api/users/library/publish/${song.id}`, {
+                method: 'POST', credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Publish failed');
+            window.showToast?.(data.message || 'Song published to all accounts', 'success');
+        } catch (e) {
+            Logger.error(e);
+            window.showToast?.(e.message, 'error');
+        }
     }
 
     deleteCurrentSong() {
@@ -297,6 +321,20 @@ export class SongContextMenu extends Component {
      * @param {import('./contextMenu.js').Position?} pos 
      */
     show(pos) {
+        // "Remove Song" is sysadmin-only — hide it for regular users
+        if (this._removeSongItem.value) {
+            /** @type {import('../app.js').RainyApp} */
+            const app = useContext().get('app');
+            const isAdmin = app?.user?.role === 'sysadmin';
+            this._removeSongItem.value.style.display = isAdmin ? 'block' : 'none';
+        }
+        // "Publish to Everyone" is sysadmin-only too.
+        if (this._publishSongItem.value) {
+            /** @type {import('../app.js').RainyApp} */
+            const app = useContext().get('app');
+            const isAdmin = app?.user?.role === 'sysadmin';
+            this._publishSongItem.value.style.display = isAdmin ? 'block' : 'none';
+        }
         this.root.show(pos);
     }
 
@@ -346,7 +384,11 @@ export class SongContextMenu extends Component {
                 I.Download(),
                 h.span('Download Song'),
             ),
-            H.of(ContextMenuItem, a.danger(), on.click(() => this.deleteCurrentSong()),
+            H.of(ContextMenuItem, this._publishSongItem, on.click(() => this.publishCurrentSong()),
+                I.Plus(),
+                h.span('Publish to Everyone'),
+            ),
+            H.of(ContextMenuItem, this._removeSongItem, a.danger(), on.click(() => this.deleteCurrentSong()),
                 I.Bin(),
                 h.span('Remove Song'),
             ),

@@ -254,4 +254,8 @@ def generate_mix(user_id):
             'cover_path': row['cover_path']
         })
 
+    # Per-account library isolation: drop songs this user has no access to.
+    from models.library_access import LibraryAccessModel
+    songs = LibraryAccessModel.filter_visible(user_id, songs)
+
     return jsonify({'songs': songs, 'mode': mode, 'count': len(songs)})

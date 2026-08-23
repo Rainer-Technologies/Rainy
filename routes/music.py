@@ -3,7 +3,7 @@ from models.settings import SettingsModel
 from models.song import SongModel, ScanHistoryModel
 from models.database import Database
 from utils.scanner import MusicScanner
-from routes.auth import require_auth, get_current_user_id
+from routes.auth import require_auth, require_sysadmin, get_current_user_id
 import os
 
 music_bp = Blueprint('music', __name__, url_prefix='/api/music')
@@ -19,8 +19,14 @@ def get_library():
         if not music_path:
             return jsonify({'error': 'Music path not configured'}), 400
         
-        # Get all songs
-        all_songs = SongModel.get_all_songs()
+        # Per-account isolation: only songs this user has access to.
+        # Backfill first so new 'scan'-origin songs appear without a rescan.
+        user_id = get_current_user_id()
+        from models.library_access import LibraryAccessModel
+        LibraryAccessModel.backfill_user(user_id)
+
+        # Get all songs visible to this user
+        all_songs = SongModel.get_all_songs(user_id=user_id)
         
         # If database is empty, suggest running a scan
         if not all_songs:
@@ -33,7 +39,7 @@ def get_library():
             })
         
         # Get recently added songs (last 20)
-        recently_added = SongModel.get_recently_added(20)
+        recently_added = SongModel.get_recently_added(20, user_id=user_id)
         
         # Build sections
         sections = []
@@ -193,7 +199,7 @@ def get_scan_status():
 
 
 @music_bp.route('/song/<int:song_id>', methods=['DELETE'])
-@require_auth
+@require_sysadmin
 def delete_song(song_id):
     """Delete a song from the database and disk."""
     try:
@@ -244,12 +250,18 @@ def stream_song(song_id):
             return jsonify({'error': 'Music path not configured'}), 400
         
         from flask import Response
-        
+
         # Look up song by ID to get file path
         song = SongModel.get_song_by_id(song_id)
         if not song:
             return jsonify({'error': 'Song not found'}), 404
-        
+
+        # Per-account isolation: 404 (not 403) so clients treat it as
+        # "doesn't exist in your library".
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(get_current_user_id(), song_id):
+            return jsonify({'error': 'Song not found'}), 404
+
         relative_path = song['file_path']
         
         # Build full path and validate it's within music directory
@@ -664,6 +676,17 @@ def youtube_import():
         if result.get('success'):
             # Check if song already exists (don't re-add to database)
             if result.get('already_exists'):
+                # The importer must still SEE the song even if someone else
+                # had imported it before.
+                try:
+                    rel = os.path.relpath(result.get('file_path'), music_path)
+                    existing = SongModel.get_song_by_path(rel)
+                    if existing:
+                        from models.library_access import LibraryAccessModel
+                        LibraryAccessModel.grant(get_current_user_id(),
+                                                 existing['id'], origin='import')
+                except Exception as e:  # noqa: BLE001
+                    print(f"[import] grant-on-existing failed: {e}")
                 return jsonify({
                     'success': True,
                     'already_exists': True,
@@ -676,11 +699,16 @@ def youtube_import():
             if result.get('file_path'):
                 scanner = MusicScanner(music_path)
                 metadata = scanner.scan_single_file(result['file_path'])
-                
+
+                if metadata and metadata.get('id'):
+                    from models.library_access import LibraryAccessModel
+                    LibraryAccessModel.grant(get_current_user_id(),
+                                             metadata['id'], origin='import')
+
                 # Update cover_path if thumbnail was downloaded
                 if result.get('cover_path') and metadata:
                     SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
-            
+
             return jsonify({
                 'success': True,
                 'title': result.get('title'),
@@ -918,10 +946,14 @@ def youtube_playlist_import():
                                 # New song - add to database
                                 scanner = MusicScanner(music_path)
                                 metadata = scanner.scan_single_file(file_path)
-                                
+
                                 if metadata and metadata.get('id'):
                                     song_id = metadata['id']
-                                    
+                                    from models.library_access import LibraryAccessModel
+                                    LibraryAccessModel.grant(
+                                        session.get('user_id'), song_id,
+                                        origin='import')
+
                                     if song.get('cover_path') and metadata:
                                         SongModel.update_song_metadata(metadata['path'], {'cover_path': song['cover_path']})
                             
@@ -1036,6 +1068,10 @@ def spotify_import():
         if result.get('file_path'):
             scanner = MusicScanner(music_path)
             metadata = scanner.scan_single_file(result['file_path'])
+            if metadata and metadata.get('id'):
+                from models.library_access import LibraryAccessModel
+                LibraryAccessModel.grant(get_current_user_id(),
+                                         metadata['id'], origin='import')
             if result.get('cover_path') and metadata:
                 SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
 
@@ -1153,6 +1189,10 @@ def spotify_playlist_import():
                         metadata = scanner.scan_single_file(file_path)
                         if metadata and metadata.get('id'):
                             song_id = metadata['id']
+                            from models.library_access import LibraryAccessModel
+                            LibraryAccessModel.grant(
+                                session.get('user_id'), song_id,
+                                origin='import')
                             if song_result.get('cover_path') and metadata:
                                 SongModel.update_song_metadata(
                                     metadata['path'],
