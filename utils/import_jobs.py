@@ -193,11 +193,18 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
         current_percent = 90 + int(((i + 1) / total_songs) * 10)
         on_progress(min(current_percent, 99), f'Adding to library: {song.get("title", "Unknown")}')
 
+    # Default behaviour: end the download with a generated mosaic cover.
+    on_progress(99, 'Generating playlist cover...')
+    from utils.playlist_cover import generate_and_save_cover
+    cover_path = generate_and_save_cover(
+        created_playlist_id, songs, music_path)
+
     return {
         'success': True,
         'playlist_name': playlist_name,
         'playlist_id': created_playlist_id,
         'song_count': added_count,
+        'cover_path': cover_path,
     }
 
 
@@ -322,6 +329,7 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
 
     added_count = 0
     failed_count = 0
+    cover_songs = []
 
     for i, track in enumerate(tracks):
         title = track['title']
@@ -369,12 +377,19 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
             if song_id:
                 PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)
                 added_count += 1
+                cover_songs.append({'cover_path': song_result.get('cover_path')})
             else:
                 failed_count += 1
         except Exception as e:  # noqa: BLE001
             print(f"Error importing Spotify track '{title}': {e}")
             failed_count += 1
             continue
+
+    # Default behaviour: end the download with a generated mosaic cover.
+    on_progress(99, 'Generating playlist cover...')
+    from utils.playlist_cover import generate_and_save_cover
+    cover_path = generate_and_save_cover(
+        created_playlist_id, cover_songs, music_path)
 
     on_progress(98, 'Finalizing playlist...')
     return {
@@ -383,6 +398,7 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
         'playlist_id': created_playlist_id,
         'song_count': added_count,
         'failed_count': failed_count,
+        'cover_path': cover_path,
     }
 
 

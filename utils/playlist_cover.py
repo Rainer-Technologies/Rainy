@@ -130,3 +130,29 @@ def generate_playlist_cover(playlist_id, songs, music_path, icon_color='#888888'
 
     # Relative path (forward slashes) for storage + URL building.
     return f"covers/playlists/{filename}"
+
+
+def generate_and_save_cover(playlist_id, songs, music_path, icon_color=None):
+    """Generate a mosaic cover and persist it on the playlist row.
+
+    Wrapper used at the end of playlist imports so the default behaviour is
+    that a downloaded playlist ends up with a generated cover. Never raises:
+    a cover failure must not fail the import it follows. Returns the stored
+    cover path (relative to music_path) or None.
+    """
+    try:
+        from models.playlist import PlaylistModel
+
+        if icon_color is None:
+            playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+            icon_color = (playlist or {}).get('icon_color', '#888888')
+
+        cover_path = generate_playlist_cover(
+            playlist_id, songs, music_path, icon_color=icon_color)
+        if cover_path:
+            PlaylistModel.update_playlist_cover(playlist_id, cover_path)
+        return cover_path
+    except Exception as e:  # noqa: BLE001
+        print(f"[playlist-cover] auto cover failed for playlist "
+              f"{playlist_id}: {e}")
+        return None

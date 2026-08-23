@@ -1012,13 +1012,25 @@ def youtube_playlist_import():
                         'message': f'Adding to library: {song.get("title", "Unknown")}'
                     }) + '\n'
                 
+                # Default behaviour: end the download with a generated mosaic cover.
+                yield json.dumps({
+                    'type': 'progress',
+                    'percent': 99,
+                    'message': 'Generating playlist cover...'
+                }) + '\n'
+
+                from utils.playlist_cover import generate_and_save_cover
+                cover_path = generate_and_save_cover(
+                    created_playlist_id, songs, music_path)
+
                 yield json.dumps({
                     'type': 'result',
                     'data': {
                         'success': True,
                         'playlist_name': playlist_name,
                         'playlist_id': created_playlist_id,
-                        'song_count': added_count
+                        'song_count': added_count,
+                        'cover_path': cover_path
                     }
                 }) + '\n'
             else:
@@ -1195,6 +1207,7 @@ def spotify_playlist_import():
 
             added_count = 0
             failed_count = 0
+            cover_songs = []
 
             for i, track in enumerate(tracks):
                 title = track['title']
@@ -1259,6 +1272,7 @@ def spotify_playlist_import():
                     if song_id:
                         PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)
                         added_count += 1
+                        cover_songs.append({'cover_path': song_result.get('cover_path')})
                     else:
                         failed_count += 1
 
@@ -1272,6 +1286,16 @@ def spotify_playlist_import():
                 'message': 'Finalizing playlist...'
             }) + '\n'
 
+            # Default behaviour: end the download with a generated mosaic cover.
+            yield json.dumps({
+                'type': 'progress', 'percent': 99,
+                'message': 'Generating playlist cover...'
+            }) + '\n'
+
+            from utils.playlist_cover import generate_and_save_cover
+            cover_path = generate_and_save_cover(
+                created_playlist_id, cover_songs, music_path)
+
             yield json.dumps({
                 'type': 'result',
                 'data': {
@@ -1280,6 +1304,7 @@ def spotify_playlist_import():
                     'playlist_id': created_playlist_id,
                     'song_count': added_count,
                     'failed_count': failed_count,
+                    'cover_path': cover_path,
                 }
             }) + '\n'
 
