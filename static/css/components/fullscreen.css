@@ -226,8 +226,20 @@
 }
 
 /* Positioning based on standard vs modern mode */
+/* Standard mode keeps the Up Next queue on the left, so the light-show
+   toggle must live on the right next to the close button — the old
+   left:30px parked it exactly on top of the Up Next tabs. Mirrors the
+   modern-mode placement (right:80px), where the volume button occupies
+   right:130px and is hidden in standard anyway. */
 #fullscreen-player.mode-standard #fs-lightshow-btn {
-    left: 30px;
+    right: 80px;
+    left: auto;
+}
+
+/* Swapped standard (queue moved to the right): mirror the toggle to
+   the left, same as swapped modern. */
+#fullscreen-player.layout-swapped.mode-standard #fs-lightshow-btn {
+    left: 80px;
     right: auto;
 }
 
@@ -1052,7 +1064,12 @@
     }
     
     #fullscreen-player.mode-standard #fs-lightshow-btn {
-        left: 10px;
+        right: 50px;
+        left: auto;
+    }
+    
+    #fullscreen-player.layout-swapped.mode-standard #fs-lightshow-btn {
+        left: 50px;
         right: auto;
     }
     
