@@ -712,6 +712,14 @@
     flex: 1;
 }
 
+@media (max-width: 600px) {
+    /* Full-width stacked scan buttons: side-by-side at ~150px each makes
+       "Full Rescan" wrap to two lines on phones. */
+    .settings-scan-actions {
+        flex-direction: column;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .settings-sidebar {
@@ -968,6 +976,37 @@
 
     .settings-row-control {
         margin-left: 0;
+    }
+
+    /* Accent-color row: the picker (input + hex + 5 swatches) is ~306px,
+       wider than the card body on phones, so it spills past the card
+       edge and squeezes the label/hint into one-word lines. Stack it. */
+    .settings-row:has(.settings-color-picker) {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-row:has(.settings-color-picker) .settings-row-control {
+        width: 100%;
+    }
+
+    .settings-color-picker {
+        flex-wrap: wrap;
+    }
+
+    .settings-color-presets {
+        flex-wrap: wrap;
+    }
+
+    /* Reset Theme row: its control is a bare button (no .settings-actions
+       wrapper, so the rule above doesn't catch it). */
+    .settings-row:has(.settings-row-control .btn) {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-row:has(.settings-row-control .btn) .settings-row-control .btn {
+        align-self: flex-start;
     }
 }
 

@@ -127,10 +127,15 @@
     box-shadow: var(--shadow-sm);
 }
 
-/* Settings should feel like the same app, not a separate product. */
-.settings-sidebar {
-    width: var(--sidebar-width);
-    min-width: var(--sidebar-width);
+/* Settings should feel like the same app, not a separate product.
+   Desktop sidebar only — settings-page.css owns the responsive
+   breakpoints, and restating width/min-width here unconditionally
+   would override them (this sheet loads last). */
+@media (min-width: 769px) {
+    .settings-sidebar {
+        width: var(--sidebar-width);
+        min-width: var(--sidebar-width);
+    }
 }
 
 .settings-nav-item {
