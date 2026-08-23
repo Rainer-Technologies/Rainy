@@ -675,13 +675,6 @@ export class RainyApp {
             this.switchToArtistsView();
         });
 
-        // Achievements click
-        document.getElementById('nav-achievements')?.addEventListener('click', (e) => {
-            if (!this.shouldHandleInternalClick(e)) return;
-            e.preventDefault();
-            this.switchToAchievementsView();
-        });
-
         // Global song artist link click delegation
         document.addEventListener('click', (e) => {
             const artistLink = e.target.closest('.song-artist-link');
@@ -746,7 +739,7 @@ export class RainyApp {
         const route = segments[0].toLowerCase();
         const query = new URLSearchParams(window.location.search);
         const needsNewViews = ['albums', 'recent', 'recently-played', 'smart-mix', 'smartmix'].includes(route);
-        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover', 'achievements'].includes(route)) {
+        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover'].includes(route)) {
             this.setMoreNavigationOpen(true);
         }
         if (needsNewViews && !window.newViews) {
@@ -788,8 +781,6 @@ export class RainyApp {
                 return window.newViews.switchToSmartMix({ updateUrl: false });
             case 'discover':
                 return this.switchToDiscoverView(query.get('q'), { updateUrl: false });
-            case 'achievements':
-                return this.switchToAchievementsView({ updateUrl: false });
             case 'playlist':
             case 'playlists': {
                 const playlistId = Number(segments[1]);
@@ -3845,12 +3836,17 @@ export class RainyApp {
         const shieldPath = 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z';
         const keyPath = 'M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z';
         const trashPath = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
+        const libraryPath = 'M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z';
 
         list.innerHTML = users.map(user => {
             const initial = Utils.escapeHtml((user.username || '?').charAt(0).toUpperCase());
             const isAdmin = user.role === 'sysadmin';
             const isSelf = user.id === currentUserId;
             const roleTitle = isAdmin ? 'Make user' : 'Make administrator';
+            const hasFullLibrary = !!user.full_library;
+            const fullLibraryTitle = hasFullLibrary
+                ? 'Full library access: ON — click to revoke'
+                : 'Full library access: OFF — click to grant';
 
             return `
                 <div class="user-list-item" data-id="${user.id}">
@@ -3860,10 +3856,14 @@ export class RainyApp {
                             <span class="user-list-name-text">${Utils.escapeHtml(user.username)}</span>
                             ${isSelf ? '<span class="user-role-badge you">You</span>' : ''}
                             <span class="user-role-badge ${isAdmin ? 'admin' : ''}">${isAdmin ? 'Admin' : 'User'}</span>
+                            ${hasFullLibrary ? '<span class="user-role-badge full-library">Full library</span>' : ''}
                         </div>
                         <div class="user-list-email" title="${Utils.escapeHtml(user.email)}">${Utils.escapeHtml(user.email)}</div>
                     </div>
                     <div class="user-list-actions">
+                        <button class="icon-btn-small user-full-library-toggle ${hasFullLibrary ? 'active-full-library' : ''}" data-id="${user.id}" data-full="${hasFullLibrary ? '1' : '0'}" title="${fullLibraryTitle}" aria-label="${fullLibraryTitle}">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${libraryPath}"/></svg>
+                        </button>
                         <button class="icon-btn-small user-role-toggle ${isAdmin ? 'active-admin' : ''}" data-id="${user.id}" data-role="${user.role}" title="${roleTitle}" aria-label="${roleTitle}">
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="${shieldPath}"/></svg>
                         </button>
@@ -3880,6 +3880,10 @@ export class RainyApp {
 
         list.querySelectorAll('.user-role-toggle').forEach(btn => {
             btn.addEventListener('click', () => this.handleToggleUserRole(btn.dataset.id, btn.dataset.role));
+        });
+
+        list.querySelectorAll('.user-full-library-toggle').forEach(btn => {
+            btn.addEventListener('click', () => this.handleToggleFullLibrary(btn.dataset.id, btn.dataset.full === '1'));
         });
 
         list.querySelectorAll('.user-reset-password').forEach(btn => {
@@ -3917,8 +3921,9 @@ export class RainyApp {
         const email = document.getElementById('new-user-email').value.trim();
         const password = document.getElementById('new-user-password').value;
         const role = document.getElementById('new-user-role').value;
+        const fullLibrary = !!document.getElementById('new-user-full-library')?.checked;
 
-        const data = await useUsersService().create(username, email, password, role);
+        const data = await useUsersService().create(username, email, password, role, fullLibrary);
         if (data.error) {
             this.showToast(data.error.error || 'Failed to create user', 'error');
             return;
@@ -3927,6 +3932,21 @@ export class RainyApp {
         this.showToast(`User "${username}" created`, 'success');
         document.getElementById('create-user-form').reset();
         this.setCreateUserFormOpen(false);
+        await this.loadUsers();
+    }
+
+    async handleToggleFullLibrary(userId, currentFlag) {
+        const newFlag = !currentFlag;
+
+        const data = await useUsersService().updateFullLibrary(userId, newFlag);
+        if (data.error) {
+            this.showToast(data.error.error || 'Failed to update full library access', 'error');
+            return;
+        }
+
+        this.showToast(newFlag
+            ? 'Full library access granted'
+            : 'Full library access revoked', 'success');
         await this.loadUsers();
     }
 
@@ -4036,53 +4056,6 @@ export class RainyApp {
 
         // Index and render artists
         this.renderArtistsView(targetArtistName);
-    }
-
-    switchToAchievementsView({ updateUrl = true } = {}) {
-        if (updateUrl) {
-            return this.navigateTo('/achievements');
-        }
-
-        // Pause discover audio preview if it exists
-        const previewAudio = document.getElementById('discover-preview-audio');
-        if (previewAudio) {
-            previewAudio.pause();
-            previewAudio.src = '';
-            document.getElementById('discover-preview-bar')?.classList.add('hidden');
-        }
-
-        useContext().set('current-view-type', 'achievements');
-        this.currentPlaylistId = null;
-
-        // Hide new-feature views so they don't linger
-        window.newViews?.hideNewViews();
-
-        // Update Sidebar UI
-        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('nav-achievements')?.classList.add('active');
-        this.renderSidebarPlaylists();
-
-        // Update Header
-        document.querySelector('.section-title').textContent = 'Achievements';
-        document.getElementById('library-subtitle').textContent = 'Your listening milestones and trophies';
-
-        // Hide library chrome
-        document.getElementById('playlist-menu-container').classList.add('hidden');
-        document.getElementById('library-stats').classList.add('hidden');
-        document.querySelector('.view-toggle')?.classList.add('hidden');
-        document.getElementById('songs-grid').classList.add('hidden');
-        document.getElementById('songs-list').classList.add('hidden');
-        document.getElementById('empty-state').classList.add('hidden');
-        document.getElementById('loading-state').classList.add('hidden');
-        document.getElementById('discover-view').classList.add('hidden');
-        document.getElementById('artists-view')?.classList.add('hidden');
-
-        // Show section header
-        document.querySelector('.section-header')?.classList.remove('hidden');
-
-        // Show Achievements view and refresh its data
-        document.getElementById('achievements-view').classList.remove('hidden');
-        document.querySelector('rainy-achievements-view')?.refresh();
     }
 
     renderArtistsView(targetArtistName = null) {

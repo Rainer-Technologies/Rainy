@@ -10,7 +10,6 @@ from routes.playlists import playlists_bp
 from routes.playback import playback_bp
 from routes.albums import albums_bp
 from routes.smartmix import smartmix_bp
-from routes.achievements import achievements_bp
 from routes.connect import connect_bp
 from routes.plugins import plugins_bp
 from routes.server import server_bp
@@ -37,7 +36,6 @@ app.register_blueprint(users_bp, url_prefix='/api/users')
 app.register_blueprint(playback_bp, url_prefix='/api/playback')
 app.register_blueprint(albums_bp, url_prefix='/api/albums')
 app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
-app.register_blueprint(achievements_bp, url_prefix='/api/achievements')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
 app.register_blueprint(plugins_bp, url_prefix='/api/plugins')
 app.register_blueprint(server_bp)
@@ -61,7 +59,7 @@ def serve_static(path):
         frontend_route = path.split('/', 1)[0]
         if frontend_route in {
             'library', 'albums', 'artists', 'recent', 'recently-played',
-            'smart-mix', 'smartmix', 'discover', 'achievements',
+            'smart-mix', 'smartmix', 'discover',
             'playlist', 'playlists', 'settings'
         }:
             return send_from_directory('static', 'index.html')

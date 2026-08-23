@@ -30,7 +30,6 @@
 @import url('./pages/library.css');
 @import url('./pages/discover.css');
 @import url('./pages/artists.css');
-@import url('./pages/achievements.css');
 
 /* Final shared geometry and surface rules for the feature views. */
 @import url('./components/ui-consistency.css');
