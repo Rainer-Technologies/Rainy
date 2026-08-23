@@ -143,6 +143,53 @@ export class PlaylistService extends Service {
         if (data.error) return data;
         return Ok(true);
     }
+
+    // ── Sharing ────────────────────────────────────────────────────
+
+    /**
+     * Everyone with a share on this playlist (owner only)
+     * @param {number} playlistId
+     * @returns {Promise<Result<{shares: Array<{id: number, user_id: number, username: string, role: string, status: string}>}, ErrorModel>>}
+     */
+    shares(playlistId) {
+        return this.wrap(RequestHelper.request(this.url(`/${playlistId}/shares`)));
+    }
+
+    /**
+     * Invite a friend to collaborate (owner only)
+     * @param {number} playlistId
+     * @param {number} friendUserId
+     * @returns {Promise<Result<{success: boolean, message: string}, ErrorModel>>}
+     */
+    inviteFriend(playlistId, friendUserId) {
+        return this.wrap(RequestHelper.request(this.url(`/${playlistId}/shares`), {
+            method: 'POST',
+            body: { user_id: friendUserId }
+        }));
+    }
+
+    /**
+     * Revoke a collaborator's access (owner only)
+     * @param {number} playlistId
+     * @param {number} shareId
+     * @returns {Promise<Result<{success: boolean}, ErrorModel>>}
+     */
+    revokeShare(playlistId, shareId) {
+        return this.wrap(RequestHelper.request(this.url(`/${playlistId}/shares/${shareId}`), {
+            method: 'DELETE'
+        }));
+    }
+
+    /**
+     * Collaborator removes the shared playlist from their account
+     * @param {number} playlistId
+     * @returns {Promise<Result<{success: boolean}, ErrorModel>>}
+     */
+    leavePlaylist(playlistId) {
+        return this.wrap(RequestHelper.request(this.url(`/${playlistId}/leave`), {
+            method: 'POST'
+        }));
+    }
 };
 
 const __singleton = new PlaylistService();

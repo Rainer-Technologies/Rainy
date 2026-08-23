@@ -508,6 +508,20 @@ export class RainyApp {
             this.deleteCurrentPlaylist();
         });
 
+        // Invite a friend to collaborate on this playlist (owner only)
+        document.getElementById('action-share-playlist')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            const title = document.querySelector('.section-title')?.textContent || '';
+            window.friendsModule?.openInviteModal(this.currentPlaylistId, title);
+        });
+
+        // Leave a shared playlist (collaborators)
+        document.getElementById('action-leave-playlist')?.addEventListener('click', () => {
+            document.getElementById('playlist-settings-dropdown').classList.add('hidden');
+            const title = document.querySelector('.section-title')?.textContent || '';
+            window.friendsModule?.leavePlaylist(this.currentPlaylistId, title);
+        });
+
         // Edit Playlist Icon action
         document.getElementById('action-edit-playlist-icon')?.addEventListener('click', () => {
             document.getElementById('playlist-settings-dropdown').classList.add('hidden');
@@ -601,6 +615,12 @@ export class RainyApp {
             if (!this.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToLibraryView();
+        });
+
+        document.getElementById('nav-friends')?.addEventListener('click', (e) => {
+            if (!this.shouldHandleInternalClick(e)) return;
+            e.preventDefault();
+            this.openFriendsView();
         });
 
         // Sidebar Toggle
@@ -778,6 +798,8 @@ export class RainyApp {
                 return;
             case 'artists':
                 return this.switchToArtistsView(segments[1] || null, { updateUrl: false });
+            case 'friends':
+                return this.openFriendsView({ updateUrl: false });
             case 'recent':
             case 'recently-played':
                 return window.newViews.switchToRecent({ updateUrl: false });
@@ -2208,6 +2230,7 @@ export class RainyApp {
         // Hide other views and reset
         document.getElementById('discover-view')?.classList.add('hidden');
         document.getElementById('artists-view')?.classList.add('hidden');
+        document.getElementById('friends-view')?.classList.add('hidden');
         window.newViews?.hideNewViews();
         document.querySelector('.view-toggle')?.classList.remove('hidden');
         
@@ -2243,6 +2266,63 @@ export class RainyApp {
         } else {
             container?.classList.remove('hidden');
         }
+
+        // Sharing actions depend on the viewer's role:
+        // owner → invite/revoke friends; editor → leave; others → nothing.
+        const role = playlist.role || null;
+        document.getElementById('action-share-playlist')?.classList.toggle('hidden', role !== 'owner');
+        document.getElementById('action-leave-playlist')?.classList.toggle('hidden', role !== 'editor');
+        if (isLiked) {
+            document.getElementById('action-share-playlist')?.classList.add('hidden');
+            document.getElementById('action-leave-playlist')?.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Friends view — the social layer (friend requests, playlist invites).
+     */
+    openFriendsView({ updateUrl = true } = {}) {
+        if (updateUrl) {
+            return this.navigateTo('/friends');
+        }
+
+        if (useContext().get('current-view-type') === 'friends') {
+            // Re-entry: still refresh data so invites/requests stay current.
+            window.friendsModule?.refresh();
+            return;
+        }
+
+        useContext().set('current-view-type', 'friends');
+        this.currentPlaylistId = null;
+
+        // Hide other views and reset (order matters: hideNewViews also
+        // hides friends-view, so it must run BEFORE we show ours)
+        window.newViews?.hideNewViews();
+        document.getElementById('discover-view')?.classList.add('hidden');
+        document.getElementById('artists-view')?.classList.add('hidden');
+        document.getElementById('friends-view')?.classList.remove('hidden');
+        document.querySelector('.view-toggle')?.classList.add('hidden');
+
+        // Hide playback chrome / list states
+        document.getElementById('songs-grid')?.classList.add('hidden');
+        document.getElementById('songs-list')?.classList.add('hidden');
+        document.getElementById('empty-state')?.classList.add('hidden');
+        document.getElementById('loading-state')?.classList.add('hidden');
+
+        // Show section header
+        document.querySelector('.section-header')?.classList.remove('hidden');
+        document.querySelector('.section-title').textContent = 'Friends';
+        document.getElementById('library-subtitle').textContent = 'Collaborate on playlists together';
+        document.getElementById('library-stats').classList.add('hidden');
+        document.getElementById('playlist-menu-container').classList.add('hidden');
+
+        // Update Sidebar UI
+        document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-friends')?.classList.add('active');
+        this.renderSidebarPlaylists();
+
+        // Refresh the data behind the view
+        window.friendsModule?.refresh();
     }
 
     switchToLibraryView({ updateUrl = true } = {}) {
@@ -2258,6 +2338,7 @@ export class RainyApp {
         // Hide other views and reset
         document.getElementById('discover-view')?.classList.add('hidden');
         document.getElementById('artists-view')?.classList.add('hidden');
+        document.getElementById('friends-view')?.classList.add('hidden');
         window.newViews?.hideNewViews();
         document.querySelector('.view-toggle')?.classList.remove('hidden');
         
@@ -2313,6 +2394,7 @@ export class RainyApp {
 
         // Hide new-feature views so they don't linger
         window.newViews?.hideNewViews();
+        document.getElementById('friends-view')?.classList.add('hidden');
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
@@ -4034,6 +4116,7 @@ export class RainyApp {
 
         // Hide new-feature views so they don't linger
         window.newViews?.hideNewViews();
+        document.getElementById('friends-view')?.classList.add('hidden');
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));

@@ -236,6 +236,49 @@ class Database:
                 FOREIGN KEY (track_id) REFERENCES songs(id) ON DELETE CASCADE
             )
         """)
+
+        # ── Friendships ──────────────────────────────────────────────
+        # Social graph between accounts. One row per (requester, target)
+        # direction; status moves pending -> accepted. The reverse
+        # direction can hold its own pending row (user B invited A while
+        # A's invite to B was still open).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS friendships (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                friend_id INT NOT NULL,
+                status ENUM('pending', 'accepted') NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                responded_at TIMESTAMP NULL,
+                UNIQUE KEY uq_friendship_dir (user_id, friend_id),
+                INDEX idx_friend_status (friend_id, status),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # ── Playlist sharing ─────────────────────────────────────────
+        # A playlist can be shared with friends. role is the collaborator
+        # tier ('editor' today; 'viewer' etc. can be added later without
+        # schema changes). status pending -> accepted: the invitee must
+        # accept before the playlist appears in their account.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS playlist_shares (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                playlist_id INT NOT NULL,
+                user_id INT NOT NULL,
+                invited_by INT NOT NULL,
+                role ENUM('editor') NOT NULL DEFAULT 'editor',
+                status ENUM('pending', 'accepted') NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                responded_at TIMESTAMP NULL,
+                UNIQUE KEY uq_share_playlist_user (playlist_id, user_id),
+                INDEX idx_user_status (user_id, status),
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
         
         # Scan history table - tracks scan operations
         cursor.execute("""

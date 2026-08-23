@@ -13,20 +13,29 @@ class PlaylistModel:
     
     @staticmethod
     def get_all_playlists_for_user(user_id):
-        """Get playlists visible to a user: public or owned by user.
+        """Get playlists visible to a user: public, owned, or shared with
+        them (accepted shares). Marks shared ones and their role so the UI
+        can group them, and includes the owner's username.
 
-        Includes a song_count so clients can show the number of tracks without
-        fetching every playlist's full song list.
+        Includes a song_count so clients can show the number of tracks
+        without fetching every playlist's full song list.
         """
         query = """
             SELECT p.*,
                    (SELECT COUNT(*) FROM playlist_entries pe
-                    WHERE pe.playlist_id = p.id) AS song_count
+                    WHERE pe.playlist_id = p.id) AS song_count,
+                   CASE WHEN ps.user_id IS NOT NULL THEN 1 ELSE 0 END AS shared,
+                   ps.role AS share_role,
+                   owner.username AS owner_username
             FROM playlists p
+            LEFT JOIN playlist_shares ps
+                   ON ps.playlist_id = p.id AND ps.user_id = %s AND ps.status = 'accepted'
+            LEFT JOIN users owner ON owner.id = p.owner_user_id
             WHERE p.owner_user_id IS NULL OR p.owner_user_id = %s
+               OR ps.user_id IS NOT NULL
             ORDER BY p.name
         """
-        return Database.execute_query(query, (user_id,), fetch_all=True)
+        return Database.execute_query(query, (user_id, user_id), fetch_all=True)
     
     @staticmethod
     def get_playlist_by_id(playlist_id):

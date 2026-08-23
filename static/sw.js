@@ -1,7 +1,7 @@
 /**
  * Rainy Service Worker — PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v6';
+const CACHE_NAME = 'rainy-v7';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
@@ -21,12 +21,14 @@ const SHELL_ASSETS = [
   '/js/services/rating.js',
   '/js/services/playback.js',
   '/js/services/album.js',
+  '/js/services/friends.js',
   '/js/modules/utils.js',
   '/js/modules/bpmShuffle.js',
   '/js/modules/keyboardShortcuts.js',
   '/js/modules/sleepTimer.js',
   '/js/modules/globalSearch.js',
-  '/js/modules/mediaSession.js'
+  '/js/modules/mediaSession.js',
+  '/js/modules/friends.js'
 ];
 
 // Install: cache the app shell

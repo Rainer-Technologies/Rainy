@@ -23,6 +23,7 @@
 @import url('./components/new-features.css');
 @import url('./components/connect.css');
 @import url('./components/radio-dj.css');
+@import url('./components/friends.css');
 
 /* Pages */
 @import url('./pages/setup.css');

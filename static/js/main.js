@@ -9,6 +9,7 @@ import { Utils } from './modules/utils.js';
 import { AudioPlayer } from './player.js';
 import { initLogin, initSetup } from './setup.js';
 import { useRatingService } from './services/rating.js';
+import { useFriendsModule } from './modules/friends.js';
 import { KeyboardShortcuts } from './modules/keyboardShortcuts.js';
 import { GlobalSearch } from './modules/globalSearch.js';
 import { ShortcutOverlay } from './modules/shortcutOverlay.js';
@@ -46,6 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize new views (Albums, Recently Played, Smart Mix)
     window.newViews = new NewViews(window.app, window.player);
+
+    // Initialize the friends module (social layer)
+    window.friendsModule = useFriendsModule(window.app);
+
     window.app?.startRouting?.();
 
     // Register service worker for PWA support

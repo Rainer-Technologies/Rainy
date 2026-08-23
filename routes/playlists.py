@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, session
 from models.playlist import PlaylistModel
+from models.playlist_share import PlaylistShareModel
 from routes.auth import require_auth, require_sysadmin
 
 playlists_bp = Blueprint('playlists', __name__)
@@ -15,6 +16,9 @@ def get_playlists():
     for p in (playlists or []):
         p = dict(p)
         p.setdefault('cover_path', None)
+        p['shared'] = bool(p.get('shared'))
+        p['owner_username'] = p.get('owner_username')
+        p.setdefault('share_role', None)
         result.append(p)
     return jsonify(result)
 
@@ -54,8 +58,9 @@ def get_playlist(playlist_id):
     if not playlist:
         return jsonify({'error': 'Playlist not found'}), 404
     
-    # Ownership check: if private, only owner can access
-    if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+    # View check: owner, accepted collaborator, or legacy public playlist.
+    if playlist.get('owner_user_id') is not None and \
+            not PlaylistShareModel.can_view(session.get('user_id'), playlist_id):
         return jsonify({'error': 'Forbidden'}), 403
         
     raw_songs = PlaylistModel.get_playlist_songs(playlist_id)
@@ -90,6 +95,8 @@ def get_playlist(playlist_id):
         'icon_color': playlist.get('icon_color', '#fa586a'),
         'cover_path': playlist.get('cover_path'),
         'created_at': playlist['created_at'],
+        'owner_user_id': playlist.get('owner_user_id'),
+        'role': PlaylistShareModel.user_role(session.get('user_id'), playlist_id),
         'songs': songs
     })
 
@@ -132,7 +139,8 @@ def update_playlist(playlist_id):
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
         # Ownership check: only owner can modify private playlist
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_edit(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
         
         # Update name if provided
@@ -164,7 +172,8 @@ def add_song(playlist_id):
         playlist = PlaylistModel.get_playlist_by_id(playlist_id)
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_edit(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
         # Per-account isolation: you can only add songs you can hear.
         from models.library_access import LibraryAccessModel
@@ -186,7 +195,8 @@ def remove_song(playlist_id, song_id):
         playlist = PlaylistModel.get_playlist_by_id(playlist_id)
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_edit(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
         PlaylistModel.remove_song_from_playlist(playlist_id, song_id)
         return jsonify({'success': True})
@@ -208,7 +218,8 @@ def generate_cover(playlist_id):
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
         # Ownership check
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_edit(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
 
         songs = PlaylistModel.get_playlist_songs(playlist_id)
@@ -255,7 +266,8 @@ def reorder_playlist(playlist_id):
         playlist = PlaylistModel.get_playlist_by_id(playlist_id)
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_edit(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
 
         data = request.get_json() or {}
@@ -278,8 +290,9 @@ def download_playlist(playlist_id):
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
         
-        # Ownership check: if private, only owner can access
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        # Read check: owner, accepted collaborator, or legacy public.
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_view(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
             
         songs = PlaylistModel.get_playlist_songs(playlist_id)
@@ -341,8 +354,9 @@ def export_playlist(playlist_id):
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
 
-        # Ownership check
-        if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+        # Read check: owner, accepted collaborator, or legacy public.
+        if playlist.get('owner_user_id') is not None and \
+                not PlaylistShareModel.can_view(session.get('user_id'), playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
 
         songs = PlaylistModel.get_playlist_songs(playlist_id)
@@ -418,4 +432,163 @@ def export_playlist(playlist_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Playlist sharing ─────────────────────────────────────────────────
+
+
+def _require_owner(playlist_id):
+    """Return (playlist, error_response). The caller must be the owner."""
+    playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+    if not playlist:
+        return None, (jsonify({'error': 'Playlist not found'}), 404)
+    if playlist.get('owner_user_id') is None:
+        return None, (jsonify({'error': 'This legacy playlist has no owner to share it'}), 400)
+    if playlist.get('owner_user_id') != session.get('user_id'):
+        return None, (jsonify({'error': 'Forbidden'}), 403)
+    return playlist, None
+
+
+@playlists_bp.route('/invites', methods=['GET'])
+@require_auth
+def my_playlist_invites():
+    """Playlist invites awaiting the current user's response."""
+    try:
+        return jsonify({'invites': PlaylistShareModel.pending_for(session['user_id'])})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/invites/<int:share_id>/accept', methods=['POST'])
+@require_auth
+def accept_playlist_invite(share_id):
+    """Accept a playlist invite: the playlist appears in your account and
+    you can edit it (role 'editor')."""
+    try:
+        share = PlaylistShareModel.find_share(share_id)
+        if not share or share['user_id'] != session.get('user_id'):
+            return jsonify({'error': 'Invite not found'}), 404
+        if share['status'] == 'accepted':
+            return jsonify({'success': True, 'message': 'Already accepted'})
+        PlaylistShareModel.accept(share_id)
+        return jsonify({'success': True, 'message': 'Playlist added to your library'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/invites/<int:share_id>/decline', methods=['POST'])
+@require_auth
+def decline_playlist_invite(share_id):
+    """Decline a playlist invite."""
+    try:
+        share = PlaylistShareModel.find_share(share_id)
+        if not share or share['user_id'] != session.get('user_id'):
+            return jsonify({'error': 'Invite not found'}), 404
+        PlaylistShareModel.decline(share_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/shares', methods=['GET'])
+@require_auth
+def list_shares(playlist_id):
+    """Everyone with a share on this playlist (pending + accepted)."""
+    try:
+        playlist, err = _require_owner(playlist_id)
+        if err:
+            return err
+        return jsonify({'shares': PlaylistShareModel.by_playlist(playlist_id)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/shares', methods=['POST'])
+@require_auth
+def invite_to_playlist(playlist_id):
+    """Invite a FRIEND to collaborate on this playlist (owner only)."""
+    try:
+        playlist, err = _require_owner(playlist_id)
+        if err:
+            return err
+
+        data = request.get_json() or {}
+        friend_id = data.get('user_id')
+        if not friend_id:
+            return jsonify({'error': 'user_id is required'}), 400
+
+        from models.friendship import FriendshipModel
+        if not FriendshipModel.are_friends(session['user_id'], friend_id):
+            return jsonify({'error': 'You can only invite friends to a playlist'}), 403
+
+        status, row = PlaylistShareModel.invite(playlist_id, friend_id, session['user_id'])
+        if row is None:
+            return jsonify({'error': 'That friend already has access to this playlist'}), 409
+
+        from models.user import UserModel
+        friend = UserModel.get_user_by_id(friend_id)
+        if not friend:
+            return jsonify({'error': 'User not found'}), 404
+
+        if status == 'already_pending':
+            return jsonify({'success': True, 'message': f'Invite to {friend["username"]} is already pending'})
+        return jsonify({'success': True, 'message': f'Invited {friend["username"]} to the playlist'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/shares/<int:share_id>', methods=['DELETE'])
+@require_auth
+def revoke_share(playlist_id, share_id):
+    """Owner revokes a collaborator's access (pending or accepted)."""
+    try:
+        playlist, err = _require_owner(playlist_id)
+        if err:
+            return err
+        share = PlaylistShareModel.find_share(share_id)
+        if not share or share['playlist_id'] != playlist_id:
+            return jsonify({'error': 'Share not found'}), 404
+        if share['user_id'] == session['user_id']:
+            return jsonify({'error': 'The owner cannot revoke their own access'}), 400
+        PlaylistShareModel.revoke(playlist_id, share['user_id'])
+        return jsonify({'success': True, 'message': 'Access revoked'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/shares/<int:share_id>/leave', methods=['POST'])
+@require_auth
+def leave_playlist(share_id):
+    """A collaborator removes the shared playlist from their account.
+    The playlist itself (and the owner's other shares) is untouched."""
+    try:
+        share = PlaylistShareModel.find_share(share_id)
+        if not share or share['user_id'] != session.get('user_id'):
+            return jsonify({'error': 'Share not found'}), 404
+        if share['status'] != 'accepted':
+            return jsonify({'error': 'Invite is not accepted yet'}), 400
+        PlaylistShareModel.leave(share_id, session['user_id'])
+        return jsonify({'success': True, 'message': 'Playlist removed from your library'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/leave', methods=['POST'])
+@require_auth
+def leave_playlist_by_id(playlist_id):
+    """"Leave" from the UI: removes YOUR accepted share of this playlist
+    (no share id needed). Owner cannot leave their own playlist."""
+    try:
+        user_id = session['user_id']
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if playlist.get('owner_user_id') == user_id:
+            return jsonify({'error': 'You own this playlist'}), 400
+        share_id = PlaylistShareModel.leave_playlist(playlist_id, user_id)
+        if share_id is None:
+            return jsonify({'error': 'This playlist is not shared with you'}), 404
+        return jsonify({'success': True, 'message': 'Playlist removed from your library'})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500

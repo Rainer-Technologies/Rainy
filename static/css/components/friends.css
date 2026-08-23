@@ -1,0 +1,198 @@
+/* ============================================
+   Friends & Playlist Sharing UI
+   ============================================ */
+
+/* Sidebar badge for pending requests/invites */
+.nav-badge {
+    margin-left: auto;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: var(--error, #ff453a);
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+
+.nav-badge.hidden {
+    display: none;
+}
+
+/* Sidebar "Shared with you" section */
+.sidebar-playlists-divider {
+    margin: 10px 12px 2px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary, #6e6e6e);
+}
+
+.nav-shared-badge {
+    margin-left: auto;
+    width: 13px;
+    height: 13px;
+    flex: none;
+    color: var(--text-tertiary, #6e6e6e);
+}
+
+.nav-shared-item .nav-shared-badge {
+    display: inline-block;
+}
+
+/* Nav item with badge should keep its row layout */
+.nav-item#nav-friends {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ── Friends view ───────────────────────────── */
+
+.friends-view {
+    padding: 16px 20px 40px;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.friends-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    padding-bottom: 10px;
+}
+
+.friends-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #a1a1a1);
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.friends-tab:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+    color: var(--text-primary, #fff);
+}
+
+.friends-tab.active {
+    color: var(--accent-primary, #3d7dc4);
+    background: var(--surface-accent, rgba(61, 125, 196, 0.08));
+}
+
+.friends-subheader {
+    margin: 18px 0 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary, #6e6e6e);
+}
+
+.friends-add-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.friends-add-form .form-input {
+    flex: 1;
+}
+
+.friends-empty {
+    padding: 18px 14px;
+    border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 10px;
+    color: var(--text-tertiary, #6e6e6e);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+/* Friend rows (lists + invite modal) */
+.friend-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-raised, #1a1a1a);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+    margin-bottom: 8px;
+}
+
+.friend-avatar {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--accent-gradient, linear-gradient(135deg, #5b9be0, #2b497c));
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.friend-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.friend-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.friend-email {
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #6e6e6e);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.friend-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+}
+
+.friend-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(52, 199, 89, 0.15);
+    color: var(--success, #34c759);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.friend-chip-warn {
+    background: rgba(255, 149, 0, 0.12);
+    color: var(--warning, #ff9500);
+}
+
+/* Share modal lists are compact */
+.friend-share-list {
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.playlist-share-modal-content {
+    max-width: 520px;
+}
