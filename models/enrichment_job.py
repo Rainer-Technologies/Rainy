@@ -36,11 +36,14 @@ class EnrichmentJobModel:
         )
 
     @staticmethod
-    def enqueue_backfill(force=False):
+    def enqueue_backfill(force=False, song_ids=None):
         """Queue a library-wide backfill job. Returns the job id.
 
         When ``force`` is False the worker only analyses songs that haven't
         been enriched yet; when True it re-analyses the whole library.
+        ``song_ids`` optionally scopes the job to a specific song list (per-
+        user 'my library' backfills); the list is stashed in the job's
+        ``result`` column as JSON and honoured by the worker.
 
         Idempotent: returns the existing queued/running backfill if any.
         """
@@ -54,12 +57,14 @@ class EnrichmentJobModel:
         )
         if existing:
             return existing['id']
+        import json as _json
+        payload = _json.dumps(song_ids) if song_ids else None
         return Database.execute_query(
             """
-            INSERT INTO enrichment_jobs (scope, status, force_full)
-            VALUES ('backfill', 'queued', %s)
+            INSERT INTO enrichment_jobs (scope, status, force_full, result)
+            VALUES ('backfill', 'queued', %s, %s)
             """,
-            (1 if force else 0,),
+            (1 if force else 0, payload),
         )
 
     @staticmethod

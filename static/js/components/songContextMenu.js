@@ -321,14 +321,12 @@ export class SongContextMenu extends Component {
      * @param {import('./contextMenu.js').Position?} pos 
      */
     show(pos) {
-        // "Remove Song" is sysadmin-only — hide it for regular users
+        // "Remove Song" is available to every user — it removes the song
+        // from THEIR library (system rows stay if other accounts share it).
         if (this._removeSongItem.value) {
-            /** @type {import('../app.js').RainyApp} */
-            const app = useContext().get('app');
-            const isAdmin = app?.user?.role === 'sysadmin';
-            this._removeSongItem.value.style.display = isAdmin ? 'block' : 'none';
+            this._removeSongItem.value.style.display = 'block';
         }
-        // "Publish to Everyone" is sysadmin-only too.
+        // "Publish to Everyone" is sysadmin-only.
         if (this._publishSongItem.value) {
             /** @type {import('../app.js').RainyApp} */
             const app = useContext().get('app');

@@ -59,6 +59,24 @@ class LibraryAccessModel:
         return Database.execute_query(query, (user_id, song_id))
 
     @staticmethod
+    def song_is_scan_shared(song_id):
+        """True when the song has ANY scan-origin access row (i.e. it lives in
+        the shared music folder and is part of the communal/admin library)."""
+        row = Database.execute_query(
+            "SELECT 1 FROM library_access WHERE song_id = %s AND origin = 'scan' "
+            "LIMIT 1", (song_id,), fetch_one=True)
+        return row is not None
+
+    @staticmethod
+    def access_count_excluding(user_id, song_id):
+        """How many OTHER accounts currently have access to the song."""
+        row = Database.execute_query(
+            "SELECT COUNT(*) AS c FROM library_access "
+            "WHERE song_id = %s AND user_id <> %s", (song_id, user_id),
+            fetch_one=True)
+        return row['c'] if row else 0
+
+    @staticmethod
     def has_access(user_id, song_id):
         if LibraryAccessModel.user_full_library(user_id):
             return True

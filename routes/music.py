@@ -99,9 +99,12 @@ def get_tempo_map():
 
 
 @music_bp.route('/scan', methods=['POST'])
-@require_auth
+@require_sysadmin
 def rescan_library():
-    """Quick rescan - find new files and update modified ones."""
+    """Quick rescan - find new files and update modified ones.
+
+    Sysadmin-only: a scan touches the whole shared music folder and feeds the
+    admin-only scanned library."""
     try:
         # Check if a scan is already running
         if ScanHistoryModel.is_scan_running():
@@ -199,42 +202,73 @@ def get_scan_status():
 
 
 @music_bp.route('/song/<int:song_id>', methods=['DELETE'])
-@require_sysadmin
+@require_auth
 def delete_song(song_id):
-    """Delete a song from the database and disk."""
+    """Remove a song from the requester's library.
+
+    - Admins: full delete (database row + file + cover) as before.
+    - Regular users: the song is REMOVED FROM THEIR LIBRARY only — the file
+      and row stay if it is also in the shared/communal library (any
+      scan-origin access row) or if ANY other account has access to it.
+      Only when this user is the sole owner (their own personal import) is
+      the file+row deleted from the system too.
+    """
     try:
         music_path = SettingsModel.get_music_path()
-        
+
         if not music_path:
             return jsonify({'error': 'Music path not configured'}), 400
-        
+
         # Check if song exists in database
         song = SongModel.get_song_by_id(song_id)
         if not song:
             return jsonify({'error': 'Song not found'}), 404
-        
+
+        user_id = get_current_user_id()
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(user_id, song_id):
+            return jsonify({'error': 'Song not found'}), 404
+
+        from models.user import UserModel
+        user = UserModel.get_user_by_id(user_id)
+        is_admin = bool(user and user['role'] == 'sysadmin')
+
+        if not is_admin:
+            # Regular user: revoke-only unless this song is exclusively theirs
+            # (their own personal import, not in the shared folder).
+            communal = LibraryAccessModel.song_is_scan_shared(song_id)
+            others = LibraryAccessModel.access_count_excluding(user_id, song_id)
+            if communal or others > 0:
+                LibraryAccessModel.revoke(user_id, song_id)
+                return jsonify({
+                    'success': True,
+                    'removed': 'library',
+                    'message': 'Song removed from your library'
+                })
+
         file_path = song['file_path']
         cover_path = song.get('cover_path')
-        
+
         # Delete song file from disk
         full_song_path = os.path.normpath(os.path.join(music_path, file_path))
         if full_song_path.startswith(os.path.normpath(music_path)) and os.path.isfile(full_song_path):
             os.remove(full_song_path)
-        
+
         # Delete cover image if it exists
         if cover_path:
             full_cover_path = os.path.normpath(os.path.join(music_path, cover_path))
             if full_cover_path.startswith(os.path.normpath(music_path)) and os.path.isfile(full_cover_path):
                 os.remove(full_cover_path)
-        
+
         # Delete from database
         SongModel.delete_song_by_id(song_id)
-        
+
         return jsonify({
             'success': True,
+            'removed': 'system' if is_admin else 'library',
             'message': 'Song removed from library and disk'
         })
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1560,6 +1594,12 @@ def enrich_song(song_id):
     if not song:
         return jsonify({'error': 'Song not found'}), 404
 
+    # Per-account scoping: only songs the user can actually see may be
+    # enriched from their account.
+    from models.library_access import LibraryAccessModel
+    if not LibraryAccessModel.has_access(get_current_user_id(), song_id):
+        return jsonify({'error': 'Song not found'}), 404
+
     data = request.get_json(silent=True) or {}
     force = bool(data.get('force'))
 
@@ -1585,7 +1625,18 @@ def backfill_metadata():
     data = request.get_json(silent=True) or {}
     force = bool(data.get('force'))
 
-    job_id = EnrichmentJobModel.enqueue_backfill(force=force)
+    # Per-account scoping: a regular user's backfill covers their own visible
+    # library; only sysadmins can enqueue a whole-library analysis.
+    from models.library_access import LibraryAccessModel
+    from models.user import UserModel
+    user = UserModel.get_user_by_id(get_current_user_id())
+    if user and user['role'] == 'sysadmin':
+        song_ids = None
+    else:
+        song_ids = sorted(
+            LibraryAccessModel.visible_song_ids(get_current_user_id()))
+
+    job_id = EnrichmentJobModel.enqueue_backfill(force=force, song_ids=song_ids)
     enrichment_worker.notify()
 
     job = EnrichmentJobModel.get(job_id)
@@ -2496,6 +2547,15 @@ def job_fetch_lyrics():
             all_songs = Database.execute_query(
                 "SELECT id, title, artist, album, duration FROM songs ORDER BY id",
                 fetch_all=True)
+            # Per-account scoping: batch jobs only touch the requester's own
+            # visible library, never other accounts' songs.
+            from models.library_access import LibraryAccessModel
+            visible = LibraryAccessModel.visible_song_ids(
+                session.get('user_id'))
+            if visible:
+                all_songs = [s for s in all_songs if s['id'] in visible]
+            else:
+                all_songs = []
             have = {r['song_id'] for r in Database.execute_query(
                 "SELECT song_id FROM song_lyrics WHERE found = 1", fetch_all=True)}
 
@@ -2587,6 +2647,15 @@ def job_align_lyrics():
                    JOIN song_lyrics sl ON sl.song_id = s.id AND sl.found = 1
                    ORDER BY s.id""",
                 fetch_all=True)
+            # Per-account scoping: batch jobs only touch the requester's own
+            # visible library, never other accounts' songs.
+            from models.library_access import LibraryAccessModel
+            visible = LibraryAccessModel.visible_song_ids(
+                session.get('user_id'))
+            if visible:
+                rows = [r for r in rows if r['id'] in visible]
+            else:
+                rows = []
             # Only current-format ([start, end] pairs) caches count as done;
             # legacy start-only rows get re-aligned and overwritten below.
             have_words = set()

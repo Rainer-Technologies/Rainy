@@ -94,10 +94,26 @@ def get_playlist(playlist_id):
     })
 
 @playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])
-@require_sysadmin
+@require_auth
 def delete_playlist(playlist_id):
-    """Delete a playlist."""
+    """Delete a playlist — users may delete their OWN playlists; legacy
+    ownerless playlists require a sysadmin."""
     try:
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({'error': 'Playlist not found'}), 404
+
+        owner = playlist.get('owner_user_id')
+        user_id = session.get('user_id')
+        if owner is None:
+            # Legacy shared playlist: only a sysadmin can delete it.
+            from models.user import UserModel
+            user = UserModel.get_user_by_id(user_id)
+            if not user or user['role'] != 'sysadmin':
+                return jsonify({'error': 'Forbidden'}), 403
+        elif owner != user_id:
+            return jsonify({'error': 'Forbidden'}), 403
+
         PlaylistModel.delete_playlist(playlist_id)
         return jsonify({'success': True})
     except Exception as e:

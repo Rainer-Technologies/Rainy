@@ -129,6 +129,18 @@ def _process_backfill_job(job, music_path):
             "SELECT * FROM songs WHERE enriched_at IS NULL ORDER BY id ASC",
             fetch_all=True,
         ) or []
+    # Per-user scoped backfill: the enqueue stashed an explicit song-id list
+    # (JSON) in `result` — honour it so a regular user's 'run for my library'
+    # only touches their own visible songs.
+    import json as _json
+    scope_ids = None
+    if job.get('result'):
+        try:
+            scope_ids = set(_json.loads(job['result']))
+        except Exception:  # noqa: BLE001
+            scope_ids = None
+    if scope_ids is not None:
+        songs = [s for s in songs if s['id'] in scope_ids]
     total = len(songs)
     done = 0
     enriched = 0
