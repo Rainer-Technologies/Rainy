@@ -11,7 +11,7 @@ class Database:
         if cls._pool is None:
             cls._pool = pooling.MySQLConnectionPool(
                 pool_name="rainy_pool",
-                pool_size=20,
+                pool_size=32,
                 host=Config.MYSQL_HOST,
                 port=Config.MYSQL_PORT,
                 user=Config.MYSQL_USER,
