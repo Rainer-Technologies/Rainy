@@ -199,6 +199,11 @@ export class RainyApp {
         });
         document.getElementById('mobile-search-btn')?.addEventListener('click', openGlobalSearch);
 
+        // Keyboard shortcuts cheat sheet (same overlay the ? key toggles)
+        document.getElementById('shortcuts-btn')?.addEventListener('click', () => {
+            window.__shortcutOverlay?.open();
+        });
+
         // Keep the desktop collapse state separate from the mobile drawer.
         window.addEventListener('resize', () => {
             const sidebar = document.querySelector('.app-sidebar');
@@ -430,11 +435,6 @@ export class RainyApp {
         document.getElementById('menu-logout')?.addEventListener('click', () => {
             this.closeDropdown();
             this.handleLogout();
-        });
-
-        document.getElementById('menu-shortcuts')?.addEventListener('click', () => {
-            this.closeDropdown();
-            window.__shortcutOverlay?.open();
         });
 
         // View toggle
