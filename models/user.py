@@ -3,15 +3,16 @@ from .database import Database
 
 class UserModel:
     @staticmethod
-    def create_user(username, email, password, role='user'):
+    def create_user(username, email, password, role='user', full_library=0):
         """Create a new user with hashed password."""
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         query = """
-            INSERT INTO users (username, email, password_hash, role)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO users (username, email, password_hash, role, full_library)
+            VALUES (%s, %s, %s, %s, %s)
         """
-        return Database.execute_query(query, (username, email, password_hash, role))
+        return Database.execute_query(
+            query, (username, email, password_hash, role, 1 if full_library else 0))
     
     @staticmethod
     def get_user_by_email(email):
@@ -22,7 +23,7 @@ class UserModel:
     @staticmethod
     def get_user_by_id(user_id):
         """Get user by ID."""
-        query = "SELECT id, username, email, role, preferences, created_at FROM users WHERE id = %s"
+        query = "SELECT id, username, email, role, preferences, full_library, created_at FROM users WHERE id = %s"
         return Database.execute_query(query, (user_id,), fetch_one=True)
     
     @staticmethod
@@ -66,7 +67,7 @@ class UserModel:
     @staticmethod
     def get_all_users():
         """Get all users (without password hashes)."""
-        query = "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC"
+        query = "SELECT id, username, email, role, full_library, created_at FROM users ORDER BY created_at ASC"
         return Database.execute_query(query, fetch_all=True)
 
     @staticmethod
@@ -74,6 +75,12 @@ class UserModel:
         """Update a user's role."""
         query = "UPDATE users SET role = %s WHERE id = %s"
         return Database.execute_query(query, (role, user_id))
+
+    @staticmethod
+    def update_full_library(user_id, flag):
+        """Grant/revoke full-system-library visibility for a user."""
+        query = "UPDATE users SET full_library = %s WHERE id = %s"
+        return Database.execute_query(query, (1 if flag else 0, user_id))
 
     @staticmethod
     def delete_user(user_id):

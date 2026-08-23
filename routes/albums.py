@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, session
 from functools import wraps
 from models.database import Database
+from models.library_access import LibraryAccessModel
 
 
 def _dedupe_artists(raw):
@@ -40,7 +41,8 @@ def get_albums(user_id):
     search = request.args.get('search', '').strip()
     sort = request.args.get('sort', 'name')  # name, artist, year, recent
 
-    query = """
+    join_sql, join_params = LibraryAccessModel.access_join(user_id)
+    query = f"""
         SELECT s.album,
                GROUP_CONCAT(DISTINCT TRIM(s.artist) ORDER BY TRIM(s.artist) SEPARATOR ', ') as artist,
                COUNT(*) as song_count,
@@ -49,10 +51,10 @@ def get_albums(user_id):
                MAX(s.cover_path) as cover_path,
                MAX(s.scanned_at) as last_scanned
         FROM songs s
-        JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+        {join_sql}
         WHERE s.album IS NOT NULL AND s.album != '' AND s.album != 'Unknown Album'
     """
-    params = [user_id]
+    params = list(join_params)
 
     if search:
         query += " AND (album LIKE %s OR artist LIKE %s)"
@@ -94,14 +96,15 @@ def get_album_detail(user_id):
     if not album:
         return jsonify({'error': 'album parameter is required'}), 400
 
-    query = """
+    join_sql, join_params = LibraryAccessModel.access_join(user_id)
+    query = f"""
         SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
                s.track_number, s.year, s.genre, s.cover_path
         FROM songs s
-        JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+        {join_sql}
         WHERE s.album = %s
     """
-    params = [user_id, album]
+    params = [*join_params, album]
 
     query += " ORDER BY s.track_number ASC, s.title ASC"
 
@@ -123,17 +126,18 @@ def get_album_detail(user_id):
         })
 
     # Get album metadata (scoped to the user's visible songs)
-    meta_query = """
+    meta_join_sql, meta_join_params = LibraryAccessModel.access_join(user_id)
+    meta_query = f"""
         SELECT s.album,
                GROUP_CONCAT(DISTINCT s.artist ORDER BY s.artist SEPARATOR ', ') as artist,
                COUNT(*) as song_count,
                SUM(s.duration) as total_duration, MAX(s.year) as year,
                MAX(s.cover_path) as cover_path
         FROM songs s
-        JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+        {meta_join_sql}
         WHERE s.album = %s
     """
-    meta_params = [user_id, album]
+    meta_params = [*meta_join_params, album]
     meta_query += " GROUP BY s.album"
 
     meta = Database.execute_query(meta_query, tuple(meta_params), fetch_one=True)

@@ -134,7 +134,8 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
         return {'success': False, 'error': 'No songs were downloaded from the playlist'}
 
     try:
-        existing = PlaylistModel.get_playlist_by_name(playlist_name)
+        existing = PlaylistModel.get_playlist_by_name(
+            playlist_name, owner_user_id)
         if existing and conflict_mode == 'override':
             PlaylistModel.clear_playlist_entries(existing['id'])
             created_playlist_id = existing['id']
@@ -144,12 +145,14 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
             # 'new' — create with a unique suffix
             n = 2
             name = f"{playlist_name} ({n})"
-            while PlaylistModel.get_playlist_by_name(name):
+            while PlaylistModel.get_playlist_by_name(name, owner_user_id):
                 n += 1
                 name = f"{playlist_name} ({n})"
-            created_playlist_id = PlaylistModel.create_playlist(name)
+            created_playlist_id = PlaylistModel.create_playlist(
+                name, owner_user_id=owner_user_id)
         else:
-            created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+            created_playlist_id = PlaylistModel.create_playlist(
+                playlist_name, owner_user_id=owner_user_id)
     except Exception as e:  # noqa: BLE001
         return {'success': False, 'error': f'Failed to create playlist: {e}'}
 
@@ -166,6 +169,9 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
                     existing_song = SongModel.get_song_by_path(relative_path)
                     if existing_song:
                         song_id = existing_song['id']
+                        # Deduped download: enable the song on the importer's
+                        # account instead of storing a second file copy.
+                        _grant_import(owner_user_id, song_id)
                 else:
                     scanner = MusicScanner(music_path)
                     metadata = scanner.scan_single_file(file_path)
@@ -293,7 +299,8 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
     downloader = YouTubeDownloader(music_path)
 
     try:
-        existing = PlaylistModel.get_playlist_by_name(playlist_name)
+        existing = PlaylistModel.get_playlist_by_name(
+            playlist_name, owner_user_id)
         if existing and conflict_mode == 'override':
             PlaylistModel.clear_playlist_entries(existing['id'])
             created_playlist_id = existing['id']
@@ -302,12 +309,14 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
         elif existing:
             n = 2
             name = f"{playlist_name} ({n})"
-            while PlaylistModel.get_playlist_by_name(name):
+            while PlaylistModel.get_playlist_by_name(name, owner_user_id):
                 n += 1
                 name = f"{playlist_name} ({n})"
-            created_playlist_id = PlaylistModel.create_playlist(name)
+            created_playlist_id = PlaylistModel.create_playlist(
+                name, owner_user_id=owner_user_id)
         else:
-            created_playlist_id = PlaylistModel.create_playlist(playlist_name)
+            created_playlist_id = PlaylistModel.create_playlist(
+                playlist_name, owner_user_id=owner_user_id)
     except Exception as e:  # noqa: BLE001
         return {'success': False, 'error': f'Failed to create playlist: {e}'}
 
@@ -344,6 +353,8 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
                 existing_song = SongModel.get_song_by_path(relative_path)
                 if existing_song:
                     song_id = existing_song['id']
+                    # Deduped download: enable on the importer's account.
+                    _grant_import(owner_user_id, song_id)
             else:
                 scanner = MusicScanner(music_path)
                 metadata = scanner.scan_single_file(file_path)

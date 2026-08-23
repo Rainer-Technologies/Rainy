@@ -8,6 +8,7 @@ import { Service } from "./index.js";
  * @property {string} username
  * @property {string} email
  * @property {string} role
+ * @property {boolean?} full_library
  * @property {string?} created_at
  */
 
@@ -26,11 +27,11 @@ export class UsersService extends Service {
     }
 
     /** @returns {Promise<Result<ManagedUserModel, import('./auth.js').ErrorModel | ResponseError>>} */
-    async create(username, email, password, role = 'user') {
+    async create(username, email, password, role = 'user', fullLibrary = false) {
         /** @type {Result<{ user: ManagedUserModel }, import('./auth.js').ErrorModel | ResponseError>} */
         const data = await this.wrap(RequestHelper.request(this.url(''), {
             method: 'POST',
-            body: { username, email, password, role }
+            body: { username, email, password, role, full_library: fullLibrary }
         }));
 
         if (data.error) return data;
@@ -42,6 +43,14 @@ export class UsersService extends Service {
         return this.wrap(RequestHelper.request(this.url(`/${userId}/role`), {
             method: 'POST',
             body: { role }
+        }));
+    }
+
+    /** @returns {Promise<Result<any, import('./auth.js').ErrorModel | ResponseError>>} */
+    async updateFullLibrary(userId, fullLibrary) {
+        return this.wrap(RequestHelper.request(this.url(`/${userId}/full-library`), {
+            method: 'POST',
+            body: { full_library: fullLibrary }
         }));
     }
 

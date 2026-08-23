@@ -182,7 +182,8 @@ def run_sync_now(sync_id):
     try:
         result = sync_playlist(
             row['playlist_id'], row['source'], row['url'], music_path,
-            sync_mode=row.get('sync_mode') or 'mirror'
+            sync_mode=row.get('sync_mode') or 'mirror',
+            user_id=user_id
         )
         if result.get('success'):
             msg = f"Added {result.get('added',0)}, removed {result.get('removed',0)}, kept {result.get('kept',0)}, failed {result.get('failed',0)}"

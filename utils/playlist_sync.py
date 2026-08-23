@@ -126,7 +126,7 @@ def _mirror_removals(playlist_id, local_rows, remote_keys):
     return removed, removed_details, None
 
 
-def sync_youtube_playlist(playlist_id, url, music_path, sync_mode='mirror', on_progress=None):
+def sync_youtube_playlist(playlist_id, url, music_path, sync_mode='mirror', on_progress=None, user_id=None):
     """Sync a local playlist with a remote YouTube playlist.
 
     Returns dict {added, removed, kept, failed, total_remote, added_details, removed_details}
@@ -203,6 +203,17 @@ def sync_youtube_playlist(playlist_id, url, music_path, sync_mode='mirror', on_p
                     if res.get('cover_path') and meta:
                         SongModel.update_song_metadata(meta['path'], {'cover_path': res['cover_path']})
             if song_id:
+                # Per-account isolation: the user who ran the sync must be
+                # able to play what the sync downloaded — grant access for
+                # both freshly-downloaded and deduped (already-existing) songs.
+                if user_id and song_id:
+                    try:
+                        from models.library_access import LibraryAccessModel
+                        LibraryAccessModel.grant(user_id, song_id,
+                                                 origin='import')
+                    except Exception as e:  # noqa: BLE001
+                        print(f"[sync] grant failed (user={user_id}, "
+                              f"song={song_id}): {e}")
                 PlaylistModel.add_song_to_playlist(playlist_id, song_id)
                 added += 1
                 added_details.append(f"{title} — {artist}")
@@ -229,7 +240,7 @@ def sync_youtube_playlist(playlist_id, url, music_path, sync_mode='mirror', on_p
     return {'success': True, 'added': added, 'removed': removed, 'kept': kept, 'failed': failed, 'total_remote': total_remote, 'added_details': added_details, 'removed_details': removed_details}
 
 
-def sync_spotify_playlist(playlist_id, url, music_path, sync_mode='mirror', on_progress=None):
+def sync_spotify_playlist(playlist_id, url, music_path, sync_mode='mirror', on_progress=None, user_id=None):
     """Sync a local playlist with a remote Spotify playlist (via YouTube matches)."""
     from utils.spotify import SpotifyImporter
     from utils.metadata import MetadataSearcher
@@ -318,6 +329,17 @@ def sync_spotify_playlist(playlist_id, url, music_path, sync_mode='mirror', on_p
                     if res.get('cover_path') and meta:
                         SongModel.update_song_metadata(meta['path'], {'cover_path': res['cover_path']})
             if song_id:
+                # Per-account isolation: the user who ran the sync must be
+                # able to play what the sync downloaded — grant access for
+                # both freshly-downloaded and deduped (already-existing) songs.
+                if user_id and song_id:
+                    try:
+                        from models.library_access import LibraryAccessModel
+                        LibraryAccessModel.grant(user_id, song_id,
+                                                 origin='import')
+                    except Exception as e:  # noqa: BLE001
+                        print(f"[sync] grant failed (user={user_id}, "
+                              f"song={song_id}): {e}")
                 PlaylistModel.add_song_to_playlist(playlist_id, song_id)
                 added += 1
                 added_details.append(f"{title} — {artist}")
@@ -342,10 +364,10 @@ def sync_spotify_playlist(playlist_id, url, music_path, sync_mode='mirror', on_p
     return {'success': True, 'added': added, 'removed': removed, 'kept': kept, 'failed': failed, 'total_remote': total_remote, 'added_details': added_details, 'removed_details': removed_details}
 
 
-def sync_playlist(playlist_id, source, url, music_path, sync_mode='mirror', on_progress=None):
+def sync_playlist(playlist_id, source, url, music_path, sync_mode='mirror', on_progress=None, user_id=None):
     if source == 'youtube':
-        return sync_youtube_playlist(playlist_id, url, music_path, sync_mode, on_progress)
+        return sync_youtube_playlist(playlist_id, url, music_path, sync_mode, on_progress, user_id)
     elif source == 'spotify':
-        return sync_spotify_playlist(playlist_id, url, music_path, sync_mode, on_progress)
+        return sync_spotify_playlist(playlist_id, url, music_path, sync_mode, on_progress, user_id)
     else:
         return {'success': False, 'error': f'Unknown source {source}'}

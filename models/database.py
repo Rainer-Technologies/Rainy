@@ -75,6 +75,18 @@ class Database:
         result = cursor.fetchone()
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE users ADD COLUMN preferences TEXT")
+
+        # Migration: full_library permission — grants the user visibility of
+        # EVERY song on the system (incl. other accounts' personal imports).
+        # Deliberately NOT defaulted for anyone, admins included: the admin
+        # must flip it on at account creation (or later via the users panel).
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = 'users' AND column_name = 'full_library'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE users ADD COLUMN full_library TINYINT(1) NOT NULL DEFAULT 0")
         
         # Settings table
         cursor.execute("""
@@ -471,18 +483,6 @@ class Database:
         result = cursor.fetchone()
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE enrichment_jobs ADD COLUMN force_full TINYINT(1) NOT NULL DEFAULT 0")
-
-        # Achievements — tracks which achievements each user has unlocked.
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_achievements (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                achievement_id VARCHAR(64) NOT NULL,
-                unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uq_user_achievement (user_id, achievement_id),
-                INDEX idx_user (user_id)
-            )
-        """)
 
         # Rainy Connect — active player device sessions (Spotify-Connect-style).
         cursor.execute("""

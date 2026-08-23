@@ -29,7 +29,8 @@ def login():
                 'id': user['id'],
                 'username': user['username'],
                 'email': user['email'],
-                'role': user['role']
+                'role': user['role'],
+                'full_library': bool(user.get('full_library'))
             }
         })
         
@@ -63,6 +64,7 @@ def get_current_user():
             'username': user['username'],
             'email': user['email'],
             'role': user['role'],
+            'full_library': bool(user.get('full_library')),
             'preferences': user.get('preferences')
         }
     })

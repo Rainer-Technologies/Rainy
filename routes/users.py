@@ -30,6 +30,7 @@ def serialize_user(user):
         'username': user['username'],
         'email': user['email'],
         'role': user['role'],
+        'full_library': bool(user.get('full_library')),
         'created_at': user['created_at'].isoformat() if user.get('created_at') else None,
     }
 
@@ -56,6 +57,9 @@ def create_user():
         email = (data.get('email') or '').strip().lower()
         password = data.get('password') or ''
         role = (data.get('role') or 'user').strip()
+        # 'Full system library' permission — explicit opt-in only. NOT a
+        # default for anyone, admins included.
+        full_library = bool(data.get('full_library', False))
 
         if not username or not email or not password:
             return jsonify({'error': 'Username, email and password are required'}), 400
@@ -69,7 +73,8 @@ def create_user():
         if UserModel.get_user_by_email(email):
             return jsonify({'error': 'A user with this email already exists'}), 409
 
-        user_id = UserModel.create_user(username, email, password, role=role)
+        user_id = UserModel.create_user(
+            username, email, password, role=role, full_library=full_library)
         if not user_id:
             return jsonify({'error': 'Username is already taken'}), 409
 
@@ -124,6 +129,25 @@ def reset_user_password(user_id):
         UserModel.update_password(user_id, password)
         return jsonify({'success': True, 'message': 'Password updated successfully'})
 
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/<int:user_id>/full-library', methods=['POST'])
+@require_admin
+def update_user_full_library(user_id):
+    """Grant/revoke full-system-library visibility for a user."""
+    try:
+        data = request.get_json() or {}
+        flag = bool(data.get('full_library', False))
+
+        target = UserModel.get_user_by_id(user_id)
+        if not target:
+            return jsonify({'error': 'User not found'}), 404
+
+        UserModel.update_full_library(user_id, flag)
+        user = UserModel.get_user_by_id(user_id)
+        return jsonify({'success': True, 'user': serialize_user(user)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -152,10 +152,12 @@ def _search_and_filter(queries, user_id):
     except Exception:  # noqa: BLE001
         pass
 
+    from models.library_access import LibraryAccessModel
+    join_sql, join_params = LibraryAccessModel.access_join(user_id)
     lib_rows = Database.execute_query(
-        """SELECT s.id, s.title, s.artist FROM songs s
-           JOIN library_access la ON la.song_id = s.id AND la.user_id = %s""",
-        (user_id,), fetch_all=True) or []
+        f"""SELECT s.id, s.title, s.artist FROM songs s
+            {join_sql}""",
+        join_params, fetch_all=True) or []
     lib_index = {}
     for row in lib_rows:
         key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))

@@ -149,15 +149,17 @@ class SongModel:
         Without: every song (admin/maintenance surfaces).
         """
         if user_id is not None:
-            query = """
+            from models.library_access import LibraryAccessModel
+            join_sql, join_params = LibraryAccessModel.access_join(user_id)
+            query = f"""
                 SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
                        s.track_number, s.year, s.genre, s.cover_path,
                        s.file_size, s.file_modified
                 FROM songs s
-                JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+                {join_sql}
                 ORDER BY s.artist, s.album, s.track_number
             """
-            results = Database.execute_query(query, (user_id,), fetch_all=True)
+            results = Database.execute_query(query, join_params, fetch_all=True)
         else:
             query = """
                 SELECT id, file_path, title, artist, album, duration,
@@ -191,15 +193,17 @@ class SongModel:
         Honours per-account library access when user_id is given.
         """
         if user_id is not None:
-            query = """
+            from models.library_access import LibraryAccessModel
+            join_sql, join_params = LibraryAccessModel.access_join(user_id)
+            query = f"""
                 SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
                        s.track_number, s.year, s.genre, s.cover_path, s.scanned_at
                 FROM songs s
-                JOIN library_access la ON la.song_id = s.id AND la.user_id = %s
+                {join_sql}
                 ORDER BY s.scanned_at DESC
                 LIMIT %s
             """
-            results = Database.execute_query(query, (user_id, limit),
+            results = Database.execute_query(query, (*join_params, limit),
                                              fetch_all=True)
         else:
             query = """

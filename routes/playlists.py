@@ -28,8 +28,10 @@ def create_playlist():
     
     icon = data.get('icon', 'music-note')
     icon_color = data.get('icon_color', '#888888')
-    private = bool(data.get('private', False))
-    owner_user_id = session.get('user_id') if private else None
+    # Per-account isolation: EVERY playlist belongs to its creator. The
+    # 'private' flag is accepted for client back-compat but has no effect —
+    # playlists can no longer be created shared/public.
+    owner_user_id = session.get('user_id')
     
     try:
         playlist_id = PlaylistModel.create_playlist(data['name'], icon, icon_color, owner_user_id)
@@ -57,7 +59,14 @@ def get_playlist(playlist_id):
         return jsonify({'error': 'Forbidden'}), 403
         
     raw_songs = PlaylistModel.get_playlist_songs(playlist_id)
-    
+
+    # Per-account isolation: a playlist may reference songs the requesting
+    # user has no access to (legacy shared playlists, cross-account entries).
+    # Only return the songs the user is actually allowed to see/hear.
+    from models.library_access import LibraryAccessModel
+    raw_songs = LibraryAccessModel.filter_visible(
+        session.get('user_id'), raw_songs or [])
+
     # Transform songs to match expected frontend format (same as SongModel)
     songs = []
     for row in (raw_songs or []):
@@ -120,10 +129,8 @@ def update_playlist(playlist_id):
             icon_color = data.get('icon_color', playlist.get('icon_color', '#fa586a'))
             PlaylistModel.update_playlist_appearance(playlist_id, icon, icon_color)
         
-        # Update privacy if provided
-        if 'private' in data:
-            owner_user_id = session.get('user_id') if bool(data.get('private')) else None
-            PlaylistModel.update_playlist_privacy(playlist_id, owner_user_id)
+        # 'private' is accepted for back-compat but deliberately ignored:
+        # with per-account isolation a playlist can never become shared.
         
         return jsonify({'success': True})
     except Exception as e:
@@ -142,6 +149,11 @@ def add_song(playlist_id):
         if not playlist:
             return jsonify({'error': 'Playlist not found'}), 404
         if playlist.get('owner_user_id') is not None and playlist.get('owner_user_id') != session.get('user_id'):
+            return jsonify({'error': 'Forbidden'}), 403
+        # Per-account isolation: you can only add songs you can hear.
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(
+                session.get('user_id'), data['song_id']):
             return jsonify({'error': 'Forbidden'}), 403
         PlaylistModel.add_song_to_playlist(playlist_id, data['song_id'])
         return jsonify({'success': True})
@@ -184,6 +196,12 @@ def generate_cover(playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
 
         songs = PlaylistModel.get_playlist_songs(playlist_id)
+        # Only songs the requesting user can actually hear belong in the
+        # generated cover (legacy shared playlists may hold other people's
+        # personal imports).
+        from models.library_access import LibraryAccessModel
+        songs = LibraryAccessModel.filter_visible(
+            session.get('user_id'), songs or [])
         if not songs:
             return jsonify({'error': 'Playlist is empty'}), 400
 
@@ -249,6 +267,9 @@ def download_playlist(playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
             
         songs = PlaylistModel.get_playlist_songs(playlist_id)
+        from models.library_access import LibraryAccessModel
+        songs = LibraryAccessModel.filter_visible(
+            session.get('user_id'), songs or [])
         if not songs:
             return jsonify({'error': 'Playlist is empty'}), 400
             
@@ -309,6 +330,9 @@ def export_playlist(playlist_id):
             return jsonify({'error': 'Forbidden'}), 403
 
         songs = PlaylistModel.get_playlist_songs(playlist_id)
+        from models.library_access import LibraryAccessModel
+        songs = LibraryAccessModel.filter_visible(
+            session.get('user_id'), songs or [])
         if not songs:
             return jsonify({'error': 'Playlist is empty'}), 400
 

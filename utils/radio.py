@@ -308,10 +308,12 @@ def _search_batch(session, exclude_video_ids, direction=None, fast=False):
     """
     searcher = MetadataSearcher()
     # Only match against songs the session owner can see (in-library flag).
+    from models.library_access import LibraryAccessModel
+    join_sql, join_params = LibraryAccessModel.access_join(session.user_id)
     lib_rows = Database.execute_query(
-        """SELECT s.id, s.title, s.artist FROM songs s
-           JOIN library_access la ON la.song_id = s.id AND la.user_id = %s""",
-        (session.user_id,), fetch_all=True) or []
+        f"""SELECT s.id, s.title, s.artist FROM songs s
+            {join_sql}""",
+        join_params, fetch_all=True) or []
     lib_index = {}
     for row in lib_rows:
         key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))

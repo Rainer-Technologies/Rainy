@@ -1232,6 +1232,23 @@
     fill: var(--accent-primary);
 }
 
+.user-role-badge.full-library {
+    background: color-mix(in srgb, var(--accent-secondary) 18%, transparent);
+    color: var(--accent-secondary);
+}
+
+.user-full-library-toggle.active-full-library svg {
+    fill: var(--accent-secondary);
+}
+
+.users-full-library-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
 .user-action-delete:hover {
     color: var(--error);
     background: rgba(255, 69, 58, 0.12);

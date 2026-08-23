@@ -13,6 +13,37 @@ from .database import Database
 
 class LibraryAccessModel:
     @staticmethod
+    def user_full_library(user_id):
+        """Whether the user has the 'full system library' permission.
+
+        Full-library users see every song on the server (including other
+        accounts' personal imports). It is granted explicitly by an admin —
+        never implied by role, and never on by default.
+        """
+        row = Database.execute_query(
+            "SELECT full_library FROM users WHERE id = %s", (user_id,),
+            fetch_one=True)
+        return bool(row and row.get('full_library'))
+
+    @staticmethod
+    def access_join(user_id):
+        """(sql_fragment, params) for JOIN-ing allowed song ids with the
+        full-library bypass baked in.
+
+        The fragment joins a subquery that yields ONE row per allowed song
+        (never duplicates — an OR-condition join would multiply rows for
+        full-library users). Usage: pass *params FIRST since the fragment's
+        %s placeholders precede any later ones.
+        """
+        if LibraryAccessModel.user_full_library(user_id):
+            fragment = ("JOIN (SELECT id AS song_id FROM songs) la "
+                        "ON la.song_id = s.id")
+            return fragment, ()
+        fragment = ("JOIN (SELECT song_id FROM library_access "
+                    "WHERE user_id = %s) la ON la.song_id = s.id")
+        return fragment, (user_id,)
+
+    @staticmethod
     def grant(user_id, song_id, origin='import'):
         """Grant one user access to one song. Idempotent."""
         query = """
@@ -29,6 +60,8 @@ class LibraryAccessModel:
 
     @staticmethod
     def has_access(user_id, song_id):
+        if LibraryAccessModel.user_full_library(user_id):
+            return True
         query = """
             SELECT 1 FROM library_access WHERE user_id = %s AND song_id = %s
         """
@@ -38,6 +71,10 @@ class LibraryAccessModel:
     @staticmethod
     def visible_song_ids(user_id):
         """All song ids the user can see."""
+        if LibraryAccessModel.user_full_library(user_id):
+            rows = Database.execute_query(
+                "SELECT id AS song_id FROM songs", fetch_all=True) or []
+            return {r['song_id'] for r in rows}
         query = "SELECT song_id FROM library_access WHERE user_id = %s"
         rows = Database.execute_query(query, (user_id,), fetch_all=True) or []
         return {r['song_id'] for r in rows}
@@ -134,7 +171,7 @@ class LibraryAccessModel:
             return
         query = """
             INSERT IGNORE INTO library_access (user_id, song_id, origin)
-            SELECT u.id, s.id, %s FROM users u
+            SELECT u.id, s.id, %s FROM users u, songs s
             WHERE s.id IN (%s)
         """ % ('%s', ','.join(['%s'] * len(song_ids)))
         Database.execute_query(query, (origin, *song_ids))

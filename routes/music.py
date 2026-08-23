@@ -626,8 +626,21 @@ def upload_files():
                     safe_filename = os.path.basename(file.filename)
                     save_path = os.path.join(music_path, safe_filename)
                     
-                    # Handle duplicate filenames
+                    # Dedupe: if this exact file already exists on the system,
+                    # just enable it on the uploading account instead of
+                    # storing a second copy.
                     if os.path.exists(save_path):
+                        rel = os.path.relpath(save_path, music_path).replace('\\', '/')
+                        existing_song = SongModel.get_song_by_path(rel)
+                        if existing_song:
+                            from models.library_access import LibraryAccessModel
+                            try:
+                                LibraryAccessModel.on_scan_added([existing_song['id']])
+                            except Exception:
+                                pass
+                            uploaded += 1
+                            continue
+                        # Unknown leftover file: keep the old suffix behavior
                         base, ext = os.path.splitext(safe_filename)
                         counter = 1
                         while os.path.exists(save_path):
@@ -636,9 +649,18 @@ def upload_files():
                     
                     file.save(save_path)
                     
-                    # Add to database with metadata extraction
+                    # Add to database with metadata extraction. Uploads land in
+                    # the SHARED music folder, so — like a disk scan — they are
+                    # communal: every account gets access (and the uploader
+                    # sees their own file immediately).
                     scanner = MusicScanner(music_path)
-                    scanner.scan_single_file(save_path)
+                    metadata = scanner.scan_single_file(save_path)
+                    if metadata and metadata.get('id'):
+                        try:
+                            from models.library_access import LibraryAccessModel
+                            LibraryAccessModel.on_scan_added([metadata['id']])
+                        except Exception:
+                            pass
                     uploaded += 1
                 else:
                     errors.append(f"Invalid file type: {file.filename}")
@@ -769,7 +791,10 @@ def import_playlist_precheck():
         if not playlist_name:
             return jsonify({'error': 'Could not determine playlist name'}), 400
 
-        existing = PlaylistModel.get_playlist_by_name(playlist_name)
+        # Per-account isolation: only the user's OWN playlists count as a
+        # name collision — another account's playlist is never touched.
+        existing = PlaylistModel.get_playlist_by_name(
+            playlist_name, session.get('user_id'))
         return jsonify({
             'success': True,
             'playlist_name': playlist_name,
@@ -785,7 +810,8 @@ class _ImportPlaylistConflict(Exception):
     no explicit conflict_mode was supplied."""
 
 
-def _resolve_import_playlist(playlist_model, playlist_name, conflict_mode):
+def _resolve_import_playlist(playlist_model, playlist_name, conflict_mode,
+                             owner_user_id=None):
     """Decide which playlist an import should write into.
 
     conflict_mode:
@@ -796,7 +822,10 @@ def _resolve_import_playlist(playlist_model, playlist_name, conflict_mode):
 
     Returns the playlist id to write into.
     """
-    existing = playlist_model.get_playlist_by_name(playlist_name)
+    # Per-account isolation: a same-named playlist owned by ANOTHER account
+    # must never be reused or merged into.
+    existing = playlist_model.get_playlist_by_name(
+        playlist_name, owner_user_id)
 
     if conflict_mode in ('add', 'override') and existing:
         if conflict_mode == 'override':
@@ -808,17 +837,19 @@ def _resolve_import_playlist(playlist_model, playlist_name, conflict_mode):
         base = playlist_name
         n = 2
         name = f"{base} ({n})"
-        while playlist_model.get_playlist_by_name(name):
+        while playlist_model.get_playlist_by_name(name, owner_user_id):
             n += 1
             name = f"{base} ({n})"
-        return playlist_model.create_playlist(name)
+        return playlist_model.create_playlist(
+            name, owner_user_id=owner_user_id)
 
     # Default behaviour: create, but refuse to silently clobber an existing one.
     if existing:
         raise _ImportPlaylistConflict(
             f"A playlist named “{playlist_name}” already exists"
         )
-    return playlist_model.create_playlist(playlist_name)
+    return playlist_model.create_playlist(
+        playlist_name, owner_user_id=owner_user_id)
 
 
 @music_bp.route('/youtube-playlist-import', methods=['POST'])
@@ -917,7 +948,8 @@ def youtube_playlist_import():
                 created_playlist_id = None
                 try:
                     created_playlist_id = _resolve_import_playlist(
-                        PlaylistModel, playlist_name, data.get('conflict_mode')
+                        PlaylistModel, playlist_name, data.get('conflict_mode'),
+                        session.get('user_id')
                     )
                 except Exception as e:
                     yield json.dumps({
@@ -942,6 +974,13 @@ def youtube_playlist_import():
                                 existing_song = SongModel.get_song_by_path(relative_path)
                                 if existing_song:
                                     song_id = existing_song['id']
+                                    # Deduped download: the importer still
+                                    # gets the song enabled on their account,
+                                    # instead of a second file copy.
+                                    from models.library_access import LibraryAccessModel
+                                    LibraryAccessModel.grant(
+                                        session.get('user_id'), song_id,
+                                        origin='import')
                             else:
                                 # New song - add to database
                                 scanner = MusicScanner(music_path)
@@ -1057,6 +1096,17 @@ def spotify_import():
             return jsonify({'error': result.get('error', 'Download failed')}), 400
 
         if result.get('already_exists'):
+            # Deduped download: enable the existing song on this account
+            # instead of downloading a second copy.
+            try:
+                rel = os.path.relpath(result.get('file_path'), music_path)
+                existing = SongModel.get_song_by_path(rel)
+                if existing:
+                    from models.library_access import LibraryAccessModel
+                    LibraryAccessModel.grant(get_current_user_id(),
+                                             existing['id'], origin='import')
+            except Exception as e:  # noqa: BLE001
+                print(f"[import] grant-on-existing failed: {e}")
             return jsonify({
                 'success': True,
                 'already_exists': True,
@@ -1133,7 +1183,8 @@ def spotify_playlist_import():
             created_playlist_id = None
             try:
                 created_playlist_id = _resolve_import_playlist(
-                    PlaylistModel, playlist_name, data.get('conflict_mode')
+                    PlaylistModel, playlist_name, data.get('conflict_mode'),
+                    session.get('user_id')
                 )
             except Exception as e:
                 yield json.dumps({
@@ -1184,6 +1235,12 @@ def spotify_playlist_import():
                         existing_song = SongModel.get_song_by_path(relative_path)
                         if existing_song:
                             song_id = existing_song['id']
+                            # Deduped download: enable on the importer's
+                            # account instead of storing a second file.
+                            from models.library_access import LibraryAccessModel
+                            LibraryAccessModel.grant(
+                                session.get('user_id'), song_id,
+                                origin='import')
                     else:
                         scanner = MusicScanner(music_path)
                         metadata = scanner.scan_single_file(file_path)

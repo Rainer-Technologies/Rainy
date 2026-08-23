@@ -35,8 +35,18 @@ class PlaylistModel:
         return Database.execute_query(query, (playlist_id,), fetch_one=True)
 
     @staticmethod
-    def get_playlist_by_name(name):
-        """Find an existing playlist by exact (case-insensitive) name."""
+    def get_playlist_by_name(name, owner_user_id=None):
+        """Find an existing playlist by exact (case-insensitive) name.
+
+        With owner_user_id: only that user's OWN playlists match (per-account
+        isolation — another account's same-named playlist must never be
+        reused/merged). Without: any playlist (legacy global lookup).
+        """
+        if owner_user_id is not None:
+            query = ("SELECT * FROM playlists WHERE LOWER(name) = LOWER(%s)"
+                     " AND owner_user_id = %s LIMIT 1")
+            return Database.execute_query(
+                query, (name, owner_user_id), fetch_one=True)
         query = "SELECT * FROM playlists WHERE LOWER(name) = LOWER(%s) LIMIT 1"
         return Database.execute_query(query, (name,), fetch_one=True)
 

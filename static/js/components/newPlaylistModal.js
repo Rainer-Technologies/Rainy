@@ -18,8 +18,6 @@ export class NewPlaylistModal extends Component {
         this._colorPresets = useRef();
         /** @type {Ref<HTMLInputElement>} */
         this._nameInput = useRef();
-        /** @type {Ref<HTMLInputElement>} */
-        this._privateInput = useRef();
 
         this.set('current-icon', 'music-note', { silent: true });
         this.set('current-color', '#888888', { silent: true });
@@ -139,9 +137,10 @@ export class NewPlaylistModal extends Component {
 
         const currentIcon = this.get('current-icon');
         const currentColor = this.get('current-color');
-        const isPrivate = !!(this._privateInput.value && this._privateInput.value.checked);
 
-        const data = await usePlaylistService().create(name, currentIcon, currentColor, isPrivate);
+        // Per-account isolation: every playlist belongs to its creator and is
+        // only visible to them — there is no shared/public option anymore.
+        const data = await usePlaylistService().create(name, currentIcon, currentColor, true);
         if (data.error) {
             Logger.error(data.error);
             app.showToast('Failed to create playlist', 'error');
@@ -179,12 +178,6 @@ export class NewPlaylistModal extends Component {
                         )
                     )
                 ),
-                h.div(a.class('customize-row'),
-                    h.label(a.class('playlist-private-toggle'),
-                        h.input(this._privateInput, a.type('checkbox'), a.class('playlist-private-check')),
-                        h.span(a.class('playlist-private-text'), '🔒 Private (only visible to you)')
-                    )
-                )
             ),
             h.button(a.slot('action'), a.class('btn', 'btn-secondary'), on.click(() => this.hide()), 'Cancel'),
             h.button(a.slot('action'), a.class('btn', 'btn-primary'), on.click(() => this.createPlaylist()), 'Create Playlist')
