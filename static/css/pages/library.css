@@ -475,4 +475,40 @@
         min-width: var(--hit-target);
         min-height: var(--hit-target);
     }
+
+    /* Mobile song rows: base.css declares the 3-column mobile template,
+       but library.css (imported later) re-declares the 4-column desktop
+       template at the same specificity, so it wins on small screens and
+       rows end up 48px / 0 / 200px / 100px with the artist column crushed.
+       Restate the mobile layout here (and add mobile gaps/padding). */
+    .song-row,
+    .list-header {
+        grid-template-columns: minmax(0, 1fr) 60px;
+        gap: var(--spacing-sm);
+        /* Reserve room for the always-visible 44px song menu button so it
+           doesn't overlap the duration column on touch screens. */
+        padding-right: calc(var(--spacing-md) + var(--hit-target));
+    }
+
+    /* Drop the track-number column on phones (Apple Music style): rows get
+       artwork + title/artist + duration, no numbers. */
+    .song-row .song-row-number,
+    .list-header span:first-child {
+        display: none;
+    }
+
+    /* Grid view: keep two usable columns on phones instead of one
+       (same fix as albums-grid: minmax(0, 1fr) keeps cover art from
+       inflating the tracks). */
+    .songs-grid-section {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: var(--spacing-md);
+    }
+
+    /* Recently Added carousel: the desktop -32px bleed overshoots the
+       24px mobile padding, shaving 8px off each edge. Match it up. */
+    .horizontal-scroll-container {
+        margin: 0 calc(-1 * var(--spacing-lg));
+        padding: 0 var(--spacing-lg);
+    }
 }

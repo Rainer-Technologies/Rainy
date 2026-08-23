@@ -561,7 +561,12 @@
     .gs-panel { width: 95%; }
 }
 @media (max-width: 480px) {
-    .albums-grid { grid-template-columns: repeat(2, 1fr); }
+    .albums-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* minmax(0, 1fr) so the 1fr tracks can't be inflated by the covers'
+       intrinsic width (bare `1fr` sizes tracks to min-content and album
+       art is rendered at 1280px+, blowing cards up to 1500px+ on phones). */
+    .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stat-card { min-width: 0; }
     .album-detail-title { font-size: 22px; }
     .smartmix-hero h2 { font-size: 24px; }
     .recent-tabs { flex-wrap: wrap; }

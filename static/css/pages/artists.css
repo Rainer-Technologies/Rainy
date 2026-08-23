@@ -520,6 +520,11 @@
     .track-album-col {
         display: none;
     }
+
+    .artist-songs-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: var(--spacing-md);
+    }
 }
 
 .track-duration-col {
