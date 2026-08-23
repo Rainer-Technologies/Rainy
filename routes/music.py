@@ -1683,7 +1683,7 @@ def enrichment_status():
 
 
 @music_bp.route('/artists/scrape-descriptions', methods=['POST'])
-@require_auth
+@require_sysadmin
 def scrape_all_artist_descriptions():
     """Scrape descriptions for all artists missing one. Streams NDJSON progress."""
     from flask import Response, stream_with_context
@@ -2767,7 +2767,7 @@ def scrape_artist_info(artist_name):
 
 
 @music_bp.route('/artists/scrape-all', methods=['POST'])
-@require_auth
+@require_sysadmin
 def scrape_all_artists():
     """Scrape images for all artists missing one. Streams NDJSON progress."""
     from flask import Response, stream_with_context

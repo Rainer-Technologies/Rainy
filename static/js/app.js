@@ -3480,19 +3480,18 @@ export class RainyApp {
 
             // Show/hide server settings for sysadmin
             const serverCategory = document.getElementById('settings-nav-server-category');
-            const jobsNav = document.getElementById('settings-nav-jobs');
             const usersNav = document.getElementById('settings-nav-users');
             const httpsNav = document.getElementById('settings-nav-https');
             if (this.user.role === 'sysadmin') {
                 serverCategory?.classList.remove('hidden');
-                jobsNav?.classList.remove('hidden');
                 usersNav?.classList.remove('hidden');
                 httpsNav?.classList.remove('hidden');
             } else {
                 serverCategory?.classList.add('hidden');
-                jobsNav?.classList.add('hidden');
                 usersNav?.classList.add('hidden');
                 httpsNav?.classList.add('hidden');
+                // NOTE: the Jobs nav stays visible for every account — jobs
+                // are scoped to the user's own library (see routes/music.py).
             }
         }
 
