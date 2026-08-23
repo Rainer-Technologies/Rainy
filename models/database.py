@@ -208,13 +208,16 @@ class Database:
         """)
 
         # Migration: grant existing users access to the whole current
-        # library (pre-isolation songs were shared by definition).
+        # library (pre-isolation songs were shared by definition). Admin-only
+        # by policy since Aug 2026 — scans of the shared folder are visible
+        # to administrators; regular accounts only get published songs.
         cursor.execute("""
             INSERT IGNORE INTO library_access (user_id, song_id, origin)
             SELECT u.id, s.id, 'scan'
             FROM users u
             CROSS JOIN songs s
-            WHERE NOT EXISTS (
+            WHERE u.role = 'sysadmin'
+            AND NOT EXISTS (
                 SELECT 1 FROM library_access la
                 WHERE la.user_id = u.id AND la.song_id = s.id
             )

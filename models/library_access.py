@@ -102,9 +102,16 @@ class LibraryAccessModel:
     def backfill_user(user_id, origin='scan'):
         """Give a user every 'public' song they don't have yet.
 
-        Called on login and after scans. Only 'scan'-origin access rows are
-        copied — personal imports of other users stay hidden.
+        ADMIN-ONLY by policy (Aug 2026): the scanned music-folder library is
+        visible to administrators by default; regular accounts only see what a
+        sysadmin explicitly publishes or grants to them. Called on login and
+        after scans; for non-admins this is a no-op so new accounts start
+        empty.
         """
+        row = Database.execute_query(
+            "SELECT role FROM users WHERE id = %s", (user_id,), fetch_one=True)
+        if not row or row.get('role') != 'sysadmin':
+            return
         query = """
             INSERT IGNORE INTO library_access (user_id, song_id, origin)
             SELECT %s, s.id, 'scan'
@@ -164,15 +171,16 @@ class LibraryAccessModel:
     def on_scan_added(song_ids, origin='scan'):
         """Grant access to newly scanned songs.
 
-        Communal rule: scan-origin files go to EVERY user. (Scans run from
-        the shared music folder, so what lands there belongs to everyone.)
+        ADMIN-ONLY by policy (Aug 2026): scans of the shared music folder are
+        visible to administrators automatically; regular accounts get scanned
+        songs only via an explicit 'Publish to Everyone'.
         """
         if not song_ids:
             return
         query = """
             INSERT IGNORE INTO library_access (user_id, song_id, origin)
             SELECT u.id, s.id, %s FROM users u, songs s
-            WHERE s.id IN (%s)
+            WHERE s.id IN (%s) AND u.role = 'sysadmin'
         """ % ('%s', ','.join(['%s'] * len(song_ids)))
         Database.execute_query(query, (origin, *song_ids))
 
