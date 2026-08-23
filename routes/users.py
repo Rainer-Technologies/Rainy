@@ -167,6 +167,13 @@ def delete_user(user_id):
         if target['role'] == 'sysadmin' and UserModel.get_sysadmin_count() <= 1:
             return jsonify({'error': 'Cannot delete the last administrator'}), 400
 
+        # Per-account isolation: drop the user's playlists with the account —
+        # otherwise the owner FK (ON DELETE SET NULL) would orphan them into
+        # public legacy playlists visible to every account.
+        from models.database import Database
+        Database.execute_query(
+            "DELETE FROM playlists WHERE owner_user_id = %s", (user_id,))
+
         UserModel.delete_user(user_id)
         return jsonify({'success': True, 'message': 'User deleted successfully'})
 
