@@ -16,3 +16,4 @@ certs/
 # Pre-trained genre classifier model (auto-downloaded)
 classifier/
 dj_audio/
+bin/fpcalc

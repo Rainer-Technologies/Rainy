@@ -656,9 +656,22 @@ def upload_files():
                     scanner = MusicScanner(music_path)
                     metadata = scanner.scan_single_file(save_path)
                     if metadata and metadata.get('id'):
+                        # Cross-source dedupe: if the uploaded audio matches an
+                        # existing song (hash or fingerprint), drop the copy
+                        # and link the uploader to the existing row instead.
+                        from utils import dedupe
+                        dup = dedupe.finalize_new_song(
+                            save_path, metadata['id'],
+                            duration=metadata.get('duration'))
+                        target_id = dup[0] if dup else metadata['id']
                         try:
                             from models.library_access import LibraryAccessModel
-                            LibraryAccessModel.on_scan_added([metadata['id']])
+                            # Uploader always sees their own upload.
+                            LibraryAccessModel.grant(
+                                get_current_user_id(), target_id,
+                                origin='import')
+                            # Shared-folder semantics: admins get it too.
+                            LibraryAccessModel.on_scan_added([target_id])
                         except Exception:
                             pass
                     uploaded += 1
@@ -723,6 +736,25 @@ def youtube_import():
                 metadata = scanner.scan_single_file(result['file_path'])
 
                 if metadata and metadata.get('id'):
+                    # Cross-source dedupe: different file/encode of a song
+                    # already on the system → enable the existing song.
+                    from utils import dedupe
+                    dup = dedupe.finalize_new_song(
+                        result['file_path'], metadata['id'],
+                        duration=metadata.get('duration'))
+                    if dup:
+                        existing_id, kind, score = dup
+                        from models.library_access import LibraryAccessModel
+                        LibraryAccessModel.grant(get_current_user_id(),
+                                                 existing_id, origin='import')
+                        return jsonify({
+                            'success': True,
+                            'already_exists': True,
+                            'title': result.get('title'),
+                            'artist': result.get('artist'),
+                            'message': f'Song already exists in library '
+                                       f'(matched by {kind}, {score:.0%} similar)'
+                        })
                     from models.library_access import LibraryAccessModel
                     LibraryAccessModel.grant(get_current_user_id(),
                                              metadata['id'], origin='import')
@@ -988,13 +1020,26 @@ def youtube_playlist_import():
 
                                 if metadata and metadata.get('id'):
                                     song_id = metadata['id']
-                                    from models.library_access import LibraryAccessModel
-                                    LibraryAccessModel.grant(
-                                        session.get('user_id'), song_id,
-                                        origin='import')
+                                    # Cross-source dedupe: reuse an existing
+                                    # song row (delete the redundant file).
+                                    from utils import dedupe
+                                    dup = dedupe.finalize_new_song(
+                                        file_path, song_id,
+                                        duration=metadata.get('duration'))
+                                    if dup:
+                                        song_id = dup[0]
+                                        from models.library_access import LibraryAccessModel
+                                        LibraryAccessModel.grant(
+                                            session.get('user_id'), song_id,
+                                            origin='import')
+                                    else:
+                                        from models.library_access import LibraryAccessModel
+                                        LibraryAccessModel.grant(
+                                            session.get('user_id'), song_id,
+                                            origin='import')
 
-                                    if song.get('cover_path') and metadata:
-                                        SongModel.update_song_metadata(metadata['path'], {'cover_path': song['cover_path']})
+                                        if song.get('cover_path') and metadata:
+                                            SongModel.update_song_metadata(metadata['path'], {'cover_path': song['cover_path']})
                             
                             # Add to playlist if we have a song ID
                             if song_id:
@@ -1131,6 +1176,25 @@ def spotify_import():
             scanner = MusicScanner(music_path)
             metadata = scanner.scan_single_file(result['file_path'])
             if metadata and metadata.get('id'):
+                # Cross-source dedupe: different file/encode of a song already
+                # on the system → enable the existing song.
+                from utils import dedupe
+                dup = dedupe.finalize_new_song(
+                    result['file_path'], metadata['id'],
+                    duration=metadata.get('duration'))
+                if dup:
+                    existing_id, kind, score = dup
+                    from models.library_access import LibraryAccessModel
+                    LibraryAccessModel.grant(get_current_user_id(),
+                                             existing_id, origin='import')
+                    return jsonify({
+                        'success': True,
+                        'already_exists': True,
+                        'title': result.get('title') or title,
+                        'artist': result.get('artist') or artist,
+                        'message': f'Song already exists in library '
+                                   f'(matched by {kind}, {score:.0%} similar)'
+                    })
                 from models.library_access import LibraryAccessModel
                 LibraryAccessModel.grant(get_current_user_id(),
                                          metadata['id'], origin='import')
@@ -1259,15 +1323,28 @@ def spotify_playlist_import():
                         metadata = scanner.scan_single_file(file_path)
                         if metadata and metadata.get('id'):
                             song_id = metadata['id']
-                            from models.library_access import LibraryAccessModel
-                            LibraryAccessModel.grant(
-                                session.get('user_id'), song_id,
-                                origin='import')
-                            if song_result.get('cover_path') and metadata:
-                                SongModel.update_song_metadata(
-                                    metadata['path'],
-                                    {'cover_path': song_result['cover_path']}
-                                )
+                            # Cross-source dedupe: reuse an existing song row
+                            # (delete the redundant file) instead of a dupe.
+                            from utils import dedupe
+                            dup = dedupe.finalize_new_song(
+                                file_path, song_id,
+                                duration=metadata.get('duration'))
+                            if dup:
+                                song_id = dup[0]
+                                from models.library_access import LibraryAccessModel
+                                LibraryAccessModel.grant(
+                                    session.get('user_id'), song_id,
+                                    origin='import')
+                            else:
+                                from models.library_access import LibraryAccessModel
+                                LibraryAccessModel.grant(
+                                    session.get('user_id'), song_id,
+                                    origin='import')
+                                if song_result.get('cover_path') and metadata:
+                                    SongModel.update_song_metadata(
+                                        metadata['path'],
+                                        {'cover_path': song_result['cover_path']}
+                                    )
 
                     if song_id:
                         PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)

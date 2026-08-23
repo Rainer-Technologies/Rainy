@@ -91,6 +91,23 @@ def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None,
         scanner = MusicScanner(music_path)
         metadata = scanner.scan_single_file(result['file_path'])
         if metadata and metadata.get('id'):
+            # Cross-source dedupe: different file/encode of a song already on
+            # the system → enable the existing song instead of keeping a copy.
+            from utils import dedupe
+            dup = dedupe.finalize_new_song(
+                result['file_path'], metadata['id'],
+                duration=metadata.get('duration'))
+            if dup:
+                existing_id, kind, score = dup
+                _grant_import(owner_user_id, existing_id)
+                return {
+                    'success': True,
+                    'already_exists': True,
+                    'title': result.get('title'),
+                    'artist': result.get('artist'),
+                    'message': f'Song already exists in library '
+                               f'(matched by {kind}, {score:.0%} similar)',
+                }
             _grant_import(owner_user_id, metadata['id'])
         if result.get('cover_path') and metadata:
             SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
@@ -177,11 +194,21 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
                     metadata = scanner.scan_single_file(file_path)
                     if metadata and metadata.get('id'):
                         song_id = metadata['id']
-                        _grant_import(owner_user_id, song_id)
-                        if song.get('cover_path') and metadata:
-                            SongModel.update_song_metadata(
-                                metadata['path'], {'cover_path': song['cover_path']}
-                            )
+                        # Cross-source dedupe: reuse an existing song row (and
+                        # delete the redundant file) instead of a duplicate.
+                        from utils import dedupe
+                        dup = dedupe.finalize_new_song(
+                            file_path, song_id,
+                            duration=metadata.get('duration'))
+                        if dup:
+                            song_id = dup[0]
+                            _grant_import(owner_user_id, song_id)
+                        else:
+                            _grant_import(owner_user_id, song_id)
+                            if song.get('cover_path') and metadata:
+                                SongModel.update_song_metadata(
+                                    metadata['path'], {'cover_path': song['cover_path']}
+                                )
 
                 if song_id:
                     PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)
@@ -267,6 +294,23 @@ def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None,
         scanner = MusicScanner(music_path)
         metadata = scanner.scan_single_file(result['file_path'])
         if metadata and metadata.get('id'):
+            # Cross-source dedupe: different file/encode of a song already on
+            # the system → enable the existing song instead of keeping a copy.
+            from utils import dedupe
+            dup = dedupe.finalize_new_song(
+                result['file_path'], metadata['id'],
+                duration=metadata.get('duration'))
+            if dup:
+                existing_id, kind, score = dup
+                _grant_import(owner_user_id, existing_id)
+                return {
+                    'success': True,
+                    'already_exists': True,
+                    'title': result.get('title') or title,
+                    'artist': result.get('artist') or artist,
+                    'message': f'Song already exists in library '
+                               f'(matched by {kind}, {score:.0%} similar)',
+                }
             _grant_import(owner_user_id, metadata['id'])
         if result.get('cover_path') and metadata:
             SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
@@ -368,11 +412,21 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
                 metadata = scanner.scan_single_file(file_path)
                 if metadata and metadata.get('id'):
                     song_id = metadata['id']
-                    _grant_import(owner_user_id, song_id)
-                    if song_result.get('cover_path') and metadata:
-                        SongModel.update_song_metadata(
-                            metadata['path'], {'cover_path': song_result['cover_path']}
-                        )
+                    # Cross-source dedupe: reuse an existing song row (and
+                    # delete the redundant file) instead of a duplicate.
+                    from utils import dedupe
+                    dup = dedupe.finalize_new_song(
+                        file_path, song_id,
+                        duration=metadata.get('duration'))
+                    if dup:
+                        song_id = dup[0]
+                        _grant_import(owner_user_id, song_id)
+                    else:
+                        _grant_import(owner_user_id, song_id)
+                        if song_result.get('cover_path') and metadata:
+                            SongModel.update_song_metadata(
+                                metadata['path'], {'cover_path': song_result['cover_path']}
+                            )
 
             if song_id:
                 PlaylistModel.add_song_to_playlist(created_playlist_id, song_id)

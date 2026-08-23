@@ -406,6 +406,22 @@ class Database:
             )
         """)
 
+        # Song audio fingerprinting — dupe detection across sources.
+        # sha256 catches byte-identical copies; fingerprint is a chromaprint
+        # (fpcalc) raw uint32 stream for matching the same song re-encoded /
+        # re-sourced (lyric video vs official, bitrate changes). Computed by
+        # utils/dedupe.py on import/upload and by scripts/backfill_fingerprints.py.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS song_fingerprints (
+                song_id INT PRIMARY KEY,
+                sha256 CHAR(64) NULL,
+                fingerprint TEXT NULL,
+                fp_duration DOUBLE NULL,
+                computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
+
         # Song tags — crowd-sourced genre/mood/style labels from Last.fm and
         # MusicBrainz, keyed on artist + title so they work for any source.
         # weight is 0-100 (Last.fm normalises its own top tag to 100).
