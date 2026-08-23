@@ -432,6 +432,11 @@ export class RainyApp {
             this.handleLogout();
         });
 
+        document.getElementById('menu-shortcuts')?.addEventListener('click', () => {
+            this.closeDropdown();
+            window.__shortcutOverlay?.open();
+        });
+
         // View toggle
         document.getElementById('grid-view-btn')?.addEventListener('click', () => {
             this.setViewMode('grid');
