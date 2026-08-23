@@ -111,8 +111,21 @@ class ImportJobModel:
         return Database.execute_query(query)
 
     @staticmethod
-    def list_recent(limit=25):
-        """Return recent jobs, newest first, for the history view."""
+    def list_recent(limit=25, user_id=None):
+        """Return recent jobs, newest first, for the history view.
+
+        With user_id: only that user's own jobs (per-account isolation for
+        the import queue — job URLs can be personal).
+        """
+        if user_id is not None:
+            query = """
+                SELECT * FROM import_jobs
+                WHERE user_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+            """
+            return Database.execute_query(query, (user_id, limit),
+                                          fetch_all=True)
         query = """
             SELECT * FROM import_jobs
             ORDER BY created_at DESC, id DESC
@@ -121,8 +134,18 @@ class ImportJobModel:
         return Database.execute_query(query, (limit,), fetch_all=True)
 
     @staticmethod
-    def active_jobs():
-        """Return queued + running jobs (the live queue), oldest first."""
+    def active_jobs(user_id=None):
+        """Return queued + running jobs (the live queue), oldest first.
+
+        With user_id: only that user's own jobs.
+        """
+        if user_id is not None:
+            query = """
+                SELECT * FROM import_jobs
+                WHERE status IN ('queued', 'running') AND user_id = %s
+                ORDER BY (status = 'running') DESC, created_at ASC, id ASC
+            """
+            return Database.execute_query(query, (user_id,), fetch_all=True)
         query = """
             SELECT * FROM import_jobs
             WHERE status IN ('queued', 'running')

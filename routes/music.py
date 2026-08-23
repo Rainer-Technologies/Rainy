@@ -1490,11 +1490,18 @@ def enqueue_import_job():
 @music_bp.route('/import-jobs', methods=['GET'])
 @require_auth
 def list_import_jobs():
-    """Return the live queue (queued + running) and recent history."""
-    from models.import_job import ImportJobModel
+    """Return the live queue (queued + running) and recent history.
 
-    active = ImportJobModel.active_jobs()
-    history = ImportJobModel.list_recent(limit=25)
+    Regular users see ONLY their own jobs; sysadmins see everything."""
+    from models.import_job import ImportJobModel
+    from models.user import UserModel
+
+    user = UserModel.get_user_by_id(get_current_user_id())
+    user_id = None if (user and user['role'] == 'sysadmin') \
+        else get_current_user_id()
+
+    active = ImportJobModel.active_jobs(user_id=user_id)
+    history = ImportJobModel.list_recent(limit=25, user_id=user_id)
 
     return jsonify({
         'success': True,
@@ -1509,22 +1516,36 @@ def list_import_jobs():
 def get_import_job(job_id):
     """Return a single job's current state (for polling)."""
     from models.import_job import ImportJobModel
+    from models.user import UserModel
 
     job = ImportJobModel.get(job_id)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
+
+    # Per-account isolation: only the owner (or a sysadmin) may see a job.
+    user = UserModel.get_user_by_id(get_current_user_id())
+    if not (user and user['role'] == 'sysadmin') \
+            and job.get('user_id') != get_current_user_id():
+        return jsonify({'error': 'Job not found'}), 404
+
     return jsonify({'success': True, 'job': _serialize_job(job)})
 
 
 @music_bp.route('/import-jobs/<int:job_id>', methods=['DELETE'])
 @require_auth
 def cancel_import_job(job_id):
-    """Cancel a queued (not yet running) job."""
+    """Cancel a queued (not yet running) job — owners only (or sysadmins)."""
     from models.import_job import ImportJobModel
+    from models.user import UserModel
 
     job = ImportJobModel.get(job_id)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
+
+    user = UserModel.get_user_by_id(get_current_user_id())
+    if not (user and user['role'] == 'sysadmin') \
+            and job.get('user_id') != get_current_user_id():
+        return jsonify({'error': 'Forbidden'}), 403
 
     if job['status'] != 'queued':
         return jsonify({'error': f"Cannot cancel a job that is {job['status']}"}), 400
