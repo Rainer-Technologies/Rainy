@@ -3621,6 +3621,12 @@ export class RainyApp {
     }
 
     switchSettingsSection(sectionName, { updateUrl = true } = {}) {
+        // Admin-only sections (Users, AI & Discovery): non-admins fall back to Appearance,
+        // even on direct deep links like /settings/ai or /settings/users.
+        if ((sectionName === 'users' || sectionName === 'ai') &&
+            (!this.user || this.user.role !== 'sysadmin')) {
+            sectionName = 'appearance';
+        }
         if (updateUrl) {
             return this.navigateTo(`/settings/${encodeURIComponent(sectionName)}`, { replace: true });
         }
@@ -3714,7 +3720,8 @@ export class RainyApp {
             'library': ['library', 'duplicate', 'dup', 'merge'],
             'syncs': ['sync', 'playlist sync', 'interval', 'mirror', 'spotify', 'youtube'],
             'jobs': ['jobs', 'library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata', 'server'],
-            'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
+            'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server'],
+            'ai': ['ai', 'discovery', 'openai', 'provider', 'api key', 'model', 'base url', 'for you', 'connection']
         };
 
         if (!searchTerm) {

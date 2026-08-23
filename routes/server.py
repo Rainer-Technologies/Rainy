@@ -7,7 +7,7 @@ browsers configured to treat the HTTP origin as secure via flags).
 from flask import Blueprint, jsonify, request
 
 from config import Config
-from routes.auth import require_auth
+from routes.auth import require_auth, require_sysadmin
 
 server_bp = Blueprint('server', __name__, url_prefix='/api/server')
 
@@ -32,7 +32,7 @@ def chromecast_info():
 
 
 @server_bp.route('/ai-config', methods=['GET'])
-@require_auth
+@require_sysadmin
 def get_ai_config():
     """Return the AI provider config (key masked)."""
     from utils import ai_client
@@ -46,7 +46,7 @@ def get_ai_config():
 
 
 @server_bp.route('/ai-config', methods=['POST'])
-@require_auth
+@require_sysadmin
 def save_ai_config():
     """Persist the AI provider config. Empty api_key keeps the existing one."""
     from utils import ai_client
@@ -73,7 +73,7 @@ def save_ai_config():
 
 
 @server_bp.route('/ai-config/test', methods=['POST'])
-@require_auth
+@require_sysadmin
 def test_ai_config():
     """Fire a quick request against the configured endpoint."""
     from utils import ai_client
