@@ -2045,7 +2045,7 @@ export class AudioPlayer {
         const isHidden = this.fsContainer.classList.contains('hidden');
         if (isHidden) {
             // Apply mode class
-            let mode = 'modern'; // Default for new/no-pref accounts — keep in sync with settings default
+            let mode = 'standard'; // Default for new/no-pref accounts — keep in sync with settings default
             let swap = false;
             if (window.app && window.app.user && window.app.user.preferences) {
                 let prefs = window.app.user.preferences;
