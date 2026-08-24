@@ -31,6 +31,55 @@ def chromecast_info():
     })
 
 
+@server_bp.route('/lan-ip', methods=['GET'])
+@require_auth
+def lan_ip():
+    """Return the server's private LAN IPv4 addresses.
+
+    The phone may reach Rainy over Tailscale/VPN (100.x / *.ts.net) — an
+    address a Chromecast on the local network cannot fetch audio/cover from.
+    Cast devices build their media URLs from THIS value instead, so audio and
+    covers work even when the phone itself connects over VPN.
+    """
+    import socket
+    addrs = set()
+    try:
+        # The address we'd route an arbitrary internet packet through.
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            addrs.add(s.getsockname()[0])
+        finally:
+            s.close()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        addrs.add(socket.gethostbyname(socket.gethostname()))
+    except Exception:  # noqa: BLE001
+        pass
+
+    def _is_private(ip):
+        parts = ip.split('.')
+        if len(parts) != 4:
+            return False
+        a = int(parts[0])
+        b = int(parts[1]) if len(parts) > 1 else 0
+        if a == 10:
+            return True  # 10.0.0.0/8
+        if a == 172 and 16 <= b <= 31:
+            return True  # 172.16.0.0/12
+        if a == 192 and b == 168:
+            return True  # 192.168.0.0/16
+        return False
+
+    lans = sorted(a for a in addrs if _is_private(a))
+    return jsonify({
+        'lan_ips': lans,
+        'preferred': lans[0] if lans else None,
+        'http_port': Config.HTTP_PORT,
+    })
+
+
 @server_bp.route('/ai-config', methods=['GET'])
 @require_sysadmin
 def get_ai_config():
