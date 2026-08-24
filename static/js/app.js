@@ -51,7 +51,7 @@ export class RainyApp {
         this.songs = [];
         this.filteredSongs = [];
         const savedViewMode = localStorage.getItem('rainy_library_view_mode');
-        this.currentViewMode = savedViewMode === 'grid' ? 'grid' : 'list'; // 'grid' or 'list'
+        this.currentViewMode = savedViewMode === 'list' ? 'list' : 'grid'; // 'grid' or 'list'
         this.selectedSong = null; // For context menu
         this.listSortOrder = 'none'; // 'none', 'asc', 'desc'
         this.currentSort = 'default';
