@@ -569,6 +569,16 @@
         align-items: center;
         gap: var(--spacing-sm);
         padding: var(--spacing-sm) var(--spacing-md);
+
+        /* Pin the bar inside the app shell instead of position:fixed.
+           Under mobile browser toolbars (URL bar visible), `fixed;
+           bottom:0` + a 100vh shell puts the bar BEHIND the browser UI;
+           as an in-flow flex child of the dvh-sized shell it is always
+           visible at the bottom of the page. Must stay positioned so
+           .player-extra's absolute popover keeps anchoring to it. */
+        position: relative;
+        flex: 0 0 auto;
+        padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
     }
 
     .now-playing {

@@ -7,6 +7,10 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    /* Mobile: 100vh includes the area hidden behind the browser's URL
+       bar, so a fixed bottom bar ends up underneath it. dvh tracks the
+       visible viewport; desktop (dvh === vh) is unaffected. */
+    height: 100dvh;
     overflow: hidden;
     background: var(--bg-primary);
 }
@@ -456,6 +460,8 @@
 @media (max-width: 768px) {
     .app-main {
         padding: var(--spacing-lg);
+        /* Bar is in-flow on phones — no overlap to reserve space for. */
+        margin-bottom: 0;
     }
 
     .library-stats {
