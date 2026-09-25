@@ -7,8 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # ffmpeg is required by yt-dlp for downloading and processing audio.
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y ffmpeg \
+RUN apt-get update -qq >/dev/null \
+    && apt-get install --no-install-recommends -y -qq ffmpeg >/dev/null \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

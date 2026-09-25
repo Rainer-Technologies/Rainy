@@ -64,7 +64,7 @@
     background: rgba(255, 68, 68, 0.1);
 }
 
-/* Context menu submenu (flyout for Add to Playlist) */
+/* Context menu submenus */
 .context-menu-item.has-submenu {
     position: relative;
 }
@@ -124,6 +124,7 @@
     white-space: nowrap;
 }
 
+.context-menu-divider,
 .context-submenu .dropdown-divider {
     height: 1px;
     background: var(--border-subtle);

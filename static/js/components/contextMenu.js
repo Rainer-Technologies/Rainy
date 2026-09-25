@@ -92,7 +92,7 @@ export class ContextMenuItem extends Component {
         return h.div(a.class('context-menu-item', hasSubMenuCls, isDangerousCls), on.mouseenter(() => this.showSubMenu()), on.mouseleave(() => this.hideSubMenu()),
             h.slot(),
             this.hasAttribute('has-submenu')
-                ? I.ArrowHeadRight()
+                ? I.ArrowHeadRight('currentColor', a.class('submenu-arrow'))
                 : null
         );
     }

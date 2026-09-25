@@ -161,3 +161,171 @@
         padding-bottom: var(--spacing-lg);
     }
 }
+
+/* Player utility popovers share the player's surface and control language. */
+.eq-menu,
+.speed-menu,
+.crossfade-menu {
+    box-sizing: border-box;
+    max-width: calc(100vw - 16px);
+    color: var(--text-primary);
+    background: var(--surface-popover);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    padding: var(--spacing-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.eq-menu-header,
+.speed-menu-header,
+.crossfade-menu-header {
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    letter-spacing: normal;
+    text-align: left;
+    text-transform: none;
+}
+
+.eq-menu-header,
+.speed-menu-header,
+.crossfade-menu-header {
+    margin-bottom: var(--spacing-md);
+}
+
+.eq-power-btn,
+.crossfade-power-btn {
+    box-sizing: border-box;
+    width: var(--hit-target);
+    height: var(--hit-target);
+    border-color: var(--border-color);
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.eq-power-btn.on,
+.crossfade-power-btn.on {
+    border-color: var(--accent-primary);
+    background: var(--surface-accent);
+    color: var(--accent-primary);
+}
+
+.eq-preset,
+.speed-preset,
+.crossfade-preset {
+    min-height: 36px;
+    border-color: var(--border-color);
+    border-radius: var(--radius-control);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.eq-preset:hover,
+.speed-preset:hover,
+.crossfade-preset:hover,
+.eq-power-btn:hover,
+.crossfade-power-btn:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-highlight);
+    color: var(--accent-primary);
+}
+
+.eq-preset.active,
+.speed-preset.active,
+.crossfade-preset.active {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+.eq-power-btn.on:hover,
+.crossfade-power-btn.on:hover {
+    background: var(--surface-accent);
+}
+
+.eq-band-val,
+.eq-band-freq {
+    font-size: var(--font-size-xs);
+}
+
+.eq-reset-btn {
+    min-height: var(--hit-target);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-color: var(--border-color);
+    border-radius: var(--radius-control);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.eq-reset-btn:hover {
+    border-color: var(--accent-primary);
+    background: var(--surface-accent);
+    color: var(--accent-primary);
+}
+
+.eq-preset:focus-visible,
+.speed-preset:focus-visible,
+.crossfade-preset:focus-visible,
+.eq-power-btn:focus-visible,
+.crossfade-power-btn:focus-visible,
+.eq-reset-btn:focus-visible,
+.eq-slider:focus-visible,
+.speed-slider:focus-visible,
+.crossfade-slider:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Settings navigation and segmented tabs use one calm selected state. */
+.settings-tabs {
+    align-items: stretch;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+}
+
+.settings-nav-item,
+.settings-tab {
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+}
+
+.settings-tab {
+    min-height: var(--hit-target);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+}
+
+.settings-tab.active,
+.settings-nav-item.active {
+    border-color: rgba(var(--accent-primary-rgb), 0.24);
+    background: var(--surface-accent);
+    color: var(--accent-primary);
+}
+
+.settings-tab.active {
+    background-image: none;
+}
+
+.settings-subtab.active {
+    color: var(--accent-primary);
+}
+
+.settings-subtab.active::after {
+    background: var(--accent-primary);
+}
+
+.settings-nav-item:focus-visible,
+.settings-tab:focus-visible,
+.settings-subtab:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
