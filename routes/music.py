@@ -503,6 +503,14 @@ def apply_metadata(song_id):
         song = SongModel.get_song_by_id(song_id)
         if not song:
             return jsonify({'error': 'Song not found'}), 404
+
+        # Per-account isolation: only users who can see/hear the song may
+        # edit its metadata (a shared-library song's metadata is
+        # system-wide, so this is a write the account must be allowed to
+        # make — otherwise any logged-in user could rewrite any song).
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(get_current_user_id(), song_id):
+            return jsonify({'error': 'Song not found'}), 404
         
         relative_path = song['file_path']
         
@@ -1756,6 +1764,13 @@ def download_song(song_id):
         
         song = SongModel.get_song_by_id(song_id)
         if not song:
+            return jsonify({'error': 'Song not found'}), 404
+        
+        # Per-account isolation: only users who can see/hear the song may
+        # download it (same rule as /stream — otherwise any logged-in user
+        # could grab any file by id).
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(get_current_user_id(), song_id):
             return jsonify({'error': 'Song not found'}), 404
         
         relative_path = song['file_path']
