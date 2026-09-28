@@ -1777,7 +1777,7 @@ export class RainyApp {
             const res = await usePlaylistService().reorder(this.currentPlaylistId, orderedIds);
             if (res.error) {
                 Logger.error('Failed to reorder playlist:', res.error);
-                window.showToast?.('Failed to save order', 'error');
+                window.showToast?.(res.error?.error || res.error?.message || 'Failed to save order', 'error');
             } else {
                 window.showToast?.('Playlist order saved', 'success');
             }

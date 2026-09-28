@@ -26,8 +26,14 @@ export class Service {
             const status = response.error.response?.status ?? -1;
             const isClientError = RequestHelper.isClientError(status);
             if(isClientError) {
-                const data = await response.error.response.json();
-                return Err(data);
+                // Server JSON error body wins; never throw on a malformed
+                // body — a silent rejection is worse than a generic message.
+                try {
+                    const data = await response.error.response.json();
+                    return Err(data);
+                } catch (_) {
+                    return Err({ error: response.error.message });
+                }
             }
 
             return response;
