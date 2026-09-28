@@ -598,6 +598,33 @@ class Database:
             cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue MEDIUMTEXT NULL")
             cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue_index INT DEFAULT 0")
 
+        # Queue blobs live in their own table (Sep 2026). Keeping the multi-KB
+        # `queue` JSON inside connect_sessions made EVERY heartbeat a
+        # multi-page row rewrite; those seconds-long row locks outlived the 50s
+        # innodb_lock_wait_timeout, so heartbeats queued behind each other
+        # (25 stuck requests), the 32-connection pool drained, and unrelated
+        # requests + background workers died with PoolError/500s. Rows are
+        # written only when the queue actually changes; the legacy column is
+        # kept (always NULL) so a mid-reload old process can't hit 1054.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS connect_session_queues (
+                device_id VARCHAR(64) PRIMARY KEY,
+                user_id INT NOT NULL,
+                qhash CHAR(32) NOT NULL DEFAULT '',
+                queue MEDIUMTEXT NULL,
+                updated_at DOUBLE NOT NULL,
+                INDEX idx_user (user_id)
+            )
+        """)
+        cursor.execute("""
+            INSERT IGNORE INTO connect_session_queues
+                (device_id, user_id, qhash, queue, updated_at)
+            SELECT device_id, user_id, MD5(COALESCE(queue, '')), queue, UNIX_TIMESTAMP()
+            FROM connect_sessions
+            WHERE queue IS NOT NULL AND queue <> ''
+        """)
+        cursor.execute("UPDATE connect_sessions SET queue = NULL WHERE queue IS NOT NULL")
+
         # Rainy Connect — remote-control command queue (polled by target device).
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS connect_commands (

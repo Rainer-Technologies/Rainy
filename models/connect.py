@@ -5,16 +5,23 @@ Each active player (web tab or mobile app) registers as a "device" and
 heartbeats its playback state every few seconds. Any device belonging to the
 same user can:
   - list active devices
-  - remote-control another device (play/pause/skip/seek/volume/shuffle)
+  - remote-control another device (play/pause/skip/seek/volume/shuffle/repeat)
   - transfer playback to itself ("play here instead")
 
 Devices that stop heartbeating are considered stale after STALE_SECONDS and
 are pruned from listings. State lives in MySQL so it's shared across the
 Flask workers and visible to every client.
+
+Storage layout (Sep 2026): connect_sessions holds only the small per-beat
+columns; the multi-KB playback queue lives in connect_session_queues and is
+written only when it actually changes. See heartbeat() for why.
 """
 
+import hashlib
 import time
 import uuid
+
+import mysql.connector
 
 from models.database import Database
 
@@ -44,10 +51,22 @@ class ConnectModel:
                 volume INT DEFAULT 100,
                 is_shuffled TINYINT DEFAULT 0,
                 repeat_mode VARCHAR(16) DEFAULT 'off',
+                queue MEDIUMTEXT NULL,
                 last_seen DOUBLE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_user (user_id),
                 INDEX idx_last_seen (last_seen)
+            )
+        """)
+        # Playback queues live in their own table (see heartbeat()).
+        Database.execute_query("""
+            CREATE TABLE IF NOT EXISTS connect_session_queues (
+                device_id VARCHAR(64) PRIMARY KEY,
+                user_id INT NOT NULL,
+                qhash CHAR(32) NOT NULL DEFAULT '',
+                queue MEDIUMTEXT NULL,
+                updated_at DOUBLE NOT NULL,
+                INDEX idx_user (user_id)
             )
         """)
 
@@ -56,61 +75,121 @@ class ConnectModel:
         return uuid.uuid4().hex
 
     @staticmethod
+    def _qhash(queue_raw):
+        return hashlib.md5((queue_raw or "").encode("utf-8", "replace")).hexdigest()
+
+    @staticmethod
     def heartbeat(user_id, device_id, payload):
         """Create or update a device session. Called on every state change and
-        on a periodic timer by each client."""
+        on a periodic timer by each client.
+
+        The write is split so the hot row stays small:
+          1. connect_sessions — only the columns a beat changes (position,
+             is_playing, last_seen, volume…), no queue blob.
+          2. connect_session_queues — written ONLY when the queue hash changed
+             (track/queue edits), and skipped entirely when the client omits
+             the `queue` key ("unchanged since the last beat").
+
+        A multi-KB blob in the row every device rewrites every couple of
+        seconds made each heartbeat a multi-page row rewrite on a single hot
+        row; those locks outlived the 50s innodb_lock_wait_timeout, so beats
+        convoyed (25 stuck requests), the 32-connection pool drained and
+        unrelated requests + background workers died (500s / PoolError).
+
+        Returns True when the full state was stored, False when a write hit a
+        lock-wait timeout and the previous state stands. The route answers 200
+        either way on purpose: a 500 made every client retry instantly, which
+        is what turned a slow lock into a self-sustaining storm.
+        """
         import json
         now = time.time()
         queue_raw = payload.get("queue")
         if queue_raw is not None and not isinstance(queue_raw, str):
             queue_raw = json.dumps(queue_raw)
-        Database.execute_query(
-            """
-            INSERT INTO connect_sessions
-                (device_id, user_id, device_name, device_type, song_id,
-                 song_title, song_artist, song_album, cover_path, position,
-                 duration, is_playing, volume, is_shuffled, repeat_mode,
-                 queue, queue_index, last_seen)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE
-                device_name = VALUES(device_name),
-                device_type = VALUES(device_type),
-                song_id = VALUES(song_id),
-                song_title = VALUES(song_title),
-                song_artist = VALUES(song_artist),
-                song_album = VALUES(song_album),
-                cover_path = VALUES(cover_path),
-                position = VALUES(position),
-                duration = VALUES(duration),
-                is_playing = VALUES(is_playing),
-                volume = VALUES(volume),
-                is_shuffled = VALUES(is_shuffled),
-                repeat_mode = VALUES(repeat_mode),
-                queue = VALUES(queue),
-                queue_index = VALUES(queue_index),
-                last_seen = VALUES(last_seen)
-            """,
-            (
-                device_id,
-                user_id,
-                payload.get("device_name", "Unknown Device"),
-                payload.get("device_type", "web"),
-                payload.get("song_id"),
-                payload.get("song_title"),
-                payload.get("song_artist"),
-                payload.get("song_album"),
-                payload.get("cover_path"),
-                payload.get("position", 0),
-                payload.get("duration", 0),
-                1 if payload.get("is_playing") else 0,
-                payload.get("volume", 100),
-                1 if payload.get("is_shuffled") else 0,
-                payload.get("repeat_mode", "off"),
-                queue_raw,
-                payload.get("queue_index", 0),
-                now,
-            ),
-        )
+        wants_queue = "queue" in payload
+
+        try:
+            Database.execute_query(
+                """
+                INSERT INTO connect_sessions
+                    (device_id, user_id, device_name, device_type, song_id,
+                     song_title, song_artist, song_album, cover_path, position,
+                     duration, is_playing, volume, is_shuffled, repeat_mode,
+                     queue_index, last_seen)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    device_name = VALUES(device_name),
+                    device_type = VALUES(device_type),
+                    song_id = VALUES(song_id),
+                    song_title = VALUES(song_title),
+                    song_artist = VALUES(song_artist),
+                    song_album = VALUES(song_album),
+                    cover_path = VALUES(cover_path),
+                    position = VALUES(position),
+                    duration = VALUES(duration),
+                    is_playing = VALUES(is_playing),
+                    volume = VALUES(volume),
+                    is_shuffled = VALUES(is_shuffled),
+                    repeat_mode = VALUES(repeat_mode),
+                    queue_index = VALUES(queue_index),
+                    last_seen = VALUES(last_seen)
+                """,
+                (
+                    device_id,
+                    user_id,
+                    payload.get("device_name", "Unknown Device"),
+                    payload.get("device_type", "web"),
+                    payload.get("song_id"),
+                    payload.get("song_title"),
+                    payload.get("song_artist"),
+                    payload.get("song_album"),
+                    payload.get("cover_path"),
+                    payload.get("position", 0),
+                    payload.get("duration", 0),
+                    1 if payload.get("is_playing") else 0,
+                    payload.get("volume", 100),
+                    1 if payload.get("is_shuffled") else 0,
+                    payload.get("repeat_mode", "off"),
+                    payload.get("queue_index", 0),
+                    now,
+                ),
+            )
+        except mysql.connector.errors.DatabaseError as e:
+            if e.errno == 1205:
+                print(f"[connect] heartbeat lock-wait timeout for {device_id}"
+                      " — state kept from previous beat")
+                return False
+            raise
+
+        if wants_queue:
+            qhash = ConnectModel._qhash(queue_raw)
+            try:
+                row = Database.execute_query(
+                    "SELECT qhash FROM connect_session_queues WHERE device_id = %s",
+                    (device_id,),
+                    fetch_one=True,
+                )
+                if not row or row.get("qhash") != qhash:
+                    Database.execute_query(
+                        """
+                        INSERT INTO connect_session_queues
+                            (device_id, user_id, qhash, queue, updated_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            user_id = VALUES(user_id),
+                            qhash = VALUES(qhash),
+                            queue = VALUES(queue),
+                            updated_at = VALUES(updated_at)
+                        """,
+                        (device_id, user_id, qhash, queue_raw or None, now),
+                    )
+            except mysql.connector.errors.DatabaseError as e:
+                if e.errno == 1205:
+                    print(f"[connect] queue write lock-wait timeout for {device_id}"
+                          " — queue kept from previous beat")
+                    return False
+                raise
+        return True
 
     @staticmethod
     def _prune_stale(user_id):
@@ -119,13 +198,29 @@ class ConnectModel:
             "DELETE FROM connect_sessions WHERE user_id = %s AND last_seen < %s",
             (user_id, cutoff),
         )
+        # Queue rows whose device row is gone (e.g. pruned just above) would
+        # otherwise accumulate forever.
+        Database.execute_query(
+            """
+            DELETE q FROM connect_session_queues q
+            LEFT JOIN connect_sessions s ON s.device_id = q.device_id
+            WHERE q.user_id = %s AND s.device_id IS NULL
+            """,
+            (user_id,),
+        )
 
     @staticmethod
     def list_devices(user_id, exclude_device_id=None):
         """Return active (non-stale) devices for a user, newest first."""
         ConnectModel._prune_stale(user_id)
         rows = Database.execute_query(
-            "SELECT * FROM connect_sessions WHERE user_id = %s ORDER BY last_seen DESC",
+            """
+            SELECT s.*, q.queue AS queue_blob
+            FROM connect_sessions s
+            LEFT JOIN connect_session_queues q ON q.device_id = s.device_id
+            WHERE s.user_id = %s
+            ORDER BY s.last_seen DESC
+            """,
             (user_id,),
             fetch_all=True,
         )
@@ -139,7 +234,12 @@ class ConnectModel:
     @staticmethod
     def get_device(user_id, device_id):
         row = Database.execute_query(
-            "SELECT * FROM connect_sessions WHERE user_id = %s AND device_id = %s",
+            """
+            SELECT s.*, q.queue AS queue_blob
+            FROM connect_sessions s
+            LEFT JOIN connect_session_queues q ON q.device_id = s.device_id
+            WHERE s.user_id = %s AND s.device_id = %s
+            """,
             (user_id, device_id),
             fetch_one=True,
         )
@@ -150,6 +250,10 @@ class ConnectModel:
         """A device deregisters (e.g. player closed / app backgrounded)."""
         Database.execute_query(
             "DELETE FROM connect_sessions WHERE user_id = %s AND device_id = %s",
+            (user_id, device_id),
+        )
+        Database.execute_query(
+            "DELETE FROM connect_session_queues WHERE user_id = %s AND device_id = %s",
             (user_id, device_id),
         )
 
@@ -213,7 +317,10 @@ class ConnectModel:
     def _serialize(r):
         import json
         queue = []
-        raw_queue = r.get("queue")
+        # queue_blob comes from the LEFT JOIN onto connect_session_queues.
+        raw_queue = r.get("queue_blob")
+        if raw_queue is None:
+            raw_queue = r.get("queue")
         if raw_queue:
             try:
                 queue = json.loads(raw_queue)

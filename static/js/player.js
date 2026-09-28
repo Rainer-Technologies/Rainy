@@ -3516,6 +3516,10 @@ export class AudioPlayer {
         // While in controller mode, heartbeat as idle (we're not playing locally)
         if (this._controllerTarget) return;
         if (!this.currentSong && !this.isPlaying) return;
+        // One beat in flight at a time: without this a slow beat stacks up and
+        // every later beat re-uploads the same multi-KB payload, which is what
+        // buried the Connect table in duplicate row updates.
+        if (this._connectBeatBusy) return;
 
         const song = this.currentSong;
 
@@ -3529,7 +3533,12 @@ export class AudioPlayer {
             cover_path: s?.cover_path ?? null
         }));
 
-        useConnectService().heartbeat({
+        // Upload the queue only when it actually changed — it is by far the
+        // heaviest part of the beat, and the server only needs it on change.
+        const queueSig = queue.map(s => s.id).join(',');
+        const sendQueue = queueSig !== this._connectQueueSig;
+
+        const payload = {
             device_id: this._connectDeviceId,
             device_name: this._connectDeviceName,
             device_type: 'web',
@@ -3544,9 +3553,17 @@ export class AudioPlayer {
             volume: Math.round((this.audio ? this.audio.volume : 0.8) * 100),
             is_shuffled: this.isShuffle,
             repeat_mode: this.repeatMode || 'none',
-            queue,
             queue_index: this.currentIndex
-        }).catch(() => { /* network blips are fine — next beat retries */ });
+        };
+        if (sendQueue) payload.queue = queue;
+
+        this._connectBeatBusy = true;
+        useConnectService().heartbeat(payload).then((result) => {
+            // Remember the signature only once the server has it, so a failed
+            // beat re-sends the queue on the next try.
+            if (sendQueue && result && !result.error) this._connectQueueSig = queueSig;
+        }).catch(() => { /* network blips are fine — next beat retries */ })
+          .finally(() => { this._connectBeatBusy = false; });
     }
 
     /** Fetch queued remote commands and apply them to local playback. */

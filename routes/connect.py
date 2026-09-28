@@ -28,6 +28,9 @@ def heartbeat(user_id):
     if not device_id:
         return jsonify({'error': 'device_id is required'}), 400
     ConnectModel.heartbeat(user_id, device_id, data)
+    # Always 200, even for a dropped beat: the next beat is seconds away and
+    # the previous state still stands. A 5xx here made clients retry
+    # immediately, which is what turned a slow row lock into a storm.
     return jsonify({'success': True})
 
 
