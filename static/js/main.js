@@ -69,7 +69,18 @@ function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-                .then((reg) => Logger.log('Service worker registered:', reg.scope))
+                .then((reg) => {
+                    Logger.log('Service worker registered:', reg.scope);
+
+                    // A new service worker took control (e.g. after a
+                    // deploy): the OLD page is still running the previous
+                    // JS modules, so reload once to pick up the new shell
+                    // instead of showing stale code all session.
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        Logger.log('Service worker updated — reloading for the new build');
+                        window.location.reload();
+                    });
+                })
                 .catch((err) => Logger.warn('Service worker registration failed:', err));
         });
     }
