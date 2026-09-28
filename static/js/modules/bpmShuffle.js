@@ -33,14 +33,16 @@ function randomIndex(candidates, random) {
  * @param {number} currentIndex
  * @param {Map<string, number>|Object} tempoBySongId
  * @param {() => number} random injectable for deterministic tests
+ * @param {Set<number>} exclude indices that must not be picked (songs
+ *        already played this shuffle cycle) — keeps a cycle repeat-free
  * @returns {number} the next playlist index, or -1 when no candidate exists
  */
-export function pickBpmAwareShuffleIndex(playlist, currentIndex, tempoBySongId, random = Math.random) {
+export function pickBpmAwareShuffleIndex(playlist, currentIndex, tempoBySongId, random = Math.random, exclude = null) {
     if (!Array.isArray(playlist) || playlist.length < 2) return -1;
 
     const candidates = playlist
         .map((_song, index) => index)
-        .filter(index => index !== currentIndex);
+        .filter(index => index !== currentIndex && !(exclude && exclude.has(index)));
     if (!candidates.length) return -1;
 
     const currentBpm = readBpm(playlist[currentIndex], tempoBySongId);

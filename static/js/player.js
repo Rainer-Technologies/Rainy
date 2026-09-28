@@ -26,6 +26,12 @@ export class AudioPlayer {
         this.tempoBySongId = new Map();
         this._tempoMapLoaded = false;
         this._tempoMapPromise = null;
+        // Shuffle cycle ("shuffle bag"): keys of songs not yet played this
+        // cycle. Null = no cycle in progress. Auto-advance draws WITHOUT
+        // repeats until every song has played once; a manual song pick (or a
+        // new playlist) resets the cycle.
+        this._shuffleRemaining = null;
+        this._autoAdvance = false;
         this.isBuffering = false;
         this.lastDisplayedTime = 0;
         this.isDraggingProgress = false;
@@ -445,6 +451,10 @@ export class AudioPlayer {
     }
 
     playSong(index, playlist = null, context = null) {
+        // Distinguish auto-advance (playNext/playPrevious) from a user
+        // picking a song: only a manual pick resets the shuffle cycle.
+        const auto = this._autoAdvance;
+        this._autoAdvance = false;
         // Controller mode: route playback to the remote device
         // BUT: if this is a Connect command (context.type === 'connect'), 
         // we're the target — play locally, don't forward.
@@ -490,6 +500,16 @@ export class AudioPlayer {
 
         this.currentIndex = index;
         const song = this.playlist[index];
+
+        // Shuffle cycle bookkeeping: never repeat a song until the whole
+        // playlist has played once. A manual selection (or a new playlist)
+        // starts a fresh cycle; auto-advance keeps the current one going.
+        if (this.isShuffle) {
+            if (!this._shuffleRemaining || playlist || !auto) {
+                this._resetShuffleCycle();
+            }
+            this._markShufflePlayed(index);
+        }
 
         // Clear any A-B section loop from the previous song
         this.clearAbRepeat();
@@ -573,7 +593,7 @@ export class AudioPlayer {
         }
 
         // Update playing state in library
-        if (window.app && !song.videoId && !song.djTalk) {
+        if (window.app && !song.videoId) {
             window.app.updatePlayingState(song.id);
         }
 
@@ -660,6 +680,7 @@ export class AudioPlayer {
             }
         }
 
+        this._autoAdvance = true;
         this.playSong(newIndex);
     }
 
@@ -688,15 +709,58 @@ export class AudioPlayer {
             }
         }
 
+        this._autoAdvance = true;
         this.playSong(newIndex);
     }
 
     _pickShuffleIndex() {
+        if (!this._shuffleRemaining) this._resetShuffleCycle();
+        // Candidate pool = songs not yet played this cycle. Stale keys from
+        // removed queue entries don't count towards the cycle.
+        let exclude = new Set();
+        let remainingCount = 0;
+        this.playlist.forEach((song, index) => {
+            if (this._shuffleRemaining.has(this._songKey(song, index))) {
+                remainingCount += 1;
+            } else {
+                exclude.add(index);
+            }
+        });
+        if (remainingCount === 0) {
+            // Every song has played once this cycle. Start a fresh cycle only
+            // with repeat-all; otherwise let the playlist end like the
+            // sequential mode does.
+            if (this.repeatMode !== 'all') return -1;
+            this._resetShuffleCycle();
+            exclude = new Set();
+        }
         return pickBpmAwareShuffleIndex(
             this.playlist,
             this.currentIndex,
             this.tempoBySongId,
+            Math.random,
+            exclude,
         );
+    }
+
+    /** Stable identity for a queue entry (survives queue reorders/inserts). */
+    _songKey(song, index) {
+        if (!song) return `i:${index}`;
+        return String(song.id ?? song.videoId ?? `i:${index}`);
+    }
+
+    /** Start a fresh shuffle cycle covering every song in the queue once. */
+    _resetShuffleCycle() {
+        this._shuffleRemaining = new Set(
+            this.playlist.map((song, index) => this._songKey(song, index)),
+        );
+    }
+
+    /** Remove a song from the current cycle once it has started playing. */
+    _markShufflePlayed(index) {
+        const song = this.playlist[index];
+        if (!song || !this._shuffleRemaining) return;
+        this._shuffleRemaining.delete(this._songKey(song, index));
     }
 
     async _ensureTempoMap() {
@@ -736,7 +800,13 @@ export class AudioPlayer {
     toggleShuffle() {
         if (this.isControllerMode) { this._controllerCommand('shuffle', { enabled: !(this._controllerState?.is_shuffled) }); return; }
         this.isShuffle = !this.isShuffle;
-        if (this.isShuffle) this._ensureTempoMap();
+        if (this.isShuffle) {
+            this._ensureTempoMap();
+            this._resetShuffleCycle();
+            this._markShufflePlayed(this.currentIndex);
+        } else {
+            this._shuffleRemaining = null;
+        }
         const color = this.isShuffle ? 'var(--accent-primary)' : '';
         const fill = this.isShuffle ? 'var(--accent-primary)' : '';
 
@@ -2555,6 +2625,10 @@ export class AudioPlayer {
     addToQueue(song) {
         if (!song) return;
         this.playlist.push(song);
+        // Newly queued songs join the current shuffle cycle too.
+        if (this._shuffleRemaining) {
+            this._shuffleRemaining.add(this._songKey(song, this.playlist.length - 1));
+        }
         this.queueModified = true;
         this.queueOperations.push({ action: 'add', songId: song.id, position: this.playlist.length - 1 });
         this.savePlaybackState();
@@ -2571,6 +2645,10 @@ export class AudioPlayer {
         if (!song) return;
         const insertAt = this.currentIndex + 1;
         this.playlist.splice(insertAt, 0, song);
+        // Newly queued songs join the current shuffle cycle too.
+        if (this._shuffleRemaining) {
+            this._shuffleRemaining.add(this._songKey(song, insertAt));
+        }
         this.queueModified = true;
         this.queueOperations.push({ action: 'add', songId: song.id, position: insertAt });
         this.savePlaybackState();
@@ -3158,6 +3236,7 @@ export class AudioPlayer {
                 }
                 nextIndex = this._pickShuffleIndex();
             }
+            if (nextIndex < 0) return; // shuffle cycle exhausted — stop here
             if (nextIndex >= this.playlist.length) {
                 if (this.repeatMode === 'all') nextIndex = 0;
                 else return; // end of playlist — let it stop naturally
@@ -3239,6 +3318,10 @@ export class AudioPlayer {
         // Point the primary at the next song — use the prefetched blob if
         // available (instant load from memory), otherwise fall back to URL.
         this.currentIndex = nextIndex;
+        // The crossfaded song actually started — count it in the shuffle
+        // cycle (the pick in _checkCrossfade was only a peek, so a cancelled
+        // crossfade never loses a song from the cycle).
+        if (this.isShuffle) this._markShufflePlayed(nextIndex);
         const blobUrl = this._crossfadeBlobUrl;
 
         // Mute and pause BEFORE changing src. The element was previously
