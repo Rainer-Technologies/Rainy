@@ -253,23 +253,6 @@ export class SongContextMenu extends Component {
         this._insertCurrentSongAtPosition(player.currentIndex + 1);
     }
 
-    /** Start a radio session seeded on the right-clicked song. */
-    startRadioForCurrentSong() {
-        this.hide();
-
-        /** @type {SongModel?} */
-        const currentSong = this.get('current-song');
-        if (!currentSong || !currentSong.id) return;
-
-        /** @type {import('./player.js').Player?} */
-        const player = window.player;
-        if (!player) return;
-
-        // Pass the FULL song object so the radio keeps the seed's cover,
-        // duration and album in the queue (the API seed dict is minimal).
-        player.startRadio(currentSong.id, currentSong);
-    }
-
     findMetadataForCurrentSong() {
         this.hide();
 
@@ -362,10 +345,6 @@ export class SongContextMenu extends Component {
                     H.of(ContextMenuItem, on.click(() => this.playCurrentSongAsNext()),
                         I.Next(),
                         h.span('Play Next'),
-                    ),
-                    H.of(ContextMenuItem, on.click(() => this.startRadioForCurrentSong()),
-                        I.Radio(),
-                        h.span('Start Radio'),
                     ),
                     H.of(ContextMenuItem, on.click(() => this.addCurrentSongToQueue()),
                         I.ListWithPlay(),

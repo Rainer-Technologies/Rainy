@@ -13,10 +13,7 @@ from routes.playback import playback_bp
 from routes.albums import albums_bp
 from routes.smartmix import smartmix_bp
 from routes.connect import connect_bp
-from routes.plugins import plugins_bp
 from routes.server import server_bp
-from routes.radio import radio_bp
-from routes.dj import dj_bp
 from routes.playlist_syncs import playlist_syncs_bp
 
 # Static files are served by the explicit catch-all below so frontend routes
@@ -48,10 +45,7 @@ app.register_blueprint(playback_bp, url_prefix='/api/playback')
 app.register_blueprint(albums_bp, url_prefix='/api/albums')
 app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
-app.register_blueprint(plugins_bp, url_prefix='/api/plugins')
 app.register_blueprint(server_bp)
-app.register_blueprint(radio_bp)
-app.register_blueprint(dj_bp)
 app.register_blueprint(playlist_syncs_bp)
 
 @app.route('/')
@@ -80,29 +74,6 @@ def serve_static(path):
 def shutdown_session(exception=None):
     Database.close_db(exception)
 
-
-def warm_ai_stack():
-    """Pre-warm the AI stack in the background at startup.
-
-    The Kokoro TTS daemon takes ~60-80s to load its model on the first line
-    request; warming it now means the user's FIRST DJ toggle works instead of
-    failing with "DJ unavailable" while the daemon is still loading. Runs in
-    a daemon thread so startup is unaffected. Only warms when the AI is
-    actually configured. Degrades gracefully to text-only when TTS isn't
-    installed (desktop without kokoro).
-    """
-    try:
-        from utils import ai_client, dj
-        if ai_client.is_configured():
-            ok, reason = dj._tts_available()
-            if ok:
-                dj._warm_daemon_async()
-                print("[startup] AI stack warm-up scheduled (TTS daemon loading…)")
-            else:
-                # Still warm the LLM side, but don't spam TTS error — DJ will be text-only
-                print(f"[startup] AI stack warm-up: LLM ready, TTS text-only ({reason})")
-    except Exception as e:  # noqa: BLE001
-        print(f"[startup] AI warm-up skipped: {e}")
 
 def init_app():
     """Initialize the application."""
@@ -168,12 +139,6 @@ def _ensure_sync_worker():
 
 if __name__ == '__main__':
     init_app()
-    # Warm the AI stack (TTS daemon etc.) ONLY in the reloader child — the
-    # parent process also runs this block and would spawn a SECOND daemon,
-    # which competes for the model load and wedges both (daemons froze at
-    # 0:26 CPU, 503s until killed, Aug 2026).
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        warm_ai_stack()
 
     print(f"Starting server on http://localhost:{Config.HTTP_PORT}")
     print("=" * 40)

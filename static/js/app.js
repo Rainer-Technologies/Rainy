@@ -712,7 +712,6 @@ export class RainyApp {
         });
 
         this.initDiscoverView();
-        this.initAiSettings();
         this.initPlaylistSyncs();
     }
 
@@ -1599,8 +1598,8 @@ export class RainyApp {
                 songArtist: songElement.querySelector('.song-artist, .track-artists')?.textContent || ''
             };
             // Prefer the FULL library song object (cover, duration, album,
-            // genre) — the DOM fallback is a shell and loses the seed's
-            // cover + duration when starting radio (bug fixed Aug 2026).
+            // genre) — the DOM fallback is a shell and loses details the
+            // context menu actions need (bug fixed Aug 2026).
             const full = this.librarySongs.find(s => String(s.id) === String(songData.songId));
             if (full) {
                 songData = {
@@ -2475,10 +2474,6 @@ export class RainyApp {
             this.renderDiscoverResults(results);
         };
 
-        // "For You" — AI-driven new-music feed
-        const feedBtn = document.getElementById('discover-feed-btn');
-        feedBtn?.addEventListener('click', () => this.loadDiscoverFeed());
-
         searchBtn?.addEventListener('click', performSearch);
         searchInput?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') performSearch();
@@ -2534,7 +2529,7 @@ export class RainyApp {
         });
     }
 
-    /** Render a list of discover results (shared by search + For You feed). */
+    /** Render a list of discover search results. */
     renderDiscoverResults(songs) {
         const resultsList = document.getElementById('discover-results');
         const empty = document.getElementById('discover-empty');
@@ -2547,14 +2542,6 @@ export class RainyApp {
         if (!songs || songs.length === 0) {
             empty.classList.remove('hidden');
             return;
-        }
-
-        const feedMode = songs[0] && songs[0].reason !== undefined;
-        const feedHeader = document.createElement('div');
-        if (feedMode) {
-            feedHeader.className = 'discover-feed-header';
-            feedHeader.textContent = 'For You — AI-curated new music';
-            resultsList.appendChild(feedHeader);
         }
 
         songs.forEach(song => {
@@ -2601,13 +2588,6 @@ export class RainyApp {
 
             meta.appendChild(title);
             meta.appendChild(artistAlbum);
-
-            if (feedMode && song.reason) {
-                const reason = document.createElement('span');
-                reason.className = 'discover-item-reason';
-                reason.textContent = song.reason;
-                meta.appendChild(reason);
-            }
 
             info.appendChild(cover);
             info.appendChild(meta);
@@ -2660,118 +2640,6 @@ export class RainyApp {
             item.appendChild(actions);
 
             resultsList.appendChild(item);
-        });
-    }
-
-    /** AI-driven "For You" feed: new music based on listening history. */
-    async loadDiscoverFeed() {
-        const resultsList = document.getElementById('discover-results');
-        const empty = document.getElementById('discover-empty');
-        const loading = document.getElementById('discover-loading');
-        const searchInput = document.getElementById('discover-search-input');
-        if (!resultsList) return;
-
-        resultsList.innerHTML = '';
-        empty.classList.add('hidden');
-        loading.classList.remove('hidden');
-        if (searchInput) searchInput.value = '';
-
-        try {
-            const res = await fetch('/api/music/discover/feed?limit=20', {
-                credentials: 'same-origin',
-            });
-            const data = await res.json();
-            loading.classList.add('hidden');
-
-            if (!res.ok || data.error) {
-                this.showToast('For You failed: ' + (data.error || 'Unknown error'), 'error');
-                return;
-            }
-
-            if (data.meta && data.meta.error) {
-                empty.querySelector('h3').textContent = 'Not enough history';
-                empty.querySelector('p').textContent = data.meta.error;
-                empty.classList.remove('hidden');
-                return;
-            }
-
-            this.renderDiscoverResults(data.songs || []);
-        } catch (e) {
-            loading.classList.add('hidden');
-            this.showToast('For You failed: ' + (e.message || 'Network error'), 'error');
-        }
-    }
-
-    /** Load the saved AI provider config into the settings form. */
-    async loadAiConfig() {
-        const urlInput = document.getElementById('ai-base-url');
-        const modelInput = document.getElementById('ai-model');
-        const keyInput = document.getElementById('ai-api-key');
-        const hint = document.getElementById('ai-key-hint');
-        if (!urlInput) return;
-        try {
-            const res = await fetch('/api/server/ai-config', { credentials: 'same-origin' });
-            const data = await res.json();
-            if (res.ok && !data.error) {
-                urlInput.value = data.base_url || '';
-                modelInput.value = data.model || '';
-                keyInput.value = '';
-                if (data.api_key_set && hint) {
-                    hint.textContent = `Current key: ${data.api_key_masked} — leave blank to keep it.`;
-                }
-            }
-        } catch (e) {
-            this.showToast('Failed to load AI config: ' + (e.message || 'Error'), 'error');
-        }
-    }
-
-    /** Wire the AI settings form buttons. */
-    initAiSettings() {
-        const testBtn = document.getElementById('ai-test-btn');
-        const saveBtn = document.getElementById('ai-save-btn');
-        const statusHint = document.getElementById('ai-status-hint');
-
-        testBtn?.addEventListener('click', async () => {
-            if (statusHint) statusHint.textContent = 'Testing…';
-            try {
-                const res = await fetch('/api/server/ai-config/test', {
-                    method: 'POST', credentials: 'same-origin',
-                });
-                const data = await res.json();
-                if (statusHint) {
-                    statusHint.textContent = data.success
-                        ? `Connected ✓ — ${data.detail}`
-                        : `Failed: ${data.detail || 'unknown error'}`;
-                }
-            } catch (e) {
-                if (statusHint) statusHint.textContent = 'Failed: ' + (e.message || 'Network error');
-            }
-        });
-
-        saveBtn?.addEventListener('click', async () => {
-            const urlInput = document.getElementById('ai-base-url');
-            const modelInput = document.getElementById('ai-model');
-            const keyInput = document.getElementById('ai-api-key');
-            try {
-                const res = await fetch('/api/server/ai-config', {
-                    method: 'POST', credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        base_url: urlInput?.value || '',
-                        model: modelInput?.value || '',
-                        api_key: keyInput?.value || '',
-                    }),
-                });
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    this.showToast('AI config saved', 'success');
-                    this.loadAiConfig();
-                } else {
-                    this.showToast('Save failed: ' + (data.error || 'Unknown error'), 'error');
-                }
-            } catch (e) {
-                this.showToast('Save failed: ' + (e.message || 'Network error'), 'error');
-            }
         });
     }
 
@@ -3703,9 +3571,9 @@ export class RainyApp {
     }
 
     switchSettingsSection(sectionName, { updateUrl = true } = {}) {
-        // Admin-only sections (Users, AI & Discovery): non-admins fall back to Appearance,
-        // even on direct deep links like /settings/ai or /settings/users.
-        if ((sectionName === 'users' || sectionName === 'ai') &&
+        // Admin-only sections (Users): non-admins fall back to Appearance,
+        // even on direct deep links like /settings/users.
+        if (sectionName === 'users' &&
             (!this.user || this.user.role !== 'sysadmin')) {
             sectionName = 'appearance';
         }
@@ -3762,11 +3630,6 @@ export class RainyApp {
             this.loadSyncHistory();
         }
 
-        // Load AI config when switching to the AI section
-        if (sectionName === 'ai') {
-            this.loadAiConfig();
-        }
-
         // Load users when switching to users section
         if (sectionName === 'users') {
             this.setCreateUserFormOpen(false);
@@ -3802,8 +3665,7 @@ export class RainyApp {
             'library': ['library', 'duplicate', 'dup', 'merge'],
             'syncs': ['sync', 'playlist sync', 'interval', 'mirror', 'spotify', 'youtube'],
             'jobs': ['jobs', 'library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata', 'server'],
-            'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server'],
-            'ai': ['ai', 'discovery', 'openai', 'provider', 'api key', 'model', 'base url', 'for you', 'connection']
+            'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
         };
 
         if (!searchTerm) {

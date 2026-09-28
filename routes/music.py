@@ -1774,24 +1774,6 @@ def download_song(song_id):
         return jsonify({'error': str(e)}), 500
 
 
-@music_bp.route('/discover/feed', methods=['GET'])
-@require_auth
-def discover_feed():
-    """AI-driven new-music feed: taste profile -> LLM queries -> YT search -> curation.
-
-    Returns songs NOT in the user's library, ranked for their taste.
-    """
-    from utils import discovery_feed
-    user_id = get_current_user_id()
-    limit = min(int(request.args.get('limit', 20)), 40)
-    try:
-        feed, meta = discovery_feed.build_feed(user_id, limit=limit)
-        return jsonify({'songs': feed, 'meta': meta})
-    except Exception as e:
-        print(f"[discover-feed] route error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
 @music_bp.route('/discover/search', methods=['GET'])
 @require_auth
 def discover_search():

@@ -80,61 +80,6 @@ def lan_ip():
     })
 
 
-@server_bp.route('/ai-config', methods=['GET'])
-@require_sysadmin
-def get_ai_config():
-    """Return the AI provider config (key masked)."""
-    from utils import ai_client
-    cfg = ai_client.get_config()
-    return jsonify({
-        'base_url': cfg['base_url'],
-        'model': cfg['model'],
-        'api_key_set': bool(cfg['api_key']),
-        'api_key_masked': _mask_key(cfg['api_key']),
-    })
 
-
-@server_bp.route('/ai-config', methods=['POST'])
-@require_sysadmin
-def save_ai_config():
-    """Persist the AI provider config. Empty api_key keeps the existing one."""
-    from utils import ai_client
-    data = request.get_json() or {}
-    base_url = (data.get('base_url') or '').strip()
-    model = (data.get('model') or '').strip()
-    api_key = (data.get('api_key') or '').strip()
-
-    if not base_url or not model:
-        return jsonify({'error': 'Base URL and model are required'}), 400
-
-    cfg = ai_client.get_config()
-    if not api_key:
-        api_key = cfg['api_key']  # keep existing key when field left blank
-
-    ai_client.save_config(base_url, model, api_key)
-    new_cfg = ai_client.get_config()
-    return jsonify({
-        'success': True,
-        'base_url': new_cfg['base_url'],
-        'model': new_cfg['model'],
-        'api_key_set': bool(new_cfg['api_key']),
-    })
-
-
-@server_bp.route('/ai-config/test', methods=['POST'])
-@require_sysadmin
-def test_ai_config():
-    """Fire a quick request against the configured endpoint."""
-    from utils import ai_client
-    ok, detail = ai_client.test_connection()
-    return jsonify({'success': ok, 'detail': detail})
-
-
-def _mask_key(key):
-    if not key:
-        return ''
-    if len(key) <= 8:
-        return '****'
-    return key[:4] + '...' + key[-4:]
 
 

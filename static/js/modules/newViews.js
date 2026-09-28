@@ -480,7 +480,7 @@ export class NewViews {
             if (data.error) return Logger.error('Smart mix error:', data.error);
 
             this.smartMixSongs = data.songs || [];
-            const titles = { radio: 'Radio Mix', liked: 'Liked Mix', discovery: 'Discovery Mix' };
+            const titles = { liked: 'Liked Mix', discovery: 'Discovery Mix' };
             document.getElementById('smartmix-result-title').textContent = titles[mode] || 'Your Mix';
             document.getElementById('smartmix-result').classList.remove('hidden');
 
