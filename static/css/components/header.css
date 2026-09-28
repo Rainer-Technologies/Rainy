@@ -103,10 +103,6 @@
     transition: all var(--transition-fast);
 }
 
-.header-search input[readonly] {
-    cursor: pointer;
-}
-
 .header-search input:focus {
     outline: none;
     border-color: var(--accent-primary);
@@ -153,10 +149,6 @@
 .header-icon-btn svg {
     width: 24px;
     height: 24px;
-}
-
-.mobile-search-btn {
-    display: none;
 }
 
 /* ============================================
@@ -257,10 +249,6 @@
 
     .header-title {
         font-size: var(--font-size-lg);
-    }
-
-    .mobile-search-btn {
-        display: flex;
     }
 
     .user-name,

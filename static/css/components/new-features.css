@@ -476,6 +476,11 @@
     outline: none;
 }
 .gs-input::placeholder { color: var(--text-tertiary); }
+/* The overlay auto-focuses the input on open, so suppress the app-wide
+   :focus-visible ring (base.css) — the caret + row highlight below are the
+   affordance here. */
+.gs-input:focus-visible { outline: none; box-shadow: none; }
+.gs-input-row:focus-within { border-bottom-color: var(--accent-primary); }
 .gs-kbd {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);

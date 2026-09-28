@@ -33,6 +33,15 @@ export class KeyboardShortcuts {
             return;
         }
 
+        // The global-search toggle keys must work even while the search input
+        // is focused: the second press closes the overlay instead of typing
+        // the character into it.
+        if ((e.key === 'º' || e.key === 'ª') && window.__globalSearch?.isOpen) {
+            e.preventDefault();
+            window.__globalSearch.close();
+            return;
+        }
+
         // Don't hijack keys while typing in a field
         if (this._isTyping()) return;
 
@@ -107,6 +116,7 @@ export class KeyboardShortcuts {
                 break;
             case 'º':
             case 'ª':
+                e.preventDefault();
                 this._toggleGlobalSearch();
                 break;
             case '/':

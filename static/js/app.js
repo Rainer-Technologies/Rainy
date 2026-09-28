@@ -178,26 +178,11 @@ export class RainyApp {
             this.handleSettingsSearch(e.target.value);
         });
 
-        // The header is a single global search entry point. Local page search
-        // fields remain available where their scope is meaningful.
-        const openGlobalSearch = () => {
-            this.closeMobileSidebar();
-            this.closePlayerTools();
-            this.closeDropdown();
-            if (window.__globalSearch) {
-                window.__globalSearch.open();
-            } else {
-                document.getElementById('search-input')?.focus();
-            }
-        };
-        document.getElementById('search-input')?.addEventListener('click', openGlobalSearch);
-        document.getElementById('search-input')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openGlobalSearch();
-            }
-        });
-        document.getElementById('mobile-search-btn')?.addEventListener('click', openGlobalSearch);
+        // Header search filters the library in place.
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
+        }
 
         // Keyboard shortcuts cheat sheet (same overlay the ? key toggles)
         document.getElementById('shortcuts-btn')?.addEventListener('click', () => {
