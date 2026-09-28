@@ -430,7 +430,7 @@
     gap: var(--spacing-sm);
 }
 
-/* Text inputs inside settings cards (e.g. AI & Discovery provider fields) */
+/* Text inputs inside settings cards */
 .settings-text-input {
     box-sizing: border-box;
     width: 360px;
@@ -473,7 +473,7 @@
     gap: var(--spacing-sm);
 }
 
-/* AI connection status hint can be wider than the default row hint */
+/* Long status/hint lines can be wider than the default row hint */
 .settings-row-hint--wide {
     max-width: 460px;
 }

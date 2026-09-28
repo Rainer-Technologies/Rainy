@@ -3589,6 +3589,10 @@ export class RainyApp {
             (!this.user || this.user.role !== 'sysadmin')) {
             sectionName = 'appearance';
         }
+        // Unknown or removed sections (e.g. stale deep links) fall back too.
+        if (!document.getElementById(`settings-section-${sectionName}`)) {
+            sectionName = 'appearance';
+        }
         if (updateUrl) {
             return this.navigateTo(`/settings/${encodeURIComponent(sectionName)}`, { replace: true });
         }
@@ -3612,8 +3616,7 @@ export class RainyApp {
             'syncs': 'Playlist Sync',
             'jobs': 'Jobs',
             'users': 'Users',
-            'chromecast': 'Chromecast Setup',
-            'ai': 'AI & Discovery'
+            'chromecast': 'Chromecast Setup'
         };
         const title = document.getElementById('settings-page-title');
         if (title) title.textContent = titleMap[sectionName] || 'Settings';

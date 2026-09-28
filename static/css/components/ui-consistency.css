@@ -120,8 +120,7 @@
 .album-play-btn:hover,
 .smartmix-play-all:hover,
 .discover-btn-download:hover:not(:disabled),
-.search-btn-pill:hover,
-.discover-feed-btn:hover {
+.search-btn-pill:hover {
     transform: translateY(-1px);
     filter: none;
     box-shadow: var(--shadow-sm);
