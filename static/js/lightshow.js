@@ -1290,9 +1290,7 @@ export class LightShowEngine {
         // ---- Impact rings ----
         for (let i = this.rings.length - 1; i >= 0; i--) {
             const r = this.rings[i];
-            r.r += minDim * r.speed * dt;
-            r.alpha *= Math.exp(-dt / 0.3);
-            if (r.alpha < 0.02) { this.rings.splice(i, 1); continue; }
+            r.r += minDim * r.speed * dt;   // alpha decay + pruning happen in _decayTransients()
             ctx.beginPath();
             ctx.arc(cx, cy, r.r, 0, TAU);
             ctx.strokeStyle = rgba(r.color, r.alpha);
@@ -1305,7 +1303,6 @@ export class LightShowEngine {
             ctx.globalCompositeOperation = 'source-over';
             ctx.fillStyle = `rgba(255,255,255,${clamp(this.flash * 0.55, 0, 0.6)})`;
             ctx.fillRect(0, 0, w, h);
-            this.flash *= Math.exp(-dt / 0.08);
         }
 
         // Vignette on top
@@ -1356,11 +1353,34 @@ export class LightShowEngine {
         this._analyse(now, dt);
         this._updateBeatGrid(now, dt);
         this._updateHeads(dt);
+        this._decayTransients(dt);
 
         try {
             this._render(now, dt);
         } catch (e) {
             Logger.error('LightShow render error:', e);
+        }
+    }
+
+    /**
+     * Age the short-lived state (strobe flash, impact rings) in the BRAIN, once
+     * per frame — NOT inside a renderer's draw call.
+     *
+     * The 2D pass used to be the only place that decayed `flash`/`rings` while
+     * it painted, but the Nebula (3D) pass returns before that code. In 3D mode
+     * `flash` therefore only ever grew (max of every beat/section flash) and
+     * stayed pinned for the whole track: the camera-attached flash quad kept
+     * `flash * 0.5` opacity (a permanent grey-white veil over the picture) and
+     * `_ambient.intensity` stayed boosted, washing the scene out. Impact rings
+     * suffered the same way — they stopped spawning once the list hit its cap.
+     */
+    _decayTransients(dt) {
+        this.flash *= Math.exp(-dt / 0.08);
+        if (this.flash < 0.002) this.flash = 0;
+        for (let i = this.rings.length - 1; i >= 0; i--) {
+            const r = this.rings[i];
+            r.alpha *= Math.exp(-dt / 0.3);
+            if (r.alpha < 0.02) this.rings.splice(i, 1);
         }
     }
 }

@@ -35,6 +35,11 @@ const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// Minimum distance the camera director must keep from the asteroid belt. The
+// director orbits at 12-36 units out (plus sway/shake, so up to ~40), which
+// used to overlap the 34-64 asteroid belt — rocks flew through the lens.
+const CAMERA_CLEARANCE = 20;
+
 export function createRenderer(canvas) {
     return new NebulaRenderer(canvas);
 }
@@ -496,6 +501,7 @@ class NebulaRenderer {
         this.canvas = canvas;
         this._t = 0;
         this._ringCount = 0;
+        this._lastRing = null;
         this._laserLevel = 0;
         this._dropLevel = 0;
         this._dive = 0;
@@ -900,14 +906,21 @@ class NebulaRenderer {
             color: 0x2b2f3c, roughness: 0.95, metalness: 0.1, flatShading: true,
         });
         for (let i = 0; i < 9; i++) {
-            const size = 0.7 + Math.random() * 1.8;
+            // Sized up a touch and kept clear of the camera's orbit band: the
+            // director flies 12-36 units out at 2.5-19 high, so the old 34-64
+            // radius put rocks straight through the lens (measured fly-bys of
+            // 0.9-3 units in more than half of all songs — a flat-shaded grey
+            // polyhedron parked over the middle of the picture). The belt now
+            // starts outside the clearance radius and the per-frame ease in
+            // update() keeps it there.
+            const size = 0.9 + Math.random() * 1.9;
             const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0), mat);
             // squish for irregular rock shapes
             mesh.scale.set(1, 0.6 + Math.random() * 0.5, 0.7 + Math.random() * 0.5);
             this.scene.add(mesh);
             this._asteroids.push({
                 mesh,
-                radius: 34 + Math.random() * 30,
+                radius: CAMERA_CLEARANCE + 40 + Math.random() * 24,
                 height: 5 + Math.random() * 26,
                 speed: (0.015 + Math.random() * 0.035) * (Math.random() < 0.5 ? 1 : -1),
                 phase: Math.random() * TAU,
@@ -1336,7 +1349,16 @@ class NebulaRenderer {
         this._setColor(this._swarmMat.uniforms.uColor.value, c0);
 
         // ---- Asteroids ----
+        // Keep the belt off the lens: ease any rock that would come inside the
+        // clearance radius back out. Without this a rock can fill the view.
+        const camRadius = Math.hypot(this.camera.position.x, this.camera.position.z);
         for (const a of this._asteroids) {
+            const need = camRadius + CAMERA_CLEARANCE;
+            if (a.radius < need) {
+                a.radius += (need - a.radius) * (1 - Math.exp(-dt / 0.5));
+            } else if (a.radius > CAMERA_CLEARANCE + 70) {
+                a.radius = CAMERA_CLEARANCE + 70;
+            }
             const ang = a.phase + t * a.speed;
             a.mesh.position.set(
                 Math.cos(ang) * a.radius,
@@ -1379,9 +1401,13 @@ class NebulaRenderer {
         }
 
         // ---- Impact rings + shockwave shells ----
-        if (engine.rings.length > this._ringCount) {
-            const newest = engine.rings[engine.rings.length - 1];
-            this._spawnRing(newest.color, newest.speed);
+        // Key on the newest ring OBJECT, not the list length: the brain now
+        // prunes aged rings, so a ring appended in the same frame the oldest one
+        // is dropped would leave the length unchanged and be missed.
+        const newestRing = engine.rings.length ? engine.rings[engine.rings.length - 1] : null;
+        if (newestRing && newestRing !== this._lastRing) {
+            this._lastRing = newestRing;
+            this._spawnRing(newestRing.color, newestRing.speed);
         }
         this._ringCount = engine.rings.length;
         for (const r of this._ringPool) {
