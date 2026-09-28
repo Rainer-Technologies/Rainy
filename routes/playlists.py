@@ -464,7 +464,7 @@ def my_playlist_invites():
 @require_auth
 def accept_playlist_invite(share_id):
     """Accept a playlist invite: the playlist appears in your account and
-    you can edit it (role 'editor')."""
+    you can edit it (role 'admin') or view it (role 'viewer')."""
     try:
         share = PlaylistShareModel.find_share(share_id)
         if not share or share['user_id'] != session.get('user_id'):
@@ -507,7 +507,11 @@ def list_shares(playlist_id):
 @playlists_bp.route('/<int:playlist_id>/shares', methods=['POST'])
 @require_auth
 def invite_to_playlist(playlist_id):
-    """Invite a FRIEND to collaborate on this playlist (owner only)."""
+    """Invite a FRIEND to collaborate on this playlist (owner only).
+
+    Optional body role: 'admin' (default — can add/remove/reorder/rename
+    songs) or 'viewer' (view only).
+    """
     try:
         playlist, err = _require_owner(playlist_id)
         if err:
@@ -518,11 +522,16 @@ def invite_to_playlist(playlist_id):
         if not friend_id:
             return jsonify({'error': 'user_id is required'}), 400
 
+        role = data.get('role', 'admin')
+        if role not in ('admin', 'viewer'):
+            return jsonify({'error': "role must be 'admin' or 'viewer'"}), 400
+
         from models.friendship import FriendshipModel
         if not FriendshipModel.are_friends(session['user_id'], friend_id):
             return jsonify({'error': 'You can only invite friends to a playlist'}), 403
 
-        status, row = PlaylistShareModel.invite(playlist_id, friend_id, session['user_id'])
+        status, row = PlaylistShareModel.invite(
+            playlist_id, friend_id, session['user_id'], role=role)
         if row is None:
             return jsonify({'error': 'That friend already has access to this playlist'}), 409
 
@@ -534,6 +543,29 @@ def invite_to_playlist(playlist_id):
         if status == 'already_pending':
             return jsonify({'success': True, 'message': f'Invite to {friend["username"]} is already pending'})
         return jsonify({'success': True, 'message': f'Invited {friend["username"]} to the playlist'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@playlists_bp.route('/<int:playlist_id>/shares/<int:share_id>', methods=['PUT'])
+@require_auth
+def update_share_role(playlist_id, share_id):
+    """Owner changes a collaborator's role ('admin' | 'viewer')."""
+    try:
+        playlist, err = _require_owner(playlist_id)
+        if err:
+            return err
+        data = request.get_json() or {}
+        role = data.get('role')
+        if role not in ('admin', 'viewer'):
+            return jsonify({'error': "role must be 'admin' or 'viewer'"}), 400
+        share = PlaylistShareModel.find_share(share_id)
+        if not share or share['playlist_id'] != playlist_id:
+            return jsonify({'error': 'Share not found'}), 404
+        if share['user_id'] == session['user_id']:
+            return jsonify({'error': 'The owner has no share role to change'}), 400
+        PlaylistShareModel.update_role(share_id, role)
+        return jsonify({'success': True, 'message': 'Role updated'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

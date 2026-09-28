@@ -156,15 +156,31 @@ export class PlaylistService extends Service {
     }
 
     /**
-     * Invite a friend to collaborate (owner only)
+     * Invite a friend to collaborate (owner only). role: 'admin'
+     * (default — can add/remove songs) or 'viewer' (view only).
      * @param {number} playlistId
      * @param {number} friendUserId
+     * @param {string} [role='admin']
      * @returns {Promise<Result<{success: boolean, message: string}, ErrorModel>>}
      */
-    inviteFriend(playlistId, friendUserId) {
+    inviteFriend(playlistId, friendUserId, role = 'admin') {
         return this.wrap(RequestHelper.request(this.url(`/${playlistId}/shares`), {
             method: 'POST',
-            body: { user_id: friendUserId }
+            body: { user_id: friendUserId, role }
+        }));
+    }
+
+    /**
+     * Owner changes a collaborator's role ('admin' | 'viewer')
+     * @param {number} playlistId
+     * @param {number} shareId
+     * @param {string} role
+     * @returns {Promise<Result<{success: boolean}, ErrorModel>>}
+     */
+    changeRole(playlistId, shareId, role) {
+        return this.wrap(RequestHelper.request(this.url(`/${playlistId}/shares/${shareId}`), {
+            method: 'PUT',
+            body: { role }
         }));
     }
 

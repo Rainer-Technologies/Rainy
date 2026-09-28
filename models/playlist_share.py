@@ -1,18 +1,21 @@
 """Playlist sharing model — invites that let friends collaborate on a
-playlist. role is the collaborator tier ('editor' today; 'viewer' and
-others can be added later without schema changes). status pending ->
-accepted: a playlist only appears in the invitee's account once they
-accept.
+playlist. role is the collaborator tier ('admin' can edit songs;
+'viewer' can only view). status pending -> accepted: a playlist only
+appears in the invitee's account once they accept.
 """
 from .database import Database
+
+VALID_ROLES = ('admin', 'viewer')
 
 
 class PlaylistShareModel:
     @staticmethod
-    def invite(playlist_id, user_id, invited_by):
+    def invite(playlist_id, user_id, invited_by, role='admin'):
         """Invite a user to a playlist. Returns (status, row):
         'pending' new invite, 'already_pending', or (None, None) if the
         user already has an accepted share."""
+        if role not in VALID_ROLES:
+            role = 'admin'
         existing = Database.execute_query(
             "SELECT * FROM playlist_shares "
             "WHERE playlist_id = %s AND user_id = %s",
@@ -24,7 +27,7 @@ class PlaylistShareModel:
 
         insert_id = Database.execute_query(
             "INSERT INTO playlist_shares (playlist_id, user_id, invited_by, role) "
-            "VALUES (%s, %s, %s, 'editor')", (playlist_id, user_id, invited_by))
+            "VALUES (%s, %s, %s, %s)", (playlist_id, user_id, invited_by, role))
         return 'pending', {'id': insert_id}
 
     @staticmethod
@@ -40,16 +43,17 @@ class PlaylistShareModel:
 
     @staticmethod
     def can_edit(user_id, playlist_id):
-        """Only the owner or an accepted collaborator can modify. (The
-        legacy ownerless playlists were editable by everyone pre-isolation;
-        the routes keep that legacy behaviour and skip this check when
-        there is no owner.)"""
+        """Only the owner or an accepted 'admin' collaborator can modify
+        content. Viewers get read access only. (Legacy ownerless
+        playlists were editable by everyone pre-isolation; the routes
+        keep that legacy behaviour and skip this check when there is no
+        owner.)"""
         if PlaylistShareModel.is_owner(user_id, playlist_id):
             return True
         row = Database.execute_query(
             "SELECT 1 FROM playlist_shares "
             "WHERE playlist_id = %s AND user_id = %s AND status = 'accepted' "
-            "AND role IN ('editor') LIMIT 1", (playlist_id, user_id), fetch_one=True)
+            "AND role = 'admin' LIMIT 1", (playlist_id, user_id), fetch_one=True)
         return row is not None
 
     @staticmethod
@@ -62,7 +66,7 @@ class PlaylistShareModel:
     @staticmethod
     def user_role(user_id, playlist_id):
         """The requesting user's relationship to a playlist:
-        'owner' | 'editor' | 'viewer' | None."""
+        'owner' | 'admin' | 'viewer' | None."""
         if PlaylistShareModel.is_owner(user_id, playlist_id):
             return 'owner'
         row = Database.execute_query(
@@ -72,6 +76,15 @@ class PlaylistShareModel:
         if row:
             return row['role']
         return None
+
+    @staticmethod
+    def update_role(share_id, role):
+        """Owner changes a collaborator's tier ('admin' | 'viewer')."""
+        if role not in VALID_ROLES:
+            return False
+        return Database.execute_query(
+            "UPDATE playlist_shares SET role = %s WHERE id = %s",
+            (role, share_id))
 
     @staticmethod
     def by_playlist(playlist_id):

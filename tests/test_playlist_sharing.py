@@ -112,9 +112,9 @@ def test_invite_accept_and_appear(friends_fixture, share_setup, client_as):
     owner_row = [p for p in owner_list if p['id'] == pid][0]
     assert owner_row['shared'] is False
 
-    # GET works and reports role
+    # GET works and reports role (default invite role is 'admin')
     detail = cb.get(f'/api/playlists/{pid}').get_json()
-    assert detail['role'] == 'editor' and detail['songs'] == []
+    assert detail['role'] == 'admin' and detail['songs'] == []
 
 
 def test_collaborator_can_edit(friends_fixture, share_setup, client_as):
@@ -170,6 +170,105 @@ def test_collaborator_cannot_delete_or_invite(friends_fixture, share_setup, clie
     assert cb.post(f'/api/playlists/{pid2}/shares',
                    json={'user_id': user_b}).status_code == 403
     ca.delete(f'/api/playlists/{pid2}')
+
+
+def test_viewer_cannot_edit(friends_fixture, share_setup, client_as):
+    ca, cb = friends_fixture
+    pid = share_setup['playlist_id']
+    song_id = share_setup['song_id']
+    user_a = share_setup['user_a']
+    user_b = share_setup['user_b']
+
+    # Owner invites user_a as a VIEWER
+    r = ca.post(f'/api/playlists/{pid}/shares',
+                json={'user_id': user_a, 'role': 'viewer'})
+    assert r.status_code == 200
+    share_id = cb.get('/api/playlists/invites').get_json()['invites'][0]['id']
+    cb.post(f'/api/playlists/invites/{share_id}/accept')
+
+    # Visible, role reported as viewer
+    detail = cb.get(f'/api/playlists/{pid}').get_json()
+    assert detail['role'] == 'viewer'
+
+    # Viewer can download/export (read access) but no song editing
+    assert cb.get(f'/api/playlists/{pid}/download').status_code == 400  # empty playlist, but authorized
+    assert cb.get(f'/api/playlists/{pid}/export?format=m3u').status_code == 400
+    assert cb.post(f'/api/playlists/{pid}/songs',
+                   json={'song_id': song_id}).status_code == 403
+    assert cb.put(f'/api/playlists/{pid}', json={'name': 'Viewer Rename'}).status_code == 403
+    assert cb.post(f'/api/playlists/{pid}/reorder',
+                   json={'ordered_track_ids': [song_id]}).status_code == 403
+    assert cb.post(f'/api/playlists/{pid}/cover').status_code == 403
+
+    # Owner adds a song; viewer still cannot remove it
+    assert ca.post(f'/api/playlists/{pid}/songs',
+                   json={'song_id': song_id}).status_code == 200
+    assert cb.delete(f'/api/playlists/{pid}/songs/{song_id}').status_code == 403
+    assert ca.get(f'/api/playlists/{pid}').get_json()['songs'][0]['id'] == song_id
+
+    # Viewer cannot delete the playlist, cannot invite, cannot revoke
+    assert cb.delete(f'/api/playlists/{pid}').status_code == 403
+    assert cb.post(f'/api/playlists/{pid}/shares',
+                   json={'user_id': user_b}).status_code == 403
+
+    # Viewer can leave (remove from their library only)
+    assert cb.post(f'/api/playlists/{pid}/leave').status_code == 200
+    assert cb.get(f'/api/playlists/{pid}').status_code == 403
+    # Owner unaffected
+    assert ca.get(f'/api/playlists/{pid}').status_code == 200
+
+
+def test_owner_can_change_role(friends_fixture, share_setup, client_as):
+    ca, cb = friends_fixture
+    pid = share_setup['playlist_id']
+    song_id = share_setup['song_id']
+    user_a = share_setup['user_a']
+
+    # Invite as viewer
+    ca.post(f'/api/playlists/{pid}/shares', json={'user_id': user_a, 'role': 'viewer'})
+    share_id = cb.get('/api/playlists/invites').get_json()['invites'][0]['id']
+    cb.post(f'/api/playlists/invites/{share_id}/accept')
+    assert cb.post(f'/api/playlists/{pid}/songs',
+                   json={'song_id': song_id}).status_code == 403
+
+    # Owner promotes viewer -> admin: now they can add songs
+    assert ca.put(f'/api/playlists/{pid}/shares/{share_id}',
+                  json={'role': 'admin'}).status_code == 200
+    assert cb.get(f'/api/playlists/{pid}').get_json()['role'] == 'admin'
+    assert cb.post(f'/api/playlists/{pid}/songs',
+                   json={'song_id': song_id}).status_code == 200
+
+    # Owner demotes admin -> viewer: edit rights revoked again
+    assert ca.put(f'/api/playlists/{pid}/shares/{share_id}',
+                  json={'role': 'viewer'}).status_code == 200
+    assert cb.delete(f'/api/playlists/{pid}/songs/{song_id}').status_code == 403
+
+    # Collaborator cannot change their own role
+    assert cb.put(f'/api/playlists/{pid}/shares/{share_id}',
+                  json={'role': 'admin'}).status_code == 403
+
+    # Invalid role rejected
+    assert ca.put(f'/api/playlists/{pid}/shares/{share_id}',
+                  json={'role': 'superuser'}).status_code == 400
+    assert ca.post(f'/api/playlists/{pid}/shares',
+                   json={'user_id': user_a, 'role': 'superuser'}).status_code == 400
+
+
+def test_role_controls_listing(friends_fixture, share_setup, client_as):
+    """Accepted shares surface share_role so the UI can gate actions."""
+    ca, cb = friends_fixture
+    pid = share_setup['playlist_id']
+    user_a = share_setup['user_a']
+
+    ca.post(f'/api/playlists/{pid}/shares', json={'user_id': user_a, 'role': 'viewer'})
+    share_id = cb.get('/api/playlists/invites').get_json()['invites'][0]['id']
+    cb.post(f'/api/playlists/invites/{share_id}/accept')
+
+    mine = [p for p in cb.get('/api/playlists/').get_json() if p['id'] == pid]
+    assert len(mine) == 1
+    assert mine[0]['shared'] is True
+    assert mine[0]['share_role'] == 'viewer'
+    assert mine[0]['owner_username'] is not None
 
 
 def test_owner_revoke_and_leave(friends_fixture, share_setup, client_as):

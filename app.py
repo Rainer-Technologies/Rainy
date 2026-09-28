@@ -69,7 +69,7 @@ def serve_static(path):
         if frontend_route in {
             'library', 'albums', 'artists', 'recent', 'recently-played',
             'smart-mix', 'smartmix', 'discover',
-            'playlist', 'playlists', 'settings'
+            'playlist', 'playlists', 'settings', 'friends'
         }:
             return send_from_directory('static', 'index.html')
         raise

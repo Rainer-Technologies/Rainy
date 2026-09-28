@@ -1714,7 +1714,9 @@ export class RainyApp {
         this.bindRightClickEvents(listContent);
 
         // Enable drag-and-drop reordering when viewing a playlist in list mode
-        if (useContext().get('current-view-type') === 'playlist' && this.currentPlaylistId) {
+        // (only if the viewer may edit it — viewers get read-only rows).
+        if (useContext().get('current-view-type') === 'playlist' && this.currentPlaylistId
+                && this.currentPlaylistCanEdit()) {
             this.enablePlaylistDragDrop(listContent);
         }
     }
@@ -2130,7 +2132,7 @@ export class RainyApp {
         const data = await usePlaylistService().updateAppearance(this.currentPlaylistId, icon, iconColor);
         if (data.error) {
             Logger.error(data.error);
-            this.showToast('Failed to update playlist icon', 'error');
+            this.showToast(data.error.error || data.error.message || 'Failed to update playlist icon', 'error');
             return;
         }
 
@@ -2158,7 +2160,7 @@ export class RainyApp {
         const data = await usePlaylistService().rename(this.currentPlaylistId, newName);
         if (data.error) {
             Logger.error(data.error);
-            this.showToast('Failed to rename playlist', 'error');
+            this.showToast(data.error.error || data.error.message || 'Failed to rename playlist', 'error');
 
             return;
         }
@@ -2182,7 +2184,7 @@ export class RainyApp {
         const data = await usePlaylistService().delete(this.currentPlaylistId);
         if (data.error) {
             Logger.error(data.error);
-            this.showToast('Failed to delete playlist', 'error');
+            this.showToast(data.error.error || data.error.message || 'Failed to delete playlist', 'error');
 
             return;
         }
@@ -2202,8 +2204,10 @@ export class RainyApp {
         }
 
         const data = await usePlaylistService().fetch(playlistId);
-        // FIXME: Show toast notification
-        if (data.error) return Logger.error(data.error);
+        if (data.error) {
+            this.showToast(data.error.error || data.error.message || 'Could not open playlist', 'error');
+            return Logger.error(data.error);
+        }
 
         const playlist = data.value;
         if (!playlist) return Logger.error('unreachable');
@@ -2252,14 +2256,37 @@ export class RainyApp {
         }
 
         // Sharing actions depend on the viewer's role:
-        // owner → invite/revoke friends; editor → leave; others → nothing.
+        // owner → invite/revoke friends + delete; admin → edit content
+        // + leave; viewer → leave only, no edit controls.
         const role = playlist.role || null;
+        const ownerId = playlist.owner_user_id ?? null;
+        this.currentPlaylistRole = role;
+        this.currentPlaylistOwnerId = ownerId;
+        const canEdit = role === 'owner' || role === 'admin' ||
+            (role === null && ownerId === null); // legacy ownerless playlists stay editable
+        const isSysadmin = this.user?.role === 'sysadmin';
         document.getElementById('action-share-playlist')?.classList.toggle('hidden', role !== 'owner');
-        document.getElementById('action-leave-playlist')?.classList.toggle('hidden', role !== 'editor');
+        document.getElementById('action-leave-playlist')?.classList.toggle('hidden', !(role && role !== 'owner'));
+        ['action-edit-playlist-icon', 'action-rename-playlist', 'action-regen-cover'].forEach(id => {
+            document.getElementById(id)?.classList.toggle('hidden', !canEdit);
+        });
+        document.getElementById('action-delete-playlist')?.classList.toggle(
+            'hidden', !(role === 'owner' || (ownerId === null && isSysadmin)));
         if (isLiked) {
             document.getElementById('action-share-playlist')?.classList.add('hidden');
             document.getElementById('action-leave-playlist')?.classList.add('hidden');
         }
+    }
+
+    /**
+     * Can the current user edit the playlist currently open? Mirrors the
+     * backend's can_edit: owner/admin yes, viewer no, legacy ownerless yes.
+     */
+    currentPlaylistCanEdit() {
+        const role = this.currentPlaylistRole ?? null;
+        const ownerId = this.currentPlaylistOwnerId ?? null;
+        return role === 'owner' || role === 'admin' ||
+            (role === null && ownerId === null);
     }
 
     /**

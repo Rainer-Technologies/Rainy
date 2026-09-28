@@ -259,16 +259,17 @@ class Database:
 
         # ── Playlist sharing ─────────────────────────────────────────
         # A playlist can be shared with friends. role is the collaborator
-        # tier ('editor' today; 'viewer' etc. can be added later without
-        # schema changes). status pending -> accepted: the invitee must
-        # accept before the playlist appears in their account.
+        # tier: 'admin' (edit songs: add/remove/reorder/rename) or
+        # 'viewer' (view only). Member management stays owner-only.
+        # status pending -> accepted: the invitee must accept before the
+        # playlist appears in their account.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS playlist_shares (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 playlist_id INT NOT NULL,
                 user_id INT NOT NULL,
                 invited_by INT NOT NULL,
-                role ENUM('editor') NOT NULL DEFAULT 'editor',
+                role ENUM('admin', 'viewer') NOT NULL DEFAULT 'admin',
                 status ENUM('pending', 'accepted') NOT NULL DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 responded_at TIMESTAMP NULL,
@@ -279,6 +280,21 @@ class Database:
                 FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
+
+        # Migration: 'editor' tier renamed to 'admin'; 'viewer' tier added.
+        # Update rows BEFORE altering the ENUM so no value is lost.
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'playlist_shares'
+              AND column_name = 'role' AND column_type LIKE '%%editor%%'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] > 0:
+            cursor.execute(
+                "UPDATE playlist_shares SET role = 'admin' WHERE role = 'editor'")
+            cursor.execute(
+                "ALTER TABLE playlist_shares MODIFY COLUMN role "
+                "ENUM('admin', 'viewer') NOT NULL DEFAULT 'admin'")
         
         # Scan history table - tracks scan operations
         cursor.execute("""

@@ -27,19 +27,54 @@ export class SongContextMenu extends Component {
         this._removeSongItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._publishSongItem = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._findMetadataItem = useRef(null);
 
         this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
-            if(!this._removeFromPlaylist.value) return;
-            const item = this._removeFromPlaylist.value;
-
-            if(newValue === 'playlist') item.style.display = 'block';
-            else item.style.display = 'none';
+            this._updateRemoveItem();
         }));
     }
 
     destroyed() {
         this.get('current-view-watcher')();
+    }
+
+    /**
+     * "Remove from Playlist" only makes sense on an editable playlist —
+     * viewers of a shared playlist get read-only rows. Re-evaluated on
+     * every menu open (show) and on view-type changes, so it can never
+     * go stale when switching between playlists.
+     */
+    _updateRemoveItem() {
+        if (!this._removeFromPlaylist.value) return;
+        const item = this._removeFromPlaylist.value;
+        if (useContext().get('current-view-type') !== 'playlist') {
+            item.style.display = 'none';
+            return;
+        }
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+        item.style.display = app?.currentPlaylistCanEdit?.() ? 'block' : 'none';
+    }
+
+    /**
+     * "Remove Song" removes the track from the CURRENT view. On a shared
+     * playlist the viewer doesn't own, that reads as (and acts like)
+     * removing from the shared playlist — the wrong tool. Hide it there;
+     * keep it for the library and own playlists (where it means "remove
+     * from my library").
+     */
+    _updateRemoveSongItem() {
+        if (!this._removeSongItem.value) return;
+        const item = this._removeSongItem.value;
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+        const inSharedPlaylist =
+            useContext().get('current-view-type') === 'playlist' &&
+            (app?.currentPlaylistRole ?? null) !== null &&
+            (app?.currentPlaylistRole ?? null) !== 'owner';
+        item.style.display = inSharedPlaylist ? 'none' : 'block';
     }
 
     /**
@@ -88,7 +123,11 @@ export class SongContextMenu extends Component {
                 dialog.remove();
 
                 const data = await useMusicService().delete(song.id)
-                if(data.error) return Logger.error(data.error);
+                if(data.error) {
+                    Logger.error(data.error);
+                    window.showToast?.(data.error.error || data.error.message || 'Failed to remove song', 'error');
+                    return;
+                }
 
                 const result = data.value;
                 if(!result) return Logger.error('unreachable');
@@ -119,10 +158,16 @@ export class SongContextMenu extends Component {
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
 
+        // Client-side permission guard: viewer shares would 403 server-side.
+        if (playlist.shared && playlist.share_role !== 'admin') {
+            app?.showToast?.('You can only view that playlist', 'error');
+            return;
+        }
+
         const data = await usePlaylistService().addSong(playlist.id, currentSong.id);
         if (data.error) {
             Logger.error(data.error);
-            app.showToast('Failed to add song to playlist', 'error');
+            app.showToast(data.error.error || data.error.message || 'Failed to add song to playlist', 'error');
 
             return;
         }
@@ -140,11 +185,18 @@ export class SongContextMenu extends Component {
 
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
-        
+
+        // Client-side permission guard: never even attempt a remove the
+        // backend will reject (stale menus, role changes mid-session).
+        if (!app?.currentPlaylistCanEdit?.()) {
+            app?.showToast?.('You can only view this playlist', 'error');
+            return;
+        }
+
         const data = await usePlaylistService().removeSong(app.currentPlaylistId, currentSong.id);
         if (data.error) {
             Logger.error(data.error);
-            app.showToast('Failed to remove song from playlist', 'error');
+            app.showToast(data.error.error || data.error.message || 'Failed to remove song from playlist', 'error');
             return;
         }
 
@@ -180,7 +232,11 @@ export class SongContextMenu extends Component {
         // FIXME: Add toast notification
         if(data.error) return Logger.error(data.error);
         
-        const playlists = (data.value || []).filter(p => (p.name || '').toLowerCase() !== 'liked music');
+        // Only list playlists the user may add songs to: their own and
+        // shared ones where they are an 'admin'. Viewer shares would 403.
+        const playlists = (data.value || []).filter(p =>
+            (p.name || '').toLowerCase() !== 'liked music' &&
+            (!p.shared || p.share_role === 'admin'));
         if(!playlists) return Logger.error('unreachable');
 
         for(const playlist of playlists) {
@@ -304,17 +360,24 @@ export class SongContextMenu extends Component {
      * @param {import('./contextMenu.js').Position?} pos 
      */
     show(pos) {
-        // "Remove Song" is available to every user — it removes the song
-        // from THEIR library (system rows stay if other accounts share it).
-        if (this._removeSongItem.value) {
-            this._removeSongItem.value.style.display = 'block';
-        }
+        // Re-evaluate per-open so the menu reflects the user's CURRENT
+        // permissions (role can change between playlist switches).
+        this._updateRemoveItem();
+        this._updateRemoveSongItem();
         // "Publish to Everyone" is sysadmin-only.
         if (this._publishSongItem.value) {
             /** @type {import('../app.js').RainyApp} */
             const app = useContext().get('app');
             const isAdmin = app?.user?.role === 'sysadmin';
             this._publishSongItem.value.style.display = isAdmin ? 'block' : 'none';
+        }
+        // "Find Metadata" edits the shared song row via /metadata/apply
+        // (access-checked but a system-wide write) — sysadmins only.
+        if (this._findMetadataItem.value) {
+            /** @type {import('../app.js').RainyApp} */
+            const app = useContext().get('app');
+            const isAdmin = app?.user?.role === 'sysadmin';
+            this._findMetadataItem.value.style.display = isAdmin ? 'block' : 'none';
         }
         this.root.show(pos);
     }
@@ -356,7 +419,7 @@ export class SongContextMenu extends Component {
                 I.Cog(),
                 h.span('Song Tools'),
                 H.of(ContextSubMenu,
-                    H.of(ContextMenuItem, on.click(() => this.findMetadataForCurrentSong()),
+                    H.of(ContextMenuItem, this._findMetadataItem, on.click(() => this.findMetadataForCurrentSong()),
                         I.Magnifier(),
                         h.span('Find Metadata'),
                     ),

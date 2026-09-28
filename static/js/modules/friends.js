@@ -130,7 +130,12 @@ export class FriendsModule {
                 </div>`;
             return;
         }
-        container.innerHTML = friends.map(f => `
+        container.innerHTML = `
+            <div class="friends-subheader">
+                <span>Your friends</span>
+                <span class="friends-count">${friends.length}</span>
+            </div>
+            ${friends.map(f => `
             <div class="friend-row" data-id="${f.id}">
                 <div class="friend-avatar">${Utils.escapeHtml((f.username || '?')[0].toUpperCase())}</div>
                 <div class="friend-info">
@@ -140,7 +145,7 @@ export class FriendsModule {
                 <button type="button" class="btn btn-sm btn-danger" data-action="unfriend" data-id="${f.id}">
                     Unfriend
                 </button>
-            </div>`).join('');
+            </div>`).join('')}`;
 
         container.querySelectorAll('[data-action="unfriend"]').forEach(btn => {
             btn.addEventListener('click', () => this.unfriend(parseInt(btn.dataset.id)));
@@ -184,9 +189,15 @@ export class FriendsModule {
                 </div>`).join('');
 
         container.innerHTML = `
-            <div class="friends-subheader">Incoming</div>
+            <div class="friends-subheader">
+                <span>Incoming</span>
+                <span class="friends-count">${incoming.length}</span>
+            </div>
             ${incomingHtml}
-            <div class="friends-subheader">Sent</div>
+            <div class="friends-subheader">
+                <span>Sent</span>
+                <span class="friends-count">${outgoing.length}</span>
+            </div>
             ${outgoingHtml}`;
 
         container.querySelectorAll('[data-action="accept-req"]').forEach(btn => {
@@ -212,7 +223,12 @@ export class FriendsModule {
                 </div>`;
             return;
         }
-        container.innerHTML = invites.map(i => `
+        container.innerHTML = `
+            <div class="friends-subheader">
+                <span>Playlist invites</span>
+                <span class="friends-count">${invites.length}</span>
+            </div>
+            ${invites.map(i => `
             <div class="friend-row" data-id="${i.id}">
                 <div class="friend-avatar">${Utils.escapeHtml((i.playlist_name || '?')[0].toUpperCase())}</div>
                 <div class="friend-info">
@@ -223,7 +239,7 @@ export class FriendsModule {
                     <button type="button" class="btn btn-sm btn-primary" data-action="accept-invite" data-id="${i.id}">Accept</button>
                     <button type="button" class="btn btn-sm" data-action="decline-invite" data-id="${i.id}">Decline</button>
                 </div>
-            </div>`).join('');
+            </div>`).join('')}`;
 
         container.querySelectorAll('[data-action="accept-invite"]').forEach(btn => {
             btn.addEventListener('click', () => this.acceptPlaylistInvite(parseInt(btn.dataset.id)));
@@ -320,7 +336,9 @@ export class FriendsModule {
                 </div>`).join('');
             friendsList.querySelectorAll('[data-action="invite"]').forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    const res = await usePlaylistService().inviteFriend(playlistId, parseInt(btn.dataset.id));
+                    const role = document.getElementById('share-role-select')?.value || 'admin';
+                    const res = await usePlaylistService().inviteFriend(
+                        playlistId, parseInt(btn.dataset.id), role);
                     if (res.error) return window.showToast?.(res.error.error, 'error');
                     window.showToast?.(res.value.message || 'Invited');
                     this.openInviteModal(playlistId, playlistName);
@@ -338,19 +356,37 @@ export class FriendsModule {
                     <div class="friend-info">
                         <div class="friend-name">${Utils.escapeHtml(s.username)}</div>
                         <div class="friend-email">
-                            <span class="friend-chip">${s.role}</span>
                             ${s.status === 'pending' ? '<span class="friend-chip friend-chip-warn">invited</span>' : ''}
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-danger" data-action="revoke" data-id="${s.id}">
-                        Revoke
-                    </button>
+                    <div class="friend-actions">
+                        <select class="share-role-change" data-share-id="${s.id}" title="Change role">
+                            <option value="admin" ${s.role === 'admin' ? 'selected' : ''}>Admin</option>
+                            <option value="viewer" ${s.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                        </select>
+                        <button type="button" class="btn btn-sm btn-danger" data-action="revoke" data-id="${s.id}">
+                            Revoke
+                        </button>
+                    </div>
                 </div>`).join('');
             currentList.querySelectorAll('[data-action="revoke"]').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const res = await usePlaylistService().revokeShare(playlistId, parseInt(btn.dataset.id));
                     if (res.error) return window.showToast?.(res.error.error, 'error');
                     window.showToast?.(res.value.message || 'Access revoked');
+                    this.openInviteModal(playlistId, playlistName);
+                });
+            });
+            currentList.querySelectorAll('.share-role-change').forEach(sel => {
+                sel.addEventListener('change', async () => {
+                    const res = await usePlaylistService().changeRole(
+                        playlistId, parseInt(sel.dataset.shareId), sel.value);
+                    if (res.error) {
+                        window.showToast?.(res.error.error || 'Could not change role', 'error');
+                        this.openInviteModal(playlistId, playlistName);
+                        return;
+                    }
+                    window.showToast?.(res.value.message || 'Role updated');
                     this.openInviteModal(playlistId, playlistName);
                 });
             });

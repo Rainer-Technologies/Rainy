@@ -21,16 +21,6 @@
     display: none;
 }
 
-/* Sidebar "Shared with you" section */
-.sidebar-playlists-divider {
-    margin: 10px 12px 2px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-tertiary, #6e6e6e);
-}
-
 .nav-shared-badge {
     margin-left: auto;
     width: 13px;
@@ -50,32 +40,88 @@
     gap: 10px;
 }
 
+/* Shared playlists in the normal sidebar list keep row layout too,
+   so the badge sits at the right edge. */
+.nav-item.nav-shared-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Invite modal: role picker + per-member role select */
+.share-invite-role {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--surface-raised, #1a1a1a);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+    font-size: 0.8rem;
+    color: var(--text-secondary, #9a9a9a);
+}
+
+.share-invite-role label {
+    font-weight: 600;
+    flex: none;
+}
+
+.share-invite-role select {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-secondary, #1c1c1e);
+    border: 1px solid var(--border-color, #333);
+    color: var(--text-primary, #f5f5f5);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.share-role-change {
+    flex: none;
+    min-width: 84px;
+    background: var(--bg-secondary, #1c1c1e);
+    border: 1px solid var(--border-color, #333);
+    color: var(--text-primary, #f5f5f5);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
 /* ── Friends view ───────────────────────────── */
 
 .friends-view {
-    padding: 16px 20px 40px;
-    max-width: 720px;
+    padding: 20px 24px 48px;
+    max-width: 760px;
     margin: 0 auto;
 }
 
+/* Tabs — pill group, active = accent fill */
 .friends-tabs {
     display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-    padding-bottom: 10px;
+    gap: 6px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background: var(--surface-raised, #1a1a1a);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+    border-radius: var(--radius-lg, 16px);
+    width: fit-content;
 }
 
 .friends-tab {
     background: none;
     border: none;
     color: var(--text-secondary, #a1a1a1);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 600;
-    padding: 6px 12px;
-    border-radius: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md, 10px);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--transition-fast, 150ms), color var(--transition-fast, 150ms);
+    white-space: nowrap;
 }
 
 .friends-tab:hover {
@@ -84,62 +130,104 @@
 }
 
 .friends-tab.active {
-    color: var(--accent-primary, #3d7dc4);
-    background: var(--surface-accent, rgba(61, 125, 196, 0.08));
+    color: #fff;
+    background: var(--accent-gradient, linear-gradient(135deg, #5b9be0, #2b497c));
+    box-shadow: 0 2px 10px var(--accent-glow, rgba(61, 125, 196, 0.3));
 }
 
+/* Section label */
 .friends-subheader {
-    margin: 18px 0 8px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    margin: 22px 2px 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-tertiary, #6e6e6e);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
+.friends-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--surface-elevated, #252525);
+    color: var(--text-secondary, #a1a1a1);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* Add-friend card */
 .friends-add-form {
     display: flex;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 14px;
+    border-radius: var(--radius-lg, 16px);
+    background: var(--surface-raised, #1a1a1a);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
 }
 
 .friends-add-form .form-input {
     flex: 1;
+    min-width: 0;
 }
 
+.friends-add-form .btn {
+    flex: none;
+}
+
+/* Empty state — friendly, not a bare dashed box */
 .friends-empty {
-    padding: 18px 14px;
+    padding: 32px 20px;
     border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.1));
-    border-radius: 10px;
+    border-radius: var(--radius-lg, 16px);
     color: var(--text-tertiary, #6e6e6e);
-    font-size: 0.8125rem;
-    line-height: 1.5;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    text-align: center;
+    background: var(--surface-base, #0d0d0d);
 }
 
-/* Friend rows (lists + invite modal) */
+/* Friend rows — roomier cards with avatar + name + meta + actions */
 .friend-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border-radius: 10px;
+    gap: 14px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md, 10px);
     background: var(--surface-raised, #1a1a1a);
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
     margin-bottom: 8px;
+    transition: background var(--transition-fast, 150ms), border-color var(--transition-fast, 150ms);
 }
 
+.friend-row:hover {
+    background: var(--surface-elevated, #252525);
+    border-color: var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+/* Avatar — gradient disc with a soft ring */
 .friend-avatar {
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
     flex: none;
     border-radius: 50%;
     background: var(--accent-gradient, linear-gradient(135deg, #5b9be0, #2b497c));
     color: #fff;
     font-weight: 700;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 0 0 2px var(--bg-primary, #0d0d0d), 0 0 0 3px var(--border-color, rgba(255, 255, 255, 0.1));
 }
 
 .friend-info {
@@ -149,7 +237,7 @@
 
 .friend-name {
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     color: var(--text-primary, #fff);
     white-space: nowrap;
     overflow: hidden;
@@ -171,14 +259,15 @@
     flex: none;
 }
 
+/* Status chips */
 .friend-chip {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 999px;
     background: rgba(52, 199, 89, 0.15);
     color: var(--success, #34c759);
     font-size: 0.6875rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: capitalize;
 }
 
@@ -195,4 +284,19 @@
 
 .playlist-share-modal-content {
     max-width: 520px;
+    width: min(520px, 100%);
+}
+
+.playlist-share-modal-content .modal-header-info {
+    /* title + subtitle stacked, not the icon+title row layout */
+    display: block;
+}
+
+.playlist-share-modal-content .friend-share-list {
+    /* leave room for the role picker + header inside the 90vh cap */
+    max-height: min(30vh, 220px);
+}
+
+.playlist-share-modal-content .friend-row {
+    flex-wrap: nowrap;
 }
