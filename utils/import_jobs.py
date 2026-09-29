@@ -224,7 +224,8 @@ def import_youtube_playlist(url, music_path, on_progress=None, conflict_mode='ad
     on_progress(99, 'Generating playlist cover...')
     from utils.playlist_cover import generate_and_save_cover
     cover_path = generate_and_save_cover(
-        created_playlist_id, songs, music_path)
+        created_playlist_id, songs, music_path,
+        owner_user_id=owner_user_id)
 
     return {
         'success': True,
@@ -443,7 +444,8 @@ def import_spotify_playlist(url, music_path, on_progress=None, conflict_mode='ad
     on_progress(99, 'Generating playlist cover...')
     from utils.playlist_cover import generate_and_save_cover
     cover_path = generate_and_save_cover(
-        created_playlist_id, cover_songs, music_path)
+        created_playlist_id, cover_songs, music_path,
+        owner_user_id=owner_user_id)
 
     on_progress(98, 'Finalizing playlist...')
     return {

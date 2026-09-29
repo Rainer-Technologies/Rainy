@@ -26,7 +26,6 @@
 .settings-search,
 .btn,
 .album-play-btn,
-.smartmix-play-all,
 .clear-history-btn,
 .recent-tab {
     border-radius: var(--radius-control);
@@ -36,8 +35,7 @@
 .albums-sort-select,
 .recent-tab,
 .clear-history-btn,
-.album-play-btn,
-.smartmix-play-all {
+.album-play-btn {
     min-height: var(--hit-target);
 }
 
@@ -61,7 +59,6 @@
 /* Cards use one surface, border, and radius language across pages. */
 .stat-card,
 .album-card,
-.smartmix-mode-card,
 .settings-card,
 .stats-list-item,
 .discover-item,
@@ -73,14 +70,12 @@
 }
 
 .album-card,
-.smartmix-mode-card,
 .discover-item {
     transition: background var(--transition-fast), border-color var(--transition-fast),
         box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 
 .album-card:hover,
-.smartmix-mode-card:hover,
 .discover-item:hover {
     background: var(--surface-elevated);
     border-color: var(--border-color);
@@ -90,23 +85,20 @@
 
 /* Rows share the library's compact rhythm. */
 .album-track-row,
-.recent-song-row,
-.smartmix-song-row {
+.recent-song-row {
     gap: var(--spacing-md);
     border-radius: var(--radius-control);
 }
 
 .album-track-row,
-.recent-song-row,
-.smartmix-song-row {
+.recent-song-row {
     min-height: 56px;
     padding-top: var(--spacing-sm);
     padding-bottom: var(--spacing-sm);
 }
 
 .album-card-cover,
-.recent-song-cover,
-.smartmix-song-cover {
+.recent-song-cover {
     border-radius: var(--radius-sm);
 }
 
@@ -118,7 +110,6 @@
 /* Keep primary actions readable without a second visual language of glows
    and scaling effects. */
 .album-play-btn:hover,
-.smartmix-play-all:hover,
 .discover-btn-download:hover:not(:disabled),
 .search-btn-pill:hover {
     transform: translateY(-1px);

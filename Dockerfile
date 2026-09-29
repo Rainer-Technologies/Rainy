@@ -11,6 +11,10 @@ RUN apt-get update -qq >/dev/null \
     && apt-get install --no-install-recommends -y -qq ffmpeg >/dev/null \
     && rm -rf /var/lib/apt/lists/*
 
+# Deno: the JavaScript runtime yt-dlp uses to solve YouTube's player
+# challenges. Without one, most formats fail with HTTP 403.
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 

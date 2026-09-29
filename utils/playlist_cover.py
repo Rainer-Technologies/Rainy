@@ -132,23 +132,36 @@ def generate_playlist_cover(playlist_id, songs, music_path, icon_color='#888888'
     return f"covers/playlists/{filename}"
 
 
-def generate_and_save_cover(playlist_id, songs, music_path, icon_color=None):
+def generate_and_save_cover(playlist_id, songs, music_path, icon_color=None,
+                            owner_user_id=None):
     """Generate a mosaic cover and persist it on the playlist row.
 
     Wrapper used at the end of playlist imports so the default behaviour is
     that a downloaded playlist ends up with a generated cover. Never raises:
     a cover failure must not fail the import it follows. Returns the stored
     cover path (relative to music_path) or None.
+
+    ``songs`` (the download results) only carry a cover for freshly downloaded
+    tracks, so the playlist's stored song rows are used first — they include
+    already-present / deduped songs and scanner-extracted covers, exactly like
+    the manual "regenerate cover" action. ``songs`` is kept as a fallback.
     """
     try:
         from models.playlist import PlaylistModel
 
+        playlist = PlaylistModel.get_playlist_by_id(playlist_id)
         if icon_color is None:
-            playlist = PlaylistModel.get_playlist_by_id(playlist_id)
             icon_color = (playlist or {}).get('icon_color', '#888888')
 
+        db_songs = PlaylistModel.get_playlist_songs(playlist_id) or []
+        if owner_user_id is not None and db_songs:
+            from models.library_access import LibraryAccessModel
+            db_songs = LibraryAccessModel.filter_visible(
+                owner_user_id, db_songs)
+
         cover_path = generate_playlist_cover(
-            playlist_id, songs, music_path, icon_color=icon_color)
+            playlist_id, list(db_songs) + list(songs or []), music_path,
+            icon_color=icon_color)
         if cover_path:
             PlaylistModel.update_playlist_cover(playlist_id, cover_path)
         return cover_path

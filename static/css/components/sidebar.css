@@ -153,6 +153,49 @@
     margin-bottom: var(--spacing-xs);
 }
 
+/* Collapsible section header (Browse): looks like .nav-header, acts as a button */
+.nav-collapse-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    width: 100%;
+    min-height: 32px;
+    margin-bottom: 0;
+    background: transparent;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.nav-collapse-toggle:hover { color: var(--text-primary); }
+
+.nav-collapse-toggle svg {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    transition: transform var(--transition-fast);
+}
+
+.app-sidebar:not(.browse-closed) .nav-collapse-toggle svg { transform: rotate(180deg); }
+
+/* Icon-only sidebar has no header to click, so it always shows the items. */
+.app-sidebar:not(.collapsed).browse-closed .nav-browse-items { display: none; }
+
+/* Pending friend requests must stay visible while More is folded. */
+.nav-more-toggle.has-badge span::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--error, #ff453a);
+    vertical-align: middle;
+}
+
+.app-sidebar.more-open .nav-more-toggle.has-badge span::after { display: none; }
+
 .nav-header-row {
     display: flex;
     align-items: center;
@@ -212,7 +255,7 @@
 
 .nav-more-toggle {
     width: calc(100% - (2 * var(--spacing-lg)));
-    min-height: var(--hit-target);
+    min-height: 32px;
     margin: 0 var(--spacing-lg) var(--spacing-xs);
     padding: var(--spacing-xs) 0;
     display: flex;
@@ -224,7 +267,9 @@
     border: 0;
     border-top: 1px solid var(--border-subtle);
     cursor: pointer;
-    font-size: var(--font-size-sm);
+    font-family: inherit;
+    /* same type as .nav-header so Library / More / Browse / Playlists match */
+    font-size: var(--font-size-xs);
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -235,9 +280,9 @@
 }
 
 .nav-more-toggle svg {
-    width: 24px;
-    height: 24px;
-    flex: 0 0 24px;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
     transition: transform var(--transition-fast);
 }
 

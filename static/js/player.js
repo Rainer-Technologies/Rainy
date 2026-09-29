@@ -3,10 +3,12 @@
  * Handles audio playback, progress, volume, queue, and reactions
  */
 import { Logger } from './helper/logger.js';
-import { LightShowEngine } from './lightshow.js';
+import { LightShowEngine } from './lightshow/engine.js';
+import { getAudioGraph, peekAudioGraph } from './audioGraph.js';
 import { usePlaylistService } from './services/playlist.js';
 import { useRatingService } from './services/rating.js';
 import { usePlaybackService } from './services/playback.js';
+import { ListenTracker, PlayRecorder } from './services/listenTracker.js';
 import { useConnectService } from './services/connect.js';
 import { useMusicService } from './services/music.js';
 import { useContext } from './helper/context.js';
@@ -56,7 +58,6 @@ export class AudioPlayer {
         this.lyricsSongId = null;
         this.activeLyricIndex = -1;
         this.lyricsEffect = 'default';
-        this.lyricsAudioSync = false;
         this._activeWordEls = null;
         this._activeWordLit = -1;
         this._slideWordFracs = null;
@@ -118,8 +119,15 @@ export class AudioPlayer {
         this.mediaSession = new MediaSessionController(this);
         // Sleep timer with fade-out
         this.sleepTimer = new SleepTimer(this);
-        // Real listening-time tracker (replaces instant play recording)
-        this._listenTracker = null;
+        // Real listening-time tracker + persistent, retrying outbox for the
+        // play history (see services/listenTracker.js)
+        this._playRecorder = new PlayRecorder({
+            onRecorded: () => window.dispatchEvent(new CustomEvent('rainy:plays-recorded')),
+        });
+        this._listenTracker = new ListenTracker({
+            onEvent: (payload) => this._playRecorder.enqueue(payload),
+        });
+        this._playRecorder.flush();
 
         // Rainy Connect — register this player as a controllable device
         this._initConnect();
@@ -198,7 +206,6 @@ export class AudioPlayer {
         this.fsDislikeBtn = document.getElementById('fs-dislike-btn');
         this.fsLightShowBtn = document.getElementById('fs-lightshow-btn');
         this.fsLightShowCanvas = document.getElementById('fs-lightshow-canvas');
-        this.fsLightShowCanvas3d = document.getElementById('fs-lightshow-canvas-3d');
         this.fsLyricsContainer = document.getElementById('fs-lyrics-container');
         this.fsLyricsScroll = document.getElementById('fs-lyrics-scroll');
         this.fsLyricsContent = document.getElementById('fs-lyrics-content');
@@ -224,19 +231,30 @@ export class AudioPlayer {
             this._slideFracsDirty = true;
         });
 
-        // Flush listening stats when the page/tab is closed (beacon survives unload)
-        window.addEventListener('beforeunload', () => this._flushListenTracking(true));
+        // Re-anchor the listen tracker after seeks so the jump isn't counted
+        this.audio.addEventListener('seeked', () => this._listenTracker.sync(this.audio.currentTime || 0));
 
-        // Reset listen-tracker clock when tab visibility changes so hidden gaps
-        // don't inflate or get rejected by the >5s guard
+        // Page closing: finalise the listen and beacon the outbox out. Entries
+        // stay queued (the server dedupes by play_id), so if the beacon is
+        // dropped the next page load re-sends them.
+        window.addEventListener('pagehide', () => {
+            this._listenTracker.end();
+            this._playRecorder.flushBeacon();
+        });
+        window.addEventListener('online', () => this._playRecorder.flush());
+
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                if (this._listenTracker) this._listenTracker.lastTick = Date.now();
+            if (document.hidden) {
+                // Mobile browsers can kill a hidden tab without pagehide:
+                // checkpoint the running listen (it keeps going) and push it out.
+                this._listenTracker.checkpoint();
+                this._playRecorder.flushBeacon();
+            } else {
+                this._playRecorder.flush();
                 // Browsers suspend AudioContexts when the tab is hidden.
-                // Resume so audio isn't silent when the user returns.
-                if (this._eqContext && this._eqContext.state === 'suspended' && !this.audio.paused) {
-                    this._eqContext.resume();
-                }
+                // Resume so audio isn't silent when the user returns. The
+                // graph is shared by the EQ and the light show's live mode.
+                if (!this.audio.paused) peekAudioGraph(this.audio)?.resume();
             }
         });
 
@@ -500,6 +518,7 @@ export class AudioPlayer {
 
         this.currentIndex = index;
         const song = this.playlist[index];
+        this._maybeExtendMix();  // no-op unless an endless mix is playing
 
         // Shuffle cycle bookkeeping: never repeat a song until the whole
         // playlist has played once. A manual selection (or a new playlist)
@@ -525,6 +544,9 @@ export class AudioPlayer {
             this._activeBlobUrl = null;
         }
         this.audio.src = streamUrl;
+
+        // Picking a song is always a fresh listen, even the one already playing
+        this._listenTracker.end();
 
         // Update now playing info
         this.updateNowPlaying(song);
@@ -583,9 +605,13 @@ export class AudioPlayer {
         // Push to Media Session API (lock screen / OS media controls)
         if (this.mediaSession) this.mediaSession.updateMetadata(song);
 
-        // Start tracking real listening time for this song (library only —
-        // preview tracks don't write play history)
-        if (!song.videoId) this._startListenTracking(song);
+        // Track real listening time for this song (library only — preview
+        // tracks don't write play history). This is also called to merely
+        // refresh the UI for the same song (metadata edit, leaving controller
+        // mode), which must NOT start a second listen.
+        if (!song.videoId && this._listenTracker.songId !== song.id) {
+            this._startListenTracking(song);
+        }
 
         // Update fullscreen view if active
         if (this.fsContainer && !this.fsContainer.classList.contains('hidden')) {
@@ -684,9 +710,49 @@ export class AudioPlayer {
         this.playSong(newIndex);
     }
 
+    /**
+     * Endless mixes: while a Smart Mix plays, top the queue up with songs that
+     * follow on from the current sound, so the mix never simply runs out.
+     * Resolves once any in-flight top-up has landed (safe to await anywhere).
+     */
+    _maybeExtendMix() {
+        const ctx = this.playbackContext;
+        if (!ctx || ctx.type !== 'smartmix' || !ctx.endless) return Promise.resolve();
+        if (this._extendPromise) return this._extendPromise;
+        if (this.playlist.length - this.currentIndex > 4) return Promise.resolve();
+
+        const playlist = this.playlist;
+        this._extendPromise = (async () => {
+            try {
+                const recent = playlist.map(s => s?.id).filter(Number.isInteger);
+                const res = await fetch('/api/smartmix/more', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mix_id: ctx.id, recent_ids: recent, limit: 15 }),
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                // Ignore the answer if the listener moved on to something else.
+                if (this.playlist !== playlist || this.playbackContext !== ctx) return;
+                const have = new Set(recent);
+                const fresh = (data.songs || []).filter(s => !have.has(s.id));
+                if (!fresh.length) return;
+                this.playlist.push(...fresh);
+                fresh.forEach((s, i) =>
+                    this._shuffleRemaining?.add(this._songKey(s, this.playlist.length - fresh.length + i)));
+            } catch (err) {
+                Logger.warn('Could not extend mix:', err);
+            } finally {
+                this._extendPromise = null;
+            }
+        })();
+        return this._extendPromise;
+    }
+
     async playNext() {
         if (this.isControllerMode) { this._controllerCommand('next'); return; }
         if (!this.playlist.length) return;
+        await this._maybeExtendMix();
 
         if (this.isShuffle) {
             await this._ensureTempoMap();
@@ -954,11 +1020,13 @@ export class AudioPlayer {
     }
 
     handleTimeUpdate() {
+        // Accumulate real listening time. Runs before the UI guard below so
+        // dragging/buffering never starves it (the tracker itself only credits
+        // progress that real time could have produced).
+        this._tickListenTracking();
+
         // Don't update time display while buffering or dragging progress
         if (this.isBuffering || this.isDraggingProgress) return;
-
-        // Accumulate real listening time (only counts while actually playing)
-        if (this.isPlaying) this._tickListenTracking();
 
         // Enforce A-B loop boundary before updating the progress display
         this._enforceAbLoop();
@@ -1346,22 +1414,26 @@ export class AudioPlayer {
     }
 
     handleEnded() {
-        // Flush listening stats for the song that just ended
-        this._flushListenTracking();
-
         // If a crossfade is in progress, the secondary audio is already
-        // playing the next song — don't call playNext() again.
+        // playing the next song — don't call playNext() again. (The old
+        // song's listen is finalised when the crossfade completes.)
         if (this._crossfading) return;
 
         // If a crossfade just completed, the primary's src was already
         // swapped to the next song and the old song's `ended` event fires
-        // late. Swallow it so playNext() doesn't restart from position 0.
+        // late. Swallow it so playNext() doesn't restart from position 0 —
+        // and so it doesn't end the *new* song's listen tracker.
         if (this._crossfadeTriggered) {
             this._crossfadeTriggered = false;
             return;
         }
 
+        // Finalise the listen of the song that just ended
+        this._flushListenTracking();
+
         if (this.repeatMode === 'one') {
+            // Each loop is its own listen
+            this._startListenTracking(this.currentSong);
             this.audio.currentTime = 0;
             this.audio.play();
         } else {
@@ -1371,15 +1443,13 @@ export class AudioPlayer {
 
     handlePlay() {
         this.isPlaying = true;
-        // Reset listen-tracker clock so the pause gap isn't counted as listening
-        if (this._listenTracker) this._listenTracker.lastTick = Date.now();
+        // Re-anchor so the pause gap isn't counted as listening
+        this._listenTracker.sync(this.audio.currentTime || 0);
 
-        // Resume the EQ AudioContext if it was suspended (browsers suspend it
-        // on pause/tab-switch). Once createMediaElementSource is wired, ALL
-        // audio routes through the graph — a suspended context = silence.
-        if (this._eqContext && this._eqContext.state === 'suspended') {
-            this._eqContext.resume();
-        }
+        // Resume the shared AudioContext (EQ / light show) if it was suspended
+        // (browsers suspend it on pause/tab-switch). Once createMediaElementSource
+        // is wired, ALL audio routes through the graph — suspended = silence.
+        peekAudioGraph(this.audio)?.resume();
 
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
@@ -1413,8 +1483,7 @@ export class AudioPlayer {
         // `pause` right before `ended`, and the crossfade is handling the
         // transition. audio.ended is true in that case.
         if (this._crossfading && !this.audio.ended) this._cancelCrossfade();
-        // Reset listen-tracker clock so the resume gap isn't counted as listening
-        if (this._listenTracker) this._listenTracker.lastTick = Date.now();
+        this._listenTracker.sync(this.audio.currentTime || 0);
         this.iconPlay.classList.remove('hidden');
         this.iconPause.classList.add('hidden');
         this.playPauseBtn?.setAttribute('aria-label', 'Play');
@@ -1593,15 +1662,14 @@ export class AudioPlayer {
                 if (prefs && prefs.lyrics_effect) {
                     this.lyricsEffect = prefs.lyrics_effect;
                 }
-                if (prefs && typeof prefs.lyrics_audio_sync !== 'undefined') {
-                    this.lyricsAudioSync = !!prefs.lyrics_audio_sync;
-                }
             }
 
             // Remove existing mode classes
             this.fsContainer.classList.remove('mode-modern', 'mode-standard');
             this.fsContainer.classList.add(`mode-${mode}`);
-            this.fsContainer.classList.toggle('layout-swapped', swap);
+            // `layout-swapped` is the album-art-left / queue-right layout, which is now
+            // the default; the 'Swap image and queue' setting flips back to the other one.
+            this.fsContainer.classList.toggle('layout-swapped', !swap);
             this._applyLyricsFxClass();
 
             this.fsContainer.classList.remove('hidden');
@@ -1642,7 +1710,6 @@ export class AudioPlayer {
             if (!this.lightShow) {
                 this.lightShow = new LightShowEngine({
                     canvas: this.fsLightShowCanvas,
-                    canvas3d: this.fsLightShowCanvas3d,
                     backdrop: this.fsBackdrop,
                     container: this.fsContainer,
                     isPlaying: () => this.isPlaying
@@ -1655,7 +1722,6 @@ export class AudioPlayer {
             if (this.fsLightShowBtn) this.fsLightShowBtn.classList.remove('active');
             if (this.lightShow) this.lightShow.stop();
             if (this.fsLightShowCanvas) this.fsLightShowCanvas.classList.add('hidden');
-            if (this.fsLightShowCanvas3d) this.fsLightShowCanvas3d.classList.add('hidden');
 
             // Reset backdrop to original styles
             if (this.fsBackdrop) {
@@ -1760,7 +1826,9 @@ export class AudioPlayer {
                 synced[i].end = i + 1 < synced.length
                     ? synced[i + 1].time
                     : synced[i].time + 4;
+                synced[i].on = synced[i].time;
             }
+            this._applyLineBounds();
 
             const wordMode = this.lyricsEffect === 'word' || this.lyricsEffect === 'slide';
             const lineInner = (text) => {
@@ -1776,7 +1844,8 @@ export class AudioPlayer {
 
             this.fsLyricsContent.querySelectorAll('.fs-lyric-line').forEach(el => {
                 el.addEventListener('click', () => {
-                    const t = parseFloat(el.dataset.time);
+                    const line = this.lyricsData.synced[Number(el.dataset.index)];
+                    const t = line ? (line.on ?? line.time) : parseFloat(el.dataset.time);
                     if (!isNaN(t)) {
                         this.audio.currentTime = t;
                         this.audio.play().catch(() => {});
@@ -1807,7 +1876,7 @@ export class AudioPlayer {
         let lo = 0, hi = lines.length - 1, idx = -1;
         while (lo <= hi) {
             const mid = (lo + hi) >> 1;
-            if (lines[mid].time <= t) {
+            if ((lines[mid].on ?? lines[mid].time) <= t) {
                 idx = mid;
                 lo = mid + 1;
             } else {
@@ -1865,10 +1934,8 @@ export class AudioPlayer {
 
         if (this.lyricsEffect === 'slide') {
             let target = p;
-            if (this.lyricsAudioSync) {
-                const synced = this._slideSyncedProgress(idx, t, line);
-                if (synced != null) target = synced;
-            }
+            const synced = this._slideSyncedProgress(idx, t, line);
+            if (synced != null) target = synced;
             let cur = this._slideP;
             if (cur == null || this._slideSnap) {
                 cur = target;
@@ -1991,17 +2058,6 @@ export class AudioPlayer {
         }
     }
 
-    setLyricsAudioSync(on) {
-        on = !!on;
-        if (on === this.lyricsAudioSync) return;
-        this.lyricsAudioSync = on;
-        if (!on) {
-            this._clearAudioAnalysis();
-            return;
-        }
-        this._maybeStartAudioAnalysis();
-    }
-
     _lineWords(text) {
         const words = (text || '').trim().split(/\s+/).filter(Boolean);
         return words.length ? words : ['♪'];
@@ -2011,16 +2067,8 @@ export class AudioPlayer {
         return this._lineWords(text).length;
     }
 
-    _clearAudioAnalysis() {
-        this._lyricsAnalysis = null;
-        this._lyricsAnalysisSongId = null;
-        this._lyricsAnalysisPromise = null;
-        this._lyricsWordTimes = null;
-        this._lyricsWordEnds = null;
-    }
-
     _maybeStartAudioAnalysis() {
-        if (!this.lyricsAudioSync || (this.lyricsEffect !== 'word' && this.lyricsEffect !== 'slide')) return;
+        if (this.lyricsEffect !== 'word' && this.lyricsEffect !== 'slide') return;
         if (!this.currentSong || !this.lyricsData || !Array.isArray(this.lyricsData.synced)) return;
         this._ensureAudioAnalysis();
     }
@@ -2034,7 +2082,7 @@ export class AudioPlayer {
         this._lyricsAnalysisPromise = (async () => {
             try {
                 // Best: server-side forced alignment (Whisper). Fallback: client envelope.
-                Logger.log(`[lyrics] song ${id}: requesting server word-times (effect=${this.lyricsEffect}, audioSync=${this.lyricsAudioSync})`);
+                Logger.log(`[lyrics] song ${id}: requesting server word-times (effect=${this.lyricsEffect})`);
                 const ok = await this._fetchServerWordTimes(id);
                 if (ok) {
                     Logger.log(`[lyrics] song ${id}: using server (Whisper) word-times`);
@@ -2049,7 +2097,7 @@ export class AudioPlayer {
         })();
     }
 
-    async _fetchServerWordTimes(id) {
+    async _fetchServerWordTimes(id, attempt = 0) {
         if (this.currentSong?.id !== id) return false;
         try {
             const res = await fetch(`/api/music/song/${id}/lyrics-words`);
@@ -2061,17 +2109,32 @@ export class AudioPlayer {
             const words = data && data.words;
             const lines = this.lyricsData && this.lyricsData.synced;
             if (this.currentSong?.id !== id) return false;
+            if (data && data.pending) {
+                // The server is aligning this song right now: keep the estimate
+                // running and swap the exact times in when they land.
+                this._pollServerWordTimes(id, attempt);
+                return false;
+            }
             if (!Array.isArray(words) || !Array.isArray(lines) || words.length !== lines.length) {
                 Logger.log(`[lyrics] song ${id}: server shape mismatch (words=${Array.isArray(words) ? words.length : 'n/a'}, lines=${Array.isArray(lines) ? lines.length : 'n/a'})`);
                 return false;
             }
             this._ingestWordTimes(words);
             this._lyricsAnalysis = { source: 'whisper' };
+            if (attempt > 0) Logger.log(`[lyrics] song ${id}: exact word-times arrived — switching from the estimate`);
             return true;
         } catch (err) {
             Logger.log(`[lyrics] song ${id}: /lyrics-words fetch error:`, err && err.message ? err.message : err);
             return false;
         }
+    }
+
+    _pollServerWordTimes(id, attempt) {
+        clearTimeout(this._wordTimesPoll);
+        if (attempt >= 60) return;
+        this._wordTimesPoll = setTimeout(() => {
+            if (this.currentSong?.id === id) this._fetchServerWordTimes(id, attempt + 1);
+        }, attempt < 5 ? 3000 : 6000);
     }
 
     async _fetchEnvelopeAnalysis(id) {
@@ -2152,7 +2215,34 @@ export class AudioPlayer {
         }
         this._lyricsWordTimes = starts;
         this._lyricsWordEnds = hasEnds ? ends : null;
+        this._applyLineBounds();
         this._normalizeWordTimes();
+    }
+
+    /**
+     * LRC times run ~0.15 s ahead of the voice, so the last word of a line is
+     * often still being sung when the next line's LRC time arrives. With aligned
+     * word ends we know when it really finishes: keep the line active until then
+     * (at most MAX_HOLD past the next LRC time) and let its last word use that time.
+     */
+    _applyLineBounds() {
+        const synced = this.lyricsData && this.lyricsData.synced;
+        const ends = this._lyricsWordEnds;
+        if (!Array.isArray(synced) || !Array.isArray(ends)) return;
+        const MAX_HOLD = 0.9;
+        for (let i = 1; i < synced.length; i++) {
+            const line = synced[i];
+            const prev = synced[i - 1];
+            const prevEnds = ends[i - 1];
+            let on = line.time;
+            if (Array.isArray(prevEnds) && prevEnds.length) {
+                const lastEnd = prevEnds[prevEnds.length - 1];
+                if (Number.isFinite(lastEnd)) on = Math.max(on, Math.min(lastEnd, line.time + MAX_HOLD));
+            }
+            on = Math.max(on, (prev.on ?? prev.time) + 0.01);
+            line.on = on;
+            prev.end = Math.max(on, prev.time + 0.3);
+        }
     }
 
     _normalizeWordTimes() {
@@ -2956,11 +3046,13 @@ export class AudioPlayer {
     _ensureEqGraph() {
         if (this._eqContext) return; // already built
 
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) { window.showToast?.('Equalizer not supported in this browser', 'error'); return; }
+        // Shared per-element graph: the light show's live analyser taps the
+        // same source (createMediaElementSource can only be called once).
+        const graph = getAudioGraph(this.audio);
+        if (!graph) { window.showToast?.('Equalizer not supported in this browser', 'error'); return; }
 
-        this._eqContext = new Ctx();
-        this._eqSource = this._eqContext.createMediaElementSource(this.audio);
+        this._eqContext = graph.ctx;
+        this._eqSource = graph.source;
 
         this._eqFilters = AudioPlayer.EQ_BANDS.map((freq, i) => {
             const f = this._eqContext.createBiquadFilter();
@@ -2971,12 +3063,11 @@ export class AudioPlayer {
             return f;
         });
 
-        // Chain: source → filter0 → filter1 → … → filter9 → destination
-        this._eqSource.connect(this._eqFilters[0]);
+        // Chain: source → filter0 → filter1 → … → filter9 → graph output
         for (let i = 0; i < this._eqFilters.length - 1; i++) {
             this._eqFilters[i].connect(this._eqFilters[i + 1]);
         }
-        this._eqFilters[this._eqFilters.length - 1].connect(this._eqContext.destination);
+        graph.setChain(this._eqFilters[0], this._eqFilters[this._eqFilters.length - 1]);
 
         // If the context was created while audio was already playing, resume it
         if (this._eqContext.state === 'suspended') this._eqContext.resume();
@@ -4207,86 +4298,26 @@ export class AudioPlayer {
     }
 
     /**
-     * Start tracking real listening time for a song.
-     * Uses wall-clock accumulation (pause-aware) instead of audio.currentTime
-     * so seeking doesn't inflate stats.
+     * Start a new listen for a song (finalises the previous one).
      * @param {Object} song
      */
     _startListenTracking(song) {
-        // Flush any in-progress tracking from the previous song
-        this._flushListenTracking();
-
-        if (!song || !song.id) return;
-        this._listenTracker = {
-            songId: song.id,
-            songDuration: song.duration || 0,
-            listenedSeconds: 0,
-            lastTick: Date.now(),
-            recorded: false
-        };
+        this._listenTracker.begin(song, this.audio.currentTime || 0);
     }
 
-    /**
-     * Called on every timeupdate while playing — accumulates real elapsed time.
-     * Records the play once the 50% threshold is crossed.
-     */
+    /** Called on every timeupdate — feeds real playback progress to the tracker. */
     _tickListenTracking() {
-        const t = this._listenTracker;
-        if (!t || t.recorded) return;
-
-        const now = Date.now();
-        const elapsed = (now - t.lastTick) / 1000;
-        t.lastTick = now;
-
-        // Count elapsed time while playing. isPlaying already guards against
-        // pause gaps; cap at 30s per tick to handle browser tab-suspend edge
-        // cases without rejecting legitimate background-tab listening.
-        if (elapsed > 0) {
-            t.listenedSeconds += Math.min(elapsed, 30);
-        }
-
-        // Record once we've listened to at least 50% of the song
-        if (t.songDuration > 0 && t.listenedSeconds >= t.songDuration * 0.5) {
-            this._recordPlay(t.songId, Math.round(t.listenedSeconds));
-            t.recorded = true;
-        }
+        this._listenTracker.tick({
+            position: this.audio.currentTime || 0,
+            playing: !this.audio.paused && !this.audio.ended,
+            rate: this.audio.playbackRate || 1,
+            duration: this.audio.duration,
+        });
     }
 
-    /**
-     * Flush: if the song ended or was skipped before the 50% mark but we
-     * listened to at least 30 seconds, still count it (partial credit).
-     * @param {boolean} useBeacon - use sendBeacon for page-unload reliability
-     */
-    _flushListenTracking(useBeacon = false) {
-        const t = this._listenTracker;
-        if (!t || t.recorded) {
-            this._listenTracker = null;
-            return;
-        }
-        // Count partial listens of at least 30 seconds
-        if (t.listenedSeconds >= 30) {
-            this._recordPlay(t.songId, Math.round(t.listenedSeconds), useBeacon);
-        }
-        this._listenTracker = null;
-    }
-
-    /**
-     * Send the actual play record to the server.
-     * @param {number} songId
-     * @param {number} listenedSeconds - real seconds actually listened
-     * @param {boolean} useBeacon - use navigator.sendBeacon (survives page unload)
-     */
-    _recordPlay(songId, listenedSeconds, useBeacon = false) {
-        const payload = JSON.stringify({ song_id: songId, position: 0, duration: listenedSeconds });
-        if (useBeacon && navigator.sendBeacon) {
-            navigator.sendBeacon('/api/playback/history', new Blob([payload], { type: 'application/json' }));
-        } else {
-            try {
-                usePlaybackService().recordPlay(songId, 0, listenedSeconds);
-            } catch (e) {
-                Logger.warn('Failed to record play history:', e);
-            }
-        }
+    /** Finalise the current listen (song ended / skipped). */
+    _flushListenTracking() {
+        this._listenTracker.end();
     }
 
     /**

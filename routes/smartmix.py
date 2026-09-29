@@ -1,4 +1,7 @@
 """Smart mix / auto-mix / radio mode endpoint."""
+import random
+import threading
+import time
 from flask import Blueprint, request, jsonify, session
 from functools import wraps
 from models.database import Database
@@ -111,6 +114,94 @@ def _legacy_radio(seed_song_id, limit, disliked_ids, params):
     results.insert(0, seed)
     return results
 
+
+
+# ---------------------------------------------------------------- mixes ----
+# YouTube-Music-style shelf of personalised mixes (see utils/mixes.py).
+# Cached briefly per user so tab switches are instant and a mix keeps its
+# tracks while you browse; ?refresh=1 rolls a new seed for fresh picks.
+
+_MIX_TTL = 300
+_mix_cache = {}   # user_id -> {'ts', 'seed', 'mixes'}
+_mix_cache_lock = threading.Lock()
+
+
+@smartmix_bp.route('/mixes', methods=['GET'])
+@login_required
+def list_mixes(user_id):
+    from utils import mixes as mix_engine
+
+    refresh = request.args.get('refresh') in ('1', 'true')
+    with _mix_cache_lock:
+        hit = _mix_cache.get(user_id)
+        if hit and not refresh and time.time() - hit['ts'] < _MIX_TTL:
+            return jsonify({'mixes': hit['mixes'], 'cached': True})
+
+    seed = random.randrange(1 << 30)
+    try:
+        ctx = mix_engine.load_context(user_id)
+        mixes = mix_engine.serialize(ctx, mix_engine.build_mixes(ctx, seed=seed))
+    except Exception as e:  # noqa: BLE001
+        print(f"[smartmix] mix generation failed: {e}")
+        return jsonify({'error': 'Could not build mixes right now'}), 500
+
+    with _mix_cache_lock:
+        _mix_cache[user_id] = {'ts': time.time(), 'seed': seed, 'mixes': mixes}
+        if len(_mix_cache) > 200:
+            oldest = min(_mix_cache, key=lambda u: _mix_cache[u]['ts'])
+            _mix_cache.pop(oldest, None)
+    return jsonify({'mixes': mixes, 'cached': False})
+
+
+@smartmix_bp.route('/more', methods=['POST'])
+@login_required
+def more_from_mix(user_id):
+    """Endless playback: songs that follow on from the ones already queued."""
+    from utils import mixes as mix_engine
+
+    data = request.get_json() or {}
+    mix_id = str(data.get('mix_id') or '')
+    recent = [i for i in (data.get('recent_ids') or []) if isinstance(i, int)][-200:]
+    limit = max(1, min(int(data.get('limit') or 15), 40))
+    try:
+        ctx = mix_engine.load_context(user_id)
+        ids = mix_engine.extend(ctx, mix_id, recent, limit=limit,
+                                seed=random.randrange(1 << 30))
+        songs = mix_engine.serialize(ctx, [{
+            'id': mix_id, 'kind': 'more', 'shelf': '', 'title': '', 'subtitle': '',
+            'tag': None, 'song_ids': ids}])
+    except Exception as e:  # noqa: BLE001
+        print(f"[smartmix] extend failed: {e}")
+        return jsonify({'songs': []})
+    return jsonify({'songs': songs[0]['songs'] if songs else []})
+
+
+@smartmix_bp.route('/save', methods=['POST'])
+@login_required
+def save_mix(user_id):
+    """Save a mix's songs as a regular playlist owned by the caller."""
+    from models.library_access import LibraryAccessModel
+    from models.playlist import PlaylistModel
+
+    data = request.get_json() or {}
+    name = str(data.get('name') or '').strip()[:100]
+    song_ids = [i for i in (data.get('song_ids') or []) if isinstance(i, int)][:200]
+    if not name or not song_ids:
+        return jsonify({'error': 'A name and at least one song are required'}), 400
+
+    visible = LibraryAccessModel.visible_song_ids(user_id)
+    song_ids = [i for i in dict.fromkeys(song_ids) if i in visible]
+    if not song_ids:
+        return jsonify({'error': 'None of those songs are available'}), 400
+    try:
+        playlist_id = PlaylistModel.create_playlist(name, 'music-note', '#3d7dc4', user_id)
+        for sid in song_ids:
+            PlaylistModel.add_song_to_playlist(playlist_id, sid)
+    except Exception as e:  # noqa: BLE001
+        print(f"[smartmix] save failed: {e}")
+        return jsonify({'error': 'Could not save the playlist'}), 500
+    return jsonify({'success': True, 'id': playlist_id, 'name': name,
+                    'count': len(song_ids)})
 
 
 @smartmix_bp.route('/generate', methods=['POST'])

@@ -1,7 +1,7 @@
 /**
- * Rainy Service Worker — PWA support with offline shell caching
+ * Rainy Service Worker â€” PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v19';
+const CACHE_NAME = 'rainy-v40';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
@@ -28,6 +28,7 @@ const SHELL_ASSETS = [
   '/css/pages/discover.css',
   '/css/pages/library.css',
   '/css/pages/login.css',
+  '/css/pages/mixes.css',
   '/css/pages/setup.css',
   '/css/variables.css',
   '/js/components/addMusicModal.js',
@@ -47,10 +48,15 @@ const SHELL_ASSETS = [
   '/js/helper/request.js',
   '/js/helper/result.js',
   '/js/helper/router.js',
-  '/js/lightshow.js',
-  '/js/lightshow3d.js',
-  '/js/lightshowAnalysis.js',
-  '/js/lightshowGenerator.js',
+  '/js/audioGraph.js',
+  '/js/lightshow/clock.js',
+  '/js/lightshow/engine.js',
+  '/js/lightshow/fixtures.js',
+  '/js/lightshow/lyrics.js',
+  '/js/lightshow/palette.js',
+  '/js/lightshow/scenes.js',
+  '/js/lightshow/score.js',
+  '/js/lightshow/sources.js',
   '/js/main.js',
   '/js/modules/bpmShuffle.js',
   '/js/modules/friends.js',
@@ -58,6 +64,7 @@ const SHELL_ASSETS = [
   '/js/modules/keyboardShortcuts.js',
   '/js/modules/library.js',
   '/js/modules/mediaSession.js',
+  '/js/modules/mixes.js',
   '/js/modules/newViews.js',
   '/js/modules/playlists.js',
   '/js/modules/shortcutOverlay.js',
@@ -68,12 +75,12 @@ const SHELL_ASSETS = [
   '/js/services/base.js',
   '/js/services/cast.js',
   '/js/services/connect.js',
-  '/js/services/discovery.js',
   '/js/services/enrichment.js',
   '/js/services/friends.js',
   '/js/services/importJobs.js',
   '/js/services/index.js',
   '/js/services/lightshow.js',
+  '/js/services/listenTracker.js',
   '/js/services/lyrics.js',
   '/js/services/metadata.js',
   '/js/services/music.js',
@@ -126,7 +133,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Code assets: network-first — the server is on the user's LAN, so a
+  // Code assets: network-first â€” the server is on the user's LAN, so a
   // stale cache must never outlive a deploy. The last-good copy is kept
   // as an offline fallback.
   if (url.pathname.match(/\.(js|css)$/)) {

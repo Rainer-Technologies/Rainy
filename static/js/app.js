@@ -8,7 +8,10 @@ import { Library } from './modules/library.js';
 import { Playlists } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
 import { useAuthService } from "./services/auth.js";
+import { useEnrichmentService } from "./services/enrichment.js";
 import { useImportJobsService } from "./services/importJobs.js";
+import { useLightshowService } from "./services/lightshow.js";
+import { useLyricsService } from "./services/lyrics.js";
 import { useMusicService } from "./services/music.js";
 import { usePlaylistService } from './services/playlist.js';
 import { useScanService } from './services/scan.js';
@@ -17,6 +20,17 @@ import { useUsersService } from './services/users.js';
 import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
+
+// Section id -> page title. Also used to label settings search results.
+const SETTINGS_SECTION_TITLES = {
+    appearance: 'Appearance',
+    player: 'Player',
+    account: 'Account',
+    syncs: 'Playlist Sync',
+    jobs: 'Jobs',
+    users: 'Users',
+    chromecast: 'Chromecast Setup',
+};
 
 const DEFAULT_COVER_BASE64 = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nIzZlNmU2ZSc+PHBhdGggZD0nTTEyIDN2MTAuNTVjLS41OS0uMzQtMS4yNy0uNTUtMi0uNTUtMi4yMSAwLTQgMS43OS00IDRzMS43OSA0IDQgNCA0LTEuNzkgNC00VjdoNFYzaC02eicvPjwvc3ZnPg==`;
 
@@ -83,6 +97,10 @@ export class RainyApp {
             'aria-expanded',
             String(!this.isMobileViewport() && !isCollapsed)
         );
+
+        // Restore the "More" nav section (Recently Played / Smart Mix / Discover)
+        this.setMoreNavigationOpen(this.loadMoreNavigationPref());
+        this.setBrowseNavigationOpen(this.loadBrowseNavigationPref());
 
         // Bind event listeners
         this.bindEvents();
@@ -174,8 +192,14 @@ export class RainyApp {
         });
 
         // Settings search functionality
-        document.getElementById('settings-search-input')?.addEventListener('input', (e) => {
+        const settingsSearchInput = document.getElementById('settings-search-input');
+        settingsSearchInput?.addEventListener('input', (e) => {
             this.handleSettingsSearch(e.target.value);
+        });
+        settingsSearchInput?.addEventListener('keydown', (e) => this._onSettingsSearchKeydown(e));
+        document.getElementById('settings-search-clear')?.addEventListener('click', () => {
+            this._clearSettingsSearch();
+            settingsSearchInput?.focus();
         });
 
         // Header search filters the library in place.
@@ -212,6 +236,11 @@ export class RainyApp {
         document.getElementById('nav-more-toggle')?.addEventListener('click', (e) => {
             e.preventDefault();
             this.toggleMoreNavigation();
+        });
+
+        document.getElementById('nav-browse-toggle')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.toggleBrowseNavigation();
         });
 
         document.getElementById('player-more-btn')?.addEventListener('click', (e) => {
@@ -281,7 +310,6 @@ export class RainyApp {
                 const value = item.dataset.value;
                 this.savePreferences({ [pref]: value });
                 if (pref === 'lyrics_effect') {
-                    this._updateLyricsAudioSyncState(value);
                     if (window.player) window.player.setLyricsEffect(value);
                 }
             });
@@ -291,17 +319,26 @@ export class RainyApp {
             this.savePreferences({ fullscreen_swap_sides: e.target.checked });
         });
 
-        document.getElementById('settings-lyrics-audio-sync')?.addEventListener('change', (e) => {
-            this.savePreferences({ lyrics_audio_sync: e.target.checked });
-            if (window.player) window.player.setLyricsAudioSync(e.target.checked);
-        });
-
         document.getElementById('settings-disable-lasers')?.addEventListener('change', (e) => {
             this.savePreferences({ disable_lasers: e.target.checked });
         });
 
         document.getElementById('settings-show-bg-blur')?.addEventListener('change', (e) => {
             this.savePreferences({ show_bg_blur: e.target.checked });
+        });
+
+        document.getElementById('settings-lightshow-lyrics')?.addEventListener('change', (e) => {
+            this.savePreferences({ lightshow_lyrics: e.target.checked });
+        });
+
+        document.getElementById('settings-lightshow-reduce-flashing')?.addEventListener('change', (e) => {
+            this.savePreferences({ lightshow_reduce_flashing: e.target.checked });
+        });
+
+        const lightshowOffset = document.getElementById('settings-lightshow-offset');
+        lightshowOffset?.addEventListener('input', (e) => this._renderLightshowOffset(Number(e.target.value)));
+        lightshowOffset?.addEventListener('change', (e) => {
+            this.savePreferences({ lightshow_offset_ms: Number(e.target.value) || 0 });
         });
 
         // Player Bar control toggles — apply instantly + persist
@@ -445,7 +482,7 @@ export class RainyApp {
             this.runScan(true);
         });
 
-        // Duplicate finder (Library section)
+        // Duplicate finder (Jobs section)
         document.getElementById('dup-scan-btn')?.addEventListener('click', () => {
             this.scanDuplicates();
         });
@@ -461,16 +498,36 @@ export class RainyApp {
             this.runScrapeDescriptions();
         });
 
-        document.getElementById('fetch-lyrics-btn')?.addEventListener('click', () => {
-            this.runFetchLyrics();
+        document.getElementById('enrich-run-btn')?.addEventListener('click', () => {
+            this.runEnrichBackfill(false);
         });
 
-        document.getElementById('align-lyrics-btn')?.addEventListener('click', () => {
-            this.runAlignLyrics();
+        document.getElementById('enrich-force-btn')?.addEventListener('click', () => {
+            this.runEnrichBackfill(true);
+        });
+
+        document.getElementById('lyrics-run-btn')?.addEventListener('click', () => {
+            this.runLyricsBackfill(false);
+        });
+
+        document.getElementById('lyrics-force-btn')?.addEventListener('click', () => {
+            this.runLyricsBackfill(true);
         });
 
         document.getElementById('import-jobs-refresh-btn')?.addEventListener('click', () => {
             this.loadImportJobs();
+        });
+
+        document.getElementById('ytdlp-update-btn')?.addEventListener('click', () => {
+            this.updateYtdlp();
+        });
+
+        document.getElementById('lightshow-run-btn')?.addEventListener('click', () => {
+            this.runLightshowBackfill(false);
+        });
+
+        document.getElementById('lightshow-force-btn')?.addEventListener('click', () => {
+            this.runLightshowBackfill(true);
         });
 
         // Context menu
@@ -620,6 +677,9 @@ export class RainyApp {
             if (navItem.classList.contains('nav-secondary-item')) {
                 this.setMoreNavigationOpen(true);
             }
+            if (navItem.classList.contains('nav-browse-item')) {
+                this.setBrowseNavigationOpen(true);
+            }
             this.closeMobileSidebar();
         });
 
@@ -748,8 +808,11 @@ export class RainyApp {
         const route = segments[0].toLowerCase();
         const query = new URLSearchParams(window.location.search);
         const needsNewViews = ['albums', 'recent', 'recently-played', 'smart-mix', 'smartmix'].includes(route);
-        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover'].includes(route)) {
+        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover', 'friends'].includes(route)) {
             this.setMoreNavigationOpen(true);
+        }
+        if (['albums', 'artists'].includes(route)) {
+            this.setBrowseNavigationOpen(true);
         }
         if (needsNewViews && !window.newViews) {
             // main.js creates NewViews just after RainyApp. Keep the route
@@ -869,10 +932,45 @@ export class RainyApp {
         toggle?.setAttribute('aria-expanded', String(isOpen));
     }
 
+    /** Only an explicit toggle is remembered; opening it because you navigated into it is not. */
     toggleMoreNavigation() {
         const sidebar = document.querySelector('.app-sidebar');
         if (!sidebar) return;
-        this.setMoreNavigationOpen(!sidebar.classList.contains('more-open'));
+        const isOpen = !sidebar.classList.contains('more-open');
+        this.setMoreNavigationOpen(isOpen);
+        try { localStorage.setItem('navMoreOpen', String(isOpen)); } catch { /* storage unavailable */ }
+    }
+
+    setBrowseNavigationOpen(isOpen) {
+        const sidebar = document.querySelector('.app-sidebar');
+        if (!sidebar) return;
+        sidebar.classList.toggle('browse-closed', !isOpen);
+        document.getElementById('nav-browse-toggle')?.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    /** Browse is open unless the listener folded it; only explicit toggles are remembered. */
+    toggleBrowseNavigation() {
+        const sidebar = document.querySelector('.app-sidebar');
+        if (!sidebar) return;
+        const isOpen = sidebar.classList.contains('browse-closed');
+        this.setBrowseNavigationOpen(isOpen);
+        try { localStorage.setItem('navBrowseOpen', String(isOpen)); } catch { /* storage unavailable */ }
+    }
+
+    loadBrowseNavigationPref() {
+        try {
+            return localStorage.getItem('navBrowseOpen') !== 'false';
+        } catch {
+            return true;
+        }
+    }
+
+    loadMoreNavigationPref() {
+        try {
+            return localStorage.getItem('navMoreOpen') === 'true';
+        } catch {
+            return false;
+        }
     }
 
     togglePlayerTools() {
@@ -1216,96 +1314,6 @@ export class RainyApp {
         }
     }
 
-    async _runLyricsJob(endpoint, ids, emptyMsg, doneMsg) {
-        const btn = document.getElementById(ids.btn);
-        const progress = document.getElementById(ids.progress);
-        const progressBar = document.getElementById(ids.bar);
-        const progressText = document.getElementById(ids.text);
-        const result = document.getElementById(ids.result);
-
-        btn.disabled = true;
-        btn.textContent = 'Running...';
-        progress?.classList.remove('hidden');
-        result?.classList.add('hidden');
-        progressBar.style.width = '0%';
-        progressText.textContent = 'Starting...';
-
-        try {
-            const res = await fetch(endpoint, { method: 'POST' });
-            if (!res.ok) {
-                let detail = `HTTP ${res.status}`;
-                try { detail = (await res.json()).error || detail; } catch (_) { }
-                progressText.textContent = 'Error: ' + detail;
-                this.showToast(detail, 'error');
-                return;
-            }
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-
-                const lines = buffer.split('\n');
-                buffer = lines.pop();
-
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    const msg = JSON.parse(line);
-
-                    if (msg.type === 'start') {
-                        progressText.textContent = msg.total === 0
-                            ? emptyMsg
-                            : `Processing 0 / ${msg.total} songs...`;
-                    } else if (msg.type === 'progress') {
-                        const pct = Math.round((msg.current / msg.total) * 100);
-                        progressBar.style.width = `${pct}%`;
-                        const who = msg.title ? `${msg.title} — ${msg.artist}` : '';
-                        progressText.textContent = `Processing ${msg.current} / ${msg.total}${who ? ' — ' + who : ''}`;
-                    } else if (msg.type === 'done') {
-                        progress?.classList.add('hidden');
-                        document.getElementById(ids.stat1).textContent = msg[ids.field1];
-                        document.getElementById(ids.skipped).textContent = msg.skipped;
-                        document.getElementById(ids.failed).textContent = msg.failed;
-                        result?.classList.remove('hidden');
-                        this.showToast(doneMsg(msg), 'success');
-                    } else if (msg.type === 'error') {
-                        progressText.textContent = 'Error: ' + msg.error;
-                        this.showToast('Job failed: ' + msg.error, 'error');
-                    }
-                }
-            }
-        } catch (e) {
-            progressText.textContent = 'Error: ' + e.message;
-            this.showToast('Job failed: ' + e.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Run';
-        }
-    }
-
-    runFetchLyrics() {
-        return this._runLyricsJob('/api/music/jobs/lyrics', {
-            btn: 'fetch-lyrics-btn', progress: 'fetch-lyrics-progress',
-            bar: 'fetch-lyrics-progress-bar', text: 'fetch-lyrics-progress-text',
-            result: 'fetch-lyrics-result', stat1: 'fetch-lyrics-fetched',
-            field1: 'fetched', skipped: 'fetch-lyrics-skipped', failed: 'fetch-lyrics-failed'
-        }, 'Every song already has lyrics!',
-        (m) => `Fetched lyrics for ${m.fetched} song${m.fetched === 1 ? '' : 's'}`);
-    }
-
-    runAlignLyrics() {
-        return this._runLyricsJob('/api/music/jobs/lyrics-words', {
-            btn: 'align-lyrics-btn', progress: 'align-lyrics-progress',
-            bar: 'align-lyrics-progress-bar', text: 'align-lyrics-progress-text',
-            result: 'align-lyrics-result', stat1: 'align-lyrics-aligned',
-            field1: 'aligned', skipped: 'align-lyrics-skipped', failed: 'align-lyrics-failed'
-        }, 'No songs with lyrics to align!',
-        (m) => `Aligned word timing for ${m.aligned} song${m.aligned === 1 ? '' : 's'}`);
-    }
-
     // ==================== Background Import Jobs ====================
 
     _importJobLabel(job) {
@@ -1422,6 +1430,365 @@ export class RainyApp {
             clearTimeout(this._importJobsPollTimer);
             this._importJobsPollTimer = setTimeout(() => this.loadImportJobs(), 1500);
         }
+    }
+
+    _renderLightshowOffset(ms) {
+        const el = document.getElementById('settings-lightshow-offset-value');
+        if (el) el.textContent = `${ms > 0 ? '+' : ''}${ms} ms`;
+    }
+
+    _lightshowJobSummary(job) {
+        const r = job.result || {};
+        if (job.status === 'completed') {
+            if (job.scope === 'backfill') {
+                if (!r.total) return 'Every song already had an up-to-date light show';
+                return `${r.analysed ?? 0} of ${r.total} songs analysed${r.failed ? ` (${r.failed} failed)` : ''}`;
+            }
+            if (r.skipped) return r.skipped === 'up to date' ? 'Already up to date' : 'Skipped (song removed)';
+            return `${Math.round(r.tempo || 0)} BPM · ${r.genre || 'pop'} · ${r.sections ?? 0} sections`;
+        }
+        if (job.status === 'failed') return job.error || 'Analysis failed';
+        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Analysing…');
+    }
+
+    _lightshowJobRow(job) {
+        const title = job.scope === 'backfill'
+            ? (job.force ? 'Full library re-analysis' : 'Library light shows')
+            : `Song #${job.song_id}`;
+        return this._analysisJobRow(job, title, this._lightshowJobSummary(job));
+    }
+
+    _analysisJobRow(job, titleText, summaryText, hint) {
+        const row = document.createElement('div');
+        row.className = `import-job-row import-job-${job.status}`;
+        const info = document.createElement('div');
+        info.className = 'import-job-info';
+        const title = document.createElement('div');
+        title.className = 'import-job-title';
+        title.textContent = titleText;
+        const badge = document.createElement('span');
+        badge.className = `import-job-badge import-job-badge-${job.status}`;
+        badge.textContent = job.status;
+        title.appendChild(badge);
+        const summary = document.createElement('div');
+        summary.className = 'import-job-summary';
+        summary.textContent = summaryText;
+        if (hint) summary.title = hint;
+        info.appendChild(title);
+        info.appendChild(summary);
+        if (job.status === 'running') {
+            const bar = document.createElement('div');
+            bar.className = 'import-job-progress';
+            const fill = document.createElement('div');
+            fill.className = 'import-job-progress-fill';
+            fill.style.width = `${job.progress || 0}%`;
+            bar.appendChild(fill);
+            info.appendChild(bar);
+        }
+        row.appendChild(info);
+        return row;
+    }
+
+    /**
+     * Coverage line for an analysis card. The bar only shows while a job is
+     * queued/running; once idle it gives way to a plain "all done" / "N of M" line.
+     */
+    _renderCoverage(id, coverage, active, { noun, note = '' }) {
+        const box = document.getElementById(id);
+        const bar = document.getElementById(`${id}-bar`);
+        const text = document.getElementById(`${id}-text`);
+        if (!box || !text) return;
+        const { ready, total } = coverage;
+        const pct = total ? Math.round((ready / total) * 100) : 0;
+        if (bar) bar.style.width = `${pct}%`;
+        bar?.parentElement.classList.toggle('hidden', !active);
+        let msg;
+        if (active) msg = `Analysing… ${ready} / ${total} ${noun} (${pct}%)`;
+        else if (total && ready >= total) msg = `✓ Done — all ${total} ${noun}`;
+        else msg = `${ready} / ${total} ${noun} (${pct}%)`;
+        text.textContent = note ? `${msg} · ${note}` : msg;
+        text.classList.toggle('scan-progress-done', !active && total > 0 && ready >= total);
+    }
+
+    _lyricsJobSummary(job) {
+        const r = job.result || {};
+        const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+        if (job.status === 'completed') {
+            if (job.scope === 'backfill') {
+                if (!r.total) return 'Every song already has word timing';
+                const parts = [`${r.aligned ?? 0} of ${plural(r.total, 'song')} timed`];
+                if (r.fetched) parts.push(`${r.fetched} lyrics fetched`);
+                if (r.no_lyrics) parts.push(`${r.no_lyrics} without synced lyrics`);
+                if (r.failed) parts.push(`${r.failed} failed`);
+                return parts.join(' · ');
+            }
+            if (r.skipped) {
+                return r.skipped === 'up to date' ? 'Already up to date'
+                    : r.skipped === 'no synced lyrics' ? 'No synced lyrics for this song'
+                        : 'Skipped (song removed)';
+            }
+            const parts = [`${plural(r.lines ?? 0, 'line')} timed`];
+            if (r.language) parts.push(r.language);
+            if (r.re_aligned) parts.push(`${r.re_aligned} re-aligned`);
+            if (r.estimated) parts.push(`${r.estimated} estimated`);
+            return parts.join(' · ');
+        }
+        if (job.status === 'failed') return job.error || 'Analysis failed';
+        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Analysing…');
+    }
+
+    _lyricsJobRow(job) {
+        const title = job.scope === 'backfill'
+            ? (job.force ? 'Full library re-timing' : 'Library lyrics')
+            : `Song #${job.song_id}`;
+        const failures = job.result && job.result.failures;
+        const hint = failures && failures.length
+            ? failures.map(f => `${f.song}: ${f.error}`).join('\n') : undefined;
+        return this._analysisJobRow(job, title, this._lyricsJobSummary(job), hint);
+    }
+
+    async loadLyricsJobs() {
+        const queueEl = document.getElementById('lyrics-jobs-queue');
+        const historyEl = document.getElementById('lyrics-jobs-history');
+        if (!queueEl || !historyEl) return;
+
+        const data = await useLyricsService().jobs();
+        if (data.error) {
+            Logger.error('Failed to load lyrics jobs', data.error);
+            return;
+        }
+        const { queue = [], history = [], coverage = { ready: 0, total: 0, unfetched: 0 } } = data.value || {};
+
+        this._renderCoverage('lyrics-coverage', coverage, queue.length > 0, {
+            noun: 'songs with synced lyrics timed',
+            note: coverage.unfetched ? `${coverage.unfetched} not searched yet` : '',
+        });
+
+        const fill = (el, jobs, emptyText) => {
+            el.innerHTML = '';
+            if (!jobs.length) {
+                const empty = document.createElement('div');
+                empty.className = 'import-jobs-empty';
+                empty.textContent = emptyText;
+                el.appendChild(empty);
+            } else {
+                jobs.forEach(job => el.appendChild(this._lyricsJobRow(job)));
+            }
+        };
+        fill(queueEl, queue.slice(0, 6), 'No analysis running or queued.');
+        if (queue.length > 6) {
+            const more = document.createElement('div');
+            more.className = 'import-jobs-empty';
+            more.textContent = `+ ${queue.length - 6} more queued`;
+            queueEl.appendChild(more);
+        }
+        fill(historyEl, history, 'No lyrics jobs yet.');
+
+        const jobsSection = document.getElementById('settings-section-jobs');
+        const jobsOpen = jobsSection && jobsSection.classList.contains('active');
+        const settingsOpen = !document.getElementById('settings-page').classList.contains('hidden');
+        clearTimeout(this._lyricsJobsPollTimer);
+        if (queue.length > 0 && jobsOpen && settingsOpen) {
+            this._lyricsJobsPollTimer = setTimeout(() => this.loadLyricsJobs(), 1500);
+        }
+    }
+
+    async runLyricsBackfill(force) {
+        if (force && !confirm('Re-time the lyrics of every song? This runs in the background and can take a while on big libraries.')) return;
+        const data = await useLyricsService().backfill(force);
+        if (data.error) {
+            this.showToast(data.error.error || 'Could not start lyrics analysis', 'error');
+            return;
+        }
+        this.showToast(force ? "Re-timing every song's lyrics…" : 'Analysing lyrics…', 'success');
+        this.loadLyricsJobs();
+    }
+
+    async loadLightshowJobs() {
+        const queueEl = document.getElementById('lightshow-jobs-queue');
+        const historyEl = document.getElementById('lightshow-jobs-history');
+        if (!queueEl || !historyEl) return;
+
+        const data = await useLightshowService().jobs();
+        if (data.error) {
+            Logger.error('Failed to load light show jobs', data.error);
+            return;
+        }
+        const { queue = [], history = [], coverage = { ready: 0, total: 0 } } = data.value || {};
+
+        this._renderCoverage('lightshow-coverage', coverage, queue.length > 0, { noun: 'songs ready' });
+
+        const fill = (el, jobs, emptyText) => {
+            el.innerHTML = '';
+            if (!jobs.length) {
+                const empty = document.createElement('div');
+                empty.className = 'import-jobs-empty';
+                empty.textContent = emptyText;
+                el.appendChild(empty);
+            } else {
+                jobs.forEach(job => el.appendChild(this._lightshowJobRow(job)));
+            }
+        };
+        // Single-song jobs from imports can be many; show the first few.
+        fill(queueEl, queue.slice(0, 6), 'No analysis running or queued.');
+        if (queue.length > 6) {
+            const more = document.createElement('div');
+            more.className = 'import-jobs-empty';
+            more.textContent = `+ ${queue.length - 6} more queued`;
+            queueEl.appendChild(more);
+        }
+        fill(historyEl, history, 'No light show jobs yet.');
+
+        const jobsSection = document.getElementById('settings-section-jobs');
+        const jobsOpen = jobsSection && jobsSection.classList.contains('active');
+        const settingsOpen = !document.getElementById('settings-page').classList.contains('hidden');
+        clearTimeout(this._lightshowJobsPollTimer);
+        if (queue.length > 0 && jobsOpen && settingsOpen) {
+            this._lightshowJobsPollTimer = setTimeout(() => this.loadLightshowJobs(), 1500);
+        }
+    }
+
+    _enrichJobSummary(job) {
+        const r = job.result || {};
+        if (job.status === 'completed') {
+            if (job.scope === 'backfill') {
+                if (!r.total) return 'Every song was already analysed';
+                return `${r.enriched ?? 0} of ${r.total} songs analysed${r.failed ? ` (${r.failed} failed)` : ''}`;
+            }
+            return 'Metadata updated';
+        }
+        if (job.status === 'failed') return job.error || 'Analysis failed';
+        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Analysing…');
+    }
+
+    _enrichJobRow(job) {
+        const title = job.scope === 'backfill'
+            ? (job.force ? 'Full library re-analysis' : 'Library metadata')
+            : `Song #${job.song_id}`;
+        return this._analysisJobRow(job, title, this._enrichJobSummary(job));
+    }
+
+    async loadEnrichJobs() {
+        const queueEl = document.getElementById('enrich-jobs-queue');
+        const historyEl = document.getElementById('enrich-jobs-history');
+        if (!queueEl || !historyEl) return;
+
+        const data = await useEnrichmentService().status();
+        if (data.error) {
+            Logger.error('Failed to load metadata jobs', data.error);
+            return;
+        }
+        const { queue = [], history = [] } = data.value || {};
+
+        const fill = (el, jobs, emptyText) => {
+            el.innerHTML = '';
+            if (!jobs.length) {
+                const empty = document.createElement('div');
+                empty.className = 'import-jobs-empty';
+                empty.textContent = emptyText;
+                el.appendChild(empty);
+            } else {
+                jobs.forEach(job => el.appendChild(this._enrichJobRow(job)));
+            }
+        };
+        // Single-song jobs from scans/imports can be many; show the first few.
+        fill(queueEl, queue.slice(0, 6), 'No analysis running or queued.');
+        if (queue.length > 6) {
+            const more = document.createElement('div');
+            more.className = 'import-jobs-empty';
+            more.textContent = `+ ${queue.length - 6} more queued`;
+            queueEl.appendChild(more);
+        }
+        // The history endpoint also lists still-active jobs; don't show them twice.
+        fill(historyEl, history.filter(j => j.status !== 'queued' && j.status !== 'running'),
+            'No analysis jobs yet.');
+
+        const jobsSection = document.getElementById('settings-section-jobs');
+        const jobsOpen = jobsSection && jobsSection.classList.contains('active');
+        const settingsOpen = !document.getElementById('settings-page').classList.contains('hidden');
+        clearTimeout(this._enrichJobsPollTimer);
+        if (queue.length > 0 && jobsOpen && settingsOpen) {
+            this._enrichJobsPollTimer = setTimeout(() => this.loadEnrichJobs(), 1500);
+        }
+    }
+
+    async runEnrichBackfill(force) {
+        if (force && !confirm('Re-analyse the metadata of every song? This runs in the background and can take a long time on big libraries.')) return;
+        const data = await useEnrichmentService().backfill(force);
+        if (data.error) {
+            this.showToast(data.error.error || 'Could not start metadata analysis', 'error');
+            return;
+        }
+        this.showToast(force ? 'Re-analysing every song…' : 'Analysing songs without metadata…', 'success');
+        this.loadEnrichJobs();
+    }
+
+    _renderYtdlpStatus(st) {
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+        if (!st) return;
+        const ver = st.installed || 'not installed';
+        let verText = ver;
+        if (st.latest) verText += st.up_to_date ? ' (up to date)' : ` (latest: ${st.latest})`;
+        if (st.updating) verText += ' · updating…';
+        set('ytdlp-version', verText);
+        set('ytdlp-runtime', st.ejs && st.js_runtime
+            ? `Ready (${st.js_runtime})`
+            : !st.js_runtime ? 'No JS runtime found — install Deno or Node.js' : 'Solver missing — click Update now');
+        const u = st.last_update;
+        if (u) {
+            const when = new Date(u.at * 1000).toLocaleString();
+            set('ytdlp-last-update', u.ok
+                ? (u.from === u.to ? `${when} · already current` : `${when} · ${u.from} → ${u.to}`)
+                : `${when} · failed: ${(u.error || '').slice(0, 120)}`);
+        } else {
+            set('ytdlp-last-update', st.last_check ? `Checked ${new Date(st.last_check * 1000).toLocaleString()}` : 'Not checked yet');
+        }
+    }
+
+    async loadYtdlpStatus() {
+        try {
+            const res = await fetch('/api/music/ytdlp/status');
+            if (!res.ok) return;
+            const data = await res.json();
+            this._renderYtdlpStatus(data.ytdlp);
+        } catch (e) {
+            Logger.error('Failed to load yt-dlp status', e);
+        }
+    }
+
+    async updateYtdlp() {
+        const btn = document.getElementById('ytdlp-update-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+        try {
+            const res = await fetch('/api/music/ytdlp/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await res.json().catch(() => ({}));
+            this._renderYtdlpStatus(data.ytdlp);
+            if (res.ok) {
+                const u = data.ytdlp && data.ytdlp.last_update;
+                this.showToast(u && u.from !== u.to ? `yt-dlp updated to ${u.to}` : 'yt-dlp is up to date', 'success');
+            } else {
+                this.showToast(data.error ? `yt-dlp update failed: ${data.error.slice(0, 120)}` : 'yt-dlp update failed', 'error');
+            }
+        } catch (e) {
+            this.showToast('yt-dlp update failed', 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Update now'; }
+        }
+    }
+
+    async runLightshowBackfill(force) {
+        if (force && !confirm('Re-analyse the light show of every song? This runs in the background and can take a while on big libraries.')) return;
+        const data = await useLightshowService().backfill(force);
+        if (data.error) {
+            this.showToast(data.error.error || 'Could not start light show analysis', 'error');
+            return;
+        }
+        this.showToast(force ? 'Re-analysing every light show…' : 'Analysing missing light shows…', 'success');
+        this.loadLightshowJobs();
     }
 
     async cancelImportJob(jobId) {
@@ -3343,6 +3710,7 @@ export class RainyApp {
         if (!color) return;
         const root = document.documentElement;
         root.style.setProperty('--accent-primary', color);
+        try { localStorage.setItem('rainy-accent', color); } catch (e) { /* ignore */ }
         root.style.setProperty('--accent-secondary', color); // Simple fallback
         // Create a simple gradient
         root.style.setProperty('--accent-gradient', `linear-gradient(135deg, ${color} 0%, ${color} 100%)`);
@@ -3423,6 +3791,7 @@ export class RainyApp {
 
         this.closeMobileSidebar();
         this.closePlayerTools();
+        this._settingsSearchIndex = null; // rebuilt on first search (role / DOM may have changed)
         const settingsPage = document.getElementById('settings-page');
         const activeElement = document.activeElement;
         this._settingsReturnFocus = activeElement instanceof HTMLElement && activeElement !== document.body
@@ -3464,11 +3833,13 @@ export class RainyApp {
         let currentColor = '#3d7dc4';
         let currentFsMode = 'standard'; // default for new/no-pref accounts — keep in sync with player.js toggleFullscreen
         let currentLyricsEffect = 'default';
-        let currentLightshowStyle = 'original';
+        let currentLightshowIntensity = 'auto';
+        let lightshowReduceFlashing = false;
+        let lightshowLyrics = true;
+        let lightshowOffset = 0;
         let swap = false;
         let disableLasers = false;
         let showBgBlur = false;
-        let lyricsAudioSync = false;
 
         if (this.user && this.user.preferences) {
             let prefs = this.user.preferences;
@@ -3481,11 +3852,13 @@ export class RainyApp {
                 if (prefs.theme_color) currentColor = prefs.theme_color;
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
                 if (prefs.lyrics_effect) currentLyricsEffect = prefs.lyrics_effect;
-                if (prefs.lightshow_style) currentLightshowStyle = prefs.lightshow_style;
+                if (prefs.lightshow_intensity) currentLightshowIntensity = prefs.lightshow_intensity;
+                if (typeof prefs.lightshow_reduce_flashing !== 'undefined') lightshowReduceFlashing = !!prefs.lightshow_reduce_flashing;
+                if (typeof prefs.lightshow_lyrics !== 'undefined') lightshowLyrics = !!prefs.lightshow_lyrics;
+                if (typeof prefs.lightshow_offset_ms !== 'undefined') lightshowOffset = Number(prefs.lightshow_offset_ms) || 0;
                 if (typeof prefs.fullscreen_swap_sides !== 'undefined') swap = !!prefs.fullscreen_swap_sides;
                 if (typeof prefs.disable_lasers !== 'undefined') disableLasers = !!prefs.disable_lasers;
                 if (typeof prefs.show_bg_blur !== 'undefined') showBgBlur = !!prefs.show_bg_blur;
-                if (typeof prefs.lyrics_audio_sync !== 'undefined') lyricsAudioSync = !!prefs.lyrics_audio_sync;
             }
         }
 
@@ -3496,7 +3869,7 @@ export class RainyApp {
         if (colorValue) colorValue.textContent = currentColor;
 
         // Set radio button groups to their saved values
-        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect, lightshow_style: currentLightshowStyle };
+        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect, lightshow_intensity: currentLightshowIntensity };
         document.querySelectorAll('.settings-radio-group').forEach(group => {
             const pref = group.dataset.pref;
             const current = radioValues[pref];
@@ -3510,17 +3883,20 @@ export class RainyApp {
         const fsSwapToggle = document.getElementById('settings-fullscreen-swap');
         if (fsSwapToggle) fsSwapToggle.checked = swap;
 
-        // Set lyrics audio-sync toggle + availability (only for Word by word)
-        const lyricsAudioSyncToggle = document.getElementById('settings-lyrics-audio-sync');
-        if (lyricsAudioSyncToggle) lyricsAudioSyncToggle.checked = lyricsAudioSync;
-        this._updateLyricsAudioSyncState(currentLyricsEffect);
-
         // Set show animation toggles
         const disableLasersToggle = document.getElementById('settings-disable-lasers');
         if (disableLasersToggle) disableLasersToggle.checked = disableLasers;
 
         const showBgBlurToggle = document.getElementById('settings-show-bg-blur');
         if (showBgBlurToggle) showBgBlurToggle.checked = showBgBlur;
+
+        const reduceFlashToggle = document.getElementById('settings-lightshow-reduce-flashing');
+        if (reduceFlashToggle) reduceFlashToggle.checked = lightshowReduceFlashing;
+        const stageLyricsToggle = document.getElementById('settings-lightshow-lyrics');
+        if (stageLyricsToggle) stageLyricsToggle.checked = lightshowLyrics;
+        const offsetInput = document.getElementById('settings-lightshow-offset');
+        if (offsetInput) offsetInput.value = String(lightshowOffset);
+        this._renderLightshowOffset(lightshowOffset);
 
         // Sync Player Bar control toggles with saved preferences
         const pbControls = (this._getPlayerPrefs().player_bar_controls) || {};
@@ -3541,6 +3917,7 @@ export class RainyApp {
             return this.navigateTo(returnPath, { replace: true });
         }
 
+        this._clearSettingsSearch();
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
             settingsPage.classList.add('closing');
@@ -3573,15 +3950,6 @@ export class RainyApp {
         }
     }
 
-    _updateLyricsAudioSyncState(effect) {
-        const row = document.getElementById('lyrics-audio-sync-row');
-        const cb = document.getElementById('settings-lyrics-audio-sync');
-        if (!row || !cb) return;
-        const available = effect === 'word' || effect === 'slide';
-        row.classList.toggle('is-disabled', !available);
-        cb.disabled = !available;
-    }
-
     switchSettingsSection(sectionName, { updateUrl = true } = {}) {
         // Admin-only sections (Users): non-admins fall back to Appearance,
         // even on direct deep links like /settings/users.
@@ -3589,6 +3957,8 @@ export class RainyApp {
             (!this.user || this.user.role !== 'sysadmin')) {
             sectionName = 'appearance';
         }
+        // The old Library section (duplicates) now lives under Jobs.
+        if (sectionName === 'library') sectionName = 'jobs';
         // Unknown or removed sections (e.g. stale deep links) fall back too.
         if (!document.getElementById(`settings-section-${sectionName}`)) {
             sectionName = 'appearance';
@@ -3608,18 +3978,8 @@ export class RainyApp {
         });
 
         // Update title
-        const titleMap = {
-            'appearance': 'Appearance',
-            'player': 'Player',
-            'account': 'Account',
-            'library': 'Library',
-            'syncs': 'Playlist Sync',
-            'jobs': 'Jobs',
-            'users': 'Users',
-            'chromecast': 'Chromecast Setup'
-        };
         const title = document.getElementById('settings-page-title');
-        if (title) title.textContent = titleMap[sectionName] || 'Settings';
+        if (title) title.textContent = SETTINGS_SECTION_TITLES[sectionName] || 'Settings';
 
         // Show/hide sections
         document.querySelectorAll('.settings-section').forEach(section => {
@@ -3638,6 +3998,10 @@ export class RainyApp {
         if (sectionName === 'jobs') {
             this.loadScanStatus();
             this.loadImportJobs();
+            this.loadLightshowJobs();
+            this.loadLyricsJobs();
+            this.loadEnrichJobs();
+            this.loadYtdlpStatus();
         }
 
         if (sectionName === 'syncs') {
@@ -3668,85 +4032,230 @@ export class RainyApp {
         }
     }
 
+    // ==================== Settings search ====================
+
+    _normSearch(text) {
+        return String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    /**
+     * Index every option in the settings pages (rows, option cards, group
+     * headings) straight from the DOM, so results never drift out of sync with
+     * what is actually on screen. Entries the current account can't see
+     * (sysadmin-only) are left out.
+     */
+    _buildSettingsSearchIndex() {
+        const isAdmin = this.user?.role === 'sysadmin';
+        const textOf = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
+        const entries = [];
+
+        document.querySelectorAll('.settings-section').forEach(sec => {
+            const section = sec.id.replace('settings-section-', '');
+            const nav = document.querySelector(`.settings-nav-item[data-section="${section}"]`);
+            if (nav?.classList.contains('sysadmin-only') && !isAdmin) return;
+            const sectionTitle = SETTINGS_SECTION_TITLES[section] || section;
+            const sectionNorm = this._normSearch(sectionTitle);
+
+            sec.querySelectorAll('.settings-row-label, .settings-group-title').forEach(labelEl => {
+                const isRow = labelEl.classList.contains('settings-row-label');
+                const target = (isRow && labelEl.closest('.settings-row'))
+                    || labelEl.closest('.settings-card')
+                    || labelEl.closest('.settings-group')
+                    || sec;
+                if (target.closest('.sysadmin-only') && !isAdmin) return;
+                if (target.closest('.hidden')) return;
+
+                const title = textOf(labelEl);
+                if (!title) return;
+                const titleNorm = this._normSearch(title);
+                if (titleNorm === sectionNorm) return; // the section itself is in the nav
+
+                let body;
+                if (target.classList.contains('settings-row')) {
+                    body = textOf(target);
+                } else {
+                    const desc = labelEl.parentElement?.querySelector(':scope > .settings-group-description');
+                    const options = target.classList.contains('settings-card')
+                        ? [...target.querySelectorAll('.settings-radio-item')]
+                            .filter(r => r.closest('.settings-card') === target)
+                        : [];
+                    body = [textOf(desc), ...options.map(textOf)].join(' ');
+                }
+
+                entries.push({
+                    section,
+                    sectionTitle,
+                    title,
+                    titleNorm,
+                    bodyNorm: this._normSearch(body),
+                    sectionNorm,
+                    el: target,
+                });
+            });
+        });
+        return entries;
+    }
+
+    _searchSettings(query) {
+        const tokens = this._normSearch(query).split(' ').filter(Boolean);
+        if (!tokens.length) return { tokens, results: [] };
+        if (!this._settingsSearchIndex) this._settingsSearchIndex = this._buildSettingsSearchIndex();
+
+        const results = [];
+        this._settingsSearchIndex.forEach((entry, order) => {
+            let score = 0;
+            for (const tok of tokens) {
+                if (entry.titleNorm.split(' ').some(w => w.startsWith(tok))) score += 4;
+                else if (entry.titleNorm.includes(tok)) score += 3;
+                else if (entry.bodyNorm.includes(tok)) score += 2;
+                else if (entry.sectionNorm.includes(tok)) score += 1;
+                else return; // every word has to match somewhere
+            }
+            results.push({ entry, score, order });
+        });
+        results.sort((a, b) => b.score - a.score || a.order - b.order);
+        return { tokens, results: results.map(r => r.entry) };
+    }
+
+    /** Append `text` to `parent`, wrapping the parts that match a search word in <mark>. */
+    _appendHighlighted(parent, text, tokens) {
+        const lower = text.toLowerCase();
+        const ranges = [];
+        tokens.forEach(tok => {
+            let from = 0;
+            for (let at = lower.indexOf(tok, from); at !== -1; at = lower.indexOf(tok, from)) {
+                ranges.push([at, at + tok.length]);
+                from = at + tok.length;
+            }
+        });
+        ranges.sort((a, b) => a[0] - b[0]);
+        const merged = [];
+        ranges.forEach(r => {
+            const last = merged[merged.length - 1];
+            if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+            else merged.push([...r]);
+        });
+        let pos = 0;
+        merged.forEach(([start, end]) => {
+            if (start > pos) parent.appendChild(document.createTextNode(text.slice(pos, start)));
+            const mark = document.createElement('mark');
+            mark.textContent = text.slice(start, end);
+            parent.appendChild(mark);
+            pos = end;
+        });
+        if (pos < text.length) parent.appendChild(document.createTextNode(text.slice(pos)));
+    }
+
     handleSettingsSearch(query) {
-        const searchTerm = query.toLowerCase().trim();
-        const navItems = document.querySelectorAll('.settings-nav-item');
+        const value = (query || '').trim();
+        const sidebar = document.querySelector('.settings-sidebar');
+        const box = document.getElementById('settings-search-results');
+        document.getElementById('settings-search-clear')?.classList.toggle('hidden', !value);
+        if (!box) return;
 
-        // Define searchable content for each section
-        const sectionKeywords = {
-            'appearance': ['appearance', 'theme', 'color', 'accent', 'color picker', 'preset', 'reset', 'style', 'look'],
-            'player': ['player', 'fullscreen', 'mode', 'standard', 'modern', 'swap', 'queue', 'image', 'album art'],
-            'account': ['account', 'password', 'change password', 'security', 'login', 'credentials'],
-            'library': ['library', 'duplicate', 'dup', 'merge'],
-            'syncs': ['sync', 'playlist sync', 'interval', 'mirror', 'spotify', 'youtube'],
-            'jobs': ['jobs', 'library', 'scanning', 'scan', 'quick scan', 'full scan', 'rescan', 'files', 'music', 'scrape', 'artist images', 'background', 'task', 'batch', 'metadata', 'server'],
-            'users': ['users', 'accounts', 'create user', 'manage users', 'admin', 'role', 'password reset', 'server']
-        };
-
-        if (!searchTerm) {
-            // Reset - show all nav items and remove highlights
-            navItems.forEach(item => {
-                if (!item.classList.contains('sysadmin-only') ||
-                    (this.user && this.user.role === 'sysadmin')) {
-                    item.style.display = '';
-                }
-            });
-            document.querySelectorAll('.settings-nav-category').forEach(cat => {
-                if (!cat.classList.contains('sysadmin-only') ||
-                    (this.user && this.user.role === 'sysadmin')) {
-                    cat.style.display = '';
-                }
-            });
-            // Remove any search highlights
-            document.querySelectorAll('.settings-search-highlight').forEach(el => {
-                el.classList.remove('settings-search-highlight');
-            });
+        this._settingsSearchActive = 0;
+        sidebar?.classList.toggle('is-searching', !!value);
+        box.classList.toggle('hidden', !value);
+        box.replaceChildren();
+        if (!value) {
+            this._settingsSearchResults = [];
             return;
         }
 
-        let firstMatch = null;
-        let hasUserMatch = false;
-        let hasServerMatch = false;
+        const { tokens, results } = this._searchSettings(value);
+        this._settingsSearchResults = results;
 
-        // Filter nav items based on search
-        navItems.forEach(item => {
-            const section = item.dataset.section;
-            const keywords = sectionKeywords[section] || [];
-            const itemText = item.textContent.toLowerCase();
+        if (!results.length) {
+            const empty = document.createElement('div');
+            empty.className = 'settings-search-empty';
+            empty.textContent = `No settings match “${value}”`;
+            box.appendChild(empty);
+            return;
+        }
 
-            const matches = keywords.some(kw => kw.includes(searchTerm)) ||
-                itemText.includes(searchTerm);
-
-            // Check if sysadmin-only section
-            const isSysadminOnly = item.classList.contains('sysadmin-only');
-            const canShow = !isSysadminOnly || (this.user && this.user.role === 'sysadmin');
-
-            if (matches && canShow) {
-                item.style.display = '';
-                if (!firstMatch) firstMatch = section;
-                if (section === 'jobs' || section === 'users') {
-                    hasServerMatch = true;
-                } else {
-                    hasUserMatch = true;
-                }
-            } else {
-                item.style.display = 'none';
-            }
+        results.forEach((entry, i) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'settings-search-result';
+            btn.setAttribute('role', 'option');
+            btn.id = `settings-search-result-${i}`;
+            const title = document.createElement('span');
+            title.className = 'settings-search-result-title';
+            this._appendHighlighted(title, entry.title, tokens);
+            const where = document.createElement('span');
+            where.className = 'settings-search-result-section';
+            where.textContent = entry.sectionTitle;
+            btn.append(title, where);
+            btn.addEventListener('click', () => this._openSettingsSearchResult(entry));
+            btn.addEventListener('mousemove', () => this._setSettingsSearchActive(i));
+            box.appendChild(btn);
         });
+        this._setSettingsSearchActive(0);
+    }
 
-        // Show/hide category headers based on matches
-        const userCategory = document.querySelector('.settings-nav-category:not(.sysadmin-only)');
-        const serverCategory = document.getElementById('settings-nav-server-category');
+    _setSettingsSearchActive(index) {
+        const items = document.querySelectorAll('#settings-search-results .settings-search-result');
+        if (!items.length) return;
+        this._settingsSearchActive = Math.max(0, Math.min(index, items.length - 1));
+        items.forEach((el, i) => {
+            const active = i === this._settingsSearchActive;
+            el.classList.toggle('active', active);
+            el.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        items[this._settingsSearchActive].scrollIntoView({ block: 'nearest' });
+        document.getElementById('settings-search-input')
+            ?.setAttribute('aria-activedescendant', items[this._settingsSearchActive].id);
+    }
 
-        if (userCategory) userCategory.style.display = hasUserMatch ? '' : 'none';
-        if (serverCategory && this.user?.role === 'sysadmin') {
-            serverCategory.style.display = hasServerMatch ? '' : 'none';
+    _onSettingsSearchKeydown(e) {
+        const input = e.target;
+        if (e.key === 'Escape' && input.value) {
+            // First Escape only clears the search; the next one closes settings.
+            e.stopPropagation();
+            this._clearSettingsSearch();
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            if (!this._settingsSearchResults?.length) return;
+            e.preventDefault();
+            this._setSettingsSearchActive(this._settingsSearchActive + (e.key === 'ArrowDown' ? 1 : -1));
+        } else if (e.key === 'Enter') {
+            const entry = this._settingsSearchResults?.[this._settingsSearchActive];
+            if (entry) {
+                e.preventDefault();
+                this._openSettingsSearchResult(entry);
+            }
         }
+    }
 
-        // Navigate to first matching section
-        if (firstMatch) {
-            this.switchSettingsSection(firstMatch);
+    _clearSettingsSearch() {
+        const input = document.getElementById('settings-search-input');
+        if (input) {
+            input.value = '';
+            input.removeAttribute('aria-activedescendant');
         }
+        this.handleSettingsSearch('');
+    }
+
+    async _openSettingsSearchResult(entry) {
+        this._clearSettingsSearch();
+        await this.switchSettingsSection(entry.section);
+
+        // Wait for the section to be laid out, then bring the option into view.
+        const reveal = (retries = 6) => {
+            if (!entry.el.isConnected) return;
+            if (entry.el.offsetParent === null && retries > 0) {
+                setTimeout(() => reveal(retries - 1), 50);
+                return;
+            }
+            entry.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            document.querySelectorAll('.settings-search-highlight').forEach(el => {
+                el.classList.remove('settings-search-highlight');
+            });
+            void entry.el.offsetWidth; // restart the animation if it is the same element
+            entry.el.classList.add('settings-search-highlight');
+            setTimeout(() => entry.el.classList.remove('settings-search-highlight'), 2200);
+        };
+        requestAnimationFrame(() => reveal());
     }
 
     async savePreferences(newPrefs) {

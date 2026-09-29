@@ -136,6 +136,123 @@
     color: var(--text-tertiary);
 }
 
+/* Search clear button */
+.settings-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    color: var(--text-tertiary);
+}
+
+.settings-search-clear:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.settings-search-clear svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Search results (replace the nav while a query is typed) */
+.settings-sidebar.is-searching .settings-nav {
+    display: none;
+}
+
+.settings-search-results {
+    flex: 1;
+    min-width: 0;
+    padding: var(--spacing-xs) var(--spacing-md) var(--spacing-md);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.settings-search-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 2px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.settings-search-result:hover,
+.settings-search-result.active {
+    background: var(--bg-highlight);
+    color: var(--text-primary);
+}
+
+.settings-search-result-title {
+    max-width: 100%;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-search-result-title mark {
+    background: transparent;
+    color: var(--accent-primary);
+    font-weight: 700;
+}
+
+.settings-search-result-section {
+    max-width: 100%;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-search-empty {
+    padding: var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    overflow-wrap: anywhere;
+}
+
+/* Flash the option a search result jumped to */
+.settings-search-highlight {
+    animation: settingsSearchFlash 2.2s ease-out;
+}
+
+@keyframes settingsSearchFlash {
+    0%,
+    45% {
+        box-shadow: 0 0 0 2px var(--accent-primary);
+    }
+
+    100% {
+        box-shadow: 0 0 0 2px transparent;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-search-highlight {
+        animation: none;
+        box-shadow: 0 0 0 2px var(--accent-primary);
+    }
+}
+
 /* Navigation */
 .settings-nav {
     flex: 1;
@@ -1318,5 +1435,45 @@
     .users-layout.users-layout--with-form .users-create-group {
         position: static;
         order: -1;
+    }
+}
+
+/* Light show: sync offset slider + analysis coverage */
+.settings-range {
+    width: 180px;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+}
+
+.settings-range-value {
+    margin-left: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.lightshow-coverage {
+    margin: var(--spacing-sm) 0 var(--spacing-md);
+}
+
+.lightshow-coverage .scan-progress-text {
+    margin-top: 6px;
+}
+
+.lightshow-coverage .scan-progress-done {
+    color: #4ade80;
+}
+
+/* Coverage is a real percentage, not an indeterminate job: no sweeping
+   animation (it would keep running after the job finished and hide the value). */
+.lightshow-coverage .progress-bar-fill {
+    animation: none;
+    transition: width var(--transition-fast);
+}
+
+@media (max-width: 600px) {
+    .settings-range {
+        width: 120px;
     }
 }

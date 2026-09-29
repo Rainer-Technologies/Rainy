@@ -105,6 +105,8 @@ export class FriendsModule {
             if (!badge) return;
             badge.textContent = String(count);
             badge.classList.toggle('hidden', count === 0);
+            // Friends lives inside the foldable More section: flag the header too.
+            document.getElementById('nav-more-toggle')?.classList.toggle('has-badge', count > 0);
         } catch (e) {
             // Silent: badge is cosmetic.
         }

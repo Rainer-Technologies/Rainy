@@ -1108,7 +1108,8 @@ def youtube_playlist_import():
 
                 from utils.playlist_cover import generate_and_save_cover
                 cover_path = generate_and_save_cover(
-                    created_playlist_id, songs, music_path)
+                    created_playlist_id, songs, music_path,
+                    owner_user_id=session.get('user_id'))
 
                 yield json.dumps({
                     'type': 'result',
@@ -1413,7 +1414,8 @@ def spotify_playlist_import():
 
             from utils.playlist_cover import generate_and_save_cover
             cover_path = generate_and_save_cover(
-                created_playlist_id, cover_songs, music_path)
+                created_playlist_id, cover_songs, music_path,
+                owner_user_id=session.get('user_id'))
 
             yield json.dumps({
                 'type': 'result',
@@ -1835,7 +1837,7 @@ def discover_preview(video_id):
     extraction on every byte-range request.
     """
     import time
-    import yt_dlp
+    from utils import ytdlp_manager as yt_dlp
     import requests
     from flask import Response, stream_with_context
 
@@ -1972,42 +1974,115 @@ def update_artist_metadata(artist_name):
         return jsonify({'error': str(e)}), 500
 
 
+def _serialize_lightshow_job(job):
+    """Convert a lightshow_jobs row into a JSON-safe dict."""
+    import json as _json
+    if not job:
+        return None
+    result = job.get('result')
+    if isinstance(result, str) and result:
+        try:
+            result = _json.loads(result)
+        except (ValueError, TypeError):
+            pass
+
+    def _ts(value):
+        return value.isoformat() if value else None
+
+    return {
+        'id': job['id'],
+        'song_id': job.get('song_id'),
+        'scope': job.get('scope'),
+        'force': bool(job.get('force_full')),
+        'status': job['status'],
+        'progress': job.get('progress') or 0,
+        'message': job.get('message'),
+        'result': result,
+        'error': job.get('error_message'),
+        'created_at': _ts(job.get('created_at')),
+        'started_at': _ts(job.get('started_at')),
+        'completed_at': _ts(job.get('completed_at')),
+    }
+
+
 @music_bp.route('/song/<int:song_id>/lightshow', methods=['GET'])
 @require_auth
 def get_lightshow(song_id):
-    """Retrieve the pregenerated light show for a song, or 404 if none exists."""
+    """Return the song's light show score.
+
+    Songs without an up-to-date score get an analysis job queued on the spot
+    (so older libraries fill in lazily as people listen) and the response
+    says it is pending; the player runs the live fallback meanwhile.
+    """
     try:
-        from models.database import Database
-        import json
-        result = Database.execute_query(
-            "SELECT data FROM song_lightshows WHERE song_id = %s", (song_id,), fetch_one=True)
-        if not result:
-            return jsonify({'error': 'No light show for this song'}), 404
-        return jsonify({'success': True, 'lightshow': json.loads(result['data'])})
+        from models.lightshow_job import LightshowJobModel
+        from utils import lightshow_worker
+        from utils.lightshow_analyzer import ANALYZER_VERSION
+
+        stored = LightshowJobModel.get_score(song_id)
+        if stored and stored[0] >= ANALYZER_VERSION:
+            return jsonify({'success': True, 'lightshow': stored[1]})
+        if not SongModel.get_song_by_id(song_id):
+            return jsonify({'error': 'Song not found'}), 404
+
+        job = LightshowJobModel.song_job_state(song_id)
+        # Don't loop on a song whose analysis already failed; the user can
+        # retry explicitly from the song settings.
+        if not job or job['status'] not in ('queued', 'running', 'failed'):
+            lightshow_worker.enqueue_song(song_id)
+            job = LightshowJobModel.song_job_state(song_id)
+        return jsonify({
+            'success': False,
+            'pending': bool(job and job['status'] in ('queued', 'running')),
+            'job': _serialize_lightshow_job(job),
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-@music_bp.route('/song/<int:song_id>/lightshow', methods=['POST'])
+@music_bp.route('/song/<int:song_id>/lightshow/status', methods=['GET'])
 @require_auth
-def save_lightshow(song_id):
-    """Save or replace the pregenerated light show for a song."""
+def get_lightshow_status(song_id):
+    """Summary of a song's show (no envelopes) + its latest analysis job."""
     try:
-        from models.database import Database
-        import json
+        from models.lightshow_job import LightshowJobModel
+        from utils.lightshow_analyzer import ANALYZER_VERSION
+
+        stored = LightshowJobModel.get_score(song_id)
+        summary = None
+        if stored:
+            version, data = stored
+            summary = {
+                'version': version,
+                'current': version >= ANALYZER_VERSION,
+                'duration': data.get('duration'),
+                'tempo': data.get('tempo') or data.get('bpm'),
+                'profile': data.get('profile'),
+                'sections': data.get('sections') if version >= ANALYZER_VERSION else [],
+                'events': data.get('events') if version >= ANALYZER_VERSION else [],
+            }
+        return jsonify({
+            'success': True,
+            'show': summary,
+            'job': _serialize_lightshow_job(LightshowJobModel.song_job_state(song_id)),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/song/<int:song_id>/lightshow/analyze', methods=['POST'])
+@require_auth
+def analyze_lightshow(song_id):
+    """Queue a (forced) light show re-analysis for one song."""
+    try:
+        from models.lightshow_job import LightshowJobModel
+        from utils import lightshow_worker
+
         if not SongModel.get_song_by_id(song_id):
             return jsonify({'error': 'Song not found'}), 404
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No light show data provided'}), 400
-        payload = json.dumps(data)
-        query = """
-            INSERT INTO song_lightshows (song_id, data)
-            VALUES (%s, %s)
-            ON DUPLICATE KEY UPDATE data = %s
-        """
-        Database.execute_query(query, (song_id, payload, payload))
-        return jsonify({'success': True})
+        job_id = LightshowJobModel.enqueue_song(song_id, force=True)
+        lightshow_worker.notify()
+        return jsonify({'success': True, 'job': _serialize_lightshow_job(LightshowJobModel.get(job_id))})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2015,13 +2090,84 @@ def save_lightshow(song_id):
 @music_bp.route('/song/<int:song_id>/lightshow', methods=['DELETE'])
 @require_auth
 def delete_lightshow(song_id):
-    """Remove the pregenerated light show for a song."""
+    """Remove the stored light show for a song."""
     try:
-        from models.database import Database
-        Database.execute_query("DELETE FROM song_lightshows WHERE song_id = %s", (song_id,))
+        from models.lightshow_job import LightshowJobModel
+        LightshowJobModel.delete_score(song_id)
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def _lightshow_scope_ids():
+    """None for sysadmins (whole library), else the user's visible songs."""
+    from models.library_access import LibraryAccessModel
+    from models.user import UserModel
+    user = UserModel.get_user_by_id(get_current_user_id())
+    if user and user['role'] == 'sysadmin':
+        return None
+    return sorted(LibraryAccessModel.visible_song_ids(get_current_user_id()))
+
+
+@music_bp.route('/lightshow/backfill', methods=['POST'])
+@require_auth
+def backfill_lightshows():
+    """Queue a library-wide light show analysis.
+
+    Body params:
+        force: false (default) = only songs without an up-to-date show;
+               true = re-analyse everything.
+    """
+    try:
+        from models.lightshow_job import LightshowJobModel
+        from utils import lightshow_worker
+
+        data = request.get_json(silent=True) or {}
+        job_id = LightshowJobModel.enqueue_backfill(
+            force=bool(data.get('force')), song_ids=_lightshow_scope_ids())
+        lightshow_worker.notify()
+        return jsonify({'success': True, 'job': _serialize_lightshow_job(LightshowJobModel.get(job_id))})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/lightshow/jobs', methods=['GET'])
+@require_auth
+def lightshow_jobs():
+    """Live queue, recent history and library coverage (for polling)."""
+    try:
+        from models.lightshow_job import LightshowJobModel
+
+        ready, total = LightshowJobModel.coverage(_lightshow_scope_ids())
+        return jsonify({
+            'success': True,
+            'coverage': {'ready': ready, 'total': total},
+            'queue': [_serialize_lightshow_job(j) for j in (LightshowJobModel.active_jobs() or [])],
+            'history': [_serialize_lightshow_job(j) for j in (LightshowJobModel.list_recent() or [])],
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@music_bp.route('/ytdlp/status', methods=['GET'])
+@require_auth
+def ytdlp_status():
+    """Installed vs latest yt-dlp, JS runtime and last update result."""
+    from utils import ytdlp_manager
+    return jsonify({'success': True, 'ytdlp': ytdlp_manager.status()})
+
+
+@music_bp.route('/ytdlp/update', methods=['POST'])
+@require_sysadmin
+def ytdlp_update():
+    """Check PyPI and upgrade yt-dlp now (blocking, up to a few minutes)."""
+    from utils import ytdlp_manager
+    data = request.get_json(silent=True) or {}
+    st = ytdlp_manager.check(force_update=bool(data.get('force')), reason='manual')
+    last = st.get('last_update') or {}
+    if last.get('error') and not last.get('ok'):
+        return jsonify({'success': False, 'error': last['error'], 'ytdlp': st}), 500
+    return jsonify({'success': True, 'ytdlp': st})
 
 
 def _parse_lrc(lrc_text):
@@ -2340,6 +2486,8 @@ def get_lyrics(song_id):
                ON DUPLICATE KEY UPDATE found = %s, synced = %s, plain = %s""",
             (song_id, found, synced_json, plain_text,
              found, synced_json, plain_text))
+        # Word timings were aligned against the previous lyrics — drop them.
+        Database.execute_query("DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
 
         if not found:
             return jsonify({'error': 'No lyrics found for this song', 'state': 'not_found'}), 404
@@ -2420,333 +2568,102 @@ def apply_lyrics(song_id):
         return jsonify({'error': str(e)}), 500
 
 
-def _is_word_pairs(words):
-    """True if cached word-timing data is the current [start, end] pair format."""
-    return (isinstance(words, list) and words
-            and isinstance(words[0], list) and words[0]
-            and isinstance(words[0][0], list))
-
-
 @music_bp.route('/song/<int:song_id>/lyrics-words', methods=['GET'])
 @require_auth
 def get_lyrics_words(song_id):
-    """Return forced-alignment word timestamps for a song's lyrics.
+    """Return a song's aligned word timings.
 
-    Computes them on first request (slow: runs faster-whisper) and caches the
-    result in song_lyrics_words. Pass ?refresh=1 to recompute.
+    Songs without current timings get an analysis job queued on the spot (so
+    a library fills in lazily as people open lyrics) and the response says it
+    is pending; the player estimates word timing meanwhile and re-checks.
     """
     try:
-        from models.database import Database
-        import json
-        import time as _time
+        from models.lyrics_job import LyricsJobModel
+        from utils import lyrics_worker
+        from utils.lyrics_align import ALIGN_VERSION
 
-        def _log(msg):
-            print(f'[lyrics-align] song={song_id} {msg}', flush=True)
+        stored = LyricsJobModel.get_words(song_id)
+        if stored and stored[0] >= ALIGN_VERSION:
+            return jsonify({'success': True, 'words': stored[1], 'language': stored[2]})
 
-        refresh = request.args.get('refresh') == '1'
-        _log(f'request (refresh={refresh})')
-
-        cached = Database.execute_query(
-            "SELECT data FROM song_lyrics_words WHERE song_id = %s",
-            (song_id,), fetch_one=True)
-        if cached:
-            words = json.loads(cached['data'])
-            if _is_word_pairs(words):
-                _log(f'cache HIT — {len(words)} lines (no whisper run)')
-                return jsonify({'success': True, 'words': words})
-            _log('cache is legacy start-only format — purging row')
-            Database.execute_query(
-                "DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
-            cached = None
-
-        # Cache-only by default: opening the panel must never trigger the heavy
-        # Whisper run. The batch job (or ?refresh=1) does the alignment.
-        if not refresh:
-            _log('cache miss (cache-only mode) — not computing on view')
-            return jsonify({'error': 'Word timing not computed yet'}), 404
-
-        _log('cache miss (refresh) — will run alignment')
-
-        song = SongModel.get_song_by_id(song_id)
-        if not song:
-            _log('404: song not found')
+        if not SongModel.get_song_by_id(song_id):
             return jsonify({'error': 'Song not found'}), 404
+        lyr = LyricsJobModel.get_lyrics(song_id)
+        if not lyr or not lyr.get('found') or not lyr.get('synced'):
+            return jsonify({'error': 'No synced lyrics to align', 'pending': False}), 404
 
-        lyr = Database.execute_query(
-            "SELECT synced, plain FROM song_lyrics WHERE song_id = %s AND found = 1",
-            (song_id,), fetch_one=True)
-        if not lyr:
-            _log('404: no cached lyrics with found=1')
-            return jsonify({'error': 'No lyrics available to align'}), 404
-
-        lines = []
-        source = None
-        if lyr.get('synced'):
-            try:
-                synced = json.loads(lyr['synced'])
-                lines = [l.get('text', '') for l in synced if l.get('text') is not None]
-                if lines:
-                    source = 'synced'
-            except Exception as e:
-                _log(f'warn: synced json parse failed: {e}')
-                lines = []
-        if not lines and lyr.get('plain'):
-            lines = [ln for ln in (lyr['plain'] or '').split('\n')]
-            if lines:
-                source = 'plain'
-        if not lines:
-            _log('404: lyrics had no usable lines')
-            return jsonify({'error': 'No lyrics available to align'}), 404
-        _log(f'lyrics loaded: {len(lines)} lines (source={source})')
-
-        music_path = SettingsModel.get_music_path()
-        if not music_path:
-            _log('400: music path not configured')
-            return jsonify({'error': 'Music path not configured'}), 400
-
-        # file_path is stored relative to the music directory (same as /stream)
-        relative_path = song.get('file_path') or song.get('path')
-        if not relative_path:
-            _log('404: song has no file_path')
-            return jsonify({'error': 'Audio file not found for alignment'}), 404
-        audio_path = os.path.normpath(os.path.join(music_path, relative_path))
-        if not audio_path.startswith(os.path.normpath(music_path)) or not os.path.isfile(audio_path):
-            _log(f'404: resolved audio not a file: {audio_path}')
-            return jsonify({'error': 'Audio file not found for alignment'}), 404
-        _log(f'audio resolved: {audio_path}')
-
-        from utils.lyrics_align import align_lyrics_words
-        t0 = _time.time()
-        words = align_lyrics_words(audio_path, lines)
-        _log(f'align_lyrics_words returned in {_time.time() - t0:.1f}s '
-             f'-> {"OK" if words else "None"}')
-        if not words:
-            _log('500: alignment produced no result')
-            return jsonify({'error': 'Alignment produced no result'}), 500
-
-        payload = json.dumps(words)
-        Database.execute_query(
-            """INSERT INTO song_lyrics_words (song_id, data)
-               VALUES (%s, %s)
-               ON DUPLICATE KEY UPDATE data = %s""",
-            (song_id, payload, payload))
-        _log(f'cached {len(words)} lines of word times')
-        return jsonify({'success': True, 'words': words})
+        job = LyricsJobModel.song_job_state(song_id)
+        # Don't loop on a song whose analysis already failed — unless its
+        # lyrics were replaced since; the user can also retry explicitly.
+        lyrics_changed = bool(
+            job and job['status'] == 'failed' and lyr.get('updated_at') and job.get('completed_at')
+            and lyr['updated_at'] > job['completed_at'])
+        if not job or job['status'] not in ('queued', 'running', 'failed') or lyrics_changed:
+            lyrics_worker.enqueue_song(song_id)
+            job = LyricsJobModel.song_job_state(song_id)
+        return jsonify({
+            'success': False,
+            'pending': bool(job and job['status'] in ('queued', 'running')),
+            'job': _serialize_lightshow_job(job),
+        })
     except Exception as e:
-        print(f'[lyrics-align] song={song_id} EXCEPTION: {e}', flush=True)
         return jsonify({'error': str(e)}), 500
 
 
-# Re-entrancy guards so the heavy batch jobs can't be double-triggered.
-_lyrics_fetch_job_running = False
-_lyrics_align_job_running = False
-
-
-@music_bp.route('/jobs/lyrics', methods=['POST'])
+@music_bp.route('/song/<int:song_id>/lyrics-words/analyze', methods=['POST'])
 @require_auth
-def job_fetch_lyrics():
-    """Batch job: pull LRCLIB lyrics for every song that doesn't have them yet.
+def analyze_lyrics_words(song_id):
+    """Queue a forced lyrics re-alignment for one song."""
+    try:
+        from models.lyrics_job import LyricsJobModel
+        from utils import lyrics_worker
 
-    Streams NDJSON progress. Skips songs whose lyrics are already cached
-    (found=1) so re-runs are cheap.
-    """
-    global _lyrics_fetch_job_running
-    from flask import Response, stream_with_context
-    from models.database import Database
-    import json
-
-    if _lyrics_fetch_job_running:
-        return jsonify({'error': 'A lyrics fetch job is already running'}), 409
-
-    def generate():
-        global _lyrics_fetch_job_running
-        _lyrics_fetch_job_running = True
-        try:
-            all_songs = Database.execute_query(
-                "SELECT id, title, artist, album, duration FROM songs ORDER BY id",
-                fetch_all=True)
-            # Per-account scoping: batch jobs only touch the requester's own
-            # visible library, never other accounts' songs.
-            from models.library_access import LibraryAccessModel
-            visible = LibraryAccessModel.visible_song_ids(
-                session.get('user_id'))
-            if visible:
-                all_songs = [s for s in all_songs if s['id'] in visible]
-            else:
-                all_songs = []
-            have = {r['song_id'] for r in Database.execute_query(
-                "SELECT song_id FROM song_lyrics WHERE found = 1", fetch_all=True)}
-
-            total = len(all_songs)
-            yield json.dumps({'type': 'start', 'total': total}) + '\n'
-            if total == 0:
-                yield json.dumps({'type': 'done', 'fetched': 0, 'skipped': 0, 'failed': 0}) + '\n'
-                return
-
-            fetched = skipped = failed = 0
-            for i, row in enumerate(all_songs, 1):
-                yield json.dumps({
-                    'type': 'progress', 'current': i, 'total': total,
-                    'title': row['title'], 'artist': row['artist']
-                }) + '\n'
-
-                if row['id'] in have:
-                    skipped += 1
-                    continue
-
-                try:
-                    synced, plain = _fetch_lyrics_from_lrclib(
-                        row['title'], row['artist'], row['album'], row['duration'])
-                    found = 1 if (synced or plain) else 0
-                    synced_json = json.dumps(synced) if synced else None
-                    plain_text = plain or None
-                    Database.execute_query(
-                        """INSERT INTO song_lyrics (song_id, found, synced, plain)
-                           VALUES (%s, %s, %s, %s)
-                           ON DUPLICATE KEY UPDATE found = %s, synced = %s, plain = %s""",
-                        (row['id'], found, synced_json, plain_text,
-                         found, synced_json, plain_text))
-                    if found:
-                        fetched += 1
-                    else:
-                        failed += 1
-                except Exception as e:
-                    print(f'[lyrics-job] fetch failed song={row["id"]}: {e}', flush=True)
-                    failed += 1
-
-            yield json.dumps({
-                'type': 'done', 'fetched': fetched, 'skipped': skipped, 'failed': failed
-            }) + '\n'
-        except Exception as e:
-            print(f'[lyrics-job] fetch EXCEPTION: {e}', flush=True)
-            yield json.dumps({'type': 'error', 'error': str(e)}) + '\n'
-        finally:
-            _lyrics_fetch_job_running = False
-
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+        if not SongModel.get_song_by_id(song_id):
+            return jsonify({'error': 'Song not found'}), 404
+        job_id = LyricsJobModel.enqueue_song(song_id, force=True)
+        lyrics_worker.notify()
+        return jsonify({'success': True, 'job': _serialize_lightshow_job(LyricsJobModel.get(job_id))})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
-@music_bp.route('/jobs/lyrics-words', methods=['POST'])
+@music_bp.route('/lyrics/backfill', methods=['POST'])
 @require_auth
-def job_align_lyrics():
-    """Batch job: run forced word-timing alignment for every song that has lyrics.
+def backfill_lyrics():
+    """Queue a library-wide lyrics analysis (fetch missing lyrics + align words).
 
-    Streams NDJSON progress. This is the expensive (Whisper) job — run it once
-    and the per-song view becomes instant from cache. Skips already-aligned
-    songs so re-runs only process new ones.
+    Body params:
+        force: false (default) = only songs that still need it;
+               true = re-align every song that has synced lyrics.
     """
-    global _lyrics_align_job_running
-    from flask import Response, stream_with_context
-    from models.database import Database
-    import json
+    try:
+        from models.lyrics_job import LyricsJobModel
+        from utils import lyrics_worker
 
-    if _lyrics_align_job_running:
-        return jsonify({'error': 'A lyrics alignment job is already running'}), 409
+        data = request.get_json(silent=True) or {}
+        job_id = LyricsJobModel.enqueue_backfill(
+            force=bool(data.get('force')), song_ids=_lightshow_scope_ids())
+        lyrics_worker.notify()
+        return jsonify({'success': True, 'job': _serialize_lightshow_job(LyricsJobModel.get(job_id))})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    def _lines_from_row(r):
-        lines = []
-        if r.get('synced'):
-            try:
-                synced = json.loads(r['synced'])
-                lines = [l.get('text', '') for l in synced if l.get('text') is not None]
-            except Exception:
-                lines = []
-        if not lines and r.get('plain'):
-            lines = [ln for ln in (r['plain'] or '').split('\n')]
-        return lines
 
-    def generate():
-        global _lyrics_align_job_running
-        _lyrics_align_job_running = True
-        try:
-            rows = Database.execute_query(
-                """SELECT s.id, s.title, s.artist, s.file_path, sl.synced, sl.plain
-                   FROM songs s
-                   JOIN song_lyrics sl ON sl.song_id = s.id AND sl.found = 1
-                   ORDER BY s.id""",
-                fetch_all=True)
-            # Per-account scoping: batch jobs only touch the requester's own
-            # visible library, never other accounts' songs.
-            from models.library_access import LibraryAccessModel
-            visible = LibraryAccessModel.visible_song_ids(
-                session.get('user_id'))
-            if visible:
-                rows = [r for r in rows if r['id'] in visible]
-            else:
-                rows = []
-            # Only current-format ([start, end] pairs) caches count as done;
-            # legacy start-only rows get re-aligned and overwritten below.
-            have_words = set()
-            for r in Database.execute_query(
-                    "SELECT song_id, data FROM song_lyrics_words", fetch_all=True):
-                try:
-                    if _is_word_pairs(json.loads(r['data'])):
-                        have_words.add(r['song_id'])
-                except Exception:
-                    pass
+@music_bp.route('/lyrics/jobs', methods=['GET'])
+@require_auth
+def lyrics_jobs():
+    """Live queue, recent history and library coverage (for polling)."""
+    try:
+        from models.lyrics_job import LyricsJobModel
 
-            music_path = SettingsModel.get_music_path()
-            norm_music = os.path.normpath(music_path) if music_path else None
-
-            total = len(rows)
-            yield json.dumps({'type': 'start', 'total': total}) + '\n'
-            if total == 0:
-                yield json.dumps({'type': 'done', 'aligned': 0, 'skipped': 0, 'failed': 0}) + '\n'
-                return
-            if not music_path:
-                yield json.dumps({'type': 'error', 'error': 'Music path not configured'}) + '\n'
-                return
-
-            from utils.lyrics_align import align_lyrics_words
-
-            aligned = skipped = failed = 0
-            for i, row in enumerate(rows, 1):
-                yield json.dumps({
-                    'type': 'progress', 'current': i, 'total': total,
-                    'title': row['title'], 'artist': row['artist']
-                }) + '\n'
-
-                if row['id'] in have_words:
-                    skipped += 1
-                    continue
-
-                lines = _lines_from_row(row)
-                rel = row.get('file_path')
-                if not lines or not rel:
-                    failed += 1
-                    continue
-                audio_path = os.path.normpath(os.path.join(music_path, rel))
-                if not audio_path.startswith(norm_music) or not os.path.isfile(audio_path):
-                    print(f'[lyrics-job] align skip song={row["id"]}: audio not found ({audio_path})', flush=True)
-                    failed += 1
-                    continue
-
-                try:
-                    words = align_lyrics_words(audio_path, lines)
-                    if not words:
-                        failed += 1
-                        continue
-                    payload = json.dumps(words)
-                    Database.execute_query(
-                        """INSERT INTO song_lyrics_words (song_id, data)
-                           VALUES (%s, %s)
-                           ON DUPLICATE KEY UPDATE data = %s""",
-                        (row['id'], payload, payload))
-                    aligned += 1
-                except Exception as e:
-                    print(f'[lyrics-job] align failed song={row["id"]}: {e}', flush=True)
-                    failed += 1
-
-            yield json.dumps({
-                'type': 'done', 'aligned': aligned, 'skipped': skipped, 'failed': failed
-            }) + '\n'
-        except Exception as e:
-            print(f'[lyrics-job] align EXCEPTION: {e}', flush=True)
-            yield json.dumps({'type': 'error', 'error': str(e)}) + '\n'
-        finally:
-            _lyrics_align_job_running = False
-
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+        return jsonify({
+            'success': True,
+            'coverage': LyricsJobModel.coverage(_lightshow_scope_ids()),
+            'queue': [_serialize_lightshow_job(j) for j in (LyricsJobModel.active_jobs() or [])],
+            'history': [_serialize_lightshow_job(j) for j in (LyricsJobModel.list_recent() or [])],
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @music_bp.route('/artists/<path:artist_name>/scrape', methods=['POST'])

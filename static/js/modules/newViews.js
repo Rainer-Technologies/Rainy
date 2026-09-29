@@ -1,5 +1,5 @@
 /**
- * New Views Module — Albums, Recently Played, Smart Mix
+ * New Views Module — Albums, Recently Played, Mixes
  * Handles rendering and interaction for the three new library views.
  */
 import { Logger } from '../helper/logger.js';
@@ -7,6 +7,7 @@ import { Utils } from './utils.js';
 import { useContext } from '../helper/context.js';
 import { useAlbumService } from '../services/album.js';
 import { usePlaybackService } from '../services/playback.js';
+import { MixesView } from './mixes.js';
 
 export class NewViews {
     constructor(app, player) {
@@ -17,7 +18,7 @@ export class NewViews {
         this.recentCache = [];
         this.topCache = [];
         this.statsCache = null;
-        this.smartMixSongs = [];
+        this.mixes = new MixesView(app, player);
         this.init();
     }
 
@@ -55,19 +56,19 @@ export class NewViews {
             this.clearHistory();
         });
 
+        // A play was just saved (this device) — keep an open history view
+        // current instead of showing the list from before it was opened.
+        window.addEventListener('rainy:plays-recorded', () => {
+            if (this.currentView !== 'recent') return;
+            const active = document.querySelector('.recent-tab.active')?.dataset.tab;
+            if (active) this.loadRecentTab(active);
+        });
+
         // Smart Mix
         document.getElementById('nav-smartmix')?.addEventListener('click', (e) => {
             if (!this.app.shouldHandleInternalClick(e)) return;
             e.preventDefault();
             this.switchToSmartMix();
-        });
-        document.querySelectorAll('.smartmix-mode-card').forEach(card => {
-            card.addEventListener('click', () => {
-                this.generateSmartMix(card.dataset.mode);
-            });
-        });
-        document.getElementById('smartmix-play-all')?.addEventListener('click', () => {
-            this.playSmartMix();
         });
 
         Logger.info('New views module initialized');
@@ -461,60 +462,11 @@ export class NewViews {
         document.getElementById('smartmix-view').classList.remove('hidden');
         this.updateNav('nav-smartmix');
         document.querySelector('.section-title').textContent = 'Smart Mix';
-        document.getElementById('library-subtitle').textContent = 'Auto-generated playlists based on your taste';
+        document.getElementById('library-subtitle').textContent = 'Made from your taste, always changing';
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('library-stats')?.classList.add('hidden');
         document.getElementById('playlist-menu-container')?.classList.add('hidden');
-        document.getElementById('smartmix-result').classList.add('hidden');
-    }
-
-    async generateSmartMix(mode) {
-        try {
-            const seedSongId = this.player.currentSong?.id || null;
-            const res = await fetch('/api/smartmix/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode, seed_song_id: seedSongId, limit: 30 })
-            });
-            const data = await res.json();
-            if (data.error) return Logger.error('Smart mix error:', data.error);
-
-            this.smartMixSongs = data.songs || [];
-            const titles = { liked: 'Liked Mix', discovery: 'Discovery Mix' };
-            document.getElementById('smartmix-result-title').textContent = titles[mode] || 'Your Mix';
-            document.getElementById('smartmix-result').classList.remove('hidden');
-
-            const container = document.getElementById('smartmix-songs');
-            container.innerHTML = this.smartMixSongs.map((song, idx) => `
-                <div class="smartmix-song-row" data-index="${idx}">
-                    <div class="smartmix-song-num">${idx + 1}</div>
-                    <div class="smartmix-song-cover">
-                        ${song.cover_path 
-                            ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="" loading="lazy">`
-                            : '<div class="smartmix-no-cover">♪</div>'}
-                    </div>
-                    <div class="smartmix-song-info">
-                        <div class="smartmix-song-title">${Utils.escapeHtml(song.title)}</div>
-                        <div class="smartmix-song-artist">${Utils.escapeHtml(song.artist)}</div>
-                    </div>
-                    <div class="smartmix-song-duration">${Utils.formatDuration(song.duration)}</div>
-                </div>
-            `).join('');
-
-            container.querySelectorAll('.smartmix-song-row').forEach(row => {
-                row.addEventListener('click', () => {
-                    const idx = parseInt(row.dataset.index);
-                    this.player.playSong(idx, this.smartMixSongs, { type: 'smartmix', id: mode });
-                });
-            });
-        } catch (e) {
-            Logger.error('Smart mix generation error:', e);
-        }
-    }
-
-    playSmartMix() {
-        if (this.smartMixSongs.length) {
-            this.player.playSong(0, this.smartMixSongs, { type: 'smartmix', id: 'mix' });
-        }
+        document.querySelector('.section-header')?.classList.remove('hidden');
+        await this.mixes.show();
     }
 }

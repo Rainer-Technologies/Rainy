@@ -208,8 +208,7 @@
     display: block;
 }
 
-#fs-lightshow-canvas,
-#fs-lightshow-canvas-3d {
+#fs-lightshow-canvas {
     position: absolute;
     top: 0;
     left: 0;
@@ -220,9 +219,883 @@
     transition: opacity 0.5s ease;
 }
 
-#fs-lightshow-canvas.hidden,
-#fs-lightshow-canvas-3d.hidden {
+#fs-lightshow-canvas.hidden {
     opacity: 0;
+}
+
+/* Light show on: the stage is always dark, whatever the app theme — the
+   lights are additive and need black to read. The backdrop's opacity and
+   scale are driven per frame by the engine (sub-bass pump, blackouts). */
+#fullscreen-player.lightshow-on {
+    background-color: #030306;
+}
+
+#fullscreen-player.lightshow-on .fs-backdrop {
+    transition: background-image 0.5s ease, opacity 0.08s linear;
+}
+
+/* Stage readout: tempo | mic | genre. The mic button is the centre column, so
+   it always sits on the stage's centre line (the cover's axis) whatever the
+   readout says. No chrome — just type over a soft scrim. */
+.ls-hud {
+    position: absolute;
+    left: 50%;
+    top: 46px;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 12px;
+    width: min(400px, 80vw);
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -6px);
+    transition: opacity 0.4s ease, transform 0.4s ease, width 0.4s ease, column-gap 0.4s ease,
+        top 0.7s cubic-bezier(0.4, 0, 0.2, 1), left 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ls-hud::before {
+    content: '';
+    position: absolute;
+    inset: -14px -36px;
+    z-index: -1;
+    background: radial-gradient(closest-side, rgba(3, 3, 6, 0.6), transparent);
+}
+
+.ls-hud.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+/* With lyrics on stage the cover sits lower: once the layout has settled the
+   engine adds .stage-pos and the HUD glides into the gap above the cover, on
+   the cover's centre line. In the plain show it stays pinned to the top centre. */
+.ls-hud.stage-pos {
+    top: 50px;
+}
+
+.ls-hud-side {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+    transition: opacity 0.3s ease;
+}
+
+.ls-hud-l {
+    justify-content: flex-end;
+}
+
+.ls-hud[data-status="analysing"] .ls-hud-side,
+.ls-hud[data-status="loading"] .ls-hud-side {
+    animation: ls-hud-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes ls-hud-breathe {
+    50% { opacity: 0.45; }
+}
+
+/* Only a synced show has a tempo to show */
+.ls-hud:not([data-status="synced"]) .ls-hud-l > * {
+    display: none;
+}
+
+.ls-hud-l b {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ls-hud-l small {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.ls-hud-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Compact: only the mic remains, still dead centre */
+.ls-hud.compact {
+    width: 26px;
+    column-gap: 0;
+    opacity: 0.7;
+}
+
+.ls-hud.compact .ls-hud-side {
+    opacity: 0;
+}
+
+/* Stage-lyrics toggle (the readout itself ignores clicks) */
+.ls-hud-lyrics {
+    pointer-events: auto;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.ls-hud-lyrics:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.ls-hud-lyrics[aria-pressed="true"] {
+    background: rgba(255, 255, 255, 0.14);
+    background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+    color: #fff;
+}
+
+.ls-hud-lyrics[aria-pressed="true"].missing {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* ---------------------------------------------------------------------
+   Stage lyrics: kinetic, word-synced lyrics that are part of the show.
+   The engine sets --c1/--c2 (palette), --kick/--snare (hit pulses), --rms,
+   --build (0..1 tension), --dim (blackouts) and --band (free height).
+   --------------------------------------------------------------------- */
+
+/* Layout: hide the queue, shrink the art, free the middle of the stage */
+#fullscreen-player.lightshow-on .fs-queue-container {
+    transition: opacity 0.4s ease, width 0.5s ease, padding 0.5s ease, border-color 0.4s ease;
+}
+
+#fullscreen-player.lightshow-on .fs-current-info {
+    transition: padding 0.5s ease;
+}
+
+#fullscreen-player.lightshow-on .fs-artwork-container {
+    transition: transform var(--transition-fast), width 0.5s ease, height 0.5s ease, margin 0.5s ease;
+}
+
+#fullscreen-player.ls-stage .fs-queue-container {
+    width: 0;
+    padding: 0;
+    opacity: 0;
+    border-color: transparent;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+#fullscreen-player.ls-stage .fs-current-info {
+    justify-content: flex-start;
+    /* Room for the HUD between the pixel bars up top and the cover */
+    padding: 84px 0 0;
+}
+
+/* The queue is folded to nothing, so drop its gutter and border: the cover
+   (and the HUD, and the lyrics) all centre on the same vertical axis. */
+#fullscreen-player.ls-stage .fs-queue-container {
+    border-width: 0;
+}
+
+#fullscreen-player.ls-stage.layout-swapped .fs-current-info {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+#fullscreen-player.ls-stage .fs-artwork-container {
+    width: 148px;
+    height: 148px;
+    margin-bottom: var(--spacing-md);
+}
+
+#fullscreen-player.ls-stage .fs-title {
+    font-size: var(--font-size-xl);
+}
+
+#fullscreen-player.ls-stage .fs-player-controls {
+    margin-top: auto;
+}
+
+.ls-lyrics {
+    --c1: #7aa7ff;
+    --c2: #ff6fb5;
+    --kick: 0;
+    --snare: 0;
+    --rms: 0;
+    --build: 0;
+    --dim: 1;
+    --band: 300px;
+    /* Unlit words are hollow outlines; lit letters strike white-hot and cool
+       down to --rest (see ls-ignite). --rise/--sc/--dur set the strike. */
+    --unlit: rgba(255, 255, 255, 0.34);
+    --rest: color-mix(in srgb, #fff 80%, var(--c1));
+    --rise: 0.1em;
+    --sc: 1;
+    --dur: 1.3s;
+    --fs-mul: 1;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 40%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5vw;
+    box-sizing: border-box;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    font-family: var(--font-family);
+}
+
+.ls-lyrics.visible {
+    opacity: var(--dim);
+}
+
+.ls-lyrics-stack {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    /* Build-up tension only: the beat lives in the letters, not the layout */
+    transform: scale(calc(1 + var(--build) * 0.03));
+}
+
+.ls-line {
+    grid-area: 1 / 1;
+    max-width: min(1100px, 90vw);
+    text-align: center;
+    font-size: calc(clamp(24px, calc(min(5vw, calc(var(--band) * 0.19)) * var(--fs-mul)), calc(76px * var(--fs-mul))) * var(--fit, 1));
+    font-weight: 800;
+    line-height: 1.14;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    word-spacing: 0.06em;
+    transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease;
+    will-change: transform, opacity;
+}
+
+/* The next line waits small and quiet, then glides up to take the stage */
+/* --gy / --gs (set by the engine) park it right under the current line */
+.ls-line.next {
+    transform: translateY(var(--gy, calc(var(--band) * 0.36))) scale(var(--gs, 0.42));
+    opacity: 0.34;
+}
+
+/* No room under the current line: keep the ghost out of the way */
+.ls-lyrics .ls-line.next.no-room {
+    opacity: 0 !important;
+}
+
+.ls-line.next .ls-c {
+    color: rgba(255, 255, 255, 0.6);
+    -webkit-text-stroke: 0;
+}
+
+.ls-line.cur {
+    transform: none;
+    opacity: 1;
+}
+
+.ls-line.gone {
+    display: none;
+}
+
+/* A ♪ line is never drawn as text: the instrumental break has its own animated
+   note. !important because the resting/next states below out-rank a plain rule. */
+.ls-line.blank,
+.ls-line.blank * {
+    visibility: hidden !important;
+}
+
+/* ------------------------------------------------------ line hand-overs
+   Every hand-over pairs an outgoing style (.out.tr-*) with an incoming one
+   (.enter.in-*); the engine picks one per line from what the music is doing.
+   --wi = word index, --wd = its distance from the line's centre,
+   --dir = +1/-1, alternating per line. */
+
+/* lift (default): the sung line's words float away, the ghost glides up */
+.ls-line.out {
+    transition: none;
+}
+
+.ls-line.out .ls-w {
+    animation: ls-away 0.6s cubic-bezier(0.5, 0, 0.9, 0.4) both;
+    animation-delay: calc(var(--wi) * 32ms);
+}
+
+/* slam: words blast outward from the centre, the next line punches in */
+.ls-line.out.tr-slam .ls-w {
+    animation: ls-blast 0.36s cubic-bezier(0.3, 0, 0.7, 1) both;
+    animation-delay: calc(var(--wd) * 45ms);
+}
+
+/* fall: words drop away under gravity, the next line falls in from above */
+.ls-line.out.tr-fall .ls-w {
+    animation: ls-fall 0.5s cubic-bezier(0.5, 0, 0.9, 0.5) both;
+    animation-delay: calc(var(--wi) * 28ms);
+}
+
+/* sweep: the line is pushed sideways, the next slides in behind it */
+.ls-line.out.tr-sweep .ls-w {
+    animation: ls-sweep-out 0.4s cubic-bezier(0.4, 0, 0.8, 0.6) both;
+    animation-delay: calc(var(--wi) * 30ms);
+}
+
+/* collapse: the line dissolves into haze, the next condenses out of it */
+.ls-line.out.tr-collapse .ls-w {
+    animation: ls-haze-out 0.8s ease both;
+    animation-delay: calc(var(--wd) * 60ms);
+}
+
+/* flicker: the line stutters out like a failing tube, the next stutters on */
+.ls-line.out.tr-flicker .ls-w {
+    animation: ls-tube-out 0.5s steps(1) both;
+    animation-delay: calc(var(--wi) * 45ms);
+}
+
+/* Incoming lines other than the plain lift snap to the stage and animate
+   their words instead of gliding up from the ghost */
+.ls-line.enter {
+    transition: opacity 0.2s ease;
+}
+
+/* rise: a line that appears out of nowhere (first line, after a seek)
+   climbs out of a mask, word by word */
+.ls-line.enter.in-rise .ls-w {
+    clip-path: inset(-0.5em -0.5em -0.06em -0.5em);
+}
+
+.ls-line.enter.in-rise .ls-wm {
+    animation: ls-rise 0.7s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+    animation-delay: calc(var(--wi) * 45ms);
+}
+
+.ls-line.enter.in-slam .ls-wm {
+    animation: ls-slam-in 0.4s cubic-bezier(0.2, 1.5, 0.3, 1) both;
+    animation-delay: calc(120ms + var(--wd) * 40ms);
+}
+
+.ls-line.enter.in-fall .ls-wm {
+    animation: ls-drop-in 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+    animation-delay: calc(150ms + var(--wi) * 40ms);
+}
+
+.ls-line.enter.in-sweep .ls-wm {
+    animation: ls-sweep-in 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+    animation-delay: calc(140ms + var(--wi) * 40ms);
+}
+
+.ls-line.enter.in-collapse .ls-wm {
+    animation: ls-haze-in 1s ease-out both;
+    animation-delay: calc(250ms + var(--wd) * 70ms);
+}
+
+.ls-line.enter.in-flicker .ls-wm {
+    animation: ls-tube-in 0.55s steps(1) both;
+    animation-delay: calc(200ms + var(--wi) * 40ms);
+}
+
+@keyframes ls-rise {
+    from { transform: translateY(0.95em); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+@keyframes ls-away {
+    to { transform: translateY(-0.7em); opacity: 0; }
+}
+
+@keyframes ls-blast {
+    to { transform: scale(1.7); opacity: 0; filter: blur(8px); }
+}
+
+@keyframes ls-fall {
+    to { transform: translateY(1.3em) rotate(calc(var(--dir) * 4deg)); opacity: 0; }
+}
+
+@keyframes ls-sweep-out {
+    to { transform: translateX(calc(var(--dir) * -1.4em)); opacity: 0; }
+}
+
+@keyframes ls-haze-out {
+    to { transform: scale(1.12); opacity: 0; filter: blur(10px); }
+}
+
+@keyframes ls-tube-out {
+    0% { opacity: 1; }
+    15% { opacity: 0.15; }
+    30% { opacity: 1; }
+    45% { opacity: 0.1; }
+    60% { opacity: 0.7; }
+    75% { opacity: 0; }
+    100% { opacity: 0; }
+}
+
+@keyframes ls-slam-in {
+    from { transform: scale(1.6) translateY(-0.15em); opacity: 0; filter: blur(6px); }
+    60% { opacity: 1; }
+    to { transform: none; opacity: 1; filter: blur(0); }
+}
+
+@keyframes ls-drop-in {
+    from { transform: translateY(-1.1em) rotate(calc(var(--dir) * -3deg)); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+@keyframes ls-sweep-in {
+    from { transform: translateX(calc(var(--dir) * 1.4em)); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+@keyframes ls-haze-in {
+    from { transform: scale(0.92); opacity: 0; filter: blur(10px); }
+    to { transform: none; opacity: 1; filter: blur(0); }
+}
+
+@keyframes ls-tube-in {
+    0% { opacity: 0; }
+    18% { opacity: 0.9; }
+    30% { opacity: 0; }
+    48% { opacity: 1; }
+    62% { opacity: 0.25; }
+    78% { opacity: 1; }
+    100% { opacity: 1; }
+}
+
+/* ------------------------------------------------------------- words */
+
+.ls-w {
+    --p: 0;
+    display: inline-block;
+    position: relative;
+    transform-origin: 50% 70%;
+    transition: transform 0.5s ease, filter 0.4s ease;
+}
+
+.ls-wm {
+    display: inline-block;
+}
+
+.ls-c {
+    display: inline-block;
+    color: rgba(255, 255, 255, 0.05);
+    -webkit-text-stroke: max(1px, 0.018em) var(--unlit);
+    transition: color 0.35s ease, -webkit-text-stroke-color 0.35s ease, text-shadow 0.35s ease;
+}
+
+/* The next word to be sung is cued: its outline brightens ahead of the light */
+.ls-w.cue .ls-c:not(.lit) {
+    color: rgba(255, 255, 255, 0.12);
+    -webkit-text-stroke-color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 0 0.35em color-mix(in srgb, var(--c1) 45%, transparent);
+}
+
+/* A lit letter: white-hot for an instant, then it cools into the palette */
+.ls-c.lit {
+    color: var(--rest);
+    -webkit-text-stroke-color: transparent;
+    text-shadow:
+        0 0 0.28em color-mix(in srgb, var(--c1) 50%, transparent),
+        0 0 0 transparent,
+        0 0 0 transparent;
+    animation: ls-ignite var(--dur) cubic-bezier(0.2, 0.7, 0.2, 1) both, ls-flick 0.24s steps(1) 1;
+}
+
+.ls-c.lit.settled {
+    animation: none;
+}
+
+@keyframes ls-ignite {
+    0% {
+        color: #fff;
+        -webkit-text-stroke-color: #fff;
+        text-shadow: 0 0 0.1em #fff, 0 0 0.5em var(--c1), 0 0 1.2em var(--c1);
+        translate: 0 var(--rise);
+        scale: var(--sc);
+    }
+    16% {
+        color: #fff;
+        -webkit-text-stroke-color: #fff;
+        text-shadow: 0 0 0.1em #fff, 0 0 0.5em var(--c1), 0 0 1.2em var(--c1);
+        translate: 0 0;
+        scale: 1;
+    }
+    100% {
+        color: var(--rest);
+        -webkit-text-stroke-color: transparent;
+        text-shadow:
+            0 0 0.28em color-mix(in srgb, var(--c1) 50%, transparent),
+            0 0 0 transparent,
+            0 0 0 transparent;
+        translate: 0 0;
+        scale: 1;
+    }
+}
+
+@keyframes ls-flick {
+    0% { opacity: 0.25; }
+    25% { opacity: 1; }
+    45% { opacity: 0.55; }
+    65% { opacity: 1; }
+}
+
+/* The word being sung answers the kick and snare with light, not motion */
+.ls-w.on {
+    transition: none;
+    filter:
+        brightness(calc(1 + var(--kick) * 0.35))
+        drop-shadow(0 0 calc(0.1em + var(--snare) * 0.25em) var(--c1));
+}
+
+/* Held notes stretch a little and breathe with the mix */
+.ls-w.held.on {
+    transform: scaleX(calc(1 + var(--p) * 0.05));
+    filter:
+        brightness(calc(1 + var(--kick) * 0.35))
+        drop-shadow(0 0 calc(0.14em + var(--rms) * 0.3em) var(--c2));
+}
+
+/* A word that lands on a kick or snare gets a lens-flare streak */
+.ls-w.hit::after {
+    content: '';
+    position: absolute;
+    left: -18%;
+    right: -18%;
+    top: 56%;
+    height: max(2px, 0.035em);
+    border-radius: 50%;
+    background: linear-gradient(90deg, transparent, #fff 20%, #fff 80%, transparent);
+    box-shadow: 0 0 0.3em var(--c1), 0 0 0.8em var(--c1);
+    pointer-events: none;
+    animation: ls-flare 0.55s cubic-bezier(0.1, 0.7, 0.2, 1) both;
+}
+
+@keyframes ls-flare {
+    0% { transform: scaleX(0.1); opacity: 1; }
+    35% { transform: scaleX(1); opacity: 1; }
+    100% { transform: scaleX(1.25); opacity: 0; }
+}
+
+/* ------------------------------------------------------ section moods */
+
+/* Chorus / drop: bigger, and each letter slams in from above */
+.ls-lyrics.sec-chorus,
+.ls-lyrics.sec-drop {
+    --rise: -0.3em;
+    --sc: 1.25;
+    --dur: 1.5s;
+}
+
+/* Typography that changes the size of the text is locked per line (.st-* / .sg-*
+   are stamped once by the engine), so a line never reflows while it is sung. */
+.ls-line.st-chorus,
+.ls-line.st-drop {
+    font-weight: 900;
+}
+
+.ls-lyrics.sec-drop {
+    --rest: color-mix(in srgb, #fff 62%, var(--c2));
+}
+
+/* Quiet parts: thin, slow, breathing in */
+.ls-lyrics.sec-intro,
+.ls-lyrics.sec-outro,
+.ls-lyrics.sec-breakdown {
+    --unlit: rgba(255, 255, 255, 0.22);
+    --rise: 0.03em;
+    --dur: 2.2s;
+}
+
+.ls-line.st-intro,
+.ls-line.st-outro,
+.ls-line.st-breakdown {
+    font-weight: 300;
+    letter-spacing: 0.05em;
+}
+
+/* Build: the type spreads and lifts as the tension rises */
+.ls-lyrics.sec-build {
+    --rise: calc(-0.05em - var(--build) * 0.2em);
+    --dur: 1.1s;
+}
+
+.ls-line.st-build {
+    letter-spacing: calc(var(--lsp, 0) * 0.09em);
+}
+
+.ls-line.sg-orchestral {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 500;
+}
+
+.ls-line.sg-chill {
+    font-weight: 500;
+}
+
+/* Between lines: the sung line settles back, the next one leans in */
+.ls-lyrics.resting .ls-line.cur {
+    opacity: 0.32;
+    transform: scale(0.9);
+}
+
+.ls-lyrics.resting .ls-line.next {
+    opacity: 0.5;
+}
+
+/* ------------------------------------------------------------ ad-libs
+   (Words in parentheses) are backing vocals. They leave the sentence and
+   float on their own layer as italic echoes in the second palette colour. */
+
+.ls-adlibs,
+.ls-interlude {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.ls-adlib {
+    position: absolute;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: clamp(15px, min(2.6vw, calc(var(--band) * 0.095)), 40px);
+    font-style: italic;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    transition: opacity 0.6s ease, transform 0.6s ease, filter 0.6s ease;
+}
+
+.ls-adlib.gone {
+    opacity: 0;
+    transform: translate(-50%, -0.5em);
+    filter: blur(6px);
+}
+
+/* Not yet sung: nothing shows, so the echo appears out of thin air */
+.ls-ad-w {
+    position: relative;
+    display: inline-block;
+    opacity: 0;
+}
+
+.ls-ad-w.on {
+    opacity: 1;
+    color: color-mix(in srgb, #fff 55%, var(--c2));
+    text-shadow:
+        0 0 0.4em var(--c2),
+        0 0 1.1em color-mix(in srgb, var(--c2) 55%, transparent);
+    animation: ls-ad-in 0.55s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+/* Reverb: an outline copy of the word ripples outwards, twice */
+.ls-ad-w.on::after {
+    content: attr(data-t);
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--c2);
+    animation: ls-ad-echo 1.1s ease-out 2 both;
+}
+
+@keyframes ls-ad-in {
+    from { transform: scale(1.5); filter: blur(8px); opacity: 0; }
+    to { transform: none; filter: blur(0); opacity: 1; }
+}
+
+@keyframes ls-ad-echo {
+    from { transform: scale(1); opacity: 0.6; }
+    to { transform: scale(1.9); opacity: 0; }
+}
+
+/* ------------------------------------------------------ instrumental break
+   A ♪ line (or a long gap with no vocals): the lyrics step aside for a big ♪
+   that fills with light as the break runs out, and notes rise on the beat. */
+
+.ls-interlude {
+    opacity: 0;
+}
+
+.ls-lyrics.interlude .ls-interlude {
+    opacity: var(--it);
+}
+
+.ls-inter-glyph {
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    width: calc(var(--band) * 0.44);
+    height: calc(var(--band) * 0.44);
+    overflow: visible;
+    transform: translate(-50%, -50%) scale(calc(1 + var(--kick) * 0.08));
+    filter:
+        brightness(calc(1 + var(--kick) * 0.35))
+        drop-shadow(0 0 10px color-mix(in srgb, var(--c1) 55%, transparent));
+}
+
+/* The empty note: a faint body and a thin outline of its silhouette */
+.ls-glyph-body {
+    fill: rgba(255, 255, 255, 0.045);
+}
+
+.ls-glyph-line {
+    fill: rgba(255, 255, 255, 0.42);
+    stroke: rgba(255, 255, 255, 0.42);
+    stroke-width: 0.8;
+    stroke-linejoin: round;
+}
+
+/* The light rises from the note's foot to its tip as --prog goes 0 → 1
+   (24.6 → 1.8 in the note's own units), with a rolling surface. */
+.ls-liquid {
+    transform: translateY(calc(24.6px - var(--prog) * 22.8px));
+    transition: transform 0.3s linear;
+}
+
+.ls-wave {
+    animation: ls-wave 1.6s linear infinite;
+}
+
+.ls-wave-back {
+    opacity: 0.45;
+    transform-origin: 0 0;
+    animation: ls-wave-back 2.3s linear infinite;
+}
+
+@keyframes ls-wave {
+    to { transform: translateX(-8px); }
+}
+
+@keyframes ls-wave-back {
+    from { transform: translate(-8px, -0.5px); }
+    to { transform: translate(0, -0.5px); }
+}
+
+.ls-notes {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.ls-note {
+    position: absolute;
+    left: var(--x);
+    bottom: -6%;
+    width: calc(var(--band) * 0.1 * var(--s));
+    height: calc(var(--band) * 0.1 * var(--s));
+    color: color-mix(in srgb, #fff 45%, var(--nc));
+    filter: drop-shadow(0 0 6px var(--nc));
+    opacity: 0;
+    animation: ls-note-rise var(--d) cubic-bezier(0.3, 0.1, 0.5, 1) forwards;
+}
+
+.ls-note svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
+@keyframes ls-note-rise {
+    0% { transform: translate(0, 0) rotate(-8deg) scale(0.6); opacity: 0; }
+    12% { opacity: 0.85; }
+    50% { transform: translate(calc(var(--sw) * -0.6), calc(var(--band) * -0.5)) rotate(8deg) scale(1); }
+    100% { transform: translate(var(--sw), calc(var(--band) * -1.05)) rotate(-6deg) scale(0.9); opacity: 0; }
+}
+
+/* Instrumental countdown: one dot per beat before the vocal returns */
+.ls-lyrics-dots {
+    position: absolute;
+    left: 50%;
+    bottom: 12%;
+    display: flex;
+    gap: 14px;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.ls-lyrics.dots-on .ls-lyrics-dots {
+    opacity: 1;
+}
+
+.ls-lyrics-dots i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ls-lyrics-dots i.lit {
+    background: #fff;
+    transform: scale(1.35);
+    box-shadow: 0 0 12px var(--c1), 0 0 24px var(--c1);
+}
+
+@media (max-width: 768px) {
+    /* The queue stacks under the art on phones: collapse its height too */
+    #fullscreen-player.ls-stage .fs-queue-container {
+        height: 0;
+        border-top: none;
+    }
+
+    #fullscreen-player.ls-stage .fs-current-info {
+        height: 100%;
+        padding-top: 78px;
+    }
+
+    .ls-hud.stage-pos {
+        top: 36px;
+    }
+
+    #fullscreen-player.ls-stage .fs-artwork-container {
+        width: 96px;
+        height: 96px;
+    }
+
+    .ls-lyrics {
+        padding: 0 16px;
+    }
+
+    .ls-line {
+        font-size: calc(clamp(22px, calc(min(7.4vw, calc(var(--band) * 0.16)) * var(--fs-mul)), calc(44px * var(--fs-mul))) * var(--fit, 1));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ls-hud-side { animation: none !important; }
+    .ls-lyrics-stack { transform: none; }
+    .ls-c.lit,
+    .ls-line.enter .ls-wm,
+    .ls-line.out .ls-w,
+    .ls-w.hit::after { animation: none; }
+    .ls-w.hit::after { display: none; }
+    .ls-ad-w.on,
+    .ls-ad-w.on::after,
+    .ls-note { animation: none; }
+    .ls-ad-w.on::after,
+    .ls-notes { display: none; }
+    .ls-wave,
+    .ls-wave-back { animation: none; }
+    .ls-w.held.on { transform: none; }
+    .ls-line { transition: opacity 0.3s ease; }
 }
 
 /* Positioning based on standard vs modern mode */

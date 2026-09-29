@@ -41,7 +41,7 @@ class DuplicateModel:
                    (SELECT COUNT(*) FROM playlist_entries pe
                       WHERE pe.track_id = s.id) AS playlist_count,
                    (SELECT COUNT(*) FROM play_history ph
-                      WHERE ph.song_id = s.id) AS play_count
+                      WHERE ph.song_id = s.id AND ph.counted = 1) AS play_count
             FROM songs s
         """
         rows = Database.execute_query(query, fetch_all=True) or []
@@ -88,7 +88,7 @@ class DuplicateModel:
                    (SELECT COUNT(*) FROM playlist_entries pe
                       WHERE pe.track_id = s.id) AS playlist_count,
                    (SELECT COUNT(*) FROM play_history ph
-                      WHERE ph.song_id = s.id) AS play_count
+                      WHERE ph.song_id = s.id AND ph.counted = 1) AS play_count
             FROM songs s WHERE s.id IN ({fmt})
             """,
             tuple(ids),

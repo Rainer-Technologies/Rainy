@@ -312,7 +312,7 @@ def discovery(user_id, limit=30):
 
     # Taste profile: play-count-weighted average of played songs' vectors.
     plays = Database.execute_query(
-        "SELECT song_id, COUNT(*) c FROM play_history WHERE user_id = %s "
+        "SELECT song_id, COUNT(*) c FROM play_history WHERE user_id = %s AND counted = 1 "
         "GROUP BY song_id", (user_id,), fetch_all=True,
     ) or []
     played_ids = [p['song_id'] for p in plays]

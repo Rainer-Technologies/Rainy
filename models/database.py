@@ -373,6 +373,45 @@ class Database:
             )
         """)
 
+        # Migration: alignment algorithm version (rows written before versioning
+        # are v1 = the old whole-song aligner, whose timings drift badly) and
+        # the language the aligner used.
+        for column, ddl in (
+            ('version', 'INT NOT NULL DEFAULT 1'),
+            ('language', 'VARCHAR(16) NULL'),
+        ):
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = 'song_lyrics_words' AND column_name = %s
+            """, (Config.MYSQL_DATABASE, column))
+            result = cursor.fetchone()
+            if result and result[0] == 0:
+                cursor.execute(f"ALTER TABLE song_lyrics_words ADD COLUMN {column} {ddl}")
+
+        # Lyrics analysis queue (fetch lyrics + word-timing alignment). Same
+        # shape and claim-token scheme as lightshow_jobs.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lyrics_jobs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                song_id INT NULL,
+                scope ENUM('song', 'backfill') NOT NULL DEFAULT 'song',
+                status ENUM('queued', 'running', 'completed', 'failed') DEFAULT 'queued',
+                force_full TINYINT(1) NOT NULL DEFAULT 0,
+                claim_token VARCHAR(36) NULL,
+                progress INT DEFAULT 0,
+                message VARCHAR(500) NULL,
+                song_ids MEDIUMTEXT NULL,
+                result MEDIUMTEXT NULL,
+                error_message TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP NULL,
+                heartbeat_at TIMESTAMP NULL,
+                completed_at TIMESTAMP NULL,
+                INDEX idx_status (status),
+                INDEX idx_claim (claim_token)
+            )
+        """)
+
         # Playback history — records every play event per user
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS play_history (
@@ -388,6 +427,33 @@ class Database:
                 INDEX idx_user_song (user_id, song_id)
             )
         """)
+
+        # Migration: idempotent play recording. Clients (web + mobile) tag every
+        # listen with a random play_id and may send it several times (start,
+        # 30s mark, final tally, offline-queue retries) — the (user_id, play_id)
+        # unique key folds those into one row instead of inflating the counts.
+        # `counted` separates "started listening" (feeds Recently Played) from
+        # a qualifying listen (feeds Most Played / stats); pre-existing rows
+        # were all qualifying, hence DEFAULT 1.
+        for column, ddl in (
+            ('play_id', 'VARCHAR(64) NULL'),
+            ('counted', 'TINYINT(1) NOT NULL DEFAULT 1'),
+            ('client', 'VARCHAR(16) NULL'),
+        ):
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = 'play_history' AND column_name = %s
+            """, (Config.MYSQL_DATABASE, column))
+            result = cursor.fetchone()
+            if result and result[0] == 0:
+                cursor.execute(f"ALTER TABLE play_history ADD COLUMN {column} {ddl}")
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.statistics
+            WHERE table_schema = %s AND table_name = 'play_history' AND index_name = 'uq_user_play'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE play_history ADD UNIQUE KEY uq_user_play (user_id, play_id)")
 
         # Playback state — cross-device sync (one row per user)
         cursor.execute("""
@@ -561,6 +627,55 @@ class Database:
         result = cursor.fetchone()
         if result and result[0] == 0:
             cursor.execute("ALTER TABLE enrichment_jobs ADD COLUMN force_full TINYINT(1) NOT NULL DEFAULT 0")
+
+        # Light show analysis queue (server-side score generation). Same shape
+        # as enrichment_jobs plus a claim token so several gunicorn workers
+        # can drain it without stepping on each other.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lightshow_jobs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                song_id INT NULL,
+                scope ENUM('song', 'backfill') NOT NULL DEFAULT 'song',
+                status ENUM('queued', 'running', 'completed', 'failed') DEFAULT 'queued',
+                force_full TINYINT(1) NOT NULL DEFAULT 0,
+                claim_token VARCHAR(36) NULL,
+                progress INT DEFAULT 0,
+                message VARCHAR(500) NULL,
+                song_ids MEDIUMTEXT NULL,
+                result MEDIUMTEXT NULL,
+                error_message TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP NULL,
+                heartbeat_at TIMESTAMP NULL,
+                completed_at TIMESTAMP NULL,
+                INDEX idx_status (status),
+                INDEX idx_claim (claim_token)
+            )
+        """)
+
+        # Migration: columns added to lightshow_jobs after it first shipped.
+        for column, ddl in (
+            ('claim_token', 'VARCHAR(36) NULL'),
+            ('song_ids', 'MEDIUMTEXT NULL'),
+            ('heartbeat_at', 'TIMESTAMP NULL'),
+        ):
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = 'lightshow_jobs' AND column_name = %s
+            """, (Config.MYSQL_DATABASE, column))
+            result = cursor.fetchone()
+            if result and result[0] == 0:
+                cursor.execute(f"ALTER TABLE lightshow_jobs ADD COLUMN {column} {ddl}")
+
+        # Migration: score format version, so analyser upgrades can re-run
+        # only on outdated shows (v1 = old in-browser analysis).
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = 'song_lightshows' AND column_name = 'version'
+        """, (Config.MYSQL_DATABASE,))
+        result = cursor.fetchone()
+        if result and result[0] == 0:
+            cursor.execute("ALTER TABLE song_lightshows ADD COLUMN version INT NOT NULL DEFAULT 1")
 
         # Rainy Connect — active player device sessions (Spotify-Connect-style).
         cursor.execute("""

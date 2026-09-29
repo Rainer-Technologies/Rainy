@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify, session
 from functools import wraps
-from models.playback_history import PlaybackHistoryModel
+from models.playback_history import PlaybackHistoryModel, InvalidPlay
+
+MAX_BATCH = 200
 
 playback_bp = Blueprint('playback', __name__, url_prefix='/api/playback')
 
@@ -23,26 +25,58 @@ def login_required(f):
 @login_required
 def record_play(user_id):
     """Record a song play event."""
-    data = request.get_json()
-    if not data or 'song_id' not in data:
+    # silent=True: sendBeacon/legacy clients may send a body without a JSON
+    # content-type; an unparsable body is a 400, not a 415/500.
+    data = request.get_json(silent=True, force=True)
+    if not isinstance(data, dict) or 'song_id' not in data:
         return jsonify({'error': 'song_id is required'}), 400
 
-    PlaybackHistoryModel.record_play(
-        user_id,
-        data['song_id'],
-        data.get('position', 0),
-        data.get('duration', 0)
-    )
+    try:
+        PlaybackHistoryModel.record_play(
+            user_id,
+            data['song_id'],
+            data.get('position', 0),
+            data.get('duration', 0),
+            play_id=data.get('play_id'),
+            counted=data.get('counted', True),
+            age_seconds=data.get('age_seconds', 0),
+            client=data.get('client'),
+        )
+    except InvalidPlay as e:
+        return jsonify({'error': str(e)}), 400
+    except LookupError:
+        return jsonify({'error': 'Song not found'}), 404
 
     return jsonify({'success': True})
+
+
+@playback_bp.route('/history/batch', methods=['POST'])
+@login_required
+def record_plays(user_id):
+    """Record several listens at once (offline queue flush / unload beacon).
+
+    Body: {"plays": [{song_id, play_id, duration, counted, age_seconds, ...}]}.
+    Items are independent and idempotent by play_id. ``rejected`` lists items
+    that can never succeed (bad payload, deleted song) so clients drop them;
+    a 5xx means "retry the whole batch".
+    """
+    data = request.get_json(silent=True, force=True)
+    plays = data.get('plays') if isinstance(data, dict) else None
+    if not isinstance(plays, list):
+        return jsonify({'error': 'plays must be a list'}), 400
+    if len(plays) > MAX_BATCH:
+        return jsonify({'error': f'at most {MAX_BATCH} plays per batch'}), 400
+
+    recorded, rejected = PlaybackHistoryModel.record_plays(user_id, plays)
+    return jsonify({'success': True, 'recorded': recorded, 'rejected': rejected})
 
 
 @playback_bp.route('/history', methods=['GET'])
 @login_required
 def get_recently_played(user_id):
     """Get recently played songs."""
-    limit = request.args.get('limit', type=int, default=50)
-    offset = request.args.get('offset', type=int, default=0)
+    limit = min(max(request.args.get('limit', type=int, default=50), 1), 200)
+    offset = max(request.args.get('offset', type=int, default=0), 0)
     songs = PlaybackHistoryModel.get_recently_played(user_id, limit, offset)
     return jsonify({'songs': songs})
 
@@ -51,7 +85,7 @@ def get_recently_played(user_id):
 @login_required
 def get_top_songs(user_id):
     """Get most played songs."""
-    limit = request.args.get('limit', type=int, default=50)
+    limit = min(max(request.args.get('limit', type=int, default=50), 1), 200)
     songs = PlaybackHistoryModel.get_play_counts(user_id, limit)
     return jsonify({'songs': songs})
 

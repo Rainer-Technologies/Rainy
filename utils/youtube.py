@@ -6,6 +6,8 @@ import time
 import hashlib
 import requests
 
+from utils import ytdlp_manager as ytdlp
+
 
 class YouTubeDownloader:
     MAX_RETRIES = 3
@@ -15,58 +17,64 @@ class YouTubeDownloader:
         self.music_path = music_path
 
     def _retry_ydl(self, ydl_opts, urls, label="download"):
-        """Run a yt-dlp download/extract with up to MAX_RETRIES attempts.
+        """Run a yt-dlp download with up to MAX_RETRIES attempts.
+
+        If the failure looks like "yt-dlp is outdated" (403, missing formats,
+        signature/challenge errors) yt-dlp is upgraded on the spot and the
+        download gets one extra attempt with the new version.
 
         Returns (success: bool, error: str | None).
-        Prints retry notices so the server log (and any log watcher) can
-        relay them to the user.
         """
-        import yt_dlp
+        return self._with_retries(lambda: self._do_download(ydl_opts, urls), label)
 
-        last_error = None
-        for attempt in range(1, self.MAX_RETRIES + 1):
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download(urls)
-                return True, None
-            except Exception as e:
-                last_error = str(e)
-                if attempt < self.MAX_RETRIES:
-                    delay = self.RETRY_DELAY * (2 ** (attempt - 1))
-                    print(f"⚠️  YouTube {label} failed (attempt {attempt}/{self.MAX_RETRIES}): {last_error}")
-                    print(f"   Retrying in {delay}s…")
-                    time.sleep(delay)
-                else:
-                    print(f"❌ YouTube {label} failed after {self.MAX_RETRIES} attempts: {last_error}")
-        return False, last_error
+    @staticmethod
+    def _do_download(ydl_opts, urls):
+        with ytdlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download(urls)
+        return True
 
     def _retry_extract_info(self, url, ydl_opts=None, label="info extraction"):
-        """Extract video/playlist info with retries.
+        """Extract video/playlist info with retries (and update-on-failure).
 
         Returns (info_dict | None, error: str | None).
         """
-        import yt_dlp
-
         if ydl_opts is None:
             ydl_opts = {'quiet': True, 'no_warnings': True}
 
+        def run():
+            with ytdlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(url, download=False)
+
+        result, err = self._with_retries(run, label)
+        return (result if err is None else None), err
+
+    def _with_retries(self, fn, label):
         last_error = None
-        for attempt in range(1, self.MAX_RETRIES + 1):
+        updated = False
+        attempt = 0
+        max_attempts = self.MAX_RETRIES
+        while attempt < max_attempts:
+            attempt += 1
             try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                return info, None
+                return fn(), None
             except Exception as e:
                 last_error = str(e)
-                if attempt < self.MAX_RETRIES:
+                if not updated and ytdlp.looks_outdated(last_error):
+                    print(f"⚠️  YouTube {label} failed with an 'outdated yt-dlp' error: {last_error}")
+                    if ytdlp.update_on_failure(last_error):
+                        print("   yt-dlp updated — retrying with the new version…")
+                        updated = True
+                        max_attempts += 1
+                        continue
+                if attempt < max_attempts:
                     delay = self.RETRY_DELAY * (2 ** (attempt - 1))
-                    print(f"⚠️  YouTube {label} failed (attempt {attempt}/{self.MAX_RETRIES}): {last_error}")
+                    print(f"⚠️  YouTube {label} failed (attempt {attempt}/{max_attempts}): {last_error}")
                     print(f"   Retrying in {delay}s…")
                     time.sleep(delay)
                 else:
-                    print(f"❌ YouTube {label} failed after {self.MAX_RETRIES} attempts: {last_error}")
+                    print(f"❌ YouTube {label} failed after {attempt} attempts: {last_error}")
         return None, last_error
-    
+
     def download(self, url):
         """
         Download audio from a YouTube URL.

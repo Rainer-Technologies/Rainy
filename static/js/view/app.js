@@ -29,4 +29,5 @@ export async function handle(data, userdata) {
         userdata.loadLibrary()
     ]);
     userdata.startRouting?.();
+    document.dispatchEvent(new CustomEvent('rainy:ready'));
 };

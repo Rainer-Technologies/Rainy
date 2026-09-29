@@ -20,6 +20,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <!-- Boot splash + first-paint guards (inline so they apply before anything else loads) -->
+    <script>
+        // Splash is only for returning signed-in users (no splash on the login screen), and the
+        // accent colour is applied before first paint so the splash matches the user's theme.
+        try {
+            if (!localStorage.getItem('rainy-authed')) document.documentElement.classList.add('rs-skip');
+            var accent = localStorage.getItem('rainy-accent');
+            if (accent) document.documentElement.style.setProperty('--accent-primary', accent);
+        } catch (e) { document.documentElement.classList.add('rs-skip'); }
+    </script>
+    <style>
+        /* Custom elements render their light-DOM children (e.g. an unsized modal icon <svg>)
+           at full size until their class is registered; keep them out of sight until then. */
+        rainy-modal:not(:defined), rainy-metadata-modal:not(:defined), rainy-lyrics-modal:not(:defined),
+        rainy-song-settings-modal:not(:defined), rainy-new-playlist-modal:not(:defined),
+        rainy-connect-modal:not(:defined), rainy-add-music-modal:not(:defined),
+        rainy-song-context-menu:not(:defined) { display: none; }
+
+        #rainy-splash {
+            position: fixed; inset: 0; z-index: 2147483000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #0d0d0d; transition: opacity .35s ease, visibility .35s;
+        }
+        #rainy-splash.rs-out { opacity: 0; visibility: hidden; pointer-events: none; }
+        .rs-skip #rainy-splash { display: none; }
+        #rainy-splash img {
+            display: block; width: 88px; height: 88px; border-radius: 20px; object-fit: cover;
+            animation: rs-fade .5s ease both;
+        }
+        #rainy-splash .rs-line {
+            position: relative; width: 88px; height: 2px; margin-top: 24px; overflow: hidden;
+            border-radius: 2px; background: color-mix(in srgb, var(--accent-primary, #3d7dc4) 20%, transparent);
+        }
+        #rainy-splash .rs-line::after {
+            content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 38%;
+            border-radius: inherit; background: var(--accent-primary, #3d7dc4);
+            animation: rs-slide 1.5s cubic-bezier(.65, 0, .35, 1) infinite;
+        }
+        @keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes rs-slide { from { transform: translateX(-100%); } to { transform: translateX(263%); } }
+        @media (prefers-reduced-motion: reduce) {
+            #rainy-splash *, #rainy-splash *::after { animation: none !important; }
+            #rainy-splash .rs-line::after { left: 31%; }
+        }
+    </style>
+
     <!-- Styles -->
     <link rel="stylesheet" href="/css/style.css">
 
@@ -45,6 +91,12 @@
 </head>
 
 <body>
+    <!-- Boot splash: removed by the script at the end of <body> once the app is ready -->
+    <div id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy">
+        <img src="/icons/icon-192.png" alt="" width="88" height="88" decoding="async" fetchpriority="high">
+        <div class="rs-line" aria-hidden="true"></div>
+    </div>
+
     <!-- Setup Wizard View -->
     <div id="setup-view" class="setup-wizard hidden">
         <div class="setup-container">
@@ -222,14 +274,6 @@
                             </svg>
                             <span>Library</span>
                         </a>
-                        <a href="/friends" class="nav-item" id="nav-friends">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path
-                                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-                            </svg>
-                            <span>Friends</span>
-                            <span class="nav-badge hidden" id="friends-badge">0</span>
-                        </a>
                         <button class="nav-more-toggle" id="nav-more-toggle" type="button" aria-expanded="false"
                             aria-controls="nav-secondary-items">
                             <span>More</span>
@@ -256,23 +300,39 @@
                                 </svg>
                                 <span>Discover Music</span>
                             </a>
+                            <a href="/friends" class="nav-item nav-secondary-item" id="nav-friends">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                                </svg>
+                                <span>Friends</span>
+                                <span class="nav-badge hidden" id="friends-badge">0</span>
+                            </a>
                         </div>
                     </div>
 
                     <div class="nav-section">
-                        <h3 class="nav-header">Browse</h3>
-                        <a href="/albums" class="nav-item" id="nav-albums">
+                        <button class="nav-header nav-collapse-toggle" id="nav-browse-toggle" type="button"
+                            aria-expanded="true" aria-controls="nav-browse-items">
+                            <span>Browse</span>
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M7 10l5 5 5-5z" />
+                            </svg>
+                        </button>
+                        <div class="nav-browse-items" id="nav-browse-items">
+                        <a href="/albums" class="nav-item nav-browse-item" id="nav-albums">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
                             </svg>
                             <span>Albums</span>
                         </a>
-                        <a href="/artists" class="nav-item" id="nav-artists">
+                        <a href="/artists" class="nav-item nav-browse-item" id="nav-artists">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                             </svg>
                             <span>Artists</span>
                         </a>
+                        </div>
                     </div>
 
                     <div class="nav-section">
@@ -653,32 +713,9 @@
 
                 <!-- Smart Mix View -->
                 <div id="smartmix-view" class="smartmix-view hidden">
-                    <div class="smartmix-hero">
-                        <div class="smartmix-hero-icon">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-                        </div>
-                        <h2>Smart Mix</h2>
-                        <p>Auto-generated queues based on your taste</p>
-                    </div>
-                    <div class="smartmix-modes">
-                        <button class="smartmix-mode-card" data-mode="liked">
-                            <div class="smartmix-mode-icon">❤️</div>
-                            <div class="smartmix-mode-title">Liked Mix</div>
-                            <div class="smartmix-mode-desc">Shuffle from your liked songs</div>
-                        </button>
-                        <button class="smartmix-mode-card" data-mode="discovery">
-                            <div class="smartmix-mode-icon">✨</div>
-                            <div class="smartmix-mode-title">Discovery</div>
-                            <div class="smartmix-mode-desc">Tracks you haven't played yet</div>
-                        </button>
-                    </div>
-                    <div id="smartmix-result" class="smartmix-result hidden">
-                        <div class="smartmix-result-header">
-                            <h3 id="smartmix-result-title">Your Mix</h3>
-                            <button id="smartmix-play-all" class="smartmix-play-all">▶ Play All</button>
-                        </div>
-                        <div id="smartmix-songs" class="smartmix-songs"></div>
-                    </div>
+                    <div id="mixes-status" class="hidden"></div>
+                    <div id="mixes-home"></div>
+                    <div id="mix-detail" class="album-detail-view hidden"></div>
                 </div>
 
             </main>
@@ -847,7 +884,15 @@
                     <path
                         d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                 </svg>
-                <input type="text" id="settings-search-input" placeholder="Search settings...">
+                <input type="text" id="settings-search-input" placeholder="Search settings..." autocomplete="off"
+                    spellcheck="false" aria-label="Search settings" aria-controls="settings-search-results">
+                <button type="button" class="settings-search-clear hidden" id="settings-search-clear"
+                    aria-label="Clear search">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
             </div>
 
             <!-- Navigation -->
@@ -873,13 +918,6 @@
                             d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                     </svg>
                     <span>Account</span>
-                </a>
-                <a href="/settings/library" class="settings-nav-item" data-section="library">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 5h-3v5.5c0 1.38-1.12 2.5-2.5 2.5S10 13.88 10 12.5s1.12-2.5 2.5-2.5c.57 0 1.08.19 1.5.51V5h4v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z" />
-                    </svg>
-                    <span>Library</span>
                 </a>
                 <a href="/settings/syncs" class="settings-nav-item" data-section="syncs" id="settings-nav-syncs">
                     <svg viewBox="0 0 24 24" fill="currentColor">
@@ -911,6 +949,10 @@
                     <span>Chromecast Setup</span>
                 </a>
             </nav>
+
+            <!-- Search results (replace the navigation while a query is typed) -->
+            <div class="settings-search-results hidden" id="settings-search-results" role="listbox"
+                aria-label="Search results"></div>
         </div>
 
         <!-- Settings Main Content -->
@@ -1139,44 +1181,85 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="settings-row settings-row--divided is-disabled" id="lyrics-audio-sync-row">
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Light Show</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Every song
+                                is analysed on the server so lasers, strobes and scene changes land exactly on its beats,
+                                builds and drops. Pick how hard the rig goes.</div>
+                            <div class="settings-radio-group settings-radio-group--horizontal"
+                                data-pref="lightshow_intensity">
+                                <div class="settings-radio-item selected" data-value="auto">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Auto</div>
+                                        <div class="settings-radio-description">Follows each song's energy and genre
+                                            (default)</div>
+                                    </div>
+                                </div>
+                                <div class="settings-radio-item" data-value="chill">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Chill</div>
+                                        <div class="settings-radio-description">Slow sweeps, soft washes, no big
+                                            strobes</div>
+                                    </div>
+                                </div>
+                                <div class="settings-radio-item" data-value="balanced">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Balanced</div>
+                                        <div class="settings-radio-description">A full show that still keeps it
+                                            tasteful</div>
+                                    </div>
+                                </div>
+                                <div class="settings-radio-item" data-value="hype">
+                                    <div class="settings-radio-circle"></div>
+                                    <div class="settings-radio-content">
+                                        <div class="settings-radio-title">Hype</div>
+                                        <div class="settings-radio-description">Festival mode: every chorus is a
+                                            drop</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Audio-synced words</div>
-                                    <div class="settings-row-hint">Analyzes the track to time each word more accurately
-                                        (Word by word &amp; Slide)</div>
+                                    <div class="settings-row-label">Lyrics on Stage</div>
+                                    <div class="settings-row-hint">Show synced lyrics as part of the show: big
+                                        word-by-word typography with follow spots on the word being sung. Word timing
+                                        is exact once "Analyse Lyrics" has run for the song.</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-lyrics-audio-sync" disabled>
+                                        <input type="checkbox" id="settings-lightshow-lyrics">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Light Show
-                                Style</div>
-                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Choose the
-                                visual engine behind the fullscreen light show.</div>
-                            <div class="settings-radio-group settings-radio-group--horizontal"
-                                data-pref="lightshow_style">
-                                <div class="settings-radio-item selected" data-value="original">
-                                    <div class="settings-radio-circle"></div>
-                                    <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Original</div>
-                                        <div class="settings-radio-description">The classic 2D concert lighting rig
-                                            (default)</div>
-                                    </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Reduce Flashing</div>
+                                    <div class="settings-row-hint">Replace white strobes with soft colour pulses
+                                        (recommended if you are sensitive to flashing lights)</div>
                                 </div>
-                                <div class="settings-radio-item" data-value="nebula">
-                                    <div class="settings-radio-circle"></div>
-                                    <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Nebula 3D</div>
-                                        <div class="settings-radio-description">A fully 3D WebGL universe: volumetric
-                                            beams, energy orb, crowd and cinematic camera</div>
-                                    </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-lightshow-reduce-flashing">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Sync Offset <span class="settings-range-value"
+                                            id="settings-lightshow-offset-value">0 ms</span></div>
+                                    <div class="settings-row-hint">Delay the lights if they flash before you hear the
+                                        beat (e.g. on Bluetooth headphones)</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <input type="range" class="settings-range" id="settings-lightshow-offset" min="-300"
+                                        max="300" step="10" value="0" aria-label="Light show sync offset">
                                 </div>
                             </div>
                         </div>
@@ -1257,54 +1340,6 @@
                                     <button type="submit" class="btn btn-primary">Update Password</button>
                                 </div>
                             </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section: Library -->
-                <div class="settings-section" id="settings-section-library">
-                    <div class="settings-group">
-                        <div class="settings-group-title">Duplicate Songs</div>
-                        <div class="settings-group-description">Find songs that appear more than once in your library and
-                            merge them. Merging keeps the copy with your likes and playlist placements, so nothing you
-                            care about is lost.
-                        </div>
-
-                        <div class="settings-card">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Scan for duplicates</div>
-                                    <div class="settings-row-hint">Groups songs by title and artist</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <button class="btn btn-secondary" id="dup-scan-btn">
-                                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                                            <path
-                                                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-                                        </svg>
-                                        <span>Scan</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="settings-scan-status" id="dup-summary" style="display:none;">
-                                <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Duplicate groups:</span>
-                                    <span class="settings-scan-value" id="dup-group-count">0</span>
-                                </div>
-                                <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Redundant songs:</span>
-                                    <span class="settings-scan-value" id="dup-redundant-count">0</span>
-                                </div>
-                            </div>
-
-                            <div class="settings-scan-actions" id="dup-merge-all-wrap" style="display:none;">
-                                <button class="btn btn-warning" id="dup-merge-all-btn">
-                                    <span>Merge all automatically</span>
-                                </button>
-                            </div>
-
-                            <div id="dup-results"></div>
                         </div>
                     </div>
                 </div>
@@ -1462,6 +1497,46 @@
                             </div>
                         </div>
 
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Duplicate Songs</div>
+                                    <div class="settings-row-hint">Find songs that appear more than once in your
+                                        library (grouped by title and artist) and merge them. Merging keeps the copy
+                                        with your likes and playlist placements, so nothing you care about is lost.
+                                    </div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary" id="dup-scan-btn">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                                            <path
+                                                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                                        </svg>
+                                        <span>Scan</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="settings-scan-status" id="dup-summary" style="display:none;">
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">Duplicate groups:</span>
+                                    <span class="settings-scan-value" id="dup-group-count">0</span>
+                                </div>
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">Redundant songs:</span>
+                                    <span class="settings-scan-value" id="dup-redundant-count">0</span>
+                                </div>
+                            </div>
+
+                            <div class="settings-scan-actions" id="dup-merge-all-wrap" style="display:none;">
+                                <button class="btn btn-warning" id="dup-merge-all-btn">
+                                    <span>Merge all automatically</span>
+                                </button>
+                            </div>
+
+                            <div id="dup-results"></div>
+                        </div>
+
                         <div class="settings-card sysadmin-only">
                             <div class="settings-row">
                                 <div class="settings-row-info">
@@ -1519,52 +1594,33 @@
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Fetch Lyrics</div>
-                                    <div class="settings-row-hint">Download synced lyrics from LRCLIB for every song that
-                                        doesn't have them yet. Fast — skips songs that already have lyrics.</div>
+                                    <div class="settings-row-label">Analyse Lyrics</div>
+                                    <div class="settings-row-hint">Time every word of the synced lyrics against the
+                                        audio (used by the word / slide lyric effects and the stage lyrics), and look
+                                        up lyrics for songs that were never searched. Runs in the background and is
+                                        cached, so lyrics stay instant. "Run" fills in songs that are missing word
+                                        timing, "Force" re-times the whole library.</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="fetch-lyrics-btn">Run</button>
+                                    <button class="btn btn-secondary btn-sm" id="lyrics-run-btn">Run</button>
+                                    <button class="btn btn-secondary btn-sm" id="lyrics-force-btn">Force</button>
                                 </div>
                             </div>
-                            <div class="scan-progress hidden" id="fetch-lyrics-progress">
-                                <div class="progress-bar-container">
-                                    <div class="progress-bar-fill" id="fetch-lyrics-progress-bar"></div>
-                                </div>
-                                <p class="scan-progress-text" id="fetch-lyrics-progress-text">Starting...</p>
-                            </div>
-                            <div class="scan-result hidden" id="fetch-lyrics-result">
-                                <div class="scan-result-stats">
-                                    <div class="stat"><span id="fetch-lyrics-fetched">0</span> fetched</div>
-                                    <div class="stat"><span id="fetch-lyrics-skipped">0</span> already had lyrics</div>
-                                    <div class="stat"><span id="fetch-lyrics-failed">0</span> not found</div>
-                                </div>
-                            </div>
-                        </div>
 
-                        <div class="settings-card">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Align Lyrics (Word Timing)</div>
-                                    <div class="settings-row-hint">Run AI word-timing alignment for every song that has
-                                        lyrics. Heavy — run once; results are cached so viewing lyrics is instant.</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="align-lyrics-btn">Run</button>
-                                </div>
-                            </div>
-                            <div class="scan-progress hidden" id="align-lyrics-progress">
+                            <div class="lightshow-coverage" id="lyrics-coverage">
                                 <div class="progress-bar-container">
-                                    <div class="progress-bar-fill" id="align-lyrics-progress-bar"></div>
+                                    <div class="progress-bar-fill" id="lyrics-coverage-bar"></div>
                                 </div>
-                                <p class="scan-progress-text" id="align-lyrics-progress-text">Starting...</p>
+                                <p class="scan-progress-text" id="lyrics-coverage-text">-- songs ready</p>
                             </div>
-                            <div class="scan-result hidden" id="align-lyrics-result">
-                                <div class="scan-result-stats">
-                                    <div class="stat"><span id="align-lyrics-aligned">0</span> aligned</div>
-                                    <div class="stat"><span id="align-lyrics-skipped">0</span> already aligned</div>
-                                    <div class="stat"><span id="align-lyrics-failed">0</span> failed</div>
-                                </div>
+
+                            <div class="import-jobs-queue" id="lyrics-jobs-queue">
+                                <div class="import-jobs-empty">No analysis running or queued.</div>
+                            </div>
+
+                            <div class="import-jobs-history-header">Recent history</div>
+                            <div class="import-jobs-history" id="lyrics-jobs-history">
+                                <div class="import-jobs-empty">No lyrics jobs yet.</div>
                             </div>
                         </div>
 
@@ -1591,6 +1647,65 @@
                             <div class="import-jobs-history-header">Recent history</div>
                             <div class="import-jobs-history" id="enrich-jobs-history">
                                 <div class="import-jobs-empty" id="enrich-jobs-history-empty">No analysis jobs yet.</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">Analyse Light Shows</div>
+                                    <div class="settings-row-hint">Build the synced light show (beats, sections, drops)
+                                        for every song. New imports are analysed automatically; "Run" fills in songs
+                                        that are missing one, "Force" re-analyses the whole library.</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="lightshow-run-btn">Run</button>
+                                    <button class="btn btn-secondary btn-sm" id="lightshow-force-btn">Force</button>
+                                </div>
+                            </div>
+
+                            <div class="lightshow-coverage" id="lightshow-coverage">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="lightshow-coverage-bar"></div>
+                                </div>
+                                <p class="scan-progress-text" id="lightshow-coverage-text">-- songs ready</p>
+                            </div>
+
+                            <div class="import-jobs-queue" id="lightshow-jobs-queue">
+                                <div class="import-jobs-empty">No analysis running or queued.</div>
+                            </div>
+
+                            <div class="import-jobs-history-header">Recent history</div>
+                            <div class="import-jobs-history" id="lightshow-jobs-history">
+                                <div class="import-jobs-empty">No light show jobs yet.</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card sysadmin-only">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label">YouTube Downloader (yt-dlp)</div>
+                                    <div class="settings-row-hint">YouTube changes often and breaks old versions.
+                                        Rainy checks for updates at startup and every 12 hours, and updates straight
+                                        away when a download fails with an "outdated" error.</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="ytdlp-update-btn">Update now</button>
+                                </div>
+                            </div>
+                            <div class="settings-scan-status" id="ytdlp-status">
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">Version:</span>
+                                    <span class="settings-scan-value" id="ytdlp-version">--</span>
+                                </div>
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">JS challenge solver:</span>
+                                    <span class="settings-scan-value" id="ytdlp-runtime">--</span>
+                                </div>
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label">Last update:</span>
+                                    <span class="settings-scan-value" id="ytdlp-last-update">--</span>
+                                </div>
                             </div>
                         </div>
 
@@ -1930,7 +2045,6 @@
     <div id="fullscreen-player" class="hidden">
         <div class="fs-backdrop" id="fs-backdrop"></div>
         <canvas id="fs-lightshow-canvas" class="hidden"></canvas>
-        <canvas id="fs-lightshow-canvas-3d" class="hidden"></canvas>
         <!-- Fullscreen Logo Branding -->
         <div class="fs-brand">
             <div class="fs-logo">
@@ -2109,6 +2223,51 @@
     <audio id="crossfade-audio" preload="auto"></audio>
 
     <!-- Main application -->
+    <script>
+        // Dismiss the boot splash once the app has something real to show: the
+        // login/setup screen, or (for signed-in users) the app with its library
+        // loaded ('rainy:ready', fired by view/app.js). Never blocks for long.
+        (function () {
+            var splash = document.getElementById('rainy-splash');
+            if (!splash) return;
+            var started = performance.now(), MIN_MS = 500, MAX_MS = 12000, finished = false;
+            var gate = ['setup-view', 'login-view'].map(function (id) { return document.getElementById(id); })
+                .filter(Boolean);
+            var timer = setTimeout(finish, MAX_MS);
+            function finish() {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                obs.disconnect();
+                document.removeEventListener('rainy:ready', ready);
+                splash.classList.add('rs-out');
+                setTimeout(function () { splash.remove(); }, 450);
+            }
+            function ready() {
+                setTimeout(finish, Math.max(0, MIN_MS - (performance.now() - started)));
+            }
+            var obs = new MutationObserver(function () {
+                if (gate.some(function (v) { return !v.classList.contains('hidden'); })) ready();
+            });
+            gate.forEach(function (v) { obs.observe(v, { attributes: true, attributeFilter: ['class'] }); });
+            document.addEventListener('rainy:ready', ready);
+        })();
+
+        // Remember whether the last visit ended signed in (drives the splash on the next load).
+        (function () {
+            try {
+                document.addEventListener('rainy:ready', function () { localStorage.setItem('rainy-authed', '1'); });
+                var gate = ['setup-view', 'login-view'].map(function (id) { return document.getElementById(id); })
+                    .filter(Boolean);
+                var obs = new MutationObserver(function () {
+                    if (gate.some(function (v) { return !v.classList.contains('hidden'); })) {
+                        localStorage.removeItem('rainy-authed');
+                    }
+                });
+                gate.forEach(function (v) { obs.observe(v, { attributes: true, attributeFilter: ['class'] }); });
+            } catch (e) { /* storage unavailable: splash just stays off */ }
+        })();
+    </script>
     <script type="module" src="/js/main.js"></script>
 
     <!-- Scripts -->

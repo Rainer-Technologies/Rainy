@@ -29,6 +29,7 @@
 @import url('./pages/login.css');
 @import url('./pages/library.css');
 @import url('./pages/discover.css');
+@import url('./pages/mixes.css');
 @import url('./pages/artists.css');
 
 /* Final shared geometry and surface rules for the feature views. */

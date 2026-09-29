@@ -3,7 +3,6 @@ import { Logger } from "../helper/logger.js";
 import { useLightshowService } from "../services/lightshow.js";
 import { useLyricsService } from "../services/lyrics.js";
 import { useEnrichmentService } from "../services/enrichment.js";
-import { generateAndSaveLightshow, isLightshowCancel } from "../lightshowGenerator.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
@@ -74,11 +73,8 @@ export class SongSettingsModal extends Component {
     }
 
     hide() {
+        clearTimeout(this._lightshowPoll);
         this.root.hide();
-    }
-
-    _lightshowBiasKey(songId) {
-        return `lightshow-bias-${songId}`;
     }
 
     /**
@@ -108,59 +104,35 @@ export class SongSettingsModal extends Component {
     }
 
     /**
-     * Downsample the show's energy curve into an interactive bar strip.
-     * @param {Array<number>} norm
+     * Section map as a proportional, colour-coded strip with drop markers.
+     * @param {{ duration: number, sections: Array<{t0:number,t1:number,label:string}>, events: Array<{t:number,type:string}> }} show
      */
-    _renderWaveform(norm) {
-        const target = 72;
-        const values = [];
-        const step = norm.length / target;
-        for(let i = 0; i < target; i++) {
-            const start = Math.floor(i * step);
-            const end = Math.max(start + 1, Math.floor((i + 1) * step));
-            let peak = 0;
-            for(let j = start; j < end && j < norm.length; j++) peak = Math.max(peak, norm[j]);
-            values.push(peak / 255);
-        }
-
-        const strip = h.div(a.class('ss-wave'));
-        for(let i = 0; i < values.length; i++) {
-            const bar = h.div(a.class('ss-wave-bar'));
-            bar.style.height = `${Math.max(5, Math.round(values[i] * 100))}%`;
-            bar.style.animationDelay = `${i * 8}ms`;
-            strip.append(bar);
-        }
-
-        const bars = Array.from(strip.children);
-        strip.addEventListener('mousemove', (ev) => {
-            const rect = strip.getBoundingClientRect();
-            const idx = Math.floor(((ev.clientX - rect.left) / rect.width) * bars.length);
-            for(let i = 0; i < bars.length; i++) {
-                const d = Math.abs(i - idx);
-                const hot = d <= 5 ? 1 - d / 6 : 0;
-                bars[i].classList.toggle('hot', hot > 0);
-                bars[i].style.setProperty('--hot', String(hot));
-            }
+    _renderTimeline(show) {
+        const total = show.duration || (show.sections.length ? show.sections[show.sections.length - 1].t1 : 1);
+        const strip = h.div(a.class('ss-timeline'));
+        show.sections.forEach((sec, i) => {
+            const seg = h.div(a.class('ss-tl-seg', `ss-tl-${sec.label}`));
+            seg.style.flexGrow = String(Math.max(0.001, sec.t1 - sec.t0));
+            seg.style.animationDelay = `${i * 25}ms`;
+            const mins = Math.floor(sec.t0 / 60), secs = String(Math.floor(sec.t0 % 60)).padStart(2, '0');
+            seg.title = `${sec.label} · ${mins}:${secs}`;
+            strip.append(seg);
         });
-        strip.addEventListener('mouseleave', () => {
-            for(const bar of bars) {
-                bar.classList.remove('hot');
-                bar.style.setProperty('--hot', '0');
-            }
-        });
-
+        for(const ev of show.events || []) {
+            if(ev.type !== 'drop') continue;
+            const mark = h.div(a.class('ss-tl-marker'));
+            mark.style.left = `${(ev.t / total) * 100}%`;
+            strip.append(mark);
+        }
         return strip;
     }
 
     /**
-     * @param {{ t0: number, y: string }} show
+     * @param {Array<{ label: string }>} sections
      */
     _renderSectionChips(sections) {
         const counts = {};
-        for(const sec of sections) {
-            const label = sec.y || 'section';
-            counts[label] = (counts[label] || 0) + 1;
-        }
+        for(const sec of sections) counts[sec.label] = (counts[sec.label] || 0) + 1;
 
         const chips = h.div(a.class('ss-chips'));
         Object.entries(counts)
@@ -175,75 +147,91 @@ export class SongSettingsModal extends Component {
 
     async _renderLightshow() {
         const container = this._lightshowList.value;
-        if(!container) return;
-        Array.from(container.children).forEach(el => el.remove());
+        if(!container) return false;
+        clearTimeout(this._lightshowPoll);
 
         /** @type {SongModel?} */
         const song = this.get('current-song');
-        if(!song) return;
+        if(!song) return false;
 
-        let show = null;
-        const data = await useLightshowService().get(song.id);
-        if(!data.error && data.value && data.value.lightshow) show = data.value.lightshow;
+        const data = await useLightshowService().status(song.id);
+        if(this.get('current-song') !== song) return false;
+        Array.from(container.children).forEach(el => el.remove());
 
-        const bias = (show && show.settings && show.settings.bias)
-            || localStorage.getItem(this._lightshowBiasKey(song.id))
-            || 'balanced';
+        const show = !data.error && data.value ? data.value.show : null;
+        const job = !data.error && data.value ? data.value.job : null;
+        const current = !!(show && show.current);
+        const busy = !!job && (job.status === 'queued' || job.status === 'running');
 
-        if(show) {
-            if(Array.isArray(show.norm) && show.norm.length) {
-                container.append(this._renderWaveform(show.norm));
-            }
-
+        if(current) {
+            const genre = (show.profile && show.profile.genre) || 'pop';
+            container.append(this._renderTimeline(show));
             container.append(h.div(a.class('ss-stats'),
                 h.div(a.class('ss-stat'),
-                    h.div(a.class('ss-stat-value'), String(Math.round(show.bpm))),
+                    h.div(a.class('ss-stat-value'), String(Math.round(show.tempo || 0))),
                     h.div(a.class('ss-stat-label'), 'BPM'),
                 ),
                 h.div(a.class('ss-stat'),
                     h.div(a.class('ss-stat-value'), String(show.sections.length)),
                     h.div(a.class('ss-stat-label'), 'Sections'),
                 ),
+                h.div(a.class('ss-stat'),
+                    h.div(a.class('ss-stat-value', 'ss-stat-text'),
+                        genre === 'hiphop' ? 'Hip-hop' : genre === 'edm' ? 'EDM' : genre.charAt(0).toUpperCase() + genre.slice(1)),
+                    h.div(a.class('ss-stat-label'), 'Style'),
+                ),
                 this._renderSectionChips(show.sections),
+            ));
+        } else if(busy) {
+            container.append(h.div(a.class('ss-empty'),
+                I.Spinner(),
+                h.div(a.class('ss-empty-title'), job.status === 'running' ? 'Analysing this song\u2026' : 'Queued for analysis'),
+                h.div(a.class('ss-empty-detail'), 'Rainy is mapping its beats, sections and drops on the server. The live engine plays meanwhile.'),
+            ));
+        } else if(job && job.status === 'failed') {
+            container.append(h.div(a.class('ss-empty'),
+                I.Bolt(),
+                h.div(a.class('ss-empty-title'), 'Analysis failed'),
+                h.div(a.class('ss-empty-detail'), job.error || 'The audio could not be analysed.'),
             ));
         } else {
             container.append(h.div(a.class('ss-empty'),
                 I.Bolt(),
-                h.div(a.class('ss-empty-title'), 'No light show yet'),
-                h.div(a.class('ss-empty-detail'), 'Generate one and the rig will follow this song\u2019s rhythm, energy and structure while it plays.'),
+                h.div(a.class('ss-empty-title'), 'Not analysed yet'),
+                h.div(a.class('ss-empty-detail'), 'Analyse it and the rig will hit every beat, build and drop of this song. It also happens automatically the first time it plays.'),
             ));
         }
 
-        container.append(h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.generateLightshow()),
-            I.Bolt(),
-            h.span(show ? 'Regenerate Light Show' : 'Generate Light Show'),
-        ));
-
-        container.append(h.div(a.class('ss-label-row'),
-            h.span(a.class('ss-label'), 'Energy bias'),
-            h.span(a.class('ss-hint'), 'shapes the next generation'),
-        ));
-
-        const segmented = h.div(a.class('ss-seg'));
-        for(const opt of ['chill', 'balanced', 'hype']) {
-            const label = opt.charAt(0).toUpperCase() + opt.slice(1);
-            const btn = h.button(a.class(bias === opt ? 'active' : ''), on.click(() => {
-                localStorage.setItem(this._lightshowBiasKey(song.id), opt);
-                Array.from(segmented.children).forEach(el => el.classList.remove('active'));
-                btn.classList.add('active');
-            }), label);
-            segmented.append(btn);
+        if(!busy) {
+            container.append(h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.analyseLightshow()),
+                I.Bolt(),
+                h.span(current ? 'Re-analyse Light Show' : job && job.status === 'failed' ? 'Try Again' : 'Analyse Now'),
+            ));
         }
-        container.append(segmented);
 
         if(show) {
             container.append(this._renderRow({
                 icon: I.Bin(),
                 title: 'Remove Light Show',
-                subtitle: 'Falls back to the live engine while playing',
+                subtitle: 'It is rebuilt the next time the song plays',
                 onClick: () => this.removeLightshow(),
                 variant: 'danger',
             }));
+        }
+
+        // Follow a running analysis while the modal stays open.
+        if(busy) {
+            this._lightshowPoll = setTimeout(async () => {
+                if(this.get('current-song') !== song || !this.isConnected) return;
+                if(await this._renderLightshow()) this._reloadPlayerShow(song.id);
+            }, 2000);
+        }
+        return current;
+    }
+
+    _reloadPlayerShow(songId) {
+        if(window.player && window.player.lightShow && window.player.currentSong?.id === songId) {
+            window.player.lightShow.loadScript(songId, true);
         }
     }
 
@@ -316,6 +304,15 @@ export class SongSettingsModal extends Component {
         );
         container.append(row);
 
+        if(synced) {
+            container.append(this._renderRow({
+                icon: I.Refresh(),
+                title: 'Re-time Words',
+                subtitle: 'Redo the word-by-word timing against the audio (applies the next time the song loads)',
+                onClick: () => this.realignLyrics(),
+            }));
+        }
+
         if(state === 'found') {
             container.append(this._renderRow({
                 icon: I.Bin(),
@@ -374,62 +371,37 @@ export class SongSettingsModal extends Component {
         this._renderLyrics();
     }
 
-    async generateLightshow() {
-        this.hide();
-
+    async realignLyrics() {
         /** @type {SongModel?} */
         const song = this.get('current-song');
         if(!song) return;
 
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
-        const bias = localStorage.getItem(this._lightshowBiasKey(song.id)) || 'balanced';
-
-        let cancelled = false;
-        /** @type {Modal} */
-        const dialog = H.of(Modal,
-            I.Bolt('currentColor', a.slot('header-icon')),
-            h.h2(a.slot('header-title'), 'Generating Light Show'),
-            h.div(a.slot('body'),
-                h.p(a.class('lightshow-progress-text'), `Preparing "${song.title}"\u2026`),
-                h.div(a.class('progress-bar-modern'),
-                    h.div(a.class('progress-fill-modern')),
-                ),
-            ),
-            h.button(a.slot('action'), a.class('btn btn-secondary'), on.click(() => {
-                cancelled = true;
-                dialog.remove();
-            }), 'Cancel'),
-        ); document.body.append(dialog); dialog.show();
-
-        const fill = dialog.querySelector('.progress-fill-modern');
-        const text = dialog.querySelector('.lightshow-progress-text');
-        const phaseLabels = {
-            download: 'Downloading song\u2026',
-            decode: 'Decoding audio\u2026',
-            analyze: 'Analysing rhythm & energy\u2026',
-            save: 'Saving light show\u2026',
-            done: 'Done!',
-        };
-
-        try {
-            const show = await generateAndSaveLightshow(song.id, { bias }, (progress) => {
-                if(text) text.textContent = phaseLabels[progress.phase] || progress.phase;
-                if(fill) fill.style.width = `${Math.round(progress.fraction * 100)}%`;
-            }, () => cancelled);
-
-            dialog.remove();
-            app.showToast(`Light show ready \u2014 ${Math.round(show.bpm)} BPM, ${show.sections.length} sections`, 'success');
-
-            if(window.player && window.player.lightShow && window.player.currentSong?.id === song.id) {
-                window.player.lightShow.loadScript(song.id, true);
-            }
-        } catch(e) {
-            dialog.remove();
-            if(isLightshowCancel(e)) return;
-            Logger.error('Light show generation failed:', e);
-            app.showToast('Failed to generate light show', 'error');
+        const data = await useLyricsService().analyze(song.id);
+        if(data.error) {
+            Logger.error(data.error);
+            app.showToast('Could not start the lyrics timing', 'error');
+            return;
         }
+        app.showToast('Re-timing lyrics\u2026 this takes a few seconds', 'success');
+    }
+
+    async analyseLightshow() {
+        /** @type {SongModel?} */
+        const song = this.get('current-song');
+        if(!song) return;
+
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+        const data = await useLightshowService().analyze(song.id);
+        if(data.error) {
+            Logger.error(data.error);
+            app.showToast('Could not start the light show analysis', 'error');
+            return;
+        }
+        app.showToast('Analysing light show\u2026', 'success');
+        this._renderLightshow();
     }
 
     async removeLightshow() {

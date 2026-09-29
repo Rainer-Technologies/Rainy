@@ -25,6 +25,19 @@ import { Service } from "./index.js";
  */
 
 /**
+ * @typedef {Object} LyricsJob
+ * @property {number} id
+ * @property {number|null} song_id
+ * @property {'song'|'backfill'} scope
+ * @property {boolean} force
+ * @property {'queued'|'running'|'completed'|'failed'} status
+ * @property {number} progress
+ * @property {string|null} message
+ * @property {object|null} result
+ * @property {string|null} error
+ */
+
+/**
  * @typedef {Object} LyricsModel
  * @property {boolean} success
  * @property {{ synced: Array<{time: number, text: string}>, plain: string }} lyrics
@@ -73,6 +86,47 @@ export class LyricsService extends Service {
             method: 'POST',
             body: { lrclib_id: lrclibId }
         }));
+    }
+
+    /**
+     * Aligned word timings ([start, end] per word, per line). While the server
+     * is still analysing the song it answers `{ success: false, pending: true }`.
+     * @param {string | number} songId
+     * @returns {Promise<Result<{ success: boolean, words?: number[][][], language?: string, pending?: boolean, job?: LyricsJob }, ErrorModel | ResponseError>>}
+     */
+    words(songId) {
+        return this.wrap(RequestHelper.request(this.url(`/song/${songId}/lyrics-words`)));
+    }
+
+    /**
+     * Queue a forced re-alignment of one song's lyrics.
+     * @param {string | number} songId
+     * @returns {Promise<Result<{ success: boolean, job: LyricsJob }, ErrorModel | ResponseError>>}
+     */
+    analyze(songId) {
+        return this.wrap(RequestHelper.request(this.url(`/song/${songId}/lyrics-words/analyze`), {
+            method: 'POST'
+        }));
+    }
+
+    /**
+     * Queue a library-wide analysis (fetch missing lyrics + align words).
+     * @param {boolean} [force] re-align every song, not just the ones that need it
+     * @returns {Promise<Result<{ success: boolean, job: LyricsJob }, ErrorModel | ResponseError>>}
+     */
+    backfill(force = false) {
+        return this.wrap(RequestHelper.request(this.url('/lyrics/backfill'), {
+            method: 'POST',
+            body: { force }
+        }));
+    }
+
+    /**
+     * Live queue, recent history and library coverage.
+     * @returns {Promise<Result<{ success: boolean, coverage: { ready: number, total: number, unfetched: number }, queue: LyricsJob[], history: LyricsJob[] }, ErrorModel | ResponseError>>}
+     */
+    jobs() {
+        return this.wrap(RequestHelper.request(this.url('/lyrics/jobs')));
     }
 
     /**

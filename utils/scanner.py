@@ -181,6 +181,12 @@ class MusicScanner:
                                 enrichment_worker.notify()
                             except Exception as e:  # noqa: BLE001
                                 print(f"[scanner] failed to queue enrichment for song {song_id}: {e}")
+                            # Light show score (beat grid, sections, drops…).
+                            from utils import lightshow_worker
+                            lightshow_worker.enqueue_song(song_id)
+                            # Lyrics: look them up on LRCLIB and time every word.
+                            from utils import lyrics_worker
+                            lyrics_worker.enqueue_song(song_id)
             
             # Remove songs that no longer exist on disk (only for quick scan)
             if not full_scan and existing_songs:
@@ -416,6 +422,16 @@ class MusicScanner:
             enrichment_worker.notify()
         except Exception as e:  # noqa: BLE001
             print(f"[scanner] failed to queue enrichment for song {song_id}: {e}")
+
+        # Queue the light show analysis so the show is synced from the first
+        # play. Best-effort (enqueue_song never raises).
+        from utils import lightshow_worker
+        lightshow_worker.enqueue_song(song_id)
+
+        # Same for lyrics: fetch them from LRCLIB and time every word, so
+        # freshly imported / downloaded songs come with synced lyrics.
+        from utils import lyrics_worker
+        lyrics_worker.enqueue_song(song_id)
 
         return metadata
     

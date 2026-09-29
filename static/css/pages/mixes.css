@@ -1,0 +1,370 @@
+/* ============================================
+   Smart Mix
+   Cover-first layout. The only colour on the page is one flat tint sampled
+   from each mix's own artwork (--tint, set from JS); everything else uses
+   the app's surface, border and text tokens.
+   ============================================ */
+
+/* Outlined secondary button, same language as .clear-history-btn / .recent-tab */
+.mix-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    min-height: var(--hit-target);
+    padding: 0 var(--spacing-lg);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-control);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.mix-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--text-tertiary);
+}
+
+.mix-btn:disabled { opacity: 0.6; cursor: default; }
+.mix-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+/* ---- top bar: mood pills + refresh ---- */
+.mix-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.mix-moods { flex-wrap: wrap; }
+
+.mix-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+}
+
+/* ---- artwork ---- */
+.mix-cover {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-control);
+    overflow: hidden;
+    background: var(--bg-tertiary);
+}
+
+.mix-cover > img,
+.mix-mosaic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.mix-mosaic {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    width: 100%;
+    height: 100%;
+}
+
+.mix-nocover {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 48px;
+    opacity: 0.4;
+}
+
+/* ---- hero ---- */
+.mix-hero,
+.mix-detail-head {
+    --tint: var(--bg-secondary);
+    display: grid;
+    grid-template-columns: 176px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--tint) 24%, var(--bg-secondary));
+    transition: background var(--transition-slow);
+}
+
+.mix-hero { margin-bottom: var(--spacing-2xl); }
+
+.mix-hero-cover,
+.mix-detail-cover { box-shadow: var(--shadow-md); }
+
+.mix-hero-title,
+.mix-detail-title {
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+.mix-hero-sub {
+    margin: 0 0 var(--spacing-xs);
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
+}
+
+.mix-hero-meta {
+    margin: 0 0 var(--spacing-md);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+}
+
+.mix-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.mix-play {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.mix-play svg { width: 18px; height: 18px; }
+
+/* ---- shelves ---- */
+.mix-shelf + .mix-shelf { margin-top: var(--spacing-2xl); }
+
+.mix-shelf-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+}
+
+.mix-nav { display: flex; gap: var(--spacing-xs); }
+.mix-nav[hidden] { display: none; }
+.mix-nav .icon-btn-small { color: var(--text-secondary); }
+.mix-nav .icon-btn-small:disabled { opacity: 0.3; cursor: default; }
+
+.mix-row {
+    display: flex;
+    gap: var(--spacing-lg);
+    overflow-x: auto;
+    padding-bottom: var(--spacing-xs);
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+}
+
+.mix-row::-webkit-scrollbar { display: none; }
+
+.mix-card {
+    flex: 0 0 176px;
+    min-width: 0;
+    scroll-snap-align: start;
+    cursor: pointer;
+    outline: none;
+}
+
+.mix-card .mix-cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    pointer-events: none;
+}
+
+.mix-card:hover .mix-cover::after,
+.mix-card:focus-visible .mix-cover::after { opacity: 1; }
+.mix-card:focus-visible .mix-cover { box-shadow: var(--focus-ring); }
+
+.mix-card-title,
+.mix-card-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mix-card-title {
+    margin-top: var(--spacing-sm);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.mix-card-sub {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* Quick play: on hover; always present on touch. */
+.mix-quickplay {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-full);
+    background: var(--accent-primary);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
+}
+
+.mix-quickplay svg { width: 20px; height: 20px; }
+.mix-quickplay:hover { background: var(--accent-secondary); }
+
+.mix-card:hover .mix-quickplay,
+.mix-card:focus-within .mix-quickplay,
+.mix-quickplay:focus-visible {
+    opacity: 1;
+    transform: none;
+}
+
+@media (hover: none) {
+    .mix-quickplay { opacity: 1; transform: none; }
+    .mix-nav { display: none; }
+}
+
+/* ---- detail ---- */
+.mix-detail-head { margin-bottom: var(--spacing-lg); }
+
+.mix-tracks { display: flex; flex-direction: column; }
+
+.mix-track { grid-template-columns: 40px 48px 1fr auto; }
+.mix-track.playing .recent-song-title,
+.mix-track.playing .recent-song-num { color: var(--accent-primary); }
+
+/* ============================================
+   Compact density (default). Same layout, tighter type and spacing.
+   The choice is stored in localStorage by mixes.js.
+   ============================================ */
+.mix-compact .mix-bar { margin-bottom: var(--spacing-md); }
+.mix-compact .mix-tools .view-toggle-btn { min-width: 36px; min-height: 32px; }
+.mix-compact .mix-moods { gap: var(--spacing-xs); }
+.mix-compact .mix-moods .recent-tab {
+    min-height: 30px;
+    padding: 4px 12px;
+    font-size: 13px;
+}
+
+.mix-compact .mix-btn,
+.mix-compact .mix-play { min-height: 34px; }
+.mix-compact .mix-btn { padding: 0 var(--spacing-md); }
+.mix-compact .mix-play { padding: 0 var(--spacing-md); font-size: var(--font-size-sm); }
+.mix-compact .mix-play svg { width: 16px; height: 16px; }
+
+.mix-compact .mix-hero,
+.mix-compact .mix-detail-head {
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+}
+
+.mix-compact .mix-hero { margin-bottom: var(--spacing-lg); }
+.mix-compact .mix-hero-cover,
+.mix-compact .mix-detail-cover { box-shadow: var(--shadow-sm); }
+.mix-compact .mix-hero-title,
+.mix-compact .mix-detail-title { font-size: var(--font-size-2xl); }
+.mix-compact .mix-hero-sub { font-size: var(--font-size-sm); }
+.mix-compact .mix-hero-meta { margin-bottom: var(--spacing-sm); font-size: var(--font-size-xs); }
+
+.mix-compact .mix-shelf + .mix-shelf { margin-top: var(--spacing-lg); }
+.mix-compact .mix-shelf-head { margin-bottom: 0; }
+.mix-compact .section-heading { font-size: var(--font-size-lg); }
+.mix-compact .mix-nav .icon-btn-small { min-width: 32px; min-height: 32px; }
+.mix-compact .mix-row { gap: var(--spacing-md); }
+.mix-compact .mix-card { flex-basis: 128px; }
+.mix-compact .mix-card-title { margin-top: 6px; font-size: 14px; }
+.mix-compact .mix-card-sub { font-size: 12px; }
+.mix-compact .mix-quickplay { width: 32px; height: 32px; right: 6px; bottom: 6px; }
+.mix-compact .mix-quickplay svg { width: 16px; height: 16px; }
+
+.mix-compact .mix-detail-head { margin-bottom: var(--spacing-md); }
+.mix-compact .mix-track {
+    grid-template-columns: 32px 36px 1fr auto;
+    gap: var(--spacing-sm);
+    min-height: 44px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.mix-compact .mix-track .recent-song-cover { width: 36px; height: 36px; }
+.mix-compact .mix-track .recent-song-title { font-size: 14px; }
+.mix-compact .mix-track .recent-song-artist { font-size: 12px; }
+
+@media (max-width: 768px) {
+    .mix-bar { flex-direction: column-reverse; align-items: stretch; }
+    .mix-bar .mix-tools { align-self: flex-end; }
+
+    /* one swipeable row instead of a wrapped block */
+    .mix-moods {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .mix-moods::-webkit-scrollbar { display: none; }
+    .mix-moods .recent-tab { flex: 0 0 auto; }
+
+    .mix-hero,
+    .mix-detail-head {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+        padding: var(--spacing-md);
+        gap: var(--spacing-md);
+    }
+
+    .mix-hero-cover,
+    .mix-detail-cover { width: min(200px, 60vw); }
+    .mix-actions { justify-content: center; }
+    .mix-hero-title,
+    .mix-detail-title { font-size: var(--font-size-2xl); }
+    .mix-card { flex-basis: 144px; }
+
+    /* compact keeps the hero side by side on phones instead of stacking it */
+    .mix-compact .mix-hero,
+    .mix-compact .mix-detail-head {
+        grid-template-columns: 88px minmax(0, 1fr);
+        justify-items: stretch;
+        text-align: left;
+        gap: var(--spacing-md);
+    }
+    .mix-compact .mix-hero-cover,
+    .mix-compact .mix-detail-cover { width: auto; }
+    .mix-compact .mix-actions { justify-content: flex-start; }
+    .mix-compact .mix-hero-title,
+    .mix-compact .mix-detail-title { font-size: var(--font-size-xl); }
+    .mix-compact .mix-card { flex-basis: 120px; }
+
+    .mix-track { grid-template-columns: 32px 40px 1fr auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mix-hero,
+    .mix-detail-head,
+    .mix-quickplay,
+    .mix-card .mix-cover::after { transition: none; }
+}

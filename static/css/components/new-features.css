@@ -274,84 +274,6 @@
 .stats-name { color: var(--text-primary); font-size: 15px; }
 .stats-count { color: var(--text-secondary); font-size: 13px; }
 
-/* --- Smart Mix View --- */
-.smartmix-view { padding: 0 24px 24px; }
-.smartmix-hero { text-align: center; padding: 40px 0 32px; }
-.smartmix-hero-icon svg { width: 64px; height: 64px; fill: var(--accent-primary); margin-bottom: 16px; }
-.smartmix-hero h2 { font-size: 32px; color: var(--text-primary); margin: 0 0 8px; }
-.smartmix-hero p { color: var(--text-secondary); font-size: 15px; margin: 0; }
-.smartmix-modes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    max-width: 800px;
-    margin: 0 auto 40px;
-}
-.smartmix-mode-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 28px 24px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.smartmix-mode-card:hover {
-    transform: translateY(-4px);
-    border-color: var(--accent-primary);
-    background: var(--bg-tertiary);
-}
-.smartmix-mode-icon { font-size: 40px; margin-bottom: 12px; }
-.smartmix-mode-title { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
-.smartmix-mode-desc { font-size: 13px; color: var(--text-secondary); }
-.smartmix-result { max-width: 800px; margin: 0 auto; }
-.smartmix-result-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-}
-.smartmix-result-header h3 { font-size: 22px; color: var(--text-primary); margin: 0; }
-.smartmix-play-all {
-    background: var(--accent-primary);
-    color: #fff;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-.smartmix-play-all:hover { transform: scale(1.05); }
-.smartmix-song-row {
-    display: grid;
-    grid-template-columns: 40px 48px 1fr auto;
-    align-items: center;
-    gap: 14px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-.smartmix-song-row:hover { background: var(--bg-secondary); }
-.smartmix-song-num { color: var(--text-tertiary); font-size: 14px; text-align: center; }
-.smartmix-song-cover {
-    width: 48px;
-    height: 48px;
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.smartmix-song-cover img { width: 100%; height: 100%; object-fit: cover; }
-.smartmix-no-cover { font-size: 20px; opacity: 0.4; }
-.smartmix-song-title { font-size: 15px; color: var(--text-primary); font-weight: 500; }
-.smartmix-song-artist { font-size: 13px; color: var(--text-secondary); }
-.smartmix-song-duration { color: var(--text-secondary); font-size: 14px; }
-
 /* --- Sleep Timer Menu --- */
 .sleep-timer-menu {
     background: var(--bg-secondary);
@@ -690,7 +612,6 @@
     .album-detail-hero { flex-direction: column; align-items: center; text-align: center; }
     .album-detail-cover { width: 180px; height: 180px; }
     .album-detail-title { font-size: 28px; }
-    .smartmix-modes { grid-template-columns: 1fr; }
     .recent-song-row { grid-template-columns: 32px 40px 1fr auto; }
     .recent-song-time { display: none; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -706,7 +627,6 @@
     .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .stat-card { min-width: 0; }
     .album-detail-title { font-size: 22px; }
-    .smartmix-hero h2 { font-size: 24px; }
     .recent-tabs { flex-wrap: wrap; }
 }
 

@@ -16,7 +16,6 @@ from routes.connect import connect_bp
 from routes.ext_repo import ext_repo_bp
 from routes.server import server_bp
 from routes.playlist_syncs import playlist_syncs_bp
-from routes.discovery import discovery_bp
 
 # Static files are served by the explicit catch-all below so frontend routes
 # such as /albums can fall back to index.html instead of Flask's built-in
@@ -50,7 +49,6 @@ app.register_blueprint(connect_bp, url_prefix='/api/connect')
 app.register_blueprint(ext_repo_bp, url_prefix='/ext-repo')
 app.register_blueprint(server_bp)
 app.register_blueprint(playlist_syncs_bp)
-app.register_blueprint(discovery_bp)
 
 @app.route('/')
 def serve_index():
@@ -104,12 +102,23 @@ def init_app():
     from models.enrichment_job import EnrichmentJobModel
     EnrichmentJobModel.recover_stale()
     print("Background enrichment worker ready.")
+
+    from models.lightshow_job import LightshowJobModel
+    LightshowJobModel.recover_stale()
+    print("Background light show worker ready.")
+
+    from models.lyrics_job import LyricsJobModel
+    LyricsJobModel.recover_stale()
+    print("Background lyrics worker ready.")
     print("=" * 40)
 
 
 _import_worker_started = False
 _enrichment_worker_started = False
 _sync_worker_started = False
+_lightshow_worker_started = False
+_lyrics_worker_started = False
+_ytdlp_worker_started = False
 
 
 @app.before_request
@@ -130,6 +139,36 @@ def _ensure_enrichment_worker():
         _enrichment_worker_started = True
         from utils import enrichment_worker
         enrichment_worker.start_worker()
+
+
+@app.before_request
+def _ensure_lightshow_worker():
+    """Start the light show analysis worker once, in the request-serving process."""
+    global _lightshow_worker_started
+    if not _lightshow_worker_started:
+        _lightshow_worker_started = True
+        from utils import lightshow_worker
+        lightshow_worker.start_worker()
+
+
+@app.before_request
+def _ensure_lyrics_worker():
+    """Start the lyrics analysis worker once, in the request-serving process."""
+    global _lyrics_worker_started
+    if not _lyrics_worker_started:
+        _lyrics_worker_started = True
+        from utils import lyrics_worker
+        lyrics_worker.start_worker()
+
+
+@app.before_request
+def _ensure_ytdlp_updater():
+    """Keep yt-dlp current (YouTube breaks outdated versions every few weeks)."""
+    global _ytdlp_worker_started
+    if not _ytdlp_worker_started:
+        _ytdlp_worker_started = True
+        from utils import ytdlp_manager
+        ytdlp_manager.start_worker()
 
 
 @app.before_request

@@ -10,7 +10,10 @@ Pillow>=10.0.0
 librosa>=0.10.0
 ytmusicapi
 requests>=2.31.0
-yt-dlp
+# [default] pulls yt-dlp-ejs, the solver for YouTube's JS challenges
+# (needs a JS runtime: deno in Docker, or node/deno/bun on the host).
+# Kept current at runtime by utils/ytdlp_manager.py.
+yt-dlp[default]
 faster-whisper
 stable-ts
 
