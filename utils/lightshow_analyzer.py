@@ -23,6 +23,7 @@ import base64
 
 import numpy as np
 
+from utils import lightshow_accel
 from utils.audio_analyzer import _detect_key
 
 ANALYZER_VERSION = 2
@@ -506,7 +507,7 @@ def analyze_file(file_path, tags=None):
     S = np.abs(librosa.stft(y, n_fft=N_FFT, hop_length=HOP))
     n = S.shape[1]
     freqs = librosa.fft_frequencies(sr=SR, n_fft=N_FFT)
-    H, P = librosa.decompose.hpss(S, kernel_size=(17, 31))
+    H, P = lightshow_accel.hpss(S, kernel_size=(17, 31))  # GPU if usable, else threaded CPU
 
     # --- Band envelopes (what the rig "sees") ---
     env = {}

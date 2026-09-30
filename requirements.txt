@@ -26,3 +26,10 @@ stable-ts
 # Uncomment to install with requirements.txt:
 # kokoro>=0.9.4
 # kokoro-onnx>=0.3.9
+
+# --- Optional: GPU-accelerated light show analysis ---
+# Works on CPU without this. With an NVIDIA GPU, install a CUDA build of torch
+# and Rainy picks it up automatically (checked at startup; logs why if unusable).
+# Tesla V100 (sm_70): use a build that still ships Volta kernels, e.g.
+#   pip install torch --index-url https://download.pytorch.org/whl/cu126
+# torch
