@@ -10,3 +10,11 @@ __pycache__/
 venv/
 rainy-env/
 music/
+
+# Local-only data: never bake into an image
+certs/
+*.pem
+classifier/
+dj_audio/
+bin/
+.claude/
