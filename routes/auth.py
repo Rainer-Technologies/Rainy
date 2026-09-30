@@ -142,6 +142,19 @@ def get_current_user():
         }
     })
 
+@auth_bp.route('/media-token', methods=['GET'])
+def get_media_token():
+    """Issue a media-only token for clients that embed auth in stream/cover
+    URLs (mobile app, Android Auto, notification artwork). Use as ``?mt=``."""
+    user_id = validate_session()
+    if user_id is None:
+        return jsonify({'error': 'Authentication required'}), 401
+    return jsonify({
+        'token': media_token.issue(user_id),
+        'expires_in': media_token.MEDIA_TOKEN_TTL,
+    })
+
+
 @auth_bp.route('/change-password', methods=['POST'])
 def change_password():
     """Change user password."""

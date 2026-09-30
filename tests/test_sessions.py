@@ -57,3 +57,13 @@ def test_login_throttled_after_repeated_failures(app):
 def test_cross_origin_post_blocked(app, client):
     r = client.post('/api/auth/logout', headers={'Origin': 'https://evil.example'})
     assert r.status_code == 403
+
+
+def test_media_token_endpoint_issues_usable_token(app, client):
+    r = client.get('/api/auth/media-token')
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['token'] and body['expires_in'] > 0
+    anon = app.test_client()
+    assert anon.get('/api/auth/media-token').status_code == 401
+    assert anon.get(f"/api/music/stream/999999999?mt={body['token']}").status_code != 401

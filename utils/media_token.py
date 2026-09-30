@@ -7,9 +7,9 @@ token only opens audio/cover endpoints and expires on its own.
 from flask import current_app
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
-MEDIA_TOKEN_TTL = 6 * 3600
+MEDIA_TOKEN_TTL = 24 * 3600
 # Endpoints a media token may authenticate (Flask endpoint names).
-MEDIA_ENDPOINTS = {'music.stream_song', 'music.serve_cover'}
+MEDIA_ENDPOINTS = {'music.stream_song', 'music.serve_cover', 'music.discover_preview'}
 
 
 def _serializer():
