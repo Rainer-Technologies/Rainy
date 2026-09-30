@@ -159,7 +159,6 @@ All settings live in `.env` (see [.env.example](.env.example)).
 | `RAINY_YTDLP_AUTO_UPDATE` | `1` | Update yt-dlp on container start (`0` pins the image version) |
 | `LASTFM_API_KEY` | – | Optional Last.fm tags, similar artists and bios |
 | `YT_OAUTH_CLIENT_ID` / `YT_OAUTH_CLIENT_SECRET` | – | Optional YouTube OAuth |
-| `EXT_REPO_DIR` | – | Directory served as the external extensions repository |
 
 **Optional extras**
 - **GPU light show analysis:** install a CUDA build of `torch`. See [docs/GPU.md](docs/GPU.md).
@@ -192,7 +191,7 @@ The front end has no bundler or framework: UI is built from custom-element compo
 ```sh
 pip install pytest soundfile
 pytest                                   # backend tests
-node --test tests/js                     # front-end tests
+node --test "tests/js/*.test.mjs"        # front-end tests
 ```
 
 Some backend tests may need a reachable MySQL database, since the suite imports the full app. The light show analyser tests synthesise a known 72 s track and assert tempo, downbeats, drop and stop detection, so they need no fixtures.

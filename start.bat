@@ -50,24 +50,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: --- Optional: AI DJ voice (Kokoro TTS) ---
-:: The DJ works as text without this. Voice needs a local TTS engine.
-:: We do NOT auto-install kokoro here because it is heavy (~1GB model download)
-:: and optional. Just inform the user. Avoid IF (...) blocks with redirections
-:: and dot-paths (cmd parser bug).
-set "TTS_FOUND=0"
-"%VENV_PY%" -m pip show kokoro >nul 2>nul
-if not errorlevel 1 set "TTS_FOUND=1"
-"%VENV_PY%" -m pip show kokoro-onnx >nul 2>nul
-if not errorlevel 1 set "TTS_FOUND=1"
-"%VENV_PY%" -m pip show kokoro-tts >nul 2>nul
-if not errorlevel 1 set "TTS_FOUND=1"
-if "%TTS_FOUND%"=="0" echo [INFO] TTS voice not installed -- DJ will be text-only (no audio).
-if "%TTS_FOUND%"=="0" echo        To enable voice: "%VENV_PY%" -m pip install kokoro
-if "%TTS_FOUND%"=="0" echo        (or: "%VENV_PY%" -m pip install kokoro-onnx for lighter ONNX version)
-if "%TTS_FOUND%"=="1" echo [INFO] TTS voice engine found.
-echo.
-
 :: Check for .env file, copy from .env.example if missing
 if exist "%ROOT%.env" goto :have_env
 if not exist "%ROOT%.env.example" (

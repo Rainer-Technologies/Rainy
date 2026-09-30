@@ -17,16 +17,6 @@ yt-dlp[default]
 faster-whisper
 stable-ts
 
-# --- Optional: AI DJ voice (Kokoro TTS) ---
-# DJ lines work as text without this; voice needs a local TTS engine.
-# On desktop (Windows/macOS/Linux) install one of:
-#   pip install kokoro           # best quality, needs espeak-ng + torch (already in requirements)
-#   pip install kokoro-onnx      # lighter ONNX variant, no espeak needed
-# Hermes docker uses /opt/data/whisper-env + /opt/data/.tts — no pip needed there.
-# Uncomment to install with requirements.txt:
-# kokoro>=0.9.4
-# kokoro-onnx>=0.3.9
-
 # --- Optional: GPU-accelerated light show analysis ---
 # Works on CPU without this. With an NVIDIA GPU, install a CUDA build of torch
 # and Rainy picks it up automatically (checked at startup; logs why if unusable).
