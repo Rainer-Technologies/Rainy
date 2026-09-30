@@ -1,6 +1,9 @@
 from functools import wraps
 
-from flask import Blueprint, jsonify, request, session
+import mysql.connector
+from flask import Blueprint, jsonify, request, session, current_app
+from models.audit import AuditModel
+from models.session import SessionModel
 from models.user import UserModel
 
 users_bp = Blueprint('users', __name__)
@@ -51,7 +54,11 @@ def list_users():
 def create_user():
     """Create a new user account."""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
+        if not all(isinstance(data.get(k) or '', str) for k in ('username', 'email', 'password', 'role')):
+            return jsonify({'error': 'Invalid request body'}), 400
 
         username = (data.get('username') or '').strip()
         email = (data.get('email') or '').strip().lower()
@@ -64,8 +71,12 @@ def create_user():
         if not username or not email or not password:
             return jsonify({'error': 'Username, email and password are required'}), 400
 
-        if len(password) < 6:
-            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        pw_error = UserModel.validate_password(password)
+        if pw_error:
+            return jsonify({'error': pw_error}), 400
+
+        if len(username) > 100 or len(email) > 255 or '@' not in email:
+            return jsonify({'error': 'Invalid username or email'}), 400
 
         if role not in VALID_ROLES:
             return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_ROLES)}'}), 400
@@ -73,16 +84,21 @@ def create_user():
         if UserModel.get_user_by_email(email):
             return jsonify({'error': 'A user with this email already exists'}), 409
 
-        user_id = UserModel.create_user(
-            username, email, password, role=role, full_library=full_library)
+        try:
+            user_id = UserModel.create_user(
+                username, email, password, role=role, full_library=full_library)
+        except mysql.connector.IntegrityError:
+            # Unique constraint on username (or a racing duplicate email).
+            return jsonify({'error': 'Username or email is already taken'}), 409
         if not user_id:
             return jsonify({'error': 'Username is already taken'}), 409
 
         user = UserModel.get_user_by_id(user_id)
         return jsonify({'success': True, 'user': serialize_user(user)}), 201
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        current_app.logger.exception('Create user failed')
+        return jsonify({'error': 'Could not create user'}), 500
 
 
 @users_bp.route('/<int:user_id>/role', methods=['POST'])
@@ -104,6 +120,9 @@ def update_user_role(user_id):
             return jsonify({'error': 'Cannot demote the last administrator'}), 400
 
         UserModel.update_role(user_id, role)
+        AuditModel.record('role_changed', user_id=session.get('user_id'),
+                          target_user_id=user_id, ip=request.remote_addr,
+                          detail=f"{target['role']} -> {role}")
         user = UserModel.get_user_by_id(user_id)
         return jsonify({'success': True, 'user': serialize_user(user)})
 
@@ -116,17 +135,23 @@ def update_user_role(user_id):
 def reset_user_password(user_id):
     """Set a new password for a user."""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
         password = data.get('password') or ''
 
-        if len(password) < 6:
-            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        pw_error = UserModel.validate_password(password)
+        if pw_error:
+            return jsonify({'error': pw_error}), 400
 
         target = UserModel.get_user_by_id(user_id)
         if not target:
             return jsonify({'error': 'User not found'}), 404
 
         UserModel.update_password(user_id, password)
+        SessionModel.revoke_all_for_user(user_id)
+        AuditModel.record('password_reset_by_admin', user_id=session.get('user_id'),
+                          target_user_id=user_id, ip=request.remote_addr)
         return jsonify({'success': True, 'message': 'Password updated successfully'})
 
     except Exception as e:
@@ -175,6 +200,9 @@ def delete_user(user_id):
             "DELETE FROM playlists WHERE owner_user_id = %s", (user_id,))
 
         UserModel.delete_user(user_id)
+        AuditModel.record('user_deleted', user_id=session.get('user_id'),
+                          target_user_id=user_id, ip=request.remote_addr,
+                          detail=target['username'])
         return jsonify({'success': True, 'message': 'User deleted successfully'})
 
     except Exception as e:

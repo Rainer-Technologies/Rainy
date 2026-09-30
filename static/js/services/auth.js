@@ -35,9 +35,13 @@ export class AuthService extends Service {
 
     /** @returns {Promise<Result<boolean, never>>} */
     async logout() {
-        await this.wrap(
+        const result = await this.wrap(
             RequestHelper.request(this.url('/logout'), { method: 'POST' })
         );
+
+        // A 4xx means the session was already gone (fine). Network/5xx
+        // failures mean the server session may still be alive: report them.
+        if (result.error instanceof ResponseError) return result;
 
         return Ok(true);
     }

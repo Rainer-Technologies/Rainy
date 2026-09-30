@@ -121,13 +121,13 @@ class FriendshipModel:
 
     @staticmethod
     def accept(request_id, user_id):
-        """Accept a pending request (incoming or outgoing — either party
-        of a pending pair may accept). Returns True on success."""
+        """Accept a pending request. Only the recipient (friend_id) may
+        accept; the sender cannot consent on the target's behalf.
+        Returns True on success."""
         result = Database.execute_query(
             "UPDATE friendships SET status = 'accepted', responded_at = NOW() "
-            "WHERE id = %s AND status = 'pending' "
-            "AND (user_id = %s OR friend_id = %s)",
-            (request_id, user_id, user_id))
+            "WHERE id = %s AND status = 'pending' AND friend_id = %s",
+            (request_id, user_id))
         return bool(result)
 
     @staticmethod

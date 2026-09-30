@@ -43,9 +43,9 @@ def share_setup():
 @pytest.fixture
 def client_as(app):
     def _make(user_id):
+        from conftest import sign_in
         c = app.test_client()
-        with c.session_transaction() as sess:
-            sess['user_id'] = user_id
+        sign_in(c, user_id)
         return c
     return _make
 

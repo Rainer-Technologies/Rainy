@@ -23,22 +23,27 @@ def complete_setup():
         if not UserModel.is_first_run():
             return jsonify({'error': 'Setup already completed'}), 400
         
-        data = request.get_json()
-        
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
+
         # Validate required fields
         required_fields = ['username', 'email', 'password', 'music_path']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
-        
+            if not isinstance(data[field], str):
+                return jsonify({'error': f'Invalid field: {field}'}), 400
+
         username = data['username'].strip()
         email = data['email'].strip().lower()
         password = data['password']
         music_path = data['music_path'].strip()
         
         # Validate password length
-        if len(password) < 6:
-            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        pw_error = UserModel.validate_password(password)
+        if pw_error:
+            return jsonify({'error': pw_error}), 400
         
         # Validate music path exists
         import os
@@ -53,7 +58,8 @@ def complete_setup():
         SettingsModel.set_music_path(music_path)
         
         # Log the user in
-        session['user_id'] = user_id
+        from routes.auth import start_session
+        start_session(user_id)
         
         return jsonify({
             'success': True,
@@ -65,6 +71,8 @@ def complete_setup():
                 'role': 'sysadmin'
             }
         })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+    except Exception:
+        from flask import current_app
+        current_app.logger.exception('Setup failed')
+        return jsonify({'error': 'Setup failed'}), 500

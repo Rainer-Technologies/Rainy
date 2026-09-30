@@ -257,6 +257,45 @@ class Database:
             )
         """)
 
+        # ── Sessions ─────────────────────────────────────────────────
+        # Server-side record of every login. The browser cookie carries a
+        # random token (only its SHA-256 is stored), so a session can be
+        # revoked (logout, password change, "log out everywhere").
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                user_agent VARCHAR(255) NULL,
+                ip VARCHAR(45) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                revoked_at TIMESTAMP NULL,
+                INDEX idx_sessions_user (user_id),
+                INDEX idx_sessions_expires (expires_at),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # ── Audit log ────────────────────────────────────────────────
+        # Security-relevant events (logins, failures, role/password changes).
+        # user_id is not a FK so the trail survives account deletion.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                event VARCHAR(64) NOT NULL,
+                user_id INT NULL,
+                target_user_id INT NULL,
+                ip VARCHAR(45) NULL,
+                detail VARCHAR(500) NULL,
+                INDEX idx_audit_created (created_at),
+                INDEX idx_audit_user (user_id),
+                INDEX idx_audit_event (event, created_at)
+            )
+        """)
+
         # ── Playlist sharing ─────────────────────────────────────────
         # A playlist can be shared with friends. role is the collaborator
         # tier: 'admin' (edit songs: add/remove/reorder/rename) or

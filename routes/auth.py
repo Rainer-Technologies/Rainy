@@ -1,30 +1,96 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, current_app, g
+from models.audit import AuditModel
+from models.session import SessionModel
 from models.user import UserModel
+from utils import media_token, ratelimit
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+# Failed-login throttling (per worker process; see utils/ratelimit.py).
+LOGIN_WINDOW = 15 * 60
+LOGIN_EMAIL_LIMIT = 8
+LOGIN_IP_LIMIT = 50
+
+
+def client_ip():
+    return request.remote_addr or ''
+
+
+def session_lifetime_seconds():
+    return int(current_app.config['PERMANENT_SESSION_LIFETIME'].total_seconds())
+
+
+def start_session(user_id):
+    """Begin a fresh server-side session for user_id (rotates any old one)."""
+    old = session.get('sid')
+    if old:
+        SessionModel.revoke(old)
+    session.clear()
+    token = SessionModel.create(
+        user_id, session_lifetime_seconds(),
+        user_agent=request.headers.get('User-Agent'), ip=client_ip())
+    # Permanent so the cookie survives browser/app restarts (matches the
+    # SESSION_LIFETIME_DAYS config in app.py).
+    session.permanent = True
+    session['user_id'] = user_id
+    session['sid'] = token
+
+
+def validate_session():
+    """Drop the cookie session if its server-side record is gone/revoked/expired.
+
+    Returns the user_id of a live session, else None.
+    """
+    user_id = session.get('user_id')
+    if user_id is None:
+        return None
+    if SessionModel.validate(session.get('sid'), session_lifetime_seconds()) == user_id:
+        return user_id
+    session.clear()
+    return None
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """Authenticate user and create session."""
     try:
-        data = request.get_json()
-        
-        email = data.get('email', '').strip().lower()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
+
+        email = data.get('email', '')
         password = data.get('password', '')
-        
+        if not isinstance(email, str) or not isinstance(password, str):
+            return jsonify({'error': 'Invalid request body'}), 400
+        email = email.strip().lower()
+
         if not email or not password:
             return jsonify({'error': 'Email and password are required'}), 400
-        
-        user = UserModel.verify_password(email, password)
-        
-        if not user:
+        if len(email) > 255 or len(password.encode('utf-8')) > 1024:
             return jsonify({'error': 'Invalid email or password'}), 401
-        
-        # Create session — permanent so the cookie survives browser/app
-        # restarts (matches the SESSION_LIFETIME_DAYS config in app.py).
-        session.permanent = True
-        session['user_id'] = user['id']
-        
+
+        ip = client_ip()
+        email_key = f'login:email:{email}'
+        ip_key = f'login:ip:{ip}'
+        if (ratelimit.peek_blocked(email_key, LOGIN_EMAIL_LIMIT, LOGIN_WINDOW)
+                or ratelimit.peek_blocked(ip_key, LOGIN_IP_LIMIT, LOGIN_WINDOW)):
+            AuditModel.record('login_throttled', ip=ip, detail=email[:200])
+            resp = jsonify({'error': 'Too many failed attempts. Try again later.'})
+            resp.headers['Retry-After'] = str(LOGIN_WINDOW)
+            return resp, 429
+
+        user = UserModel.verify_password(email, password)
+
+        if not user:
+            # Only failures count toward the limits.
+            ratelimit.check(email_key, LOGIN_EMAIL_LIMIT, LOGIN_WINDOW)
+            ratelimit.check(ip_key, LOGIN_IP_LIMIT, LOGIN_WINDOW)
+            AuditModel.record('login_failed', ip=ip, detail=email[:200])
+            return jsonify({'error': 'Invalid email or password'}), 401
+
+        ratelimit.reset(email_key)
+        start_session(user['id'])
+        AuditModel.record('login', user_id=user['id'], ip=ip)
+
         return jsonify({
             'success': True,
             'user': {
@@ -35,20 +101,25 @@ def login():
                 'full_library': bool(user.get('full_library'))
             }
         })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+    except Exception:
+        current_app.logger.exception('Login failed')
+        return jsonify({'error': 'Login failed'}), 500
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
-    """Clear user session."""
+    """Revoke and clear the user session."""
+    user_id = session.get('user_id')
+    SessionModel.revoke(session.get('sid'))
+    if user_id:
+        AuditModel.record('logout', user_id=user_id, ip=client_ip())
     session.clear()
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
 @auth_bp.route('/me', methods=['GET'])
 def get_current_user():
     """Get currently authenticated user."""
-    user_id = session.get('user_id')
+    user_id = validate_session()
     
     if not user_id:
         return jsonify({'authenticated': False}), 401
@@ -74,17 +145,30 @@ def get_current_user():
 @auth_bp.route('/change-password', methods=['POST'])
 def change_password():
     """Change user password."""
-    if 'user_id' not in session:
+    if validate_session() is None:
         return jsonify({'error': 'Authentication required'}), 401
-    
+
+    allowed, retry = ratelimit.check(f'pwchange:{session["user_id"]}', 5, 15 * 60)
+    if not allowed:
+        resp = jsonify({'error': 'Too many attempts. Try again later.'})
+        resp.headers['Retry-After'] = str(retry)
+        return resp, 429
+
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
         current_password = data.get('current_password', '')
         new_password = data.get('new_password', '')
-        
+
         if not current_password or not new_password:
             return jsonify({'error': 'Current and new password are required'}), 400
-            
+        if not isinstance(current_password, str):
+            return jsonify({'error': 'Invalid request body'}), 400
+        pw_error = UserModel.validate_password(new_password)
+        if pw_error:
+            return jsonify({'error': pw_error}), 400
+
         user_id = session['user_id']
         user = UserModel.get_user_by_id(user_id)
         
@@ -98,22 +182,28 @@ def change_password():
             
         # Update password
         UserModel.update_password(user_id, new_password)
-        
+        # Sign out every other device; keep this one.
+        SessionModel.revoke_all_for_user(user_id, except_token=session.get('sid'))
+        AuditModel.record('password_changed', user_id=user_id, ip=client_ip())
+
         return jsonify({'success': True, 'message': 'Password updated successfully'})
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+    except Exception:
+        current_app.logger.exception('Password change failed')
+        return jsonify({'error': 'Could not update password'}), 500
 
 @auth_bp.route('/preferences', methods=['POST'])
 def update_preferences():
     """Update user preferences."""
-    if 'user_id' not in session:
+    if validate_session() is None:
         return jsonify({'error': 'Authentication required'}), 401
         
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
         preferences = data.get('preferences')
-        
+
         # preferences should be a JSON string or dict? 
         # The DB column is TEXT. If frontend sends a dict, we should probably json.dumps it if we want to store as string, 
         # or rely on the DB driver.
@@ -126,42 +216,27 @@ def update_preferences():
         UserModel.update_preferences(user_id, preferences)
         
         return jsonify({'success': True, 'message': 'Preferences updated'})
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+    except Exception:
+        current_app.logger.exception('Preferences update failed')
+        return jsonify({'error': 'Could not update preferences'}), 500
 
 def get_current_user_id():
-    """Helper to get current user ID from session or request parameters/headers."""
-    if 'user_id' in session:
-        return session['user_id']
-    
-    # Check if session cookie string or session token was passed as query param or header
-    sess_token = request.args.get('session') or request.headers.get('X-Session-Token')
-    if not sess_token:
-        # Check raw Cookie header if session wasn't auto-loaded by Flask
-        cookie_header = request.headers.get('Cookie')
-        if cookie_header:
-            import re
-            m = re.search(r'session=([^;,]+)', cookie_header)
-            if m:
-                sess_token = m.group(1)
+    """Authenticated user id for this request, or None.
 
-    if sess_token:
-        try:
-            if 'session=' in sess_token:
-                import re
-                m = re.search(r'session=([^;,]+)', sess_token)
-                if m:
-                    sess_token = m.group(1)
-            from flask import current_app
-            from flask.sessions import SecureCookieSessionInterface
-            serializer = SecureCookieSessionInterface().get_signing_serializer(current_app)
-            session_data = serializer.loads(sess_token)
-            if session_data and 'user_id' in session_data:
-                session['user_id'] = session_data['user_id']
-                return session_data['user_id']
-        except Exception as e:
-            print("Session token parse error:", e)
+    Cookie sessions are checked against the server-side session table.
+    Media endpoints (stream/cover) additionally accept a short-lived signed
+    ``?mt=`` token for devices that can't send cookies (Chromecast).
+    """
+    user_id = validate_session()
+    if user_id is not None:
+        return user_id
+
+    if request.endpoint in media_token.MEDIA_ENDPOINTS:
+        token_user = media_token.verify(request.args.get('mt'))
+        if token_user is not None:
+            g.media_token_user = token_user
+            return token_user
     return None
 
 
@@ -172,6 +247,10 @@ def require_auth(f):
     def decorated(*args, **kwargs):
         user_id = get_current_user_id()
         if user_id is None:
+            return jsonify({'error': 'Authentication required'}), 401
+        # A deleted account's still-signed cookie must stop working.
+        if not UserModel.get_user_by_id(user_id):
+            session.clear()
             return jsonify({'error': 'Authentication required'}), 401
         return f(*args, **kwargs)
     return decorated

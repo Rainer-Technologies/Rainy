@@ -89,15 +89,19 @@ def send_request():
 @friends_bp.route('/requests/<int:request_id>/accept', methods=['POST'])
 @require_auth
 def accept_request(request_id):
-    """Accept a pending friend request (any pending pair involving us)."""
+    """Accept a pending friend request addressed to us."""
     try:
         user_id = session['user_id']
         row = FriendshipModel.find_request(request_id, user_id)
-        if not row:
+        if not row or row['status'] != 'pending':
             return jsonify({'error': 'Request not found'}), 404
+        if row['friend_id'] != user_id:
+            return jsonify({'error': 'Only the recipient can accept a request'}), 403
+        # The UPDATE is itself restricted to pending rows addressed to us;
+        # execute_query returns lastrowid (0 for UPDATE) so don't test it.
         FriendshipModel.accept(request_id, user_id)
 
-        target_id = row['user_id'] if row['friend_id'] == user_id else row['friend_id']
+        target_id = row['user_id']
         from models.user import UserModel
         target = UserModel.get_user_by_id(target_id)
         return jsonify({

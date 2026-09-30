@@ -24,9 +24,9 @@ def friend_users():
 def client_as(app):
     """Authenticated test client as a given user id."""
     def _make(user_id):
+        from conftest import sign_in
         c = app.test_client()
-        with c.session_transaction() as sess:
-            sess['user_id'] = user_id
+        sign_in(c, user_id)
         return c
     return _make
 
@@ -127,3 +127,17 @@ def test_friend_request_validation(app, client_as, friend_users):
 
     # Unauthenticated
     assert app.test_client().get('/api/friends').status_code == 401
+
+def test_sender_cannot_accept_own_request(app, client_as, friend_users):
+    from models.friendship import FriendshipModel
+    user_a, user_b = friend_users
+    a, b = client_as(user_a), client_as(user_b)
+    identifier = b.get('/api/auth/me').get_json()['user']['email']
+    assert a.post('/api/friends/requests', json={'email': identifier}).status_code == 200
+    req_id = a.get('/api/friends/requests').get_json()['outgoing'][0]['id']
+
+    assert a.post(f'/api/friends/requests/{req_id}/accept').status_code == 403
+    assert not FriendshipModel.are_friends(user_a, user_b)
+
+    assert b.post(f'/api/friends/requests/{req_id}/accept').status_code == 200
+    assert FriendshipModel.are_friends(user_a, user_b)

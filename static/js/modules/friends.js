@@ -19,7 +19,16 @@ export class FriendsModule {
         this._bindStatic();
         this.refreshBadges();
         // Keep the badge fresh while the app is open.
-        this._badgeTimer = setInterval(() => this.refreshBadges(), 60000);
+        this._badgeTimer = setInterval(() => {
+            // Skip while signed out (login screen) — it would only 401.
+            if (this.app?.user) this.refreshBadges();
+        }, 60000);
+    }
+
+    /** Stop background polling (called on logout / session expiry). */
+    stop() {
+        clearInterval(this._badgeTimer);
+        this._badgeTimer = null;
     }
 
     // ── Static bindings (page-level elements) ──────────────────────
