@@ -17,3 +17,9 @@ certs/
 classifier/
 dj_audio/
 bin/fpcalc
+
+# Local tooling
+.venv/
+venv/
+.pytest_cache/
+.claude/

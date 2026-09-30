@@ -3,19 +3,26 @@
 Classifies every song's audio and writes:
   - songs.genre        -> top-level genre (replacing junk ID3 placeholders)
   - song_tags          -> top-3 Discogs labels, source='discogs-effnet'
+
+Database credentials come from .env via config.py, like the app itself.
+
+Usage:
+    .venv/bin/python scripts/classify_genres.py
 """
 import os
 import sys
 import time
 
-sys.path.insert(0, '/opt/data/Rainy')
-os.environ['MYSQL_PASSWORD'] = os.popen(
-    "grep '^MYSQL_PASSWORD=' /opt/data/Rainy/.env | cut -d= -f2-"
-).read().strip()
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.database import Database  # noqa: E402
+from models.settings import SettingsModel  # noqa: E402
 from models.song_metadata import SongMetadataModel, SongTagsModel  # noqa: E402
 from utils.genre_classifier import classify_file, top_level_genre  # noqa: E402
+
+music = SettingsModel.get_music_path()
+if not music:
+    sys.exit("No music library path configured; complete the initial setup first.")
 
 songs = Database.execute_query(
     "SELECT id, title, artist, file_path FROM songs ORDER BY id ASC",
@@ -26,7 +33,7 @@ done = ok = failed = skipped = 0
 t0 = time.time()
 
 for song in songs:
-    full = os.path.join('/opt/data/music', song['file_path'])
+    full = os.path.join(music, song['file_path'])
     label = f"[{done+1}/{total}] {song['title']}"
     if not os.path.isfile(full):
         print(f"{label}: FILE MISSING, skipped")

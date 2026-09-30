@@ -815,7 +815,8 @@ export class AddMusicModal extends Component {
                             h.span('Creates a new playlist with all songs from the YouTube Music playlist')
                         )
                     )
-                )
+                ),
+                this._rightsNotice()
             ),
             h.div(a.slot('body'), a.class('add-music-content', spotifyActive), a.dataMethod('spotify'), a.id('spotify-content'),
                 h.div(a.class('youtube-tabs'),
@@ -897,7 +898,17 @@ export class AddMusicModal extends Component {
                             h.span('Creates a new playlist with all songs from the Spotify playlist')
                         )
                     )
-                )
+                ),
+                this._rightsNotice()
+            )
+        );
+    }
+
+    _rightsNotice() {
+        return h.div(a.class('import-rights-notice'),
+            h.div(a.class('tip-item'),
+                I.Info(),
+                h.span('Only import music you own or have permission to download. You are responsible for complying with copyright law and the source platform’s terms.')
             )
         );
     }

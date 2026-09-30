@@ -14,7 +14,6 @@ from routes.playback import playback_bp
 from routes.albums import albums_bp
 from routes.smartmix import smartmix_bp
 from routes.connect import connect_bp
-from routes.ext_repo import ext_repo_bp
 from routes.server import server_bp
 from routes.playlist_syncs import playlist_syncs_bp
 
@@ -85,7 +84,6 @@ app.register_blueprint(playback_bp, url_prefix='/api/playback')
 app.register_blueprint(albums_bp, url_prefix='/api/albums')
 app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
-app.register_blueprint(ext_repo_bp, url_prefix='/ext-repo')
 app.register_blueprint(server_bp)
 app.register_blueprint(playlist_syncs_bp)
 
