@@ -1704,6 +1704,15 @@ rainy-song-settings-modal .ss-cover svg {
     flex-shrink: 0;
 }
 
+/* Copyright notice under YouTube / Spotify import */
+.import-rights-notice {
+    margin-top: var(--spacing-sm);
+}
+
+.import-rights-notice .tip-item {
+    align-items: flex-start;
+}
+
 /* YouTube Tabs */
 .youtube-tabs {
     display: flex;

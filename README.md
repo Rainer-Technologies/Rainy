@@ -14,9 +14,10 @@ Your library, your playlists, your friends, every device — no subscription, no
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white">
   <img alt="PWA" src="https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white">
   <img alt="CUDA" src="https://img.shields.io/badge/CUDA-optional-76B900?logo=nvidia&logoColor=white">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green"></a>
 </p>
 
-[Quick start](#-quick-start) · [Features](#-features) · [Light show](#-the-light-show) · [Configuration](#-configuration) · [GPU](docs/GPU.md) · [Development](#-development)
+[Quick start](#-quick-start) · [Features](#-features) · [Light show](#-the-light-show) · [Configuration](#-configuration) · [GPU](docs/GPU.md) · [Development](#-development) · [License](#-license-and-disclaimer)
 
 </div>
 
@@ -63,6 +64,8 @@ Rainy scans the music you already own, lets you add more from YouTube and Spotif
 - **Playlist syncs** that keep a local playlist in step with a remote one (every 24 h by default, configurable per sync)
 - A background job queue with live progress, per-user scoping and cancellation
 - **yt-dlp manager** that auto-updates and solves YouTube's JS challenges so downloads keep working
+
+> Only import music you own or have permission to download. See the [disclaimer](#-license-and-disclaimer).
 
 ### Social and multi-device
 - **Friends**, playlist sharing with **admin / viewer** collaborator roles, and invites
@@ -221,3 +224,11 @@ docs/             extra documentation
 ## 🙏 Built with
 
 [Flask](https://flask.palletsprojects.com/) · [MySQL](https://www.mysql.com/) · [librosa](https://librosa.org/) · [PyTorch](https://pytorch.org/) (optional) · [faster-whisper](https://github.com/SYSTRAN/faster-whisper) · [stable-ts](https://github.com/jianfch/stable-ts) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) · [ONNX Runtime](https://onnxruntime.ai/) with [Discogs-EffNet](https://essentia.upf.edu/models.html) · [Chromaprint](https://acoustid.org/chromaprint) · [MusicBrainz](https://musicbrainz.org/) · [Last.fm](https://www.last.fm/api)
+
+## 📜 License and disclaimer
+
+Rainy is released under the [MIT License](LICENSE). Some dependencies and optional models use other licenses, including GPL, AGPL and a non-commercial model license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Rainy is a tool for managing and playing music you have the right to use. The YouTube and Spotify import features are provided for content you own, content in the public domain, or content whose rights holder allows downloading. You are solely responsible for complying with copyright law in your country and with the terms of service of any platform you use. Downloading copyrighted material without permission may be illegal where you live and may break the platform's terms.
+
+Rainy is not affiliated with, endorsed by or sponsored by YouTube, Google, Spotify, Last.fm or MusicBrainz. All trademarks belong to their respective owners. The authors do not host, store or distribute any media, and accept no liability for how the software is used.
