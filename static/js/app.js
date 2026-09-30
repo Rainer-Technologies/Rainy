@@ -76,6 +76,8 @@ export class RainyApp {
 
         useContext().set('app', this);
 
+        window.addEventListener('rainy:unauthorized', () => this.handleSessionExpired());
+
         Router.register('login', LoginView.handle);
         Router.register('app', AppView.handle);
         Router.register('setup', SetupView.handle);
@@ -2223,14 +2225,33 @@ export class RainyApp {
                 : `Showing ${this.filteredSongs.length} of ${this.songs.length} songs`;
     }
 
-    async handleLogout() {
-        // FIXME: Handle error
-        await useAuthService().logout();
-
+    /** Stop playback and background polling tied to the current session. */
+    teardownSession() {
+        window.player?.shutdownSession();
+        window.friendsModule?.stop();
         this.user = null;
         this.songs = [];
         this.filteredSongs = [];
+    }
 
+    async handleLogout() {
+        const result = await useAuthService().logout();
+        if (result?.error) {
+            // The server-side session may still be alive; tell the user
+            // rather than pretending they are signed out.
+            this.showToast('Could not log out. Please try again.', 'error');
+            return;
+        }
+
+        this.teardownSession();
+        Router.navigate(new View('login'), this);
+    }
+
+    /** A request came back 401 while signed in: the session expired. */
+    handleSessionExpired() {
+        if (!this.user) return;
+        this.teardownSession();
+        this.showToast('Your session expired. Please sign in again.', 'error');
         Router.navigate(new View('login'), this);
     }
 

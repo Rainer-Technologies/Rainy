@@ -25,6 +25,11 @@ export class Service {
         if(response.error) {
             const status = response.error.response?.status ?? -1;
             const isClientError = RequestHelper.isClientError(status);
+            if(status === 401) {
+                // Session expired/revoked mid-use; the app tears down and
+                // shows the login screen (ignored while signed out).
+                window.dispatchEvent(new CustomEvent('rainy:unauthorized'));
+            }
             if(isClientError) {
                 // Server JSON error body wins; never throw on a malformed
                 // body — a silent rejection is worse than a generic message.
@@ -39,7 +44,11 @@ export class Service {
             return response;
         }
 
-        const data = await response.value.json();
-        return Ok(data);
+        try {
+            const data = await response.value.json();
+            return Ok(data);
+        } catch (_) {
+            return Err(new ResponseError(response.value, 'Invalid response from server'));
+        }
     }
 }

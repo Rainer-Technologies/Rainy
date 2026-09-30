@@ -3989,6 +3989,25 @@ export class AudioPlayer {
         this._connectFlashTimeout = setTimeout(() => btn.classList.remove('remote-active'), 1500);
     }
 
+    /**
+     * Stop everything tied to the signed-in session: Connect timers, audio,
+     * and locally persisted playback state (which isn't scoped per user).
+     */
+    shutdownSession() {
+        this._connectDeregister();
+        clearInterval(this._connectHeartbeatTimer);
+        clearInterval(this._connectPollTimer);
+        this._connectHeartbeatTimer = null;
+        this._connectPollTimer = null;
+        try {
+            this.audio.pause();
+            this.audio.removeAttribute('src');
+            this.audio.load();
+            this.updatePlayButton();
+        } catch (_) { /* best effort */ }
+        try { this.clearPlaybackState(); } catch (_) { /* best effort */ }
+    }
+
     /** Fire-and-forget deregister so we vanish from other devices on unload. */
     _connectDeregister() {
         if (!this._connectDeviceId) return;

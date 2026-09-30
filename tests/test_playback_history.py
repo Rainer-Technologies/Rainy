@@ -29,7 +29,13 @@ class FakeDB:
 @pytest.fixture
 def db(monkeypatch):
     fake = FakeDB()
-    monkeypatch.setattr('models.playback_history.Database.execute_query', fake)
+
+    # Patch only the playback model's Database reference: patching the shared
+    # class would also hijack session validation queries made by the auth layer.
+    class _FakeDatabase:
+        execute_query = staticmethod(fake)
+
+    monkeypatch.setattr('models.playback_history.Database', _FakeDatabase)
     return fake
 
 

@@ -17,6 +17,9 @@ export class ResponseError extends Error {
         super(message);
 
         this.response = response;
+        // Same `{ error: string }` shape the server's JSON error bodies use,
+        // so callers can read `.error` uniformly for 4xx/5xx/network failures.
+        this.error = message;
     };
 };
 

@@ -19,7 +19,10 @@ class Config:
     MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
     MYSQL_DATABASE = os.getenv('MYSQL_DATABASE', 'rainy')
     
-    FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+    FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', '')
+    # Set RAINY_DEV=1 to allow an auto-generated, per-process secret for local
+    # development (sessions then reset on every restart).
+    DEV_MODE = os.getenv('RAINY_DEV', '').lower() in ('1', 'true', 'yes')
 
     # Server listener port.
     HTTP_PORT = int(os.getenv('RAINY_HTTP_PORT', 6969))

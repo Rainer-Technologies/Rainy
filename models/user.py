@@ -1,6 +1,12 @@
 import bcrypt
 from .database import Database
 
+# bcrypt only uses the first 72 bytes (and bcrypt>=5 raises beyond that).
+MAX_PASSWORD_BYTES = 72
+# Applies to new/changed passwords only; existing accounts keep logging in.
+MIN_PASSWORD_LENGTH = 8
+_DUMMY_HASH = bcrypt.hashpw(b'rainy-dummy', bcrypt.gensalt())
+
 class UserModel:
     @staticmethod
     def create_user(username, email, password, role='user', full_library=0):
@@ -44,10 +50,28 @@ class UserModel:
         """Verify user password."""
         user = UserModel.get_user_by_email(email)
         if not user:
+            # Burn the same bcrypt time so unknown emails aren't distinguishable
+            # from wrong passwords by response time.
+            bcrypt.checkpw(b'x', _DUMMY_HASH)
             return None
-        
-        if bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+
+        try:
+            ok = bcrypt.checkpw(password.encode('utf-8')[:72], user['password_hash'].encode('utf-8'))
+        except ValueError:
+            ok = False
+        if ok:
             return user
+        return None
+
+    @staticmethod
+    def validate_password(password):
+        """Return an error message if the password is unacceptable, else None."""
+        if not isinstance(password, str):
+            return 'Password must be a string'
+        if len(password) < MIN_PASSWORD_LENGTH:
+            return f'Password must be at least {MIN_PASSWORD_LENGTH} characters'
+        if len(password.encode('utf-8')) > MAX_PASSWORD_BYTES:
+            return f'Password must be at most {MAX_PASSWORD_BYTES} bytes'
         return None
     
     @staticmethod

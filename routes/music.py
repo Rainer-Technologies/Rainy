@@ -134,7 +134,7 @@ def rescan_library():
 
 
 @music_bp.route('/scan/full', methods=['POST'])
-@require_auth
+@require_sysadmin
 def full_rescan_library():
     """Full rescan - clear database and rescan everything."""
     try:
@@ -382,18 +382,20 @@ def _cast_base_url():
     return f'http://{host}:{Config.HTTP_PORT}/'
 
 
-def _cast_session_token():
-    """Raw session cookie value, embeddable as a ?session= token for devices
-    (e.g. Chromecast) that fetch media directly and can't send our cookies."""
-    return request.cookies.get('session') or ''
+def _cast_media_token():
+    """Short-lived, media-only token embeddable in URLs for devices (e.g.
+    Chromecast) that fetch media directly and can't send our cookies. Unlike
+    the session cookie it only opens stream/cover and expires on its own."""
+    from utils import media_token
+    return media_token.issue(get_current_user_id())
 
 
 def _cast_urls_for_song(song):
     """Build absolute, token-authenticated stream/cover URLs for a song row."""
     from urllib.parse import quote
     base = _cast_base_url()
-    token = _cast_session_token()
-    query = f'?session={quote(token)}' if token else ''
+    token = _cast_media_token()
+    query = f'?mt={quote(token)}' if token else ''
     result = {
         'id': song['id'],
         'url': f"{base}api/music/stream/{song['id']}{query}",
@@ -2822,7 +2824,7 @@ def get_duplicates():
 
 
 @music_bp.route('/duplicates/merge', methods=['POST'])
-@require_auth
+@require_sysadmin
 def merge_duplicates():
     """Merge a group of duplicate songs into one keeper.
 
@@ -2842,7 +2844,7 @@ def merge_duplicates():
 
 
 @music_bp.route('/artists/fix', methods=['POST'])
-@require_auth
+@require_sysadmin
 def fix_artist_metadata():
     """Fix duplicate artist names in existing songs (e.g. 'A, A, A' -> 'A')."""
     try:
@@ -2854,7 +2856,7 @@ def fix_artist_metadata():
 
 
 @music_bp.route('/duplicates/merge-all', methods=['POST'])
-@require_auth
+@require_sysadmin
 def merge_all_duplicates():
     """Auto-merge every duplicate group, keeping the best candidate in each."""
     try:

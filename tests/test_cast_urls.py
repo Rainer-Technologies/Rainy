@@ -41,10 +41,11 @@ def test_cast_url_builds_absolute_token_url(client, monkeypatch):
     assert data["url"].startswith("http")
     assert "/api/music/stream/42" in data["url"]
     # Token auth embedded so the receiver can fetch without our cookies.
-    assert "session=" in data["url"]
+    assert "mt=" in data["url"]
+    assert "session=" not in data["url"]
     # Cover art URL for Cast metadata.
     assert "/api/music/cover/" in data["cover_url"]
-    assert "session=" in data["cover_url"]
+    assert "mt=" in data["cover_url"]
 
 
 def test_cast_urls_batch_resolves_only_known_songs(client, monkeypatch):

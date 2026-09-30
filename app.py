@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import timedelta
 
 from flask import Flask, send_from_directory
@@ -21,7 +22,41 @@ from routes.playlist_syncs import playlist_syncs_bp
 # such as /albums can fall back to index.html instead of Flask's built-in
 # static-file rule returning a 404 first.
 app = Flask(__name__, static_folder=None)
-app.secret_key = Config.FLASK_SECRET_KEY
+
+_WEAK_SECRETS = {
+    '', 'dev-secret-key-change-in-production',
+    'change-this-to-a-long-random-value',
+}
+
+
+def _resolve_secret_key():
+    """Refuse to sign sessions with a missing/placeholder/short secret."""
+    key = (Config.FLASK_SECRET_KEY or '').strip()
+    if key in _WEAK_SECRETS or len(key) < 32:
+        if Config.DEV_MODE:
+            print("WARNING: FLASK_SECRET_KEY missing/weak; using a random "
+                  "per-process key (RAINY_DEV=1). Sessions reset on restart.")
+            return secrets.token_hex(32)
+        raise RuntimeError(
+            "FLASK_SECRET_KEY is missing, a known placeholder, or shorter than "
+            "32 characters. Generate one with: python -c \"import secrets; "
+            "print(secrets.token_hex(32))\" (or set RAINY_DEV=1 for local dev).")
+    return key
+
+
+app.secret_key = _resolve_secret_key()
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Set RAINY_COOKIE_SECURE=1 when serving over HTTPS (the cookie then never
+# travels over plain HTTP). Off by default so LAN http:// installs still work.
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('RAINY_COOKIE_SECURE', '').lower() in ('1', 'true', 'yes')
+
+# Behind a reverse proxy (nginx/Caddy/Traefik) set RAINY_TRUST_PROXY=1 so
+# request.remote_addr / scheme come from X-Forwarded-* (needed for correct
+# per-IP rate limiting). Never enable when the app is directly exposed.
+if os.getenv('RAINY_TRUST_PROXY', '').lower() in ('1', 'true', 'yes'):
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Persistent login: without these, the session cookie carries no Max-Age and
 # dies with the browser tab/app (mobile browsers purge it even sooner), so
@@ -31,8 +66,12 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
     days=int(os.getenv('SESSION_LIFETIME_DAYS', '30')))
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
-# Enable CORS for development
-CORS(app, supports_credentials=True)
+# Cross-origin access is off by default (the UI is served by this app, so it
+# is same-origin). List trusted extra origins in RAINY_CORS_ORIGINS
+# (comma-separated); only those get credentialed CORS.
+_CORS_ORIGINS = [o.strip().rstrip('/') for o in os.getenv('RAINY_CORS_ORIGINS', '').split(',') if o.strip()]
+if _CORS_ORIGINS:
+    CORS(app, origins=_CORS_ORIGINS, supports_credentials=True)
 
 # Register blueprints
 app.register_blueprint(auth_bp)
@@ -72,6 +111,49 @@ def serve_static(path):
             return send_from_directory('static', 'index.html')
         raise
 
+_MUTATING_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
+
+
+@app.before_request
+def _check_origin_and_session():
+    """CSRF guard + server-side session validation for API requests."""
+    from flask import jsonify, request
+    if not request.path.startswith('/api/'):
+        return None
+
+    # CSRF: a browser always sends Origin on cross-site state-changing
+    # requests. Reject ones whose Origin isn't this host or a trusted origin.
+    if request.method in _MUTATING_METHODS:
+        origin = request.headers.get('Origin')
+        if origin:
+            from urllib.parse import urlparse
+            same_host = urlparse(origin).netloc == request.host
+            if not same_host and origin.rstrip('/') not in _CORS_ORIGINS:
+                return jsonify({'error': 'Cross-origin request blocked'}), 403
+
+    # Drop cookie sessions that were revoked / expired / deleted server-side,
+    # so every route (including ones reading session['user_id'] directly)
+    # sees them as signed out.
+    from flask import session
+    if 'user_id' in session:
+        from routes.auth import validate_session
+        validate_session()
+    return None
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected_error(e):
+    """Never leak exception text (SQL, paths) to API clients."""
+    from flask import jsonify, request
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': e.description}), e.code
+        return e
+    app.logger.exception('Unhandled error on %s %s', request.method, request.path)
+    return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     Database.close_db(exception)
@@ -87,6 +169,9 @@ def init_app():
     print("Initializing database...")
     Database.init_db()
     print("Database initialized successfully!")
+
+    from models.session import SessionModel
+    SessionModel.purge_expired()
 
     # Recover any import jobs left 'running' by a previous crash. The worker
     # thread itself is started lazily on the first request (see below) so it
@@ -185,4 +270,6 @@ if __name__ == '__main__':
 
     print(f"Starting server on http://localhost:{Config.HTTP_PORT}")
     print("=" * 40)
-    app.run(host='0.0.0.0', port=Config.HTTP_PORT, debug=True)
+    # The Werkzeug debugger allows arbitrary code execution; only enable it
+    # explicitly for local development.
+    app.run(host='0.0.0.0', port=Config.HTTP_PORT, debug=Config.DEV_MODE)

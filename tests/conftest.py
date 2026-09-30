@@ -14,12 +14,21 @@ def app():
     return flask_app
 
 
+def sign_in(test_client, user_id):
+    """Sign a test client in as user_id with a real server-side session row."""
+    from models.session import SessionModel
+    token = SessionModel.create(user_id, 3600)
+    with test_client.session_transaction() as sess:
+        sess["user_id"] = user_id
+        sess["sid"] = token
+    return token
+
+
 @pytest.fixture
 def client(app):
     """A Flask test client with an authenticated session (user_id=1)."""
     c = app.test_client()
-    with c.session_transaction() as sess:
-        sess["user_id"] = 1
+    sign_in(c, 1)
     return c
 
 
