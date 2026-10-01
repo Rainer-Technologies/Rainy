@@ -2184,6 +2184,15 @@ export class RainyApp {
 
     handleSearch(query) {
         const searchTerm = query.toLowerCase().trim();
+        if (!searchTerm && useContext().get('current-view-type') !== 'library') return;
+
+        // The header search belongs to Library, never to the currently open
+        // feature panel or playlist. Route first to hide it and restore all songs.
+        if (searchTerm && useContext().get('current-view-type') !== 'library') {
+            this.switchToLibraryView();
+            // Library navigation normally clears the header search.
+            document.getElementById('search-input').value = query;
+        }
 
         if (!searchTerm) {
             this.filteredSongs = [...this.songs];
