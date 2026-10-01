@@ -513,16 +513,18 @@ export class LightShowEngine {
         if (focus) {
             const lbl = F.section && F.section.label;
             const quiet = lbl === 'intro' || lbl === 'outro' || lbl === 'breakdown';
-            const spotA = (quiet ? 0.26 : 0.16 + 0.14 * F.bands.rms) * Math.max(dim, 0.55) * focus.strength;
+            const spotA = (quiet ? 0.44 : 0.36 + 0.2 * F.bands.rms) * Math.max(dim, 0.55) * focus.strength;
             // Each word is picked out in the other palette colour; held notes
-            // get a tighter, brighter cone.
+            // get a tighter, brighter cone. The two spots are different colours
+            // and land together in one pool of light on the word.
             const tone = focus.flip ? P.b : P.a;
-            const col = mixRgb(P.w, tone, 0.25);
+            const other = focus.flip ? P.a : P.b;
+            const kick = this._prefs.reduceFlashing ? 0.25 * this.pulse.k : this.pulse.k;
             const width = focus.tight ? 0.028 : 0.04;
-            const boost = focus.tight ? 1.25 : 1;
-            r.pool(focus.x, focus.y, 130, (0.16 + 0.2 * this.pulse.k) * Math.max(dim, 0.5) * Math.min(1, focus.strength * 1.4), tone);
-            r.followSpot(0.05, 0, focus.x, focus.y, width, spotA * boost, col);
-            r.followSpot(0.95, 0, focus.x, focus.y, width, spotA * boost, col);
+            const boost = (focus.tight ? 1.2 : 1) * (0.7 + 0.5 * kick);
+            r.pool(focus.x, focus.y, 150, (0.2 + 0.3 * kick) * (focus.tight ? 1.2 : 1) * Math.max(dim, 0.5) * Math.min(1, focus.strength * 1.4), mixRgb(tone, other, 0.5));
+            r.followSpot(0.05, 0, focus.x - 6, focus.y, width, spotA * boost, mixRgb(tone, P.w, 0.2), { id: 'L', dt, kick });
+            r.followSpot(0.95, 0, focus.x + 6, focus.y, width, spotA * boost, mixRgb(other, P.w, 0.2), { id: 'R', dt, kick });
         }
         const bar = this._stageOn && this.stage.bar;
         if (bar) {

@@ -11,6 +11,27 @@ import { N_PIX } from './scenes.js';
 
 const HAZE_MAX = 90;
 
+/** Underdamped spring on a 2D point (device px): lags its target, then overshoots a little. */
+class Spring {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.at = 0;          // last use (ms), so a stale spring can be reset
+    }
+
+    step(tx, ty, dt, k = 170, damp = 13) {
+        const n = Math.max(1, Math.ceil(dt / 0.008)), h = dt / n;
+        for (let i = 0; i < n; i++) {
+            this.vx += ((tx - this.x) * k - this.vx * damp) * h;
+            this.vy += ((ty - this.y) * k - this.vy * damp) * h;
+            this.x += this.vx * h;
+            this.y += this.vy * h;
+        }
+    }
+}
+
 export class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
@@ -30,6 +51,7 @@ export class Renderer {
         }
         this.sparks = [];
         this.rings = [];
+        this._tips = new Map();   // follow-spot springs by id
         this._vignette = null;
         this._vigKey = '';
     }
@@ -54,6 +76,7 @@ export class Renderer {
         this.ctx.clearRect(0, 0, this.W, this.H);
         this.sparks.length = 0;
         this.rings.length = 0;
+        this._tips.clear();
     }
 
     X(x) { return x * this.W; }
@@ -106,29 +129,81 @@ export class Renderer {
     }
 
     /**
-     * Follow spot: a cone from a truss position (normalised) that lands on a
-     * target given in CSS px (the word being sung), with a pool of light.
+     * Follow spot: a soft volumetric beam from a truss position (normalised) to
+     * a target in CSS px (the word being sung). It has a feathered cross-section
+     * and dissolves into the pool of light on the word instead of ending in a
+     * tip. With `o.id` the far end rides a spring, so the beam trails and
+     * overshoots like a rope when the word changes, bowing with its motion,
+     * instead of pivoting like a rod.
+     * @param {{id?: string, dt?: number, kick?: number}} [o] id keeps the spring
+     *   between frames; kick (0..1) widens the beam on hits.
      */
-    followSpot(fx, fy, tx, ty, width, alpha, color) {
+    followSpot(fx, fy, tx, ty, width, alpha, color, o = {}) {
         if (alpha < 0.01) return;
-        const ctx = this.ctx;
+        const s = this.s;
         const X = this.X(fx), Y = this.Y(fy);
-        const TX = tx * this.s, TY = ty * this.s;
-        const dx = TX - X, dy = TY - Y;
-        const reach = Math.hypot(dx, dy) * 1.06;
-        const ang = Math.atan2(dx, -dy);
+        let TX = tx * s, TY = ty * s, bend = 0;
+        if (o.id) {
+            const now = performance.now();
+            let sp = this._tips.get(o.id);
+            if (!sp || now - sp.at > 300) {
+                sp = new Spring(TX, TY);
+                this._tips.set(o.id, sp);
+            }
+            sp.at = now;
+            sp.step(TX, TY, clamp(o.dt || 1 / 60, 0.001, 0.05));
+            const ex = sp.x - X, ey = sp.y - Y, ed = Math.hypot(ex, ey) || 1;
+            bend = clamp(-(sp.vx * (-ey / ed) + sp.vy * (ex / ed)) * 0.05, -0.2 * ed, 0.2 * ed);
+            TX = sp.x;
+            TY = sp.y;
+        }
+        const d = Math.hypot(TX - X, TY - Y);
+        if (d < 4) return;
+        this._softBeam(X, Y, TX, TY, bend, 3 * s, d * width * 1.2 * (1 + 0.3 * (o.kick || 0)), alpha, color);
+    }
+
+    /**
+     * Tapered ribbon along a quadratic curve (device px), drawn as a few
+     * stacked widths so the edges fall off softly without a blur filter.
+     * Bright at the lens, fading out toward the end.
+     */
+    _softBeam(X, Y, TX, TY, bend, w0, w1, a, color) {
+        const ctx = this.ctx;
+        const dx = TX - X, dy = TY - Y, d = Math.hypot(dx, dy);
+        const cx = (X + TX) / 2 - (dy / d) * bend, cy = (Y + TY) / 2 + (dx / d) * bend;
+        const N = this.quality < 2 ? 16 : 10;
+        const pts = [];
+        for (let i = 0; i <= N; i++) {
+            const t = i / N, u = 1 - t;
+            const tx = 2 * u * (cx - X) + 2 * t * (TX - cx), ty = 2 * u * (cy - Y) + 2 * t * (TY - cy);
+            const tl = Math.hypot(tx, ty) || 1;
+            pts.push([u * u * X + 2 * u * t * cx + t * t * TX, u * u * Y + 2 * u * t * cy + t * t * TY,
+                -ty / tl, tx / tl, w0 + (w1 - w0) * Math.pow(t, 0.9)]);
+        }
         const g = ctx.createLinearGradient(X, Y, TX, TY);
-        g.addColorStop(0, rgba(color, alpha * 0.55));
-        g.addColorStop(0.6, rgba(color, alpha * 0.22));
-        g.addColorStop(1, rgba(color, alpha * 0.4));
+        g.addColorStop(0, rgba(color, a * 0.95));
+        g.addColorStop(0.45, rgba(color, a * 0.4));
+        g.addColorStop(0.68, rgba(color, a * 0.55));
+        g.addColorStop(1, rgba(color, 0));
         ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(X, Y);
-        ctx.lineTo(X + Math.sin(ang - width) * reach, Y - Math.cos(ang - width) * reach);
-        ctx.lineTo(X + Math.sin(ang + width) * reach, Y - Math.cos(ang + width) * reach);
-        ctx.closePath();
-        ctx.fill();
-        this._glow(X, Y, 22 * this.s, color, Math.min(1, alpha * 1.8));
+        const layers = this.quality < 2 ? [[1.45, 0.13], [1, 0.2], [0.66, 0.28], [0.34, 0.42]] : [[1.2, 0.2], [0.55, 0.45]];
+        for (const [scale, am] of layers) {
+            ctx.globalAlpha = am;
+            ctx.beginPath();
+            for (let i = 0; i <= N; i++) {
+                const [px, py, nx, ny, w] = pts[i];
+                if (i) ctx.lineTo(px + nx * w * scale, py + ny * w * scale);
+                else ctx.moveTo(px + nx * w * scale, py + ny * w * scale);
+            }
+            for (let i = N; i >= 0; i--) {
+                const [px, py, nx, ny, w] = pts[i];
+                ctx.lineTo(px - nx * w * scale, py - ny * w * scale);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        this._glow(X, Y, 22 * this.s, color, Math.min(1, a * 1.6));
     }
 
     /** Soft pool of light behind the lyric focus. */
