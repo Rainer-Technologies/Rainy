@@ -5,11 +5,13 @@ Runs entirely on this machine — no API keys, no cloud calls. The model
 400 Discogs music-style labels (e.g. "Rock---Power Metal", "Hip Hop---Pop
 Rap", "Electronic---Latin").
 
-Pipeline (mirrors essentia's own TensorflowPredictEffnetDiscogs):
-  1. MonoLoader at 16 kHz (the model was trained on 16 kHz mono).
+Pipeline (mirrors essentia's own TensorflowPredictEffnetDiscogs, but built
+on librosa so it runs on Windows too — essentia has no Windows wheels):
+  1. Load at 16 kHz mono (the model was trained on 16 kHz mono).
   2. musicnn-style mel-spectrogram: 512-sample frames, 256-sample hop,
-     96 mel bands  ->  TensorflowInputMusiCNN (available in the standard
-     build — no TensorFlow backend needed).
+     96 mel bands — a re-implementation of essentia's
+     TensorflowInputMusiCNN (Hann window, power spectrum, Slaney mel
+     bands with unit-area triangles, log10(1 + 10000·x)).
   3. Slide 128-frame patches (patch hop 512) over the whole track and
      mean-pool the sigmoid activations so the verdict covers the song's
      full length, not just its first 2 seconds.
@@ -49,7 +51,8 @@ _GENRE_MIN_WEIGHT = 5  # ignore activations below ~5%
 _lock = threading.Lock()
 _session = None
 _classes = None
-_mel = None
+_mel_basis = None
+_window = None
 
 
 def _download(url, dest):
@@ -69,30 +72,41 @@ def _ensure_files():
 
 
 def _load():
-    """Lazily initialise the ONNX session, labels and essentia algorithms."""
-    global _session, _classes, _mel
+    """Lazily initialise the ONNX session, labels and mel filterbank."""
+    global _session, _classes, _mel_basis, _window
     with _lock:
         if _session is not None:
             return
         _ensure_files()
         import onnxruntime as ort
-        import essentia.standard as es
-        _session = ort.InferenceSession(
-            MODEL_PATH, providers=['CPUExecutionProvider'])
+        import librosa
+        from scipy.signal import get_window
+        # essentia's MelBands(warpingFormula='slaneyMel', normalize='unit_tri',
+        # 0-8000 Hz) == librosa's Slaney filterbank.
+        _mel_basis = librosa.filters.mel(
+            sr=SAMPLE_RATE, n_fft=FRAME_SIZE, n_mels=N_MEL_BANDS,
+            fmin=0.0, fmax=SAMPLE_RATE / 2, htk=False, norm='slaney',
+        ).astype(np.float32)
+        # essentia's Windowing('hann', normalized=False) is the symmetric form.
+        _window = get_window('hann', FRAME_SIZE, fftbins=False)
         with open(LABELS_PATH, encoding='utf-8') as f:
             _classes = json.load(f)['classes']
-        _mel = es.TensorflowInputMusiCNN()
+        _session = ort.InferenceSession(
+            MODEL_PATH, providers=['CPUExecutionProvider'])
 
 
 def _mel_bands(audio):
     """Compute the [n_frames, 96] mel-band matrix for a 16 kHz mono signal."""
-    bands = []
-    for start in range(0, len(audio) - FRAME_SIZE + 1, HOP_SIZE):
-        frame = audio[start:start + FRAME_SIZE]
-        bands.append(np.asarray(_mel(frame), dtype=np.float32))
-    if not bands:
+    import librosa
+    if len(audio) < FRAME_SIZE:
         return None
-    return np.stack(bands, axis=0)
+    # Power spectrum, like musicnn's original librosa front end — a
+    # magnitude spectrum skews every track towards 'Electronic'.
+    spec = np.abs(librosa.stft(
+        audio, n_fft=FRAME_SIZE, hop_length=HOP_SIZE,
+        window=_window, center=False)) ** 2
+    mel = _mel_basis @ spec
+    return np.log10(1.0 + 10000.0 * mel).T.astype(np.float32)
 
 
 def classify_file(path, top_n=_TOP_GENRES):
@@ -103,10 +117,8 @@ def classify_file(path, top_n=_TOP_GENRES):
     """
     try:
         _load()
-        import essentia.standard as es
-        loader = es.MonoLoader(
-            filename=path, sampleRate=SAMPLE_RATE, resampleQuality=4)
-        audio = loader()
+        import librosa
+        audio, _sr = librosa.load(path, sr=SAMPLE_RATE, mono=True)
     except Exception as e:  # noqa: BLE001
         print(f"[genre-classifier] load failed for {os.path.basename(path)}: {e}")
         return []
