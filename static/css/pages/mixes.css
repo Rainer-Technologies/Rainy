@@ -257,64 +257,6 @@
 .mix-track.playing .recent-song-title,
 .mix-track.playing .recent-song-num { color: var(--accent-primary); }
 
-/* ============================================
-   Compact density (default). Same layout, tighter type and spacing.
-   The choice is stored in localStorage by mixes.js.
-   ============================================ */
-.mix-compact .mix-bar { margin-bottom: var(--spacing-md); }
-.mix-compact .mix-tools .view-toggle-btn { min-width: 36px; min-height: 32px; }
-.mix-compact .mix-moods { gap: var(--spacing-xs); }
-.mix-compact .mix-moods .recent-tab {
-    min-height: 30px;
-    padding: 4px 12px;
-    font-size: 13px;
-}
-
-.mix-compact .mix-btn,
-.mix-compact .mix-play { min-height: 34px; }
-.mix-compact .mix-btn { padding: 0 var(--spacing-md); }
-.mix-compact .mix-play { padding: 0 var(--spacing-md); font-size: var(--font-size-sm); }
-.mix-compact .mix-play svg { width: 16px; height: 16px; }
-
-.mix-compact .mix-hero,
-.mix-compact .mix-detail-head {
-    grid-template-columns: 104px minmax(0, 1fr);
-    gap: var(--spacing-lg);
-    padding: var(--spacing-md);
-}
-
-.mix-compact .mix-hero { margin-bottom: var(--spacing-lg); }
-.mix-compact .mix-hero-cover,
-.mix-compact .mix-detail-cover { box-shadow: var(--shadow-sm); }
-.mix-compact .mix-hero-title,
-.mix-compact .mix-detail-title { font-size: var(--font-size-2xl); }
-.mix-compact .mix-hero-sub { font-size: var(--font-size-sm); }
-.mix-compact .mix-hero-meta { margin-bottom: var(--spacing-sm); font-size: var(--font-size-xs); }
-
-.mix-compact .mix-shelf + .mix-shelf { margin-top: var(--spacing-lg); }
-.mix-compact .mix-shelf-head { margin-bottom: 0; }
-.mix-compact .section-heading { font-size: var(--font-size-lg); }
-.mix-compact .mix-nav .icon-btn-small { min-width: 32px; min-height: 32px; }
-.mix-compact .mix-row { gap: var(--spacing-md); }
-.mix-compact .mix-card { flex-basis: 128px; }
-.mix-compact .mix-card-title { margin-top: 6px; font-size: 14px; }
-.mix-compact .mix-card-sub { font-size: 12px; }
-.mix-compact .mix-quickplay { width: 32px; height: 32px; right: 6px; bottom: 6px; }
-.mix-compact .mix-quickplay svg { width: 16px; height: 16px; }
-
-.mix-compact .mix-detail-head { margin-bottom: var(--spacing-md); }
-.mix-compact .mix-track {
-    grid-template-columns: 32px 36px 1fr auto;
-    gap: var(--spacing-sm);
-    min-height: 44px;
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
-
-.mix-compact .mix-track .recent-song-cover { width: 36px; height: 36px; }
-.mix-compact .mix-track .recent-song-title { font-size: 14px; }
-.mix-compact .mix-track .recent-song-artist { font-size: 12px; }
-
 @media (max-width: 768px) {
     .mix-bar { flex-direction: column-reverse; align-items: stretch; }
     .mix-bar .mix-tools { align-self: flex-end; }
@@ -343,21 +285,6 @@
     .mix-hero-title,
     .mix-detail-title { font-size: var(--font-size-2xl); }
     .mix-card { flex-basis: 144px; }
-
-    /* compact keeps the hero side by side on phones instead of stacking it */
-    .mix-compact .mix-hero,
-    .mix-compact .mix-detail-head {
-        grid-template-columns: 88px minmax(0, 1fr);
-        justify-items: stretch;
-        text-align: left;
-        gap: var(--spacing-md);
-    }
-    .mix-compact .mix-hero-cover,
-    .mix-compact .mix-detail-cover { width: auto; }
-    .mix-compact .mix-actions { justify-content: flex-start; }
-    .mix-compact .mix-hero-title,
-    .mix-compact .mix-detail-title { font-size: var(--font-size-xl); }
-    .mix-compact .mix-card { flex-basis: 120px; }
 
     .mix-track { grid-template-columns: 32px 40px 1fr auto; }
 }

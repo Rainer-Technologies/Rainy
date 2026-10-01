@@ -20,13 +20,8 @@ const ICON = {
     play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
     prev: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>',
-    // big squares = comfortable, small squares = compact
-    comfortable: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>',
-    compact: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h5v5H3zm6.5 0h5v5h-5zM16 3h5v5h-5zM3 9.5h5v5H3zm6.5 0h5v5h-5zm6.5 0h5v5h-5zM3 16h5v5H3zm6.5 0h5v5h-5zm6.5 0h5v5h-5z"/></svg>',
     next: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>',
 };
-
-const DENSITY_KEY = 'rainy.mixes.compact';
 
 const esc = (s) => Utils.escapeHtml(String(s ?? ''));
 const coverUrl = (p) => `/api/music/cover/${encodeURIComponent(p)}`;
@@ -92,38 +87,9 @@ export class MixesView {
         this.home = document.getElementById('mixes-home');
         this.detail = document.getElementById('mix-detail');
         this.status = document.getElementById('mixes-status');
-        this.root = document.getElementById('smartmix-view');
-        this.compact = this._loadDensity();
-        this._applyDensity();
         // Keep the "playing" row in an open mix current.
         this.player.audio?.addEventListener('play', () => this._markPlaying());
         this.player.audio?.addEventListener('loadstart', () => this._markPlaying());
-    }
-
-    // ------------------------------------------------------------- density
-
-    /** Compact is the default; the listener's last choice is remembered. */
-    _loadDensity() {
-        try {
-            return localStorage.getItem(DENSITY_KEY) !== '0';
-        } catch {
-            return true;
-        }
-    }
-
-    _setDensity(compact) {
-        this.compact = compact;
-        try { localStorage.setItem(DENSITY_KEY, compact ? '1' : '0'); } catch { /* storage unavailable */ }
-        this._applyDensity();
-    }
-
-    _applyDensity() {
-        this.root?.classList.toggle('mix-compact', this.compact);
-        this.home?.querySelectorAll('[data-density]').forEach(btn => {
-            const active = (btn.dataset.density === 'compact') === this.compact;
-            btn.classList.toggle('active', active);
-            btn.setAttribute('aria-pressed', String(active));
-        });
     }
 
     // ---------------------------------------------------------------- data
@@ -245,12 +211,6 @@ export class MixesView {
                     ${moods.map(m => `<button class="recent-tab" type="button" data-mix="${esc(m.id)}">${esc(m.title)}</button>`).join('')}
                 </div>
                 <div class="mix-tools">
-                    <div class="view-toggle" role="group" aria-label="Layout density">
-                        <button class="view-toggle-btn" type="button" data-density="comfortable"
-                            title="Comfortable" aria-label="Comfortable layout">${ICON.comfortable}</button>
-                        <button class="view-toggle-btn" type="button" data-density="compact"
-                            title="Compact" aria-label="Compact layout">${ICON.compact}</button>
-                    </div>
                     <button class="mix-btn" id="mixes-refresh" type="button"
                         title="Pick a new set of songs for each mix">${ICON.refresh}Refresh</button>
                 </div>
@@ -275,10 +235,6 @@ export class MixesView {
         this.home.innerHTML = bar + (hero ? this._hero(hero) : '') + shelves;
 
         if (hero) applyTint(this.home.querySelector('.mix-hero'), hero);
-
-        this.home.querySelectorAll('[data-density]').forEach(btn =>
-            btn.addEventListener('click', () => this._setDensity(btn.dataset.density === 'compact')));
-        this._applyDensity();
 
         this.home.querySelector('#mixes-refresh')?.addEventListener('click', (e) => {
             e.currentTarget.disabled = true;
