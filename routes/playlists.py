@@ -73,6 +73,10 @@ def get_playlist(playlist_id):
     raw_songs = LibraryAccessModel.filter_visible(
         session.get('user_id'), raw_songs or [], playlist_id=playlist_id)
 
+    # in_library: False for songs only playable through the share, which the
+    # user can add to their library.
+    library_ids = LibraryAccessModel.visible_song_ids(session.get('user_id'))
+
     # Transform songs to match expected frontend format (same as SongModel)
     songs = []
     for row in (raw_songs or []):
@@ -86,7 +90,8 @@ def get_playlist(playlist_id):
             'track': row['track_number'],
             'year': row['year'],
             'genre': row['genre'],
-            'cover_path': row['cover_path']
+            'cover_path': row['cover_path'],
+            'in_library': row['id'] in library_ids,
         })
     
     return jsonify({
@@ -299,7 +304,7 @@ def download_playlist(playlist_id):
         songs = PlaylistModel.get_playlist_songs(playlist_id)
         from models.library_access import LibraryAccessModel
         songs = LibraryAccessModel.filter_visible(
-            session.get('user_id'), songs or [])
+            session.get('user_id'), songs or [], playlist_id=playlist_id)
         if not songs:
             return jsonify({'error': 'Playlist is empty'}), 400
             

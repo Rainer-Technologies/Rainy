@@ -379,3 +379,63 @@ def test_owner_hears_songs_a_collaborator_added(friends_fixture, share_setup, cl
             LibraryAccessModel.user_full_library(1)
     finally:
         Database.execute_query("DELETE FROM songs WHERE id = %s", (song_id,))
+
+
+def test_members_can_download_and_save_shared_songs(
+        friends_fixture, share_setup, client_as, tmp_path, monkeypatch):
+    import io
+    import zipfile
+    from models.library_access import LibraryAccessModel
+    from models.playlist import PlaylistModel
+    from models.settings import SettingsModel
+    ca, cb = friends_fixture
+    pid = share_setup['playlist_id']
+    user_a = share_setup['user_a']
+
+    monkeypatch.setattr(SettingsModel, 'get_music_path', staticmethod(lambda: str(tmp_path)))
+    (tmp_path / 'share-dl.mp3').write_bytes(b'audio bytes')
+    song_id = Database.execute_query(
+        "INSERT INTO songs (file_path, title, artist) VALUES (%s, %s, %s)",
+        ('share-dl.mp3', 'Download Song', 'Test Artist'))
+    try:
+        Database.execute_query(
+            "INSERT INTO library_access (user_id, song_id, origin) "
+            "VALUES (1, %s, 'import')", (song_id,))
+        PlaylistModel.add_song_to_playlist(pid, song_id)
+
+        # Not shared with them: nothing to download or save.
+        assert cb.get(f'/api/music/download/{song_id}').status_code == 404
+        assert cb.post(f'/api/music/library/songs/{song_id}').status_code == 404
+
+        ca.post(f'/api/playlists/{pid}/shares', json={'user_id': user_a, 'role': 'viewer'})
+        share_id = cb.get('/api/playlists/invites').get_json()['invites'][0]['id']
+        cb.post(f'/api/playlists/invites/{share_id}/accept')
+
+        detail = cb.get(f'/api/playlists/{pid}').get_json()
+        assert [s['in_library'] for s in detail['songs'] if s['id'] == song_id] == [False]
+        owner_detail = ca.get(f'/api/playlists/{pid}').get_json()
+        assert [s['in_library'] for s in owner_detail['songs'] if s['id'] == song_id] == [True]
+
+        # Members can download single songs and the playlist zip.
+        r = cb.get(f'/api/music/download/{song_id}')
+        assert r.status_code == 200 and r.data == b'audio bytes'
+        r = cb.get(f'/api/playlists/{pid}/download')
+        assert r.status_code == 200
+        assert 'share-dl.mp3' in zipfile.ZipFile(io.BytesIO(r.data)).namelist()
+
+        # Add to Your Library: a 'saved' row (not counted as their import).
+        assert cb.post(f'/api/music/library/songs/{song_id}').status_code == 200
+        assert cb.post(f'/api/music/library/songs/{song_id}').status_code == 200  # idempotent
+        row = Database.execute_query(
+            "SELECT origin FROM library_access WHERE user_id = %s AND song_id = %s",
+            (user_a, song_id), fetch_one=True)
+        assert row['origin'] == 'saved'
+        detail = cb.get(f'/api/playlists/{pid}').get_json()
+        assert [s['in_library'] for s in detail['songs'] if s['id'] == song_id] == [True]
+
+        # Saved songs stay after the share ends.
+        ca.delete(f'/api/playlists/{pid}/shares/{share_id}')
+        assert LibraryAccessModel.has_access(user_a, song_id)
+        assert cb.get(f'/api/music/download/{song_id}').status_code == 200
+    finally:
+        Database.execute_query("DELETE FROM songs WHERE id = %s", (song_id,))
