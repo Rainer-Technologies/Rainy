@@ -19,6 +19,19 @@ export function initSetup() {
         languageSelect.addEventListener('change', () => setLanguage(languageSelect.value));
     }
 
+    // "No Anime" switch: preview immediately and remember it for the boot splash
+    const noAnimeInput = document.getElementById('setup-no-anime');
+    if (noAnimeInput) {
+        noAnimeInput.checked = document.documentElement.classList.contains('no-anime');
+        noAnimeInput.addEventListener('change', () => {
+            document.documentElement.classList.toggle('no-anime', noAnimeInput.checked);
+            try {
+                if (noAnimeInput.checked) localStorage.setItem('rainy-no-anime', '1');
+                else localStorage.removeItem('rainy-no-anime');
+            } catch (err) { /* ignore */ }
+        });
+    }
+
     setupForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -55,7 +68,8 @@ export function initSetup() {
                     email,
                     password,
                     music_path: musicPath,
-                    language: getLanguage()
+                    language: getLanguage(),
+                    no_anime: !!noAnimeInput?.checked
                 })
             });
 

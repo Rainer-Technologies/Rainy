@@ -56,6 +56,11 @@ def complete_setup():
         user_id = UserModel.create_user(username, email, password, role='sysadmin',
                                         language=language)
         
+        # Remember the "No Anime" choice made on the setup form
+        if data.get('no_anime') is True:
+            import json
+            UserModel.update_preferences(user_id, json.dumps({'no_anime': True}))
+
         # Save music path setting
         from models.settings import SettingsModel
         SettingsModel.set_music_path(music_path)

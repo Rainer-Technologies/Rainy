@@ -1184,6 +1184,8 @@
     box-shadow: 0 4px 12px rgba(61, 125, 196, 0.3);
 }
 
+.no-anime .fs-logo { display: none; }
+
 .fs-logo img {
     width: 100%;
     height: 100%;

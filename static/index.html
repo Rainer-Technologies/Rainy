@@ -28,6 +28,8 @@
             if (!localStorage.getItem('rainy-authed')) document.documentElement.classList.add('rs-skip');
             var accent = localStorage.getItem('rainy-accent');
             if (accent) document.documentElement.style.setProperty('--accent-primary', accent);
+            // "No anime" mode: swap the mascot logo for the animated Rainy wordmark everywhere.
+            if (localStorage.getItem('rainy-no-anime') === '1') document.documentElement.classList.add('no-anime');
         } catch (e) { document.documentElement.classList.add('rs-skip'); }
     </script>
     <style>
@@ -58,7 +60,19 @@
             border-radius: inherit; background: var(--accent-primary, #3d7dc4);
             animation: rs-slide 1.5s cubic-bezier(.65, 0, .35, 1) infinite;
         }
+        #rainy-splash .rs-word {
+            display: none; font: 700 44px/1.1 Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #fff 0%, var(--accent-primary, #3d7dc4) 50%, #8cc5e8 100%);
+            background-size: 200% 200%; -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: rs-fade .5s ease both, rs-shift 3s ease infinite;
+        }
+        .no-anime #rainy-splash img { display: none; }
+        .no-anime #rainy-splash .rs-word { display: block; }
+        .no-anime #rainy-splash .rs-line { width: 120px; }
         @keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes rs-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
         @keyframes rs-slide { from { transform: translateX(-100%); } to { transform: translateX(263%); } }
         @media (prefers-reduced-motion: reduce) {
             #rainy-splash *, #rainy-splash *::after { animation: none !important; }
@@ -94,6 +108,7 @@
     <!-- Boot splash: removed by the script at the end of <body> once the app is ready -->
     <div id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy" data-i18n-attr="aria-label">
         <img src="/icons/icon-192.png" alt="" width="88" height="88" decoding="async" fetchpriority="high">
+        <span class="rs-word" aria-hidden="true">Rainy</span>
         <div class="rs-line" aria-hidden="true"></div>
     </div>
 
@@ -105,6 +120,7 @@
                     <div class="setup-logo">
                         <img src="/icons/icon-192.png" alt="Rainy" />
                     </div>
+                    <div class="setup-wordmark" aria-hidden="true">Rainy</div>
                     <h1 data-i18n>Welcome to Rainy</h1>
                     <p data-i18n>Let's set up your music server</p>
                 </div>
@@ -148,6 +164,18 @@
                         <span class="form-hint" data-i18n>Full path to your music folder</span>
                     </div>
 
+                    <div class="form-group setup-toggle-row">
+                        <div>
+                            <label class="form-label" for="setup-no-anime" data-i18n>No Anime</label>
+                            <span class="form-hint" data-i18n>Hide the anime logo and show only the Rainy wordmark. You can change
+                                this later in Settings.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setup-no-anime">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
                     <button type="submit" class="btn btn-primary" id="setup-submit">
                         <span data-i18n>Complete Setup</span>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -167,6 +195,7 @@
                     <div class="setup-logo">
                         <img src="/icons/icon-192.png" alt="Rainy" />
                     </div>
+                    <div class="setup-wordmark" aria-hidden="true">Rainy</div>
                     <h1 data-i18n>Welcome Back</h1>
                     <p data-i18n>Sign in to your music library</p>
                 </div>
@@ -1042,6 +1071,19 @@
                                                 style="background-color: #ff9500;" title="Orange" data-i18n-attr="title"></button>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>No Anime</div>
+                                    <div class="settings-row-hint" data-i18n>Hide the anime logo and show only the animated Rainy
+                                        wordmark</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-no-anime">
+                                        <span class="toggle-slider"></span>
+                                    </label>
                                 </div>
                             </div>
                             <div class="settings-row">

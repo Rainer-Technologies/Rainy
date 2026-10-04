@@ -311,6 +311,12 @@ export class RainyApp {
             languageSelect.addEventListener('change', () => this.changeLanguage(languageSelect.value));
         }
 
+        // No Anime mode
+        document.getElementById('settings-no-anime')?.addEventListener('change', (e) => {
+            this.applyNoAnime(e.target.checked);
+            this.savePreferences({ no_anime: e.target.checked });
+        });
+
         // Chromecast Setup copy origin
         document.getElementById('chromecast-copy-origin-btn')?.addEventListener('click', (e) => {
             const txt = (document.getElementById('chromecast-origin-url')?.textContent || '').trim();
@@ -3795,6 +3801,16 @@ export class RainyApp {
         root.style.setProperty('--accent-bg-subtle', `${color}14`); // ~8% opacity
     }
 
+    /** Hide the anime logo everywhere and show the animated Rainy wordmark instead. */
+    applyNoAnime(enabled) {
+        document.documentElement.classList.toggle('no-anime', !!enabled);
+        // Mirrored locally so the boot splash and login screen match before the user is loaded
+        try {
+            if (enabled) localStorage.setItem('rainy-no-anime', '1');
+            else localStorage.removeItem('rainy-no-anime');
+        } catch (e) { /* ignore */ }
+    }
+
     applyThemeFromPreferences() {
         if (this.user && this.user.preferences) {
             let prefs = this.user.preferences;
@@ -3808,6 +3824,9 @@ export class RainyApp {
             }
             if (prefs && prefs.theme_color) {
                 this.applyTheme(prefs.theme_color);
+            }
+            if (prefs && typeof prefs.no_anime !== 'undefined') {
+                this.applyNoAnime(prefs.no_anime);
             }
         }
     }
@@ -3956,6 +3975,9 @@ export class RainyApp {
 
         const showBgBlurToggle = document.getElementById('settings-show-bg-blur');
         if (showBgBlurToggle) showBgBlurToggle.checked = showBgBlur;
+
+        const noAnimeToggle = document.getElementById('settings-no-anime');
+        if (noAnimeToggle) noAnimeToggle.checked = document.documentElement.classList.contains('no-anime');
 
         const reduceFlashToggle = document.getElementById('settings-lightshow-reduce-flashing');
         if (reduceFlashToggle) reduceFlashToggle.checked = lightshowReduceFlashing;
