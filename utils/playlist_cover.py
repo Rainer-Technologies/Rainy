@@ -157,7 +157,7 @@ def generate_and_save_cover(playlist_id, songs, music_path, icon_color=None,
         if owner_user_id is not None and db_songs:
             from models.library_access import LibraryAccessModel
             db_songs = LibraryAccessModel.filter_visible(
-                owner_user_id, db_songs)
+                owner_user_id, db_songs, playlist_id=playlist_id)
 
         cover_path = generate_playlist_cover(
             playlist_id, list(db_songs) + list(songs or []), music_path,

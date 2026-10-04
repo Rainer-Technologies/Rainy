@@ -346,3 +346,13 @@ def require_song_access(f):
     return decorated
 
 
+def require_song_play_access(f):
+    """Like require_song_access, but shared-playlist members also pass
+    (LibraryAccessModel.can_play). For read-only playback routes."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.can_play(get_current_user_id(), kwargs['song_id']):
+            return jsonify({'error': 'Song not found'}), 404
+        return f(*args, **kwargs)
+    return decorated

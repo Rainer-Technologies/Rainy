@@ -295,3 +295,87 @@ def test_owner_revoke_and_leave(friends_fixture, share_setup, client_as):
     assert cb.get(f'/api/playlists/{pid}').status_code == 403
     # Owner's own access is intact
     assert ca.get(f'/api/playlists/{pid}').status_code == 200
+
+@pytest.fixture
+def private_song(share_setup):
+    """A song only user 1 has in their library, added to the shared playlist."""
+    from models.playlist import PlaylistModel
+    song_id = Database.execute_query(
+        "INSERT INTO songs (file_path, title, artist) VALUES (%s, %s, %s)",
+        ('/test/share-private.mp3', 'Private Song', 'Test Artist'))
+    Database.execute_query(
+        "INSERT INTO library_access (user_id, song_id, origin) "
+        "VALUES (1, %s, 'import')", (song_id,))
+    PlaylistModel.add_song_to_playlist(share_setup['playlist_id'], song_id)
+    yield song_id
+    Database.execute_query("DELETE FROM songs WHERE id = %s", (song_id,))
+
+
+def test_members_can_play_shared_playlist_songs_temporarily(
+        friends_fixture, share_setup, private_song, client_as):
+    from models.library_access import LibraryAccessModel
+    ca, cb = friends_fixture
+    pid = share_setup['playlist_id']
+    user_a = share_setup['user_a']
+
+    # Not shared yet: the song is out of reach.
+    assert not LibraryAccessModel.can_play(user_a, private_song)
+    assert cb.get(f'/api/music/info/{private_song}').status_code == 404
+
+    ca.post(f'/api/playlists/{pid}/shares', json={'user_id': user_a, 'role': 'viewer'})
+    share_id = cb.get('/api/playlists/invites').get_json()['invites'][0]['id']
+    assert not LibraryAccessModel.can_play(user_a, private_song)  # still pending
+    cb.post(f'/api/playlists/invites/{share_id}/accept')
+
+    # Accepted: the collaborator sees and can play the song...
+    songs = cb.get(f'/api/playlists/{pid}').get_json()['songs']
+    assert private_song in [s['id'] for s in songs]
+    assert LibraryAccessModel.can_play(user_a, private_song)
+    assert cb.get(f'/api/music/info/{private_song}').status_code == 200
+    # Past the access check: an uncached song answers with a lyrics `state`.
+    assert 'state' in cb.get(f'/api/music/song/{private_song}/lyrics').get_json()
+
+    # ...without it entering their library or being copyable elsewhere.
+    assert not LibraryAccessModel.has_access(user_a, private_song)
+    assert private_song not in LibraryAccessModel.visible_song_ids(user_a)
+    own = Database.execute_query(
+        "INSERT INTO playlists (name, owner_user_id) VALUES (%s, %s)",
+        ('Collaborator Own', user_a))
+    try:
+        assert cb.post(f'/api/playlists/{own}/songs',
+                       json={'song_id': private_song}).status_code == 403
+    finally:
+        Database.execute_query("DELETE FROM playlists WHERE id = %s", (own,))
+
+    # Revoking the share ends the access.
+    ca.delete(f'/api/playlists/{pid}/shares/{share_id}')
+    assert not LibraryAccessModel.can_play(user_a, private_song)
+    assert cb.get(f'/api/music/info/{private_song}').status_code == 404
+
+
+def test_owner_hears_songs_a_collaborator_added(friends_fixture, share_setup, client_as):
+    """The other direction: songs from a collaborator's library are playable
+    by the owner while the playlist is shared."""
+    from models.library_access import LibraryAccessModel
+    ca, cb = friends_fixture
+    pid = share_setup['playlist_id']
+    user_a = share_setup['user_a']
+    song_id = Database.execute_query(
+        "INSERT INTO songs (file_path, title, artist) VALUES (%s, %s, %s)",
+        ('/test/share-collab.mp3', 'Collab Song', 'Test Artist'))
+    try:
+        Database.execute_query(
+            "INSERT INTO library_access (user_id, song_id, origin) "
+            "VALUES (%s, %s, 'import')", (user_a, song_id))
+        ca.post(f'/api/playlists/{pid}/shares', json={'user_id': user_a})
+        share_id = cb.get('/api/playlists/invites').get_json()['invites'][0]['id']
+        cb.post(f'/api/playlists/invites/{share_id}/accept')
+        assert cb.post(f'/api/playlists/{pid}/songs', json={'song_id': song_id}).status_code == 200
+
+        owner_songs = ca.get(f'/api/playlists/{pid}').get_json()['songs']
+        assert song_id in [s['id'] for s in owner_songs]
+        assert LibraryAccessModel.can_play(1, song_id)
+        assert not LibraryAccessModel.has_access(1, song_id) or \
+            LibraryAccessModel.user_full_library(1)
+    finally:
+        Database.execute_query("DELETE FROM songs WHERE id = %s", (song_id,))
