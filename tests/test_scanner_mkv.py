@@ -58,3 +58,21 @@ def test_untagged_mkv_falls_back_to_filename(tmp_path):
     assert meta['artist'] == 'Unknown Artist'
     assert meta['duration'] == 2
     assert 'cover_path' not in meta
+
+
+def test_mkv_webp_cover_attachment(tmp_path):
+    """yt-dlp embeds cover.webp, which ffmpeg leaves as a plain attachment."""
+    Image = pytest.importorskip('PIL.Image')
+    cover = tmp_path / 'cover.webp'
+    Image.new('RGB', (16, 16), 'blue').save(cover, 'WEBP')
+    info = tmp_path / 'info.json'
+    info.write_text('{}')
+    song = tmp_path / 'video.mkv'
+    _ffmpeg('-f', 'lavfi', '-i', 'sine=duration=2', '-c:a', 'flac',
+            '-attach', str(info), '-metadata:s:t:0', 'mimetype=application/json',
+            '-attach', str(cover), '-metadata:s:t:1', 'mimetype=image/webp',
+            '-metadata:s:t:1', 'filename=cover.webp', str(song))
+    meta = MusicScanner(str(tmp_path))._extract_metadata(str(song), song.name)
+
+    assert meta['cover_path'].endswith('.webp')
+    assert (tmp_path / meta['cover_path']).read_bytes() == cover.read_bytes()

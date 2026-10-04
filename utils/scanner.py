@@ -2,6 +2,7 @@ import os
 import hashlib
 import json
 import subprocess
+import tempfile
 from datetime import datetime
 from types import SimpleNamespace
 from mutagen import File as MutagenFile
@@ -82,30 +83,49 @@ def _probe_matroska(file_path):
     return audio
 
 
+def _is_cover_candidate(stream):
+    if (stream.get('disposition') or {}).get('attached_pic'):
+        return True
+    mimetype = (stream.get('tags') or {}).get('mimetype', '')
+    return stream.get('codec_type') == 'attachment' and mimetype.startswith('image/')
+
+
 def _matroska_cover(file_path):
     """(image bytes, mime) of a Matroska file's cover attachment, or (None, None).
 
-    ffmpeg exposes image attachments as attached-picture video streams, so the
-    first one is copied out as-is.
+    ffmpeg exposes JPEG/PNG/GIF/TIFF/BMP attachments as attached-picture video
+    streams (copied out with -map), but leaves the rest - like the cover.webp
+    yt-dlp embeds - as plain attachments, which are dumped with -dump_attachment.
+    An attachment named cover.* wins over other images.
     """
     probe = _ffprobe(file_path)
-    for stream in (probe or {}).get('streams', []):
-        if not (stream.get('disposition') or {}).get('attached_pic'):
-            continue
-        try:
+    images = [s for s in (probe or {}).get('streams', []) if _is_cover_candidate(s)]
+    if not images:
+        return None, None
+    stream = min(images, key=lambda s: not (s.get('tags') or {}).get('filename', '').lower().startswith('cover'))
+    try:
+        if stream.get('codec_type') == 'attachment':
+            with tempfile.TemporaryDirectory() as tmp:
+                out = os.path.join(tmp, 'cover')
+                subprocess.run(
+                    ['ffmpeg', '-v', 'error', f"-dump_attachment:{stream['index']}", out,
+                     '-i', file_path, '-t', '0', '-f', 'null', '-'],
+                    capture_output=True, timeout=30, check=True)
+                with open(out, 'rb') as f:
+                    data = f.read()
+        else:
             data = subprocess.run(
                 ['ffmpeg', '-v', 'error', '-i', file_path, '-map', f"0:{stream['index']}",
                  '-c', 'copy', '-f', 'image2pipe', '-'],
                 capture_output=True, timeout=30, check=True).stdout
-        except (OSError, subprocess.SubprocessError):
-            return None, None
-        if not data:
-            return None, None
-        mime = (stream.get('tags') or {}).get('mimetype')
-        if not mime:
-            mime = 'image/png' if stream.get('codec_name') == 'png' else 'image/jpeg'
-        return data, mime
-    return None, None
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    if not data:
+        return None, None
+    mime = (stream.get('tags') or {}).get('mimetype')
+    if not mime:
+        mime = 'image/png' if stream.get('codec_name') == 'png' else 'image/jpeg'
+    return data, mime
 
 
 class MusicScanner:
