@@ -238,12 +238,6 @@ class SongModel:
         return Database.execute_query(query, (file_path,))
     
     @staticmethod
-    def delete_all_songs():
-        """Clear all songs from the database (for full rescan)."""
-        query = "DELETE FROM songs"
-        return Database.execute_query(query)
-    
-    @staticmethod
     def get_existing_paths():
         """Get a set of all file paths currently in the database."""
         query = "SELECT file_path FROM songs"

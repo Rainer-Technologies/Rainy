@@ -17,8 +17,14 @@ class UserModel:
             INSERT INTO users (username, email, password_hash, role, full_library)
             VALUES (%s, %s, %s, %s, %s)
         """
-        return Database.execute_query(
+        user_id = Database.execute_query(
             query, (username, email, password_hash, role, 1 if full_library else 0))
+        if user_id:
+            # Start with the published songs (plus the scanned library for
+            # a sysadmin).
+            from .library_access import LibraryAccessModel
+            LibraryAccessModel.backfill_user(user_id)
+        return user_id
     
     @staticmethod
     def get_user_by_email(email):

@@ -3,10 +3,12 @@
 A song ROW is global (one file on disk = one row), but each user only
 *sees* the songs they have a `library_access` row for:
 
-- origin 'scan'   → came from a disk scan (sysadmin-managed, communal).
-                    Treated as public: new users get them via backfill.
+- origin 'scan'   → came from a disk scan of the shared music folder;
+                    granted to sysadmins only.
 - origin 'import' → imported by that specific user; personal until a
                     sysadmin publishes it to everyone.
+- origin 'public' → the song is published (`songs.published = 1`); every
+                    account gets it, including ones created later.
 """
 from .database import Database
 
@@ -59,13 +61,34 @@ class LibraryAccessModel:
         return Database.execute_query(query, (user_id, song_id))
 
     @staticmethod
-    def song_is_scan_shared(song_id):
-        """True when the song has ANY scan-origin access row (i.e. it lives in
-        the shared music folder and is part of the communal/admin library)."""
+    def song_is_communal(song_id):
+        """True when the song is published or part of the scanned admin
+        library, i.e. not one account's private import."""
         row = Database.execute_query(
-            "SELECT 1 FROM library_access WHERE song_id = %s AND origin = 'scan' "
-            "LIMIT 1", (song_id,), fetch_one=True)
+            "SELECT 1 FROM songs s WHERE s.id = %s AND (s.published = 1 OR "
+            "EXISTS (SELECT 1 FROM library_access la "
+            "WHERE la.song_id = s.id AND la.origin = 'scan'))",
+            (song_id,), fetch_one=True)
         return row is not None
+
+    @staticmethod
+    def exclusive_song_ids(user_id, song_ids):
+        """The subset of song_ids that are the user's alone: in their
+        library, not published, not scanned, and in no other account's
+        library. Such songs only affect that user when merged or deleted."""
+        if not song_ids:
+            return set()
+        fmt = ','.join(['%s'] * len(song_ids))
+        rows = Database.execute_query(f"""
+            SELECT s.id FROM songs s
+            JOIN library_access mine ON mine.song_id = s.id AND mine.user_id = %s
+            WHERE s.id IN ({fmt}) AND s.published = 0
+            AND NOT EXISTS (
+                SELECT 1 FROM library_access other
+                WHERE other.song_id = s.id
+                AND (other.user_id <> %s OR other.origin = 'scan'))
+        """, (user_id, *song_ids, user_id), fetch_all=True) or []
+        return {r['id'] for r in rows}
 
     @staticmethod
     def access_count_excluding(user_id, song_id):
@@ -78,12 +101,17 @@ class LibraryAccessModel:
 
     @staticmethod
     def has_access(user_id, song_id):
-        if LibraryAccessModel.user_full_library(user_id):
-            return True
+        # One round trip (it runs on every stream range request): an access
+        # row, or the full-library permission for a song that exists.
         query = """
-            SELECT 1 FROM library_access WHERE user_id = %s AND song_id = %s
+            SELECT 1 FROM users u
+            WHERE u.id = %s AND (
+                EXISTS (SELECT 1 FROM library_access la
+                        WHERE la.user_id = u.id AND la.song_id = %s)
+                OR (u.full_library = 1
+                    AND EXISTS (SELECT 1 FROM songs s WHERE s.id = %s)))
         """
-        return Database.execute_query(query, (user_id, song_id),
+        return Database.execute_query(query, (user_id, song_id, song_id),
                                       fetch_one=True) is not None
 
     @staticmethod
@@ -117,60 +145,73 @@ class LibraryAccessModel:
         return out
 
     @staticmethod
-    def backfill_user(user_id, origin='scan'):
-        """Give a user every 'public' song they don't have yet.
+    def backfill_user(user_id):
+        """Give a user every song their role entitles them to. Idempotent.
 
-        ADMIN-ONLY by policy (Aug 2026): the scanned music-folder library is
-        visible to administrators by default; regular accounts only see what a
-        sysadmin explicitly publishes or grants to them. Called on login and
-        after scans; for non-admins this is a no-op so new accounts start
-        empty.
+        Everyone gets the published songs; sysadmins also get the scanned
+        music-folder library. Runs when an account is created or promoted.
+        Library loads re-run it for sysadmins only, so a regular user who
+        removes a published song from their library doesn't get it back.
         """
+        Database.execute_query("""
+            INSERT IGNORE INTO library_access (user_id, song_id, origin)
+            SELECT %s, s.id, 'public' FROM songs s WHERE s.published = 1
+        """, (user_id,))
         row = Database.execute_query(
             "SELECT role FROM users WHERE id = %s", (user_id,), fetch_one=True)
         if not row or row.get('role') != 'sysadmin':
             return
-        query = """
+        Database.execute_query("""
             INSERT IGNORE INTO library_access (user_id, song_id, origin)
-            SELECT %s, s.id, 'scan'
-            FROM songs s
-            JOIN library_access la ON la.song_id = s.id AND la.origin = 'scan'
-        """
-        return Database.execute_query(query, (user_id,))
+            SELECT %s, s.id, 'scan' FROM songs s
+            WHERE EXISTS (SELECT 1 FROM library_access la
+                          WHERE la.song_id = s.id AND la.origin = 'scan')
+        """, (user_id,))
+
+    @staticmethod
+    def revoke_scan_library(user_id):
+        """Demotion: drop the scanned admin library from the user's view
+        (their own imports and published songs stay)."""
+        Database.execute_query(
+            "DELETE FROM library_access WHERE user_id = %s AND origin = 'scan'",
+            (user_id,))
+
+    @staticmethod
+    def _mark_published_rows():
+        """Every access row of a published song is origin 'public'."""
+        Database.execute_query("""
+            UPDATE library_access SET origin = 'public'
+            WHERE origin <> 'public'
+            AND song_id IN (SELECT id FROM songs WHERE published = 1)
+        """)
 
     @staticmethod
     def publish_to_all(song_id):
-        """Sysadmin: make a personally-imported song public.
-
-        Grants every existing user access and flips ALL access rows for this
-        song to origin='scan' so future users get it via backfill too.
-        """
-        q1 = """
+        """Sysadmin: publish a song to every account, current and future."""
+        Database.execute_query(
+            "UPDATE songs SET published = 1 WHERE id = %s", (song_id,))
+        Database.execute_query("""
             INSERT IGNORE INTO library_access (user_id, song_id, origin)
-            SELECT u.id, %s, 'scan' FROM users u
-        """
-        q2 = "UPDATE library_access SET origin = 'scan' WHERE song_id = %s"
-        Database.execute_query(q1, (song_id,))
-        return Database.execute_query(q2, (song_id,))
+            SELECT u.id, %s, 'public' FROM users u
+        """, (song_id,))
+        LibraryAccessModel._mark_published_rows()
 
     @staticmethod
     def publish_all_imported_by(owner_user_id):
         """Publish every personal import of one user (bulk variant)."""
-        q1 = """
-            INSERT IGNORE INTO library_access (user_id, song_id, origin)
-            SELECT u.id, la.song_id, 'scan'
-            FROM users u
-            JOIN library_access la ON la.song_id IN (
+        Database.execute_query("""
+            UPDATE songs SET published = 1 WHERE id IN (
                 SELECT song_id FROM library_access
-                WHERE user_id = %s AND origin = 'import'
-            )
-        """
-        q2 = """
-            UPDATE library_access SET origin = 'scan'
-            WHERE user_id = %s AND origin = 'import'
-        """
-        Database.execute_query(q1, (owner_user_id,))
-        return Database.execute_query(q2, (owner_user_id,))
+                WHERE user_id = %s AND origin = 'import')
+        """, (owner_user_id,))
+        Database.execute_query("""
+            INSERT IGNORE INTO library_access (user_id, song_id, origin)
+            SELECT u.id, la.song_id, 'public'
+            FROM users u
+            JOIN library_access la
+              ON la.user_id = %s AND la.origin = 'import'
+        """, (owner_user_id,))
+        LibraryAccessModel._mark_published_rows()
 
     @staticmethod
     def import_stats():

@@ -5,6 +5,7 @@ import pytest
 
 import app as app_module
 from models.lyrics_job import LyricsJobModel
+from models.library_access import LibraryAccessModel
 from routes import music
 from utils import lyrics_worker
 from utils.lyrics_align import ALIGN_VERSION
@@ -23,6 +24,8 @@ def store(monkeypatch):
 
     monkeypatch.setattr(music.SongModel, 'get_song_by_id',
                         staticmethod(lambda sid: {'id': sid} if sid < 900 else None))
+    monkeypatch.setattr(LibraryAccessModel, 'has_access',
+                        staticmethod(lambda uid, sid: sid < 900))
     monkeypatch.setattr(LyricsJobModel, 'get_words', staticmethod(lambda sid: state['words'].get(sid)))
     monkeypatch.setattr(LyricsJobModel, 'get_lyrics', staticmethod(lambda sid: state['lyrics'].get(sid)))
     monkeypatch.setattr(LyricsJobModel, 'song_job_state', staticmethod(lambda sid: state['jobs'].get(sid)))

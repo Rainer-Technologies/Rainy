@@ -5,8 +5,20 @@ receiver fetches directly (it can't use the browser's session cookie).
 """
 
 
+import pytest
+
+from models.library_access import LibraryAccessModel
+
+
 def _fake_song(song_id):
     return {"id": song_id, "cover_path": "covers/album.jpg"}
+
+
+@pytest.fixture(autouse=True)
+def visible(monkeypatch):
+    """Every song id except 7 is in the caller's library."""
+    monkeypatch.setattr(LibraryAccessModel, "has_access",
+                        staticmethod(lambda user_id, song_id: song_id != 7))
 
 
 def test_cast_url_requires_auth(anon_client):
@@ -61,3 +73,13 @@ def test_cast_urls_batch_resolves_only_known_songs(client, monkeypatch):
     urls = r.get_json()["urls"]
     assert set(urls.keys()) == {"42"}
     assert "/api/music/stream/42" in urls["42"]["url"]
+
+
+def test_cast_url_hides_songs_outside_the_library(client, monkeypatch):
+    monkeypatch.setattr(
+        "routes.music.SongModel.get_song_by_id",
+        staticmethod(lambda song_id: _fake_song(song_id)),
+    )
+    assert client.get("/api/music/cast-url/7").status_code == 404
+    urls = client.post("/api/music/cast-urls", json={"song_ids": [7, 42]}).get_json()["urls"]
+    assert set(urls.keys()) == {"42"}

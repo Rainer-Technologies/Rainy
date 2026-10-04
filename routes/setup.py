@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, session
 from models.user import UserModel
+from routes.auth import server_error
 
 setup_bp = Blueprint('setup', __name__, url_prefix='/api/setup')
 
@@ -12,8 +13,8 @@ def get_setup_status():
             'needs_setup': needs_setup,
             'message': 'Setup required' if needs_setup else 'Setup complete'
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 @setup_bp.route('/complete', methods=['POST'])
 def complete_setup():

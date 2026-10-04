@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, session
 from models.playlist import PlaylistModel
 from models.playlist_share import PlaylistShareModel
-from routes.auth import require_auth, require_sysadmin
+from routes.auth import require_auth, require_sysadmin, server_error
 
 playlists_bp = Blueprint('playlists', __name__)
 
@@ -47,8 +47,8 @@ def create_playlist():
             'icon_color': icon_color,
             'owner_user_id': owner_user_id
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 @playlists_bp.route('/<int:playlist_id>', methods=['GET'])
 @require_auth
@@ -123,8 +123,8 @@ def delete_playlist(playlist_id):
 
         PlaylistModel.delete_playlist(playlist_id)
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 @playlists_bp.route('/<int:playlist_id>', methods=['PUT'])
 @require_auth
@@ -157,8 +157,8 @@ def update_playlist(playlist_id):
         # with per-account isolation a playlist can never become shared.
         
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 @playlists_bp.route('/<int:playlist_id>/songs', methods=['POST'])
 @require_auth
@@ -185,7 +185,7 @@ def add_song(playlist_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return server_error()
 
 @playlists_bp.route('/<int:playlist_id>/songs/<int:song_id>', methods=['DELETE'])
 @require_auth
@@ -200,8 +200,8 @@ def remove_song(playlist_id, song_id):
             return jsonify({'error': 'Forbidden'}), 403
         PlaylistModel.remove_song_from_playlist(playlist_id, song_id)
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/cover', methods=['POST'])
@@ -252,7 +252,7 @@ def generate_cover(playlist_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/reorder', methods=['POST'])
@@ -277,8 +277,8 @@ def reorder_playlist(playlist_id):
 
         PlaylistModel.reorder_songs(playlist_id, ordered)
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/download', methods=['GET'])
@@ -338,7 +338,7 @@ def download_playlist(playlist_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/export', methods=['GET'])
@@ -432,7 +432,7 @@ def export_playlist(playlist_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return server_error()
 
 
 # ── Playlist sharing ─────────────────────────────────────────────────
@@ -456,8 +456,8 @@ def my_playlist_invites():
     """Playlist invites awaiting the current user's response."""
     try:
         return jsonify({'invites': PlaylistShareModel.pending_for(session['user_id'])})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/invites/<int:share_id>/accept', methods=['POST'])
@@ -473,8 +473,8 @@ def accept_playlist_invite(share_id):
             return jsonify({'success': True, 'message': 'Already accepted'})
         PlaylistShareModel.accept(share_id)
         return jsonify({'success': True, 'message': 'Playlist added to your library'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/invites/<int:share_id>/decline', methods=['POST'])
@@ -487,8 +487,8 @@ def decline_playlist_invite(share_id):
             return jsonify({'error': 'Invite not found'}), 404
         PlaylistShareModel.decline(share_id)
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/shares', methods=['GET'])
@@ -500,8 +500,8 @@ def list_shares(playlist_id):
         if err:
             return err
         return jsonify({'shares': PlaylistShareModel.by_playlist(playlist_id)})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/shares', methods=['POST'])
@@ -543,8 +543,8 @@ def invite_to_playlist(playlist_id):
         if status == 'already_pending':
             return jsonify({'success': True, 'message': f'Invite to {friend["username"]} is already pending'})
         return jsonify({'success': True, 'message': f'Invited {friend["username"]} to the playlist'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/shares/<int:share_id>', methods=['PUT'])
@@ -566,8 +566,8 @@ def update_share_role(playlist_id, share_id):
             return jsonify({'error': 'The owner has no share role to change'}), 400
         PlaylistShareModel.update_role(share_id, role)
         return jsonify({'success': True, 'message': 'Role updated'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/shares/<int:share_id>', methods=['DELETE'])
@@ -585,8 +585,8 @@ def revoke_share(playlist_id, share_id):
             return jsonify({'error': 'The owner cannot revoke their own access'}), 400
         PlaylistShareModel.revoke(playlist_id, share['user_id'])
         return jsonify({'success': True, 'message': 'Access revoked'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/shares/<int:share_id>/leave', methods=['POST'])
@@ -602,8 +602,8 @@ def leave_playlist(share_id):
             return jsonify({'error': 'Invite is not accepted yet'}), 400
         PlaylistShareModel.leave(share_id, session['user_id'])
         return jsonify({'success': True, 'message': 'Playlist removed from your library'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlists_bp.route('/<int:playlist_id>/leave', methods=['POST'])
@@ -622,5 +622,5 @@ def leave_playlist_by_id(playlist_id):
         if share_id is None:
             return jsonify({'error': 'This playlist is not shared with you'}), 404
         return jsonify({'success': True, 'message': 'Playlist removed from your library'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()

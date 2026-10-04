@@ -29,7 +29,13 @@ def _run_single_sync(sync_row, music_path):
     PlaylistSyncModel.mark_running(sync_id)
     try:
         from utils.playlist_sync import sync_playlist
-        result = sync_playlist(playlist_id, source, url, music_path, sync_mode=sync_mode)
+        # Downloaded songs go to the playlist owner's library; without a
+        # grant they would be hidden even from the playlist they synced into.
+        owner = Database.execute_query(
+            "SELECT owner_user_id FROM playlists WHERE id = %s", (playlist_id,),
+            fetch_one=True)
+        result = sync_playlist(playlist_id, source, url, music_path, sync_mode=sync_mode,
+                               user_id=owner and owner.get('owner_user_id'))
         if result.get('success'):
             msg = f"Added {result.get('added',0)}, removed {result.get('removed',0)}, kept {result.get('kept',0)}, failed {result.get('failed',0)}"
             PlaylistSyncModel.mark_completed(sync_id, msg, interval_hours)

@@ -197,16 +197,17 @@ class Database:
         # is granted per user via library_access:
         #   - No row for (user_id, song_id) → the song is NOT in that
         #     user's library.
-        #   - Row present → visible. origin 'scan' rows are "public":
-        #     every NEW user automatically gets a copy at first login
-        #     (backfill), while origin 'import' rows stay personal until
-        #     a sysadmin publishes them.
+        #   - Row present → visible. origin records how the user got it:
+        #     'scan'   — the shared music folder (sysadmins only),
+        #     'import' — the user's own import (personal),
+        #     'public' — a song a sysadmin published (songs.published = 1);
+        #                every account, including future ones, gets it.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS library_access (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
                 song_id INT NOT NULL,
-                origin ENUM('scan', 'import') NOT NULL DEFAULT 'import',
+                origin ENUM('scan', 'import', 'public') NOT NULL DEFAULT 'import',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_user_song (user_id, song_id),
                 INDEX idx_user_origin (user_id, origin),
@@ -219,17 +220,40 @@ class Database:
         # library (pre-isolation songs were shared by definition). Admin-only
         # by policy since Aug 2026 — scans of the shared folder are visible
         # to administrators; regular accounts only get published songs.
-        cursor.execute("""
-            INSERT IGNORE INTO library_access (user_id, song_id, origin)
-            SELECT u.id, s.id, 'scan'
-            FROM users u
-            CROSS JOIN songs s
-            WHERE u.role = 'sysadmin'
-            AND NOT EXISTS (
-                SELECT 1 FROM library_access la
-                WHERE la.user_id = u.id AND la.song_id = s.id
-            )
-        """)
+        # Only while the table is still empty: re-run on every start it
+        # handed sysadmins every user's private imports.
+        cursor.execute("SELECT COUNT(*) FROM library_access")
+        if not cursor.fetchone()[0]:
+            cursor.execute("""
+                INSERT IGNORE INTO library_access (user_id, song_id, origin)
+                SELECT u.id, s.id, 'scan'
+                FROM users u
+                CROSS JOIN songs s
+                WHERE u.role = 'sysadmin'
+            """)
+
+        # Migration: 'published' becomes a song property with its own
+        # origin. It used to be implied by 'scan' rows, so publishing never
+        # reached accounts created later and a demoted sysadmin kept the
+        # whole scanned library.
+        origin_type = cls._column_type(cursor, 'library_access', 'origin')
+        if origin_type is not None and 'public' not in origin_type:
+            cursor.execute(
+                "ALTER TABLE library_access MODIFY COLUMN origin "
+                "ENUM('scan', 'import', 'public') NOT NULL DEFAULT 'import'")
+        if cls._add_column(cursor, 'songs', 'published', 'TINYINT(1) NOT NULL DEFAULT 0'):
+            # One-time: a song a regular account holds via a 'scan' row was
+            # published (or pre-dates isolation) — keep it visible to all.
+            cursor.execute("""
+                UPDATE songs SET published = 1 WHERE id IN (
+                    SELECT la.song_id FROM library_access la
+                    JOIN users u ON u.id = la.user_id
+                    WHERE la.origin = 'scan' AND u.role <> 'sysadmin')
+            """)
+            cursor.execute("""
+                UPDATE library_access SET origin = 'public'
+                WHERE song_id IN (SELECT id FROM songs WHERE published = 1)
+            """)
 
         
         # Playlist Songs table (linking table)

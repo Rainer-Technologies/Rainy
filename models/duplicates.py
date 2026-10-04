@@ -129,6 +129,33 @@ class DuplicateModel:
                 # Any leftover loser ratings (user already rated the keeper) are
                 # dropped with the loser row below.
 
+            # 1b) Library access: every account that could see a removed copy
+            #     keeps the song through the keeper (same skip-if-present
+            #     pattern). A published copy keeps the keeper published.
+            for loser in losers:
+                cursor.execute(
+                    """
+                    UPDATE library_access
+                    SET song_id = %s
+                    WHERE song_id = %s
+                      AND user_id NOT IN (
+                          SELECT user_id FROM (SELECT user_id FROM library_access
+                                               WHERE song_id = %s) k
+                      )
+                    """,
+                    (keeper_id, loser, keeper_id),
+                )
+            lfmt = ','.join(['%s'] * len(losers))
+            cursor.execute(
+                f"SELECT 1 FROM songs WHERE id IN ({lfmt}) AND published = 1",
+                tuple(losers))
+            if cursor.fetchone():
+                cursor.execute(
+                    "UPDATE songs SET published = 1 WHERE id = %s", (keeper_id,))
+                cursor.execute(
+                    "UPDATE library_access SET origin = 'public' WHERE song_id = %s",
+                    (keeper_id,))
+
             # 2) Playlist entries: re-point to keeper, then dedupe within each
             #    playlist so a song never appears twice.
             for loser in losers:
@@ -197,7 +224,14 @@ class DuplicateModel:
             #    deleting the loser rows is safe.
 
             # 6) Delete the loser song rows (cascades remaining FKs).
-            lfmt = ','.join(['%s'] * len(losers))
+            # Remember the losers' files: the caller deletes them from disk
+            # once the merge is committed (otherwise the next scan would add
+            # them right back as new songs).
+            cursor.execute(
+                f"SELECT file_path, cover_path FROM songs WHERE id IN ({lfmt})",
+                tuple(losers))
+            removed_files = [{'file_path': r[0], 'cover_path': r[1]}
+                             for r in cursor.fetchall()]
             cursor.execute(f"DELETE FROM songs WHERE id IN ({lfmt})", tuple(losers))
 
             conn.commit()
@@ -207,6 +241,7 @@ class DuplicateModel:
                 'keeper_id': keeper_id,
                 'removed': losers,
                 'removed_count': len(losers),
+                'removed_files': removed_files,
             }
         except Exception as e:
             conn.rollback()
