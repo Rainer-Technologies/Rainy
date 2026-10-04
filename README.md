@@ -14,9 +14,13 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green"></a>
 </p>
 
-**Your music, your server.**
+<p align="center">
+  <strong>Your music, your server.</strong>
+</p>
 
-Rainy brings your library and playlists to a self-hosted web player, with support for multiple users and a music-driven fullscreen light show.
+<p align="center">
+  Rainy brings your library and playlists to a self-hosted web player, with support for multiple users and a music-driven fullscreen light show.
+</p>
 
 ## Setup
 
