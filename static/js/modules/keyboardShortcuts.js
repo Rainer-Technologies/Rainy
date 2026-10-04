@@ -6,6 +6,7 @@
  * ?=keyboard shortcut cheat sheet overlay.
  */
 import { Logger } from '../helper/logger.js';
+import { t } from '../i18n/index.js';
 
 export class KeyboardShortcuts {
     constructor(player, app) {
@@ -87,20 +88,20 @@ export class KeyboardShortcuts {
                 if (p.setPlaybackSpeed) {
                     const cur = p.audio.playbackRate || 1;
                     p.setPlaybackSpeed(Math.max(0.25, parseFloat((cur - 0.25).toFixed(2))));
-                    window.showToast?.(`Speed: ${p.audio.playbackRate}x`, 'info');
+                    window.showToast?.(t('Speed: {rate}x', { rate: p.audio.playbackRate }), 'info');
                 }
                 break;
             case ']':
                 if (p.setPlaybackSpeed) {
                     const cur = p.audio.playbackRate || 1;
                     p.setPlaybackSpeed(Math.min(3, parseFloat((cur + 0.25).toFixed(2))));
-                    window.showToast?.(`Speed: ${p.audio.playbackRate}x`, 'info');
+                    window.showToast?.(t('Speed: {rate}x', { rate: p.audio.playbackRate }), 'info');
                 }
                 break;
             case '0':
                 if (p.setPlaybackSpeed) {
                     p.setPlaybackSpeed(1);
-                    window.showToast?.('Speed: 1x', 'info');
+                    window.showToast?.(t('Speed: {rate}x', { rate: 1 }), 'info');
                 }
                 break;
             case 'e':

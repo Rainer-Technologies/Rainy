@@ -354,6 +354,10 @@
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+.ls-hud-lyrics[hidden] {
+    display: none;
+}
+
 .ls-hud-lyrics:hover {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
@@ -368,6 +372,110 @@
 .ls-hud-lyrics[aria-pressed="true"].missing {
     background: transparent;
     color: rgba(255, 255, 255, 0.4);
+}
+
+/* Offer of Low Performance Mode when the show keeps dropping frames. It stays
+   until answered. Solid background, no backdrop-filter: the machine is
+   already struggling. */
+.ls-lp-prompt {
+    position: absolute;
+    left: 50%;
+    top: 96px;
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: min(560px, calc(100vw - 32px));
+    box-sizing: border-box;
+    padding: 14px 14px 14px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    background: rgba(14, 14, 20, 0.94);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, -10px);
+    transition: opacity 0.35s ease, transform 0.35s ease, visibility 0s linear 0.35s;
+}
+
+.ls-lp-prompt.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.ls-lp-prompt p {
+    flex: 1;
+    margin: 0;
+}
+
+.ls-lp-prompt b {
+    display: block;
+    color: #fff;
+    font-weight: 600;
+}
+
+.ls-lp-done,
+.ls-lp-prompt.done .ls-lp-ask,
+.ls-lp-prompt.done .ls-lp-actions {
+    display: none;
+}
+
+.ls-lp-prompt.done .ls-lp-done {
+    display: block;
+}
+
+.ls-lp-actions {
+    display: flex;
+    flex: none;
+    gap: 8px;
+}
+
+.ls-lp-actions button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 9px;
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.2s ease, filter 0.2s ease;
+}
+
+.ls-lp-later {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.ls-lp-later:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.ls-lp-on {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+.ls-lp-on:hover {
+    filter: brightness(1.12);
+}
+
+@media (max-width: 560px) {
+    .ls-lp-prompt {
+        flex-direction: column;
+        align-items: stretch;
+        top: 84px;
+    }
+
+    .ls-lp-actions button {
+        flex: 1;
+    }
 }
 
 /* ---------------------------------------------------------------------
@@ -1098,6 +1206,49 @@
     .ls-line { transition: opacity 0.3s ease; }
 }
 
+/* Low performance mode (set by the engine): no glows on the lyrics. Filters,
+   text-shadows and box-shadows repaint every frame they change; the
+   !important also beats the values the keyframes animate (blur-in/out,
+   drop-shadows), so every transition keeps only its opacity and transform. */
+#fullscreen-player.ls-lowpower .ls-lyrics * {
+    filter: none !important;
+    text-shadow: none !important;
+}
+
+#fullscreen-player.ls-lowpower .ls-w.hit::after,
+#fullscreen-player.ls-lowpower .ls-lyrics-dots i.lit {
+    box-shadow: none;
+}
+
+#fullscreen-player.ls-lowpower .ls-c {
+    transition: color 0.25s ease, -webkit-text-stroke-color 0.25s ease;
+}
+
+#fullscreen-player.ls-lowpower .ls-c.lit {
+    animation: ls-ignite-lite 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+#fullscreen-player.ls-lowpower .ls-c.lit.settled {
+    animation: none;
+}
+
+#fullscreen-player.ls-lowpower .ls-lyrics-stack {
+    transform: none;
+}
+
+#fullscreen-player.lightshow-on.ls-lowpower .fs-backdrop {
+    transition: background-image 0.5s ease, opacity 0.3s linear;
+}
+
+@keyframes ls-ignite-lite {
+    from { opacity: 0.4; translate: 0 var(--rise); }
+    to { opacity: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #fullscreen-player.ls-lowpower .ls-c.lit { animation: none; }
+}
+
 /* Positioning based on standard vs modern mode */
 /* Standard mode keeps the Up Next queue on the left, so the light-show
    toggle must live on the right next to the close button — the old
@@ -1183,6 +1334,8 @@
     justify-content: center;
     box-shadow: 0 4px 12px rgba(61, 125, 196, 0.3);
 }
+
+.no-anime .fs-logo { display: none; }
 
 .fs-logo img {
     width: 100%;
@@ -1901,6 +2054,21 @@
         padding-left: 0;
         padding-bottom: var(--spacing-md);
         justify-content: flex-end;
+    }
+
+    /* The swapped-side rules above carry an id, so they outrank the plain
+       mobile rules: undo them so both layouts stack the same way. */
+    #fullscreen-player.layout-swapped .fs-content {
+        flex-direction: column-reverse;
+    }
+
+    #fullscreen-player.layout-swapped .fs-queue-container {
+        padding-left: 0;
+        border-left: none;
+    }
+
+    #fullscreen-player.layout-swapped .fs-current-info {
+        padding-right: 0;
     }
 
     .fs-artwork-container {

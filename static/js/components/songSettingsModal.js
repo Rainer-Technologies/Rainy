@@ -6,6 +6,10 @@ import { useEnrichmentService } from "../services/enrichment.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
+import { t } from "../i18n/index.js";
+
+/** 'chorus' -> 'Chorus', translated (light show section names). */
+const sectionName = (label) => t(label.charAt(0).toUpperCase() + label.slice(1));
 
 /**
  * @typedef {Object} SongModel
@@ -115,7 +119,7 @@ export class SongSettingsModal extends Component {
             seg.style.flexGrow = String(Math.max(0.001, sec.t1 - sec.t0));
             seg.style.animationDelay = `${i * 25}ms`;
             const mins = Math.floor(sec.t0 / 60), secs = String(Math.floor(sec.t0 % 60)).padStart(2, '0');
-            seg.title = `${sec.label} · ${mins}:${secs}`;
+            seg.title = `${sectionName(sec.label)} · ${mins}:${secs}`;
             strip.append(seg);
         });
         for(const ev of show.events || []) {
@@ -139,8 +143,7 @@ export class SongSettingsModal extends Component {
             .sort((x, y) => y[1] - x[1])
             .slice(0, 4)
             .forEach(([label, count]) => {
-                const name = label.charAt(0).toUpperCase() + label.slice(1);
-                chips.append(h.span(a.class('ss-chip'), `${count} ${name}`));
+                chips.append(h.span(a.class('ss-chip'), `${count} ${sectionName(label)}`));
             });
         return chips;
     }
@@ -173,39 +176,39 @@ export class SongSettingsModal extends Component {
                 ),
                 h.div(a.class('ss-stat'),
                     h.div(a.class('ss-stat-value'), String(show.sections.length)),
-                    h.div(a.class('ss-stat-label'), 'Sections'),
+                    h.div(a.class('ss-stat-label'), t('Sections')),
                 ),
                 h.div(a.class('ss-stat'),
                     h.div(a.class('ss-stat-value', 'ss-stat-text'),
-                        genre === 'hiphop' ? 'Hip-hop' : genre === 'edm' ? 'EDM' : genre.charAt(0).toUpperCase() + genre.slice(1)),
-                    h.div(a.class('ss-stat-label'), 'Style'),
+                        genre === 'hiphop' ? t('Hip-hop') : genre === 'edm' ? 'EDM' : t(genre.charAt(0).toUpperCase() + genre.slice(1))),
+                    h.div(a.class('ss-stat-label'), t('Style')),
                 ),
                 this._renderSectionChips(show.sections),
             ));
         } else if(busy) {
             container.append(h.div(a.class('ss-empty'),
                 I.Spinner(),
-                h.div(a.class('ss-empty-title'), job.status === 'running' ? 'Analysing this song\u2026' : 'Queued for analysis'),
-                h.div(a.class('ss-empty-detail'), 'Rainy is mapping its beats, sections and drops on the server. The live engine plays meanwhile.'),
+                h.div(a.class('ss-empty-title'), job.status === 'running' ? t('Analysing this song\u2026') : t('Queued for analysis')),
+                h.div(a.class('ss-empty-detail'), t('Rainy is mapping its beats, sections and drops on the server. The live engine plays meanwhile.')),
             ));
         } else if(job && job.status === 'failed') {
             container.append(h.div(a.class('ss-empty'),
                 I.Bolt(),
-                h.div(a.class('ss-empty-title'), 'Analysis failed'),
-                h.div(a.class('ss-empty-detail'), job.error || 'The audio could not be analysed.'),
+                h.div(a.class('ss-empty-title'), t('Analysis failed')),
+                h.div(a.class('ss-empty-detail'), t(job.error || 'The audio could not be analysed.')),
             ));
         } else {
             container.append(h.div(a.class('ss-empty'),
                 I.Bolt(),
-                h.div(a.class('ss-empty-title'), 'Not analysed yet'),
-                h.div(a.class('ss-empty-detail'), 'Analyse it and the rig will hit every beat, build and drop of this song. It also happens automatically the first time it plays.'),
+                h.div(a.class('ss-empty-title'), t('Not analysed yet')),
+                h.div(a.class('ss-empty-detail'), t('Analyse it and the rig will hit every beat, build and drop of this song. It also happens automatically the first time it plays.')),
             ));
         }
 
         if(!busy) {
             container.append(h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.analyseLightshow()),
                 I.Bolt(),
-                h.span(current ? 'Re-analyse Light Show' : job && job.status === 'failed' ? 'Try Again' : 'Analyse Now'),
+                h.span(current ? t('Re-analyse Light Show') : job && job.status === 'failed' ? t('Try Again') : t('Analyse Now')),
             ));
         }
 
@@ -265,41 +268,41 @@ export class SongSettingsModal extends Component {
         if(state === 'found' && lines.length) {
             const preview = h.div(a.class('ss-lyrics'));
             preview.append(h.div(a.class('ss-lyrics-meta'),
-                synced ? h.span(a.class('ss-synced-chip'), 'Synced') : h.span(a.class('ss-plain-chip'), 'Plain text'),
-                h.span(a.class('ss-lyrics-count'), `${lines.length} lines`),
+                synced ? h.span(a.class('ss-synced-chip'), t('Synced')) : h.span(a.class('ss-plain-chip'), t('Plain text')),
+                h.span(a.class('ss-lyrics-count'), t('{count} lines', { count: lines.length })),
             ));
             for(const line of lines.slice(0, 5)) {
                 preview.append(h.div(a.class('ss-lyrics-line'), line));
             }
             if(lines.length > 5) {
                 preview.append(h.div(a.class('ss-lyrics-fade')));
-                preview.append(h.div(a.class('ss-lyrics-more'), `+ ${lines.length - 5} more lines`));
+                preview.append(h.div(a.class('ss-lyrics-more'), t('+ {count} more lines', { count: lines.length - 5 })));
             }
             container.append(preview);
         } else {
             container.append(h.div(a.class('ss-empty'),
                 I.Lyrics(),
                 h.div(a.class('ss-empty-title'),
-                    state === 'not_fetched' ? 'Lyrics haven\u2019t been fetched' : 'No lyrics for this song'),
+                    state === 'not_fetched' ? t('Lyrics haven\u2019t been fetched') : t('No lyrics for this song')),
                 h.div(a.class('ss-empty-detail'),
                     state === 'not_fetched'
-                        ? 'Run an automatic fetch, or search LRCLIB yourself and hand-pick the right version.'
-                        : 'The automatic search came up empty \u2014 try a manual search, the lyrics might still be there.'),
+                        ? t('Run an automatic fetch, or search LRCLIB yourself and hand-pick the right version.')
+                        : t('The automatic search came up empty \u2014 try a manual search, the lyrics might still be there.')),
             ));
         }
 
         container.append(h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.findLyrics()),
             I.Magnifier(),
-            h.span('Find Lyrics\u2026'),
+            h.span(t('Find Lyrics\u2026')),
         ));
 
         const rowIcon = h.div(a.class('ss-row-icon'), I.Refresh());
-        const rowTitle = h.div(a.class('ss-row-title'), 'Auto-fetch Lyrics');
+        const rowTitle = h.div(a.class('ss-row-title'), t('Auto-fetch Lyrics'));
         const row = h.div(a.class('ss-row'), on.click(() => this.autoFetchLyrics(row, rowIcon, rowTitle)),
             rowIcon,
             h.div(a.class('ss-row-text'),
                 rowTitle,
-                h.div(a.class('ss-row-sub'), 'Let Rainy pick the best LRCLIB match automatically'),
+                h.div(a.class('ss-row-sub'), t('Let Rainy pick the best LRCLIB match automatically')),
             ),
         );
         container.append(row);
@@ -331,8 +334,8 @@ export class SongSettingsModal extends Component {
         return h.div(a.class('ss-row', variant ?? ''), on.click(onClick),
             h.div(a.class('ss-row-icon'), icon),
             h.div(a.class('ss-row-text'),
-                h.div(a.class('ss-row-title'), title),
-                h.div(a.class('ss-row-sub'), subtitle),
+                h.div(a.class('ss-row-title'), t(title)),
+                h.div(a.class('ss-row-sub'), t(subtitle)),
             ),
         );
     }
@@ -355,7 +358,7 @@ export class SongSettingsModal extends Component {
         row.classList.add('busy');
         Array.from(rowIcon.children).forEach(el => el.remove());
         rowIcon.append(I.Spinner());
-        rowTitle.textContent = 'Fetching from LRCLIB\u2026';
+        rowTitle.textContent = t('Fetching from LRCLIB\u2026');
 
         const data = await useLyricsService().fetch(song.id);
         if(data.error) {
@@ -516,7 +519,7 @@ export class SongSettingsModal extends Component {
                 : this._formatFeature(key, features[key]);
             grid.append(h.div(a.class('ss-meta-cell'),
                 h.div(a.class('ss-meta-value'), String(display ?? '\u2014')),
-                h.div(a.class('ss-meta-label'), label),
+                h.div(a.class('ss-meta-label'), t(label)),
             ));
         }
         return grid;
@@ -531,7 +534,7 @@ export class SongSettingsModal extends Component {
             const chip = h.span(a.class('ss-meta-tag', tag.source === 'musicbrainz' ? 'mb' : ''),
                 tag.tag_name,
             );
-            chip.title = `${tag.source} \u00b7 weight ${tag.weight}`;
+            chip.title = t('{source} · weight {weight}', { source: tag.source, weight: tag.weight });
             wrap.append(chip);
         }
         return wrap;
@@ -567,7 +570,7 @@ export class SongSettingsModal extends Component {
         // Loading state
         container.append(h.div(a.class('ss-meta-loading'),
             I.Spinner(),
-            h.span('Loading metadata\u2026'),
+            h.span(t('Loading metadata\u2026')),
         ));
 
         const data = await useEnrichmentService().getMetadata(song.id);
@@ -577,8 +580,8 @@ export class SongSettingsModal extends Component {
             Logger.error(data.error || 'Failed to load metadata');
             container.append(h.div(a.class('ss-empty'),
                 I.Info(),
-                h.div(a.class('ss-empty-title'), 'Couldn\u2019t load metadata'),
-                h.div(a.class('ss-empty-detail'), 'Something went wrong fetching this song\u2019s analysis.'),
+                h.div(a.class('ss-empty-title'), t('Couldn\u2019t load metadata')),
+                h.div(a.class('ss-empty-detail'), t('Something went wrong fetching this song\u2019s analysis.')),
             ));
             return;
         }
@@ -592,26 +595,26 @@ export class SongSettingsModal extends Component {
         if(!hasAny) {
             container.append(h.div(a.class('ss-empty'),
                 I.Info(),
-                h.div(a.class('ss-empty-title'), 'No metadata yet'),
-                h.div(a.class('ss-empty-detail'), 'Analyse this song to extract its audio profile, genre tags and similar artists \u2014 all locally and from free open databases.'),
+                h.div(a.class('ss-empty-title'), t('No metadata yet')),
+                h.div(a.class('ss-empty-detail'), t('Analyse this song to extract its audio profile, genre tags and similar artists \u2014 all locally and from free open databases.')),
             ));
         } else {
             if(hasFeatures) {
-                container.append(h.div(a.class('ss-meta-section-title'), 'Audio Profile'));
+                container.append(h.div(a.class('ss-meta-section-title'), t('Audio Profile')));
                 container.append(this._renderFeatureGrid(meta.features));
             }
             if(hasTags) {
-                container.append(h.div(a.class('ss-meta-section-title'), 'Tags & Genre'));
+                container.append(h.div(a.class('ss-meta-section-title'), t('Tags & Genre')));
                 container.append(this._renderTagChips(meta.tags));
             }
             if(hasSimilar) {
                 container.append(h.div(a.class('ss-meta-section-title'),
-                    `Similar to ${meta.primary_artist || 'artist'}`));
+                    t('Similar to {name}', { name: meta.primary_artist || t('artist') })));
                 container.append(this._renderSimilarArtists(meta.similar_artists));
             }
             if(meta.musicbrainz_id) {
                 container.append(h.div(a.class('ss-meta-mbid'),
-                    h.span('MusicBrainz ID: '),
+                    h.span(`${t('MusicBrainz ID')}: `),
                     h.code(meta.musicbrainz_id),
                 ));
             }
@@ -619,7 +622,7 @@ export class SongSettingsModal extends Component {
 
         // Enrich / re-analyse action
         const ctaIcon = h.span(a.class('ss-cta-icon'), I.Refresh());
-        const ctaLabel = h.span(hasAny ? 'Re-analyse Song' : 'Analyse Song');
+        const ctaLabel = h.span(hasAny ? t('Re-analyse Song') : t('Analyse Song'));
         const cta = h.button(a.class('btn', 'btn-primary', 'ss-cta'), on.click(() => this.runEnrichment(cta, ctaIcon, ctaLabel, hasAny)),
             ctaIcon,
             ctaLabel,
@@ -646,14 +649,14 @@ export class SongSettingsModal extends Component {
         cta.classList.add('busy');
         Array.from(ctaIcon.children).forEach(el => el.remove());
         ctaIcon.append(I.Spinner());
-        ctaLabel.textContent = 'Analysing\u2026';
+        ctaLabel.textContent = t('Analysing\u2026');
 
         const data = await useEnrichmentService().enrichSong(song.id, force);
         if(data.error) {
             Logger.error(data.error);
             app.showToast('Failed to start analysis', 'error');
             cta.classList.remove('busy');
-            ctaLabel.textContent = 'Analyse Song';
+            ctaLabel.textContent = t('Analyse Song');
             Array.from(ctaIcon.children).forEach(el => el.remove());
             ctaIcon.append(I.Refresh());
             return;
@@ -684,21 +687,21 @@ export class SongSettingsModal extends Component {
     render() {
         return H.of(Modal,
             h.div(this._cover, a.slot('header-icon'), a.class('ss-cover')),
-            h.h2(a.slot('header-title'), 'Song Settings'),
+            h.h2(a.slot('header-title'), t('Song Settings')),
             h.p(a.slot('header-subtitle'), h.span(this._songName)),
             h.div(a.slot('body'), a.class('ss-body'),
                 h.div(a.class('ss-rail'),
                     h.button(this._navLightshow, a.class('ss-nav', 'active'), on.click(() => this.set('active-tab', 'lightshow')),
                         I.Bolt(),
-                        h.span('Light Show'),
+                        h.span(t('Light Show')),
                     ),
                     h.button(this._navLyrics, a.class('ss-nav'), on.click(() => this.set('active-tab', 'lyrics')),
                         I.Lyrics(),
-                        h.span('Lyrics'),
+                        h.span(t('Lyrics')),
                     ),
                     h.button(this._navMetadata, a.class('ss-nav'), on.click(() => this.set('active-tab', 'metadata')),
                         I.Info(),
-                        h.span('Metadata'),
+                        h.span(t('Metadata')),
                     ),
                 ),
                 h.div(this._paneLightshow, a.class('ss-pane', 'active'),

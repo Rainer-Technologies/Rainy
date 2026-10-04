@@ -63,8 +63,11 @@ class MusicScanner:
         Scan music directory and save results to database.
         
         Args:
-            full_scan: If True, delete all existing songs and rescan everything.
-                      If False, only add new files and update modified ones.
+            full_scan: If True, re-read the tags of every file (modified or
+                      not). If False, only add new files and update modified
+                      ones. Either way rows are updated in place, so song ids
+                      and everything keyed on them (playlists, ratings,
+                      history, per-account library access) survive.
         
         Returns:
             dict with scan statistics (files_found, files_added, files_updated, files_removed)
@@ -82,12 +85,7 @@ class MusicScanner:
         }
         
         try:
-            if full_scan:
-                # Delete all existing songs for full rescan
-                SongModel.delete_all_songs()
-            
-            # Get existing songs info for incremental scan
-            existing_songs = {} if full_scan else SongModel.get_songs_with_file_info()
+            existing_songs = SongModel.get_songs_with_file_info()
             found_paths = set()
             
             # Scan the music directory
@@ -116,9 +114,10 @@ class MusicScanner:
                             existing = existing_songs[relative_path]
                             existing_modified = existing.get('file_modified')
                             
-                            # Compare modification times
-                            if existing_modified and file_modified:
-                                if file_modified > existing_modified:
+                            # Compare modification times (a full scan
+                            # re-reads every file regardless).
+                            if full_scan or (existing_modified and file_modified):
+                                if full_scan or file_modified > existing_modified:
                                     # File was modified, update it
                                     metadata = self._extract_metadata(full_path, filename)
                                     metadata['path'] = relative_path
@@ -164,8 +163,8 @@ class MusicScanner:
                             metadata['file_modified'] = file_modified
                             song_id = SongModel.add_song(metadata)
                             stats['files_added'] += 1
-                            # Communal rule: scan-origin songs are visible to
-                            # every account (the music folder is shared).
+                            # Scanned songs go to the admin library; regular
+                            # accounts get them once a sysadmin publishes them.
                             try:
                                 from models.library_access import LibraryAccessModel
                                 LibraryAccessModel.on_scan_added([song_id])
@@ -188,8 +187,8 @@ class MusicScanner:
                             from utils import lyrics_worker
                             lyrics_worker.enqueue_song(song_id)
             
-            # Remove songs that no longer exist on disk (only for quick scan)
-            if not full_scan and existing_songs:
+            # Remove songs that no longer exist on disk
+            if existing_songs:
                 for path in existing_songs:
                     if path not in found_paths:
                         SongModel.delete_song(path)
@@ -239,7 +238,10 @@ class MusicScanner:
                 raw_artist = self._get_tag(audio, 'artist', metadata['artist'])
                 metadata['artist'] = normalize_artist(raw_artist)
                 metadata['album'] = self._get_tag(audio, 'album', metadata['album'])
-                metadata['genre'] = self._get_tag(audio, 'genre', None)
+                # Drop placeholder genres (YouTube categories like
+                # "People & Blogs", iTunes' "Music") so enrichment fills a real one.
+                from models.song_metadata import clean_genre
+                metadata['genre'] = clean_genre(self._get_tag(audio, 'genre', None))
                 metadata['year'] = self._get_tag(audio, 'date', None)
                 
                 # Track number handling

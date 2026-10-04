@@ -4,6 +4,7 @@ import { useConnectService } from "../services/connect.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
+import { t } from "../i18n/index.js";
 
 /**
  * Rainy Connect — device picker + remote control modal.
@@ -236,8 +237,8 @@ export class ConnectModal extends Component {
         const isLocal = !this.get('remote-id');
 
         const status = song
-            ? `${song.title || 'Unknown'} — ${song.artist || 'Unknown Artist'}`
-            : 'Idle';
+            ? `${song.title || t('Unknown')} — ${song.artist || 'Unknown Artist'}`
+            : t('Idle');
 
         const row = h.button(a.type('button'),
             a.class('connect-device', 'connect-device-local', isLocal ? 'selected' : ''),
@@ -248,14 +249,14 @@ export class ConnectModal extends Component {
             ),
             h.div(a.class('connect-device-info'),
                 h.div(a.class('connect-device-name'),
-                    'This Device',
+                    t('This Device'),
                     h.span(a.class('connect-device-badge'), player?._connectDeviceName || 'Web Player')
                 ),
                 h.div(a.class('connect-device-song', song ? '' : 'idle'), status)
             ),
             h.div(a.class('connect-device-state'),
                 isLocal
-                    ? h.span(a.class('connect-playing-label'), 'Playing here')
+                    ? h.span(a.class('connect-playing-label'), t('Playing here'))
                     : I.ArrowHeadRight('currentColor', a.class('connect-chevron'))
             )
         );
@@ -284,16 +285,16 @@ export class ConnectModal extends Component {
         if (state.connected) {
             status = state.song_title
                 ? `${state.song_title} — ${state.song_artist || 'Unknown Artist'}`
-                : 'Connected';
+                : t('Connected');
         } else if (cast.sdkReady) {
-            status = state.connecting ? 'Connecting…' : 'Tap to connect';
+            status = state.connecting ? t('Connecting…') : t('Tap to connect');
         } else if (cast.blocked && cast.blockReason === 'insecure') {
-            status = 'Needs HTTPS — use http://localhost or enable HTTPS';
+            status = t('Needs HTTPS — use http://localhost or enable HTTPS');
             disabled = true;
             onClick = () => window.showToast?.(
                 'Chrome withholds the Cast SDK on http:// (non-localhost). Open http://localhost:6969 or serve Rainy over HTTPS.', 'info');
         } else {
-            status = 'Not supported in this browser';
+            status = t('Not supported in this browser');
             disabled = true;
             onClick = () => window.showToast?.('Casting is not supported in this browser.', 'info');
         }
@@ -316,7 +317,7 @@ export class ConnectModal extends Component {
             ),
             h.div(a.class('connect-device-state'),
                 selected
-                    ? h.span(a.class('connect-playing-label'), 'Casting')
+                    ? h.span(a.class('connect-playing-label'), t('Casting'))
                     : I.ArrowHeadRight('currentColor', a.class('connect-chevron'))
             )
         );
@@ -331,7 +332,7 @@ export class ConnectModal extends Component {
 
         const status = hasSong
             ? `${device.song_title} — ${device.song_artist || 'Unknown Artist'}`
-            : 'Idle';
+            : t('Idle');
 
         const row = h.button(a.type('button'),
             a.class('connect-device', selected ? 'selected' : ''),
@@ -341,12 +342,12 @@ export class ConnectModal extends Component {
                 this._renderEqBars(device.is_playing)
             ),
             h.div(a.class('connect-device-info'),
-                h.div(a.class('connect-device-name'), device.device_name || 'Unknown Device'),
+                h.div(a.class('connect-device-name'), device.device_name || t('Unknown Device')),
                 h.div(a.class('connect-device-song', hasSong ? '' : 'idle'), status)
             ),
             h.div(a.class('connect-device-state'),
                 selected
-                    ? h.span(a.class('connect-playing-label'), 'Controlling')
+                    ? h.span(a.class('connect-playing-label'), t('Controlling'))
                     : I.ArrowHeadRight('currentColor', a.class('connect-chevron'))
             )
         );
@@ -360,9 +361,9 @@ export class ConnectModal extends Component {
     _renderEmptyState() {
         return h.div(a.class('connect-empty'),
             h.div(a.class('connect-empty-icon'), I.Cast('currentColor')),
-            h.div(a.class('connect-empty-title'), 'No other devices around'),
+            h.div(a.class('connect-empty-title'), t('No other devices around')),
             h.div(a.class('connect-empty-text'),
-                'Start playing music on your phone or another browser signed in to Rainy, and it will show up here — ready to control.')
+                t('Start playing music on your phone or another browser signed in to Rainy, and it will show up here — ready to control.'))
         );
     }
 
@@ -446,17 +447,17 @@ export class ConnectModal extends Component {
 
         // Section label with the remote's name
         if (this._remoteDeviceLabel.value) {
-            this._remoteDeviceLabel.value.textContent = remote.device_name || 'Unknown Device';
+            this._remoteDeviceLabel.value.textContent = remote.device_name || t('Unknown Device');
         }
 
         // Now-playing card
         const titleEl = this._remotePanel.value?.querySelector('.connect-remote-title');
         const artistEl = this._remotePanel.value?.querySelector('.connect-remote-artist');
         const coverEl = this._remotePanel.value?.querySelector('.connect-remote-cover');
-        if (titleEl) titleEl.textContent = remote.song_title || 'Nothing playing';
+        if (titleEl) titleEl.textContent = remote.song_title || t('Nothing playing');
         if (artistEl) artistEl.textContent = remote.song_artist
             ? `${remote.song_artist}${remote.song_album ? ' · ' + remote.song_album : ''}`
-            : (remote.song_album || 'Idle');
+            : (remote.song_album || t('Idle'));
         if (coverEl) {
             const coverSrc = remote.cover_url
                 || (remote.cover_path ? `/api/music/cover/${encodeURIComponent(remote.cover_path)}` : null);
@@ -506,7 +507,7 @@ export class ConnectModal extends Component {
     _paintRemotePlayBtn(isPlaying) {
         const btn = this._remotePlayBtn.value;
         if (!btn) return;
-        btn.title = isPlaying ? 'Pause' : 'Play';
+        btn.title = isPlaying ? t('Pause') : t('Play');
         btn.innerHTML = '';
         btn.append(isPlaying ? I.Pause('currentColor') : I.Play('currentColor'));
     }
@@ -524,7 +525,7 @@ export class ConnectModal extends Component {
         if (!btn) return;
         const normalized = this._normalizeRepeat(mode);
         btn.classList.toggle('active', normalized !== 'none');
-        btn.title = `Repeat: ${normalized === 'none' ? 'off' : normalized}`;
+        btn.title = normalized === 'all' ? t('Repeat All') : normalized === 'one' ? t('Repeat One') : t('Repeat Off');
         btn.innerHTML = '';
         const svg = I.Loop('currentColor');
         btn.append(svg);
@@ -568,7 +569,7 @@ export class ConnectModal extends Component {
 
         if (this._remoteQueueLabel.value) {
             this._remoteQueueLabel.value.textContent =
-                `Queue (${queue.length} song${queue.length === 1 ? '' : 's'})`;
+                t('Queue ({count} songs)', { count: queue.length });
         }
 
         const currentIndex = Number(remote.queue_index) || 0;
@@ -591,7 +592,7 @@ export class ConnectModal extends Component {
     _renderQueueRow(song, index, isCurrent) {
         return h.button(a.type('button'),
             a.class('connect-queue-item', isCurrent ? 'current' : ''),
-            a.title(isCurrent ? 'Playing on remote' : `Play "${song?.title || 'Unknown'}" on remote`),
+            a.title(isCurrent ? t('Playing on remote') : t('Play "{title}" on remote', { title: song?.title || t('Unknown') })),
             on.click(() => this._playQueueSong(song)),
             h.span(a.class('connect-queue-index'),
                 isCurrent
@@ -879,7 +880,7 @@ export class ConnectModal extends Component {
 
             // Back to local control
             this._selectLocal();
-            window.showToast?.(`Playing here — ${remote.device_name} handed off`, 'success');
+            window.showToast?.(t('Playing here — {name} handed off', { name: remote.device_name }), 'success');
         } catch (e) {
             Logger.warn('Connect transfer failed:', e);
             window.showToast?.('Transfer failed', 'error');
@@ -926,21 +927,21 @@ export class ConnectModal extends Component {
         const root = this.root = H.of(Modal,
             I.Cast('currentColor', a.slot('header-icon')),
             h.h2(a.slot('header-title'), 'Rainy Connect'),
-            h.p(a.slot('header-subtitle'), 'Play and control music on your devices'),
+            h.p(a.slot('header-subtitle'), t('Play and control music on your devices')),
             h.div(a.slot('body'), a.class('connect-body'),
-                h.div(a.class('connect-section-label'), 'Listen on'),
+                h.div(a.class('connect-section-label'), t('Listen on')),
                 h.div(this._deviceList, a.class('connect-devices')),
 
                 h.div(this._remotePanel, a.class('connect-remote', 'hidden'),
                     h.div(a.class('connect-section-label'),
-                        'Controlling',
+                        t('Controlling'),
                         h.span(this._remoteDeviceLabel, a.class('connect-section-label-name'))
                     ),
                     h.div(a.class('connect-remote-nowplaying'),
                         h.div(a.class('connect-remote-cover', 'empty')),
                         h.div(a.class('connect-remote-info'),
-                            h.div(a.class('connect-remote-title'), 'Nothing playing'),
-                            h.div(a.class('connect-remote-artist'), 'Idle')
+                            h.div(a.class('connect-remote-title'), t('Nothing playing')),
+                            h.div(a.class('connect-remote-artist'), t('Idle'))
                         )
                     ),
                     h.div(a.class('connect-remote-seek-row'),
@@ -958,25 +959,25 @@ export class ConnectModal extends Component {
                         h.span(this._remoteTime, a.class('connect-remote-time'), '0:00 / 0:00')
                     ),
                     h.div(a.class('connect-remote-controls'),
-                        h.button(a.type('button'), a.class('connect-ctrl'), a.title('Shuffle'),
+                        h.button(a.type('button'), a.class('connect-ctrl'), a.title(t('Shuffle')),
                             this._remoteShuffleBtn,
                             on.click(() => this._toggleRemoteShuffle()),
                             I.Shuffle('currentColor')
                         ),
-                        h.button(a.type('button'), a.class('connect-ctrl'), a.title('Previous'),
+                        h.button(a.type('button'), a.class('connect-ctrl'), a.title(t('Previous')),
                             on.click(() => this._command('previous')),
                             I.Back('currentColor')
                         ),
-                        h.button(a.type('button'), a.class('connect-ctrl', 'connect-ctrl-main'), a.title('Play'),
+                        h.button(a.type('button'), a.class('connect-ctrl', 'connect-ctrl-main'), a.title(t('Play')),
                             this._remotePlayBtn,
                             on.click(() => this._toggleRemotePlay()),
                             I.Play('currentColor')
                         ),
-                        h.button(a.type('button'), a.class('connect-ctrl'), a.title('Next'),
+                        h.button(a.type('button'), a.class('connect-ctrl'), a.title(t('Next')),
                             on.click(() => this._command('next')),
                             I.Next('currentColor')
                         ),
-                        h.button(a.type('button'), a.class('connect-ctrl'), a.title('Repeat'),
+                        h.button(a.type('button'), a.class('connect-ctrl'), a.title(t('Repeat')),
                             this._remoteRepeatBtn,
                             on.click(() => this._cycleRemoteRepeat()),
                             I.Loop('currentColor')
@@ -992,7 +993,7 @@ export class ConnectModal extends Component {
                     ),
                     h.div(this._remoteQueueSection, a.class('connect-remote-queue', 'hidden'),
                         h.div(a.class('connect-section-label'),
-                            h.span(this._remoteQueueLabel, a.class('connect-queue-count'), 'Queue')
+                            h.span(this._remoteQueueLabel, a.class('connect-queue-count'), t('Queue'))
                         ),
                         h.div(this._remoteQueueList, a.class('connect-queue-list'))
                     ),
@@ -1001,14 +1002,14 @@ export class ConnectModal extends Component {
                             this._transferBtn,
                             on.click(() => this._transferHere()),
                             I.Cast('currentColor'),
-                            h.span(a.class('connect-transfer-label'), 'Play here')
+                            h.span(a.class('connect-transfer-label'), t('Play here'))
                         ),
                         h.button(a.type('button'), a.class('btn', 'connect-take-control', 'hidden'),
                             this._takeControlBtn,
-                            a.title('Control this device from here'),
+                            a.title(t('Control this device from here')),
                             on.click(() => this._takeControl()),
                             I.Import('currentColor'),
-                            h.span(a.class('connect-take-control-label'), 'Take Control')
+                            h.span(a.class('connect-take-control-label'), t('Take Control'))
                         )
                     )
                 )

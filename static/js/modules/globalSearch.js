@@ -8,6 +8,7 @@
  */
 import { Logger } from '../helper/logger.js';
 import { Utils } from './utils.js';
+import { t } from '../i18n/index.js';
 import { useMusicService } from '../services/music.js';
 
 const MODE_LIBRARY = 'library';
@@ -50,27 +51,27 @@ export class GlobalSearch {
         overlay.className = 'global-search-overlay hidden';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
-        overlay.setAttribute('aria-label', 'Global search');
+        overlay.setAttribute('aria-label', t('Global search'));
         overlay.innerHTML = `
             <div class="gs-backdrop"></div>
             <div class="gs-panel">
                 <div class="gs-input-row">
                     <svg class="gs-icon" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-                    <input type="text" id="gs-input" class="gs-input" placeholder="Search songs, artists, albums, playlists…" autocomplete="off" spellcheck="false" />
-                    <div class="gs-seg" role="tablist" aria-label="Search mode">
-                        <button type="button" class="gs-seg-btn active" data-mode="${MODE_LIBRARY}" role="tab" aria-selected="true">Library</button>
-                        <button type="button" class="gs-seg-btn" data-mode="${MODE_DISCOVER}" role="tab" aria-selected="false">Discover</button>
+                    <input type="text" id="gs-input" class="gs-input" placeholder="${t('Search songs, artists, albums, playlists…')}" autocomplete="off" spellcheck="false" />
+                    <div class="gs-seg" role="tablist" aria-label="${t('Search mode')}">
+                        <button type="button" class="gs-seg-btn active" data-mode="${MODE_LIBRARY}" role="tab" aria-selected="true">${t('Library')}</button>
+                        <button type="button" class="gs-seg-btn" data-mode="${MODE_DISCOVER}" role="tab" aria-selected="false">${t('Discover')}</button>
                     </div>
                 </div>
-                <div id="gs-loading" class="gs-loading hidden">Searching YouTube Music…</div>
+                <div id="gs-loading" class="gs-loading hidden">${t('Searching YouTube Music…')}</div>
                 <div id="gs-results" class="gs-results">
-                    <div class="gs-empty">Type to search across your library</div>
+                    <div class="gs-empty">${t('Type to search across your library')}</div>
                 </div>
                 <div class="gs-actions">
-                    <span><kbd class="gs-kbd">Ctrl</kbd><kbd class="gs-kbd">1</kbd> Library</span>
-                    <span><kbd class="gs-kbd">Ctrl</kbd><kbd class="gs-kbd">2</kbd> Discover</span>
+                    <span><kbd class="gs-kbd">Ctrl</kbd><kbd class="gs-kbd">1</kbd> ${t('Library')}</span>
+                    <span><kbd class="gs-kbd">Ctrl</kbd><kbd class="gs-kbd">2</kbd> ${t('Discover')}</span>
                     <span class="gs-actions-spacer"></span>
-                    <span><kbd class="gs-kbd">Esc</kbd> Close</span>
+                    <span><kbd class="gs-kbd">Esc</kbd> ${t('Close')}</span>
                 </div>
                 <audio id="gs-preview-audio" class="hidden" preload="none"></audio>
             </div>
@@ -157,11 +158,11 @@ export class GlobalSearch {
             btn.setAttribute('aria-selected', String(active));
         });
         this.input.placeholder = discover
-            ? 'Search YouTube Music for songs…'
-            : 'Search songs, artists, albums, playlists…';
+            ? t('Search YouTube Music for songs…')
+            : t('Search songs, artists, albums, playlists…');
         const headerInput = document.getElementById('search-input');
         if (headerInput) {
-            headerInput.placeholder = discover ? 'Search YouTube to discover' : 'Search your library';
+            headerInput.placeholder = discover ? t('Search YouTube to discover') : t('Search your library');
         }
     }
 
@@ -225,7 +226,7 @@ export class GlobalSearch {
     }
 
     _renderEmpty(msg) {
-        this.resultsEl.innerHTML = `<div class="gs-empty">${Utils.escapeHtml(msg)}</div>`;
+        this.resultsEl.innerHTML = `<div class="gs-empty">${Utils.escapeHtml(t(msg))}</div>`;
     }
 
     _render() {
@@ -237,7 +238,7 @@ export class GlobalSearch {
         let html = '';
 
         if (songs.length) {
-            html += `<div class="gs-group"><div class="gs-group-title">Songs</div>`;
+            html += `<div class="gs-group"><div class="gs-group-title">${t('Songs')}</div>`;
             songs.forEach((s, i) => {
                 const cover = s.cover_path
                     ? `<img src="/api/music/cover/${encodeURIComponent(s.cover_path)}" alt="" loading="lazy">`
@@ -254,7 +255,7 @@ export class GlobalSearch {
         }
 
         if (artists.length) {
-            html += `<div class="gs-group"><div class="gs-group-title">Artists</div>`;
+            html += `<div class="gs-group"><div class="gs-group-title">${t('Artists')}</div>`;
             artists.forEach((a, i) => {
                 html += `<div class="gs-item" role="button" tabindex="0" data-type="artist" data-index="${i}">
                     <div class="gs-item-cover"><div class="gs-no-cover">👤</div></div>
@@ -265,7 +266,7 @@ export class GlobalSearch {
         }
 
         if (albums.length) {
-            html += `<div class="gs-group"><div class="gs-group-title">Albums</div>`;
+            html += `<div class="gs-group"><div class="gs-group-title">${t('Albums')}</div>`;
             albums.forEach((a, i) => {
                 html += `<div class="gs-item" role="button" tabindex="0" data-type="album" data-index="${i}">
                     <div class="gs-item-cover"><div class="gs-no-cover">💿</div></div>
@@ -276,7 +277,7 @@ export class GlobalSearch {
         }
 
         if (playlists.length) {
-            html += `<div class="gs-group"><div class="gs-group-title">Playlists</div>`;
+            html += `<div class="gs-group"><div class="gs-group-title">${t('Playlists')}</div>`;
             playlists.forEach((p, i) => {
                 html += `<div class="gs-item" role="button" tabindex="0" data-type="playlist" data-index="${i}">
                     <div class="gs-item-cover"><div class="gs-no-cover">📁</div></div>
@@ -366,7 +367,7 @@ export class GlobalSearch {
         const app = this.app;
         const matches = new Map();
 
-        let html = '<div class="gs-group"><div class="gs-group-title">Discover — YouTube Music</div>';
+        let html = `<div class="gs-group"><div class="gs-group-title">${t('Discover — YouTube Music')}</div>`;
         songs.forEach((s, i) => {
             const match = app.isSongInLibrary ? app.isSongInLibrary(s) : null;
             matches.set(i, match);
@@ -386,9 +387,9 @@ export class GlobalSearch {
                     </div>
                     <div class="gs-discover-actions">
                         <button type="button" class="gs-act-btn gs-act-preview" data-action="preview" data-index="${i}"
-                            data-play-label="${inLib ? 'Play' : 'Preview'}">${SVG_PLAY}<span>${inLib ? 'Play' : 'Preview'}</span></button>
+                            data-play-label="${inLib ? t('Play') : t('Preview')}">${SVG_PLAY}<span>${inLib ? t('Play') : t('Preview')}</span></button>
                         <button type="button" class="gs-act-btn gs-act-download" data-action="download" data-index="${i}"
-                            ${inLib ? 'disabled' : ''}>${SVG_DOWNLOAD}<span>${inLib ? 'In Library' : 'Download'}</span></button>
+                            ${inLib ? 'disabled' : ''}>${SVG_DOWNLOAD}<span>${inLib ? t('In Library') : t('Download')}</span></button>
                     </div>
                 </div>`;
         });
@@ -450,7 +451,7 @@ export class GlobalSearch {
         this._resetPreviewIcons();
         audio.src = `/api/music/discover/preview/${encodeURIComponent(song.videoId)}`;
         audio.dataset.videoId = song.videoId;
-        btn.querySelector('span').textContent = 'Pause';
+        btn.querySelector('span').textContent = t('Pause');
         audio.play().catch(err => {
             Logger.error(err);
             this._resetPreviewIcons();
@@ -475,7 +476,7 @@ export class GlobalSearch {
 
     _resetPreviewIcons() {
         this.resultsEl.querySelectorAll('.gs-act-preview').forEach(btn => {
-            btn.querySelector('span').textContent = btn.dataset.playLabel || 'Preview';
+            btn.querySelector('span').textContent = btn.dataset.playLabel || t('Preview');
         });
     }
 }

@@ -97,6 +97,42 @@
     border-radius: inherit;
 }
 
+/* Animated "Rainy" wordmark: stands in for the logo in No Anime mode */
+.setup-wordmark {
+    display: none;
+    margin: 0 auto var(--spacing-lg);
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, #8cc5e8 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: logoFloat 3s ease-in-out infinite, wordmarkShift 4s ease infinite;
+}
+
+@keyframes wordmarkShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+.no-anime .setup-logo { display: none; }
+.no-anime .setup-wordmark { display: block; }
+
+/* "No Anime" switch on the setup form */
+.setup-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
+.setup-toggle-row .form-label { margin-bottom: 2px; }
+
+.setup-toggle-row .toggle-switch { flex-shrink: 0; }
+
 .setup-header h1 {
     font-size: var(--font-size-3xl);
     margin-bottom: var(--spacing-sm);

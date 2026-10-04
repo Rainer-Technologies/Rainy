@@ -11,7 +11,7 @@ Endpoints:
 from flask import Blueprint, jsonify, request, session
 
 from models.friendship import FriendshipModel
-from routes.auth import require_auth
+from routes.auth import require_auth, server_error
 
 friends_bp = Blueprint('friends', __name__, url_prefix='/api/friends')
 
@@ -22,8 +22,8 @@ def list_friends():
     """Accepted friends, with profile info."""
     try:
         return jsonify({'friends': FriendshipModel.friends_list(session['user_id'])})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @friends_bp.route('/requests', methods=['GET'])
@@ -40,8 +40,8 @@ def list_requests():
             'incoming': incoming,
             'outgoing': outgoing,
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @friends_bp.route('/requests', methods=['POST'])
@@ -82,8 +82,8 @@ def send_request():
                 'message': f'Friend request sent to {target["username"]}'
             })
         return jsonify({'error': 'Unexpected friendship state'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @friends_bp.route('/requests/<int:request_id>/accept', methods=['POST'])
@@ -108,8 +108,8 @@ def accept_request(request_id):
             'success': True,
             'message': f'You are now friends with {target["username"]}',
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @friends_bp.route('/requests/<int:request_id>/decline', methods=['POST'])
@@ -123,8 +123,8 @@ def decline_request(request_id):
             return jsonify({'error': 'Request not found'}), 404
         FriendshipModel.decline(request_id, user_id)
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @friends_bp.route('/<int:friend_id>', methods=['DELETE'])
@@ -139,5 +139,5 @@ def remove_friend(friend_id):
             return jsonify({'error': 'You are not friends with this user'}), 404
         FriendshipModel.remove_friend(user_id, friend_id)
         return jsonify({'success': True, 'message': 'Friend removed'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()

@@ -1,3 +1,5 @@
+from functools import wraps
+
 from flask import Blueprint, request, jsonify, session, current_app, g
 from models.audit import AuditModel
 from models.session import SessionModel
@@ -5,6 +7,8 @@ from models.user import UserModel
 from utils import media_token, ratelimit
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+MAX_PREFERENCES_BYTES = 64 * 1024
 
 # Failed-login throttling (per worker process; see utils/ratelimit.py).
 LOGIN_WINDOW = 15 * 60
@@ -14,6 +18,13 @@ LOGIN_IP_LIMIT = 50
 
 def client_ip():
     return request.remote_addr or ''
+
+
+def server_error(action=None):
+    """500 response for an exception caught in a route: logged with its
+    traceback, but its text (SQL, paths) never reaches the client."""
+    current_app.logger.exception('%s %s failed', request.method, request.path)
+    return jsonify({'error': f'Could not {action}' if action else 'Internal server error'}), 500
 
 
 def session_lifetime_seconds():
@@ -98,7 +109,8 @@ def login():
                 'username': user['username'],
                 'email': user['email'],
                 'role': user['role'],
-                'full_library': bool(user.get('full_library'))
+                'full_library': bool(user.get('full_library')),
+                'language': user.get('language')
             }
         })
 
@@ -138,6 +150,7 @@ def get_current_user():
             'email': user['email'],
             'role': user['role'],
             'full_library': bool(user.get('full_library')),
+            'language': user.get('language'),
             'preferences': user.get('preferences')
         }
     })
@@ -217,14 +230,15 @@ def update_preferences():
             return jsonify({'error': 'Invalid request body'}), 400
         preferences = data.get('preferences')
 
-        # preferences should be a JSON string or dict? 
-        # The DB column is TEXT. If frontend sends a dict, we should probably json.dumps it if we want to store as string, 
-        # or rely on the DB driver.
-        # But wait, if I store it as TEXT, I should serialize it.
+        # Stored as a JSON object in a TEXT column; cap the size so an
+        # account can't park arbitrary data on the server.
         import json
-        if isinstance(preferences, (dict, list)):
-            preferences = json.dumps(preferences)
-            
+        if not isinstance(preferences, dict):
+            return jsonify({'error': 'Preferences must be an object'}), 400
+        preferences = json.dumps(preferences)
+        if len(preferences) > MAX_PREFERENCES_BYTES:
+            return jsonify({'error': 'Preferences are too large'}), 413
+
         user_id = session['user_id']
         UserModel.update_preferences(user_id, preferences)
         
@@ -233,6 +247,26 @@ def update_preferences():
     except Exception:
         current_app.logger.exception('Preferences update failed')
         return jsonify({'error': 'Could not update preferences'}), 500
+
+@auth_bp.route('/language', methods=['POST'])
+def update_language():
+    """Set the signed-in user's UI language (null = follow the browser)."""
+    if validate_session() is None:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or 'language' not in data:
+        return jsonify({'error': 'Invalid request body'}), 400
+    raw = data.get('language')
+    language = UserModel.normalize_language(raw)
+    if raw is not None and language is None:
+        return jsonify({'error': 'Unsupported language'}), 400
+
+    try:
+        UserModel.update_language(session['user_id'], language)
+        return jsonify({'success': True, 'language': language})
+    except Exception:
+        return server_error('update language')
 
 def get_current_user_id():
     """Authenticated user id for this request, or None.
@@ -253,16 +287,32 @@ def get_current_user_id():
     return None
 
 
+def current_user():
+    """The authenticated user's row for this request, or None.
+
+    Looked up once per request (cached on ``g``) so the auth decorators and
+    the route body don't each re-query the users table.
+    """
+    if 'current_user' not in g:
+        user_id = get_current_user_id()
+        g.current_user = (UserModel.get_user_by_id(user_id)
+                          if user_id is not None else None)
+    return g.current_user
+
+
+def is_sysadmin():
+    user = current_user()
+    return bool(user and user['role'] == 'sysadmin')
+
+
 def require_auth(f):
     """Decorator to require authentication."""
-    from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        user_id = get_current_user_id()
-        if user_id is None:
+        if get_current_user_id() is None:
             return jsonify({'error': 'Authentication required'}), 401
         # A deleted account's still-signed cookie must stop working.
-        if not UserModel.get_user_by_id(user_id):
+        if not current_user():
             session.clear()
             return jsonify({'error': 'Authentication required'}), 401
         return f(*args, **kwargs)
@@ -271,15 +321,27 @@ def require_auth(f):
 
 def require_sysadmin(f):
     """Decorator requiring an authenticated sysadmin (role == 'sysadmin')."""
-    from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        user_id = get_current_user_id()
-        if user_id is None:
+        if get_current_user_id() is None:
             return jsonify({'error': 'Authentication required'}), 401
-        user = UserModel.get_user_by_id(user_id)
-        if not user or user['role'] != 'sysadmin':
-            return jsonify({'error': 'Forbidden'}), 403
+        if not is_sysadmin():
+            return jsonify({'error': 'Administrator privileges required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def require_song_access(f):
+    """For routes taking a ``song_id``: 404 unless the caller can see it.
+
+    Same response as a missing song, so other accounts' song ids don't leak.
+    Stack it under ``require_auth``.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        from models.library_access import LibraryAccessModel
+        if not LibraryAccessModel.has_access(get_current_user_id(), kwargs['song_id']):
+            return jsonify({'error': 'Song not found'}), 404
         return f(*args, **kwargs)
     return decorated
 

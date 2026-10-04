@@ -14,6 +14,7 @@ import { Service } from "./index.js";
  * @property {string} username
  * @property {string} email
  * @property {string} role
+ * @property {string | null} language UI language code; null = follow the browser
  */
 
 export class AuthService extends Service {
@@ -59,6 +60,17 @@ export class AuthService extends Service {
         return this.wrap(RequestHelper.request(this.url('/preferences'), {
             method: 'POST',
             body: { preferences }
+        }));
+    }
+
+    /**
+     * @param {string | null} language a supported code, or null to follow the browser
+     * @returns {Promise<Result<any, ErrorModel | ResponseError>>}
+     */
+    async updateLanguage(language) {
+        return this.wrap(RequestHelper.request(this.url('/language'), {
+            method: 'POST',
+            body: { language }
         }));
     }
 

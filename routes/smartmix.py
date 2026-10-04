@@ -76,12 +76,14 @@ def _legacy_radio(seed_song_id, limit, disliked_ids, params):
         disliked_filter = f" AND s.id NOT IN ({placeholders})"
 
     query = f"""
-        SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
-               s.track_number, s.year, s.genre, s.cover_path,
-               ({score_expr}) as similarity
-        FROM songs s
-        WHERE s.id != %s{disliked_filter}
-        HAVING similarity > 0
+        SELECT * FROM (
+            SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                   s.track_number, s.year, s.genre, s.cover_path,
+                   ({score_expr}) as similarity
+            FROM songs s
+            WHERE s.id != %s{disliked_filter}
+        ) scored
+        WHERE similarity > 0
         ORDER BY similarity DESC, RAND()
         LIMIT %s
     """

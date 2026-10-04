@@ -6,19 +6,27 @@ MAX_PASSWORD_BYTES = 72
 # Applies to new/changed passwords only; existing accounts keep logging in.
 MIN_PASSWORD_LENGTH = 8
 _DUMMY_HASH = bcrypt.hashpw(b'rainy-dummy', bcrypt.gensalt())
+# UI languages the web client ships translations for.
+SUPPORTED_LANGUAGES = ('en', 'ca', 'es', 'pl')
 
 class UserModel:
     @staticmethod
-    def create_user(username, email, password, role='user', full_library=0):
+    def create_user(username, email, password, role='user', full_library=0, language=None):
         """Create a new user with hashed password."""
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         query = """
-            INSERT INTO users (username, email, password_hash, role, full_library)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO users (username, email, password_hash, role, full_library, language)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """
-        return Database.execute_query(
-            query, (username, email, password_hash, role, 1 if full_library else 0))
+        user_id = Database.execute_query(
+            query, (username, email, password_hash, role, 1 if full_library else 0, language))
+        if user_id:
+            # Start with the published songs (plus the scanned library for
+            # a sysadmin).
+            from .library_access import LibraryAccessModel
+            LibraryAccessModel.backfill_user(user_id)
+        return user_id
     
     @staticmethod
     def get_user_by_email(email):
@@ -29,7 +37,7 @@ class UserModel:
     @staticmethod
     def get_user_by_id(user_id):
         """Get user by ID."""
-        query = "SELECT id, username, email, role, preferences, full_library, created_at FROM users WHERE id = %s"
+        query = "SELECT id, username, email, role, preferences, full_library, language, created_at FROM users WHERE id = %s"
         return Database.execute_query(query, (user_id,), fetch_one=True)
     
     @staticmethod
@@ -38,6 +46,20 @@ class UserModel:
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         query = "UPDATE users SET password_hash = %s WHERE id = %s"
         return Database.execute_query(query, (password_hash, user_id))
+
+    @staticmethod
+    def update_language(user_id, language):
+        """Set the user's UI language (one of SUPPORTED_LANGUAGES, or None)."""
+        query = "UPDATE users SET language = %s WHERE id = %s"
+        return Database.execute_query(query, (language, user_id))
+
+    @staticmethod
+    def normalize_language(value):
+        """A supported language code from user input ('es-ES' -> 'es'), else None."""
+        if not isinstance(value, str):
+            return None
+        code = value.strip().lower().replace('_', '-').split('-')[0]
+        return code if code in SUPPORTED_LANGUAGES else None
 
     @staticmethod
     def update_preferences(user_id, preferences):

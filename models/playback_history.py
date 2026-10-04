@@ -1,9 +1,7 @@
 import time
 from datetime import datetime, timezone
 
-from mysql.connector import errors as mysql_errors
-
-from .database import Database
+from .database import Database, IntegrityError, is_fk_violation
 
 # A play reported by an offline client may be old, but never older than this.
 MAX_PLAY_AGE_SECONDS = 30 * 24 * 3600
@@ -125,9 +123,9 @@ class PlaybackHistoryModel:
                 user_id, play['song_id'], play['position'], play['duration'],
                 played_epoch, play['play_id'], play['counted'], play['client'],
             ))
-        except mysql_errors.IntegrityError as e:
-            # 1452 = FK violation: the song was deleted (or never existed).
-            if getattr(e, 'errno', None) == 1452:
+        except IntegrityError as e:
+            # FK violation: the song was deleted (or never existed).
+            if is_fk_violation(e):
                 raise LookupError('song not found')
             raise
 

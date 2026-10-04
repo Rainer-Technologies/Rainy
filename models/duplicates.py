@@ -116,19 +116,45 @@ class DuplicateModel:
             for loser in losers:
                 cursor.execute(
                     """
-                    UPDATE song_ratings r
-                    SET r.song_id = %s
-                    WHERE r.song_id = %s
-                      AND NOT EXISTS (
-                          SELECT 1 FROM (SELECT user_id FROM song_ratings
-                                         WHERE song_id = %s) k
-                          WHERE k.user_id = r.user_id
+                    UPDATE song_ratings
+                    SET song_id = %s
+                    WHERE song_id = %s
+                      AND user_id NOT IN (
+                          SELECT user_id FROM (SELECT user_id FROM song_ratings
+                                               WHERE song_id = %s) k
                       )
                     """,
                     (keeper_id, loser, keeper_id),
                 )
                 # Any leftover loser ratings (user already rated the keeper) are
                 # dropped with the loser row below.
+
+            # 1b) Library access: every account that could see a removed copy
+            #     keeps the song through the keeper (same skip-if-present
+            #     pattern). A published copy keeps the keeper published.
+            for loser in losers:
+                cursor.execute(
+                    """
+                    UPDATE library_access
+                    SET song_id = %s
+                    WHERE song_id = %s
+                      AND user_id NOT IN (
+                          SELECT user_id FROM (SELECT user_id FROM library_access
+                                               WHERE song_id = %s) k
+                      )
+                    """,
+                    (keeper_id, loser, keeper_id),
+                )
+            lfmt = ','.join(['%s'] * len(losers))
+            cursor.execute(
+                f"SELECT 1 FROM songs WHERE id IN ({lfmt}) AND published = 1",
+                tuple(losers))
+            if cursor.fetchone():
+                cursor.execute(
+                    "UPDATE songs SET published = 1 WHERE id = %s", (keeper_id,))
+                cursor.execute(
+                    "UPDATE library_access SET origin = 'public' WHERE song_id = %s",
+                    (keeper_id,))
 
             # 2) Playlist entries: re-point to keeper, then dedupe within each
             #    playlist so a song never appears twice.
@@ -139,14 +165,16 @@ class DuplicateModel:
                 )
             cursor.execute(
                 """
-                DELETE pe1 FROM playlist_entries pe1
-                INNER JOIN playlist_entries pe2
-                  ON pe1.playlist_id = pe2.playlist_id
-                 AND pe1.track_id = pe2.track_id
-                 AND pe1.id > pe2.id
-                WHERE pe1.track_id = %s
+                DELETE FROM playlist_entries
+                WHERE track_id = %s
+                  AND id NOT IN (
+                      SELECT keep_id FROM (
+                          SELECT MIN(id) AS keep_id FROM playlist_entries
+                          WHERE track_id = %s GROUP BY playlist_id
+                      ) k
+                  )
                 """,
-                (keeper_id,),
+                (keeper_id, keeper_id),
             )
 
             # 3) One-to-one child tables keyed by song_id (PK). Move the loser's
@@ -180,22 +208,30 @@ class DuplicateModel:
             # Dedupe tags that now collide on (song_id, tag_name, source).
             cursor.execute(
                 """
-                DELETE t1 FROM song_tags t1
-                INNER JOIN song_tags t2
-                  ON t1.song_id = t2.song_id
-                 AND t1.tag_name = t2.tag_name
-                 AND t1.source = t2.source
-                 AND t1.id > t2.id
-                WHERE t1.song_id = %s
+                DELETE FROM song_tags
+                WHERE song_id = %s
+                  AND id NOT IN (
+                      SELECT keep_id FROM (
+                          SELECT MIN(id) AS keep_id FROM song_tags
+                          WHERE song_id = %s GROUP BY tag_name, source
+                      ) k
+                  )
                 """,
-                (keeper_id,),
+                (keeper_id, keeper_id),
             )
 
             # 5) playback_state references the song with ON DELETE SET NULL, so
             #    deleting the loser rows is safe.
 
             # 6) Delete the loser song rows (cascades remaining FKs).
-            lfmt = ','.join(['%s'] * len(losers))
+            # Remember the losers' files: the caller deletes them from disk
+            # once the merge is committed (otherwise the next scan would add
+            # them right back as new songs).
+            cursor.execute(
+                f"SELECT file_path, cover_path FROM songs WHERE id IN ({lfmt})",
+                tuple(losers))
+            removed_files = [{'file_path': r[0], 'cover_path': r[1]}
+                             for r in cursor.fetchall()]
             cursor.execute(f"DELETE FROM songs WHERE id IN ({lfmt})", tuple(losers))
 
             conn.commit()
@@ -205,6 +241,7 @@ class DuplicateModel:
                 'keeper_id': keeper_id,
                 'removed': losers,
                 'removed_count': len(losers),
+                'removed_files': removed_files,
             }
         except Exception as e:
             conn.rollback()

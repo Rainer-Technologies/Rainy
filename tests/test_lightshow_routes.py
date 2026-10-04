@@ -3,6 +3,7 @@ import pytest
 
 import app as app_module
 from models.lightshow_job import LightshowJobModel
+from models.library_access import LibraryAccessModel
 from routes import music
 from utils import lightshow_worker
 from utils.lightshow_analyzer import ANALYZER_VERSION
@@ -22,6 +23,8 @@ def store(monkeypatch):
 
     monkeypatch.setattr(music.SongModel, 'get_song_by_id',
                         staticmethod(lambda sid: {'id': sid} if sid < 900 else None))
+    monkeypatch.setattr(LibraryAccessModel, 'has_access',
+                        staticmethod(lambda uid, sid: sid < 900))
     monkeypatch.setattr(LightshowJobModel, 'get_score', staticmethod(lambda sid: state['scores'].get(sid)))
     monkeypatch.setattr(LightshowJobModel, 'song_job_state', staticmethod(lambda sid: state['jobs'].get(sid)))
 

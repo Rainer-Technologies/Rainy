@@ -5,8 +5,10 @@ import { ResponseError } from './helper/request.js';
 import { Result } from './helper/result.js';
 import { Router, View } from './helper/router.js';
 import { Library } from './modules/library.js';
-import { Playlists } from './modules/playlists.js';
+import { LibraryWatcher } from './modules/libraryWatcher.js';
+import { Playlists, playlistDisplayName } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
+import { browserLanguage, fillLanguageSelect, getLanguage, setLanguage, t } from './i18n/index.js';
 import { useAuthService } from "./services/auth.js";
 import { useEnrichmentService } from "./services/enrichment.js";
 import { useImportJobsService } from "./services/importJobs.js";
@@ -28,9 +30,13 @@ const SETTINGS_SECTION_TITLES = {
     account: 'Account',
     syncs: 'Playlist Sync',
     jobs: 'Jobs',
+    server: 'Maintenance',
     users: 'Users',
     chromecast: 'Chromecast Setup',
 };
+
+// Server Settings sections only a sysadmin may open.
+const ADMIN_SETTINGS_SECTIONS = new Set(['server', 'users']);
 
 const DEFAULT_COVER_BASE64 = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nIzZlNmU2ZSc+PHBhdGggZD0nTTEyIDN2MTAuNTVjLS41OS0uMzQtMS4yNy0uNTUtMi0uNTUtMi4yMSAwLTQgMS43OS00IDRzMS43OSA0IDQgNCA0LTEuNzkgNC00VjdoNFYzaC02eicvPjwvc3ZnPg==`;
 
@@ -73,6 +79,9 @@ export class RainyApp {
         this.coverOverride = {};
         this._routingStarted = false;
         this._settingsReturnPath = null;
+        // Picks up songs/playlists added elsewhere (other tabs, devices,
+        // users, background imports) without a reload.
+        this.libraryWatcher = new LibraryWatcher(this);
 
         useContext().set('app', this);
 
@@ -127,6 +136,14 @@ export class RainyApp {
 
         const user = data.value;
         if (!user) return Logger.error('unreachable');
+
+        // Components rendered in the language cached from the last visit;
+        // if this account uses another one, reload once in it.
+        const language = user.language || browserLanguage();
+        if (language !== getLanguage() && await setLanguage(language)) {
+            window.location.reload();
+            return;
+        }
 
         this.user = user;
         this.applyThemeFromPreferences();
@@ -291,6 +308,19 @@ export class RainyApp {
             this.savePreferences({ theme_color: defaultColor });
         });
 
+        // Interface language (saved per account)
+        const languageSelect = document.getElementById('settings-language');
+        if (languageSelect) {
+            fillLanguageSelect(languageSelect);
+            languageSelect.addEventListener('change', () => this.changeLanguage(languageSelect.value));
+        }
+
+        // No Anime mode
+        document.getElementById('settings-no-anime')?.addEventListener('change', (e) => {
+            this.applyNoAnime(e.target.checked);
+            this.savePreferences({ no_anime: e.target.checked });
+        });
+
         // Chromecast Setup copy origin
         document.getElementById('chromecast-copy-origin-btn')?.addEventListener('click', (e) => {
             const txt = (document.getElementById('chromecast-origin-url')?.textContent || '').trim();
@@ -298,7 +328,7 @@ export class RainyApp {
             try { navigator.clipboard?.writeText(txt); } catch (err) { /* ignore */ }
             const btn = e.currentTarget;
             const old = btn.textContent;
-            btn.textContent = 'Copied!';
+            btn.textContent = t('Copied!');
             setTimeout(() => { btn.textContent = old; }, 1500);
         });
 
@@ -335,6 +365,14 @@ export class RainyApp {
 
         document.getElementById('settings-lightshow-reduce-flashing')?.addEventListener('change', (e) => {
             this.savePreferences({ lightshow_reduce_flashing: e.target.checked });
+        });
+
+        // Per device, not per account: the same user may have a desktop that runs the full show fine.
+        document.getElementById('settings-lightshow-low-power')?.addEventListener('change', (e) => {
+            try {
+                if (e.target.checked) localStorage.setItem('rainy-ls-lowpower', '1');
+                else localStorage.removeItem('rainy-ls-lowpower');
+            } catch (err) { /* ignore */ }
         });
 
         const lightshowOffset = document.getElementById('settings-lightshow-offset');
@@ -1002,10 +1040,10 @@ export class RainyApp {
         const libraryCount = document.querySelector('#library-count');
         const lastScanTime = document.querySelector('#last-scan-time');
 
-        if (libraryCount) libraryCount.textContent = `${status.library_total || 0} songs`;
+        if (libraryCount) libraryCount.textContent = t('{count} songs', { count: status.library_total || 0 });
         if (lastScanTime && status.has_scan) {
             if (status.scan.status === 'running') {
-                lastScanTime.textContent = 'In progress...';
+                lastScanTime.textContent = t('In progress...');
                 return;
             }
 
@@ -1024,7 +1062,7 @@ export class RainyApp {
         fullScanBtn.disabled = true;
         scanProgress?.classList.remove('hidden');
         scanResult?.classList.add('hidden');
-        scanProgressText.textContent = fullScan ? 'Running full scan...' : 'Scanning for new files...';
+        scanProgressText.textContent = fullScan ? t('Running full scan...') : t('Scanning for new files...');
 
         const data = await (fullScan
             ? useScanService().full()
@@ -1066,7 +1104,7 @@ export class RainyApp {
         const mergeAllWrap = document.getElementById('dup-merge-all-wrap');
 
         btn.disabled = true;
-        results.innerHTML = '<p class="settings-row-hint" style="padding:12px 0;">Scanning library…</p>';
+        results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;">${t('Scanning library…')}</p>`;
 
         try {
             const res = await fetch('/api/music/duplicates', { credentials: 'same-origin' });
@@ -1077,10 +1115,10 @@ export class RainyApp {
             document.getElementById('dup-group-count').textContent = data.group_count || 0;
             document.getElementById('dup-redundant-count').textContent = data.duplicate_count || 0;
             summary.style.display = '';
-            mergeAllWrap.style.display = groups.length ? '' : 'none';
+            mergeAllWrap.style.display = groups.some(g => g.can_merge) ? '' : 'none';
 
             if (!groups.length) {
-                results.innerHTML = '<p class="settings-row-hint" style="padding:12px 0;">✓ No duplicates found. Your library is clean.</p>';
+                results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;">✓ ${t('No duplicates found. Your library is clean.')}</p>`;
                 return;
             }
 
@@ -1089,7 +1127,7 @@ export class RainyApp {
                 results.appendChild(this._renderDupGroup(group));
             }
         } catch (e) {
-            results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;color:#ff6b6b;">Error: ${e.message}</p>`;
+            results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;color:#ff6b6b;">${t('Error: {message}', { message: this._esc(t(e.message)) })}</p>`;
         } finally {
             btn.disabled = false;
         }
@@ -1122,7 +1160,7 @@ export class RainyApp {
             info.style.cssText = 'flex:1;min-width:0;';
             info.innerHTML = `
                 <div style="color:#fff;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    ${this._esc(song.title)} ${idx === 0 ? '<span style="color:var(--accent-color,#fa586a);font-size:11px;">(suggested)</span>' : ''}
+                    ${this._esc(song.title)} ${idx === 0 ? `<span style="color:var(--accent-color,#fa586a);font-size:11px;">${t('(suggested)')}</span>` : ''}
                 </div>
                 <div style="color:rgba(255,255,255,0.5);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     ${this._esc(song.artist)} ${badges.length ? '· ' + badges.join(' · ') : ''}
@@ -1133,15 +1171,29 @@ export class RainyApp {
             wrap.appendChild(row);
         });
 
+        if (!group.can_merge) {
+            // A merge deletes the other copies for every account, so groups
+            // with songs other accounts share are left to an administrator.
+            wrap.querySelectorAll('input[type="radio"]').forEach(r => { r.disabled = true; });
+            const note = document.createElement('p');
+            note.className = 'settings-row-hint';
+            note.style.marginTop = '8px';
+            note.textContent = t('Other accounts share some of these copies, so only an administrator can merge them.');
+            wrap.appendChild(note);
+            return wrap;
+        }
+
         const mergeBtn = document.createElement('button');
         mergeBtn.className = 'btn btn-warning';
         mergeBtn.style.marginTop = '8px';
-        mergeBtn.innerHTML = '<span>Merge into selected</span>';
+        mergeBtn.innerHTML = `<span>${t('Merge into selected')}</span>`;
         mergeBtn.addEventListener('click', async () => {
             const chosen = wrap.querySelector(`input[name="dup-keep-${CSS.escape(group.key)}"]:checked`);
             const keeperId = chosen ? parseInt(chosen.value, 10) : songs[0].id;
+            const extra = songs.length - 1;
+            if (!confirm(t('Merge into the selected copy and permanently delete the other {count} files from disk?', { count: extra }))) return;
             mergeBtn.disabled = true;
-            mergeBtn.innerHTML = '<span>Merging…</span>';
+            mergeBtn.innerHTML = `<span>${t('Merging…')}</span>`;
             try {
                 const res = await fetch('/api/music/duplicates/merge', {
                     method: 'POST',
@@ -1151,13 +1203,13 @@ export class RainyApp {
                 });
                 const data = await res.json();
                 if (!res.ok || !data.success) throw new Error(data.error || 'Merge failed');
-                this.showToast(`Merged ${data.removed_count} duplicate(s)`, 'success');
+                this.showToast(t('Merged {count} duplicates', { count: data.removed_count }), 'success');
                 this.loadLibrary();
                 this.scanDuplicates();
             } catch (e) {
                 this.showToast(e.message, 'error');
                 mergeBtn.disabled = false;
-                mergeBtn.innerHTML = '<span>Merge into selected</span>';
+                mergeBtn.innerHTML = `<span>${t('Merge into selected')}</span>`;
             }
         });
         wrap.appendChild(mergeBtn);
@@ -1166,8 +1218,9 @@ export class RainyApp {
 
     async mergeAllDuplicates() {
         const btn = document.getElementById('dup-merge-all-btn');
+        if (!confirm(t('Merge every duplicate group into its suggested copy and permanently delete the other files from disk?'))) return;
         btn.disabled = true;
-        btn.innerHTML = '<span>Merging…</span>';
+        btn.innerHTML = `<span>${t('Merging…')}</span>`;
         try {
             const res = await fetch('/api/music/duplicates/merge-all', {
                 method: 'POST',
@@ -1175,14 +1228,14 @@ export class RainyApp {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || 'Merge failed');
-            this.showToast(`Merged ${data.groups_merged} group(s), removed ${data.songs_removed} song(s)`, 'success');
+            this.showToast(t('Merged {groups} groups, removed {songs} songs', { groups: data.groups_merged, songs: data.songs_removed }), 'success');
             this.loadLibrary();
             this.scanDuplicates();
         } catch (e) {
             this.showToast(e.message, 'error');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = '<span>Merge all automatically</span>';
+            btn.innerHTML = `<span>${t('Merge all automatically')}</span>`;
         }
     }
 
@@ -1200,11 +1253,11 @@ export class RainyApp {
         const result = document.getElementById('scrape-artists-result');
 
         btn.disabled = true;
-        btn.textContent = 'Running...';
+        btn.textContent = t('Running...');
         progress?.classList.remove('hidden');
         result?.classList.add('hidden');
         progressBar.style.width = '0%';
-        progressText.textContent = 'Starting...';
+        progressText.textContent = t('Starting...');
 
         try {
             const res = await fetch('/api/music/artists/scrape-all', { method: 'POST' });
@@ -1226,31 +1279,31 @@ export class RainyApp {
 
                     if (msg.type === 'start') {
                         progressText.textContent = msg.total === 0
-                            ? 'All artists already have images!'
-                            : `Scraping 0 / ${msg.total} artists...`;
+                            ? t('All artists already have images!')
+                            : t('Scraping {current} / {total} artists...', { current: 0, total: msg.total });
                     } else if (msg.type === 'progress') {
                         const pct = Math.round((msg.current / msg.total) * 100);
                         progressBar.style.width = `${pct}%`;
-                        progressText.textContent = `Scraping ${msg.current} / ${msg.total} — ${msg.artist}`;
+                        progressText.textContent = t('Scraping {current} / {total} — {artist}', { current: msg.current, total: msg.total, artist: msg.artist });
                     } else if (msg.type === 'done') {
                         progress?.classList.add('hidden');
                         document.getElementById('scrape-artists-scraped').textContent = msg.scraped;
                         document.getElementById('scrape-artists-skipped').textContent = msg.skipped;
                         document.getElementById('scrape-artists-failed').textContent = msg.failed;
                         result?.classList.remove('hidden');
-                        this.showToast(`Scraped ${msg.scraped} artist image${msg.scraped === 1 ? '' : 's'}`, 'success');
+                        this.showToast(t('Scraped {count} artist images', { count: msg.scraped }), 'success');
                     } else if (msg.type === 'error') {
-                        progressText.textContent = 'Error: ' + msg.error;
-                        this.showToast('Scrape failed: ' + msg.error, 'error');
+                        progressText.textContent = t('Error: {message}', { message: t(msg.error) });
+                        this.showToast(t('Scrape failed: {message}', { message: t(msg.error) }), 'error');
                     }
                 }
             }
         } catch (e) {
-            progressText.textContent = 'Error: ' + e.message;
-            this.showToast('Scrape failed: ' + e.message, 'error');
+            progressText.textContent = t('Error: {message}', { message: e.message });
+            this.showToast(t('Scrape failed: {message}', { message: e.message }), 'error');
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Run';
+            btn.textContent = t('Run');
         }
     }
 
@@ -1262,11 +1315,11 @@ export class RainyApp {
         const result = document.getElementById('scrape-descriptions-result');
 
         btn.disabled = true;
-        btn.textContent = 'Running...';
+        btn.textContent = t('Running...');
         progress?.classList.remove('hidden');
         result?.classList.add('hidden');
         progressBar.style.width = '0%';
-        progressText.textContent = 'Starting...';
+        progressText.textContent = t('Starting...');
 
         try {
             const res = await fetch('/api/music/artists/scrape-descriptions', { method: 'POST' });
@@ -1288,31 +1341,31 @@ export class RainyApp {
 
                     if (msg.type === 'start') {
                         progressText.textContent = msg.total === 0
-                            ? 'All artists already have descriptions!'
-                            : `Scraping 0 / ${msg.total} artists...`;
+                            ? t('All artists already have descriptions!')
+                            : t('Scraping {current} / {total} artists...', { current: 0, total: msg.total });
                     } else if (msg.type === 'progress') {
                         const pct = Math.round((msg.current / msg.total) * 100);
                         progressBar.style.width = `${pct}%`;
-                        progressText.textContent = `Scraping ${msg.current} / ${msg.total} — ${msg.artist}`;
+                        progressText.textContent = t('Scraping {current} / {total} — {artist}', { current: msg.current, total: msg.total, artist: msg.artist });
                     } else if (msg.type === 'done') {
                         progress?.classList.add('hidden');
                         document.getElementById('scrape-descriptions-scraped').textContent = msg.scraped;
                         document.getElementById('scrape-descriptions-skipped').textContent = msg.skipped;
                         document.getElementById('scrape-descriptions-failed').textContent = msg.failed;
                         result?.classList.remove('hidden');
-                        this.showToast(`Scraped ${msg.scraped} artist bio${msg.scraped === 1 ? '' : 's'}`, 'success');
+                        this.showToast(t('Scraped {count} artist bios', { count: msg.scraped }), 'success');
                     } else if (msg.type === 'error') {
-                        progressText.textContent = 'Error: ' + msg.error;
-                        this.showToast('Scrape failed: ' + msg.error, 'error');
+                        progressText.textContent = t('Error: {message}', { message: t(msg.error) });
+                        this.showToast(t('Scrape failed: {message}', { message: t(msg.error) }), 'error');
                     }
                 }
             }
         } catch (e) {
-            progressText.textContent = 'Error: ' + e.message;
-            this.showToast('Scrape failed: ' + e.message, 'error');
+            progressText.textContent = t('Error: {message}', { message: e.message });
+            this.showToast(t('Scrape failed: {message}', { message: e.message }), 'error');
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Run';
+            btn.textContent = t('Run');
         }
     }
 
@@ -1320,23 +1373,24 @@ export class RainyApp {
 
     _importJobLabel(job) {
         const source = job.source === 'spotify' ? 'Spotify' : 'YouTube';
-        const kind = job.kind === 'playlist' ? 'playlist' : 'song';
-        return `${source} ${kind}`;
+        return job.kind === 'playlist'
+            ? t('{source} playlist', { source })
+            : t('{source} song', { source });
     }
 
     _importJobSummary(job) {
         if (job.status === 'completed' && job.result) {
             const r = job.result;
             if (job.kind === 'playlist') {
-                const failed = r.failed_count ? ` (${r.failed_count} failed)` : '';
-                return `${r.song_count ?? 0} songs → "${r.playlist_name || 'playlist'}"${failed}`;
+                const failed = r.failed_count ? ` ${t('({count} failed)', { count: r.failed_count })}` : '';
+                return `${t('{count} songs', { count: r.song_count ?? 0 })} → "${r.playlist_name || t('playlist')}"${failed}`;
             }
-            if (r.already_exists) return `Already in library: ${r.title || 'song'}`;
-            return `Imported: ${r.title || 'song'}${r.artist ? ' — ' + r.artist : ''}`;
+            if (r.already_exists) return t('Already in library: {title}', { title: r.title || t('song') });
+            return t('Imported: {title}', { title: `${r.title || t('song')}${r.artist ? ' — ' + r.artist : ''}` });
         }
-        if (job.status === 'failed') return job.error || 'Import failed';
-        if (job.status === 'cancelled') return 'Cancelled';
-        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Working…');
+        if (job.status === 'failed') return t(job.error || 'Import failed');
+        if (job.status === 'cancelled') return t('Cancelled');
+        return job.message || (job.status === 'queued' ? t('Waiting in queue…') : t('Working…'));
     }
 
     _importJobRow(job, isQueue) {
@@ -1352,7 +1406,7 @@ export class RainyApp {
 
         const badge = document.createElement('span');
         badge.className = `import-job-badge import-job-badge-${job.status}`;
-        badge.textContent = job.status;
+        badge.textContent = t(job.status);
         title.appendChild(badge);
 
         const summary = document.createElement('div');
@@ -1379,7 +1433,7 @@ export class RainyApp {
         if (isQueue && job.status === 'queued') {
             const cancel = document.createElement('button');
             cancel.className = 'btn btn-secondary btn-sm import-job-cancel';
-            cancel.textContent = 'Cancel';
+            cancel.textContent = t('Cancel');
             cancel.addEventListener('click', () => this.cancelImportJob(job.id));
             row.appendChild(cancel);
         }
@@ -1405,7 +1459,7 @@ export class RainyApp {
         if (queue.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'import-jobs-empty';
-            empty.textContent = 'No imports running or queued.';
+            empty.textContent = t('No imports running or queued.');
             queueEl.appendChild(empty);
         } else {
             queue.forEach(job => queueEl.appendChild(this._importJobRow(job, true)));
@@ -1418,7 +1472,7 @@ export class RainyApp {
         if (finished.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'import-jobs-empty';
-            empty.textContent = 'No completed imports yet.';
+            empty.textContent = t('No completed imports yet.');
             historyEl.appendChild(empty);
         } else {
             finished.forEach(job => historyEl.appendChild(this._importJobRow(job, false)));
@@ -1443,20 +1497,21 @@ export class RainyApp {
         const r = job.result || {};
         if (job.status === 'completed') {
             if (job.scope === 'backfill') {
-                if (!r.total) return 'Every song already had an up-to-date light show';
-                return `${r.analysed ?? 0} of ${r.total} songs analysed${r.failed ? ` (${r.failed} failed)` : ''}`;
+                if (!r.total) return t('Every song already had an up-to-date light show');
+                return t('{done} of {count} songs analysed', { done: r.analysed ?? 0, count: r.total })
+                    + (r.failed ? ` ${t('({count} failed)', { count: r.failed })}` : '');
             }
-            if (r.skipped) return r.skipped === 'up to date' ? 'Already up to date' : 'Skipped (song removed)';
-            return `${Math.round(r.tempo || 0)} BPM · ${r.genre || 'pop'} · ${r.sections ?? 0} sections`;
+            if (r.skipped) return r.skipped === 'up to date' ? t('Already up to date') : t('Skipped (song removed)');
+            return `${Math.round(r.tempo || 0)} BPM · ${r.genre || 'pop'} · ${t('{count} sections', { count: r.sections ?? 0 })}`;
         }
-        if (job.status === 'failed') return job.error || 'Analysis failed';
-        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Analysing…');
+        if (job.status === 'failed') return t(job.error || 'Analysis failed');
+        return job.message || (job.status === 'queued' ? t('Waiting in queue…') : t('Analysing…'));
     }
 
     _lightshowJobRow(job) {
         const title = job.scope === 'backfill'
-            ? (job.force ? 'Full library re-analysis' : 'Library light shows')
-            : `Song #${job.song_id}`;
+            ? (job.force ? t('Full library re-analysis') : t('Library light shows'))
+            : t('Song #{id}', { id: job.song_id });
         return this._analysisJobRow(job, title, this._lightshowJobSummary(job));
     }
 
@@ -1470,7 +1525,7 @@ export class RainyApp {
         title.textContent = titleText;
         const badge = document.createElement('span');
         badge.className = `import-job-badge import-job-badge-${job.status}`;
-        badge.textContent = job.status;
+        badge.textContent = t(job.status);
         title.appendChild(badge);
         const summary = document.createElement('div');
         summary.className = 'import-job-summary';
@@ -1505,44 +1560,45 @@ export class RainyApp {
         if (bar) bar.style.width = `${pct}%`;
         bar?.parentElement.classList.toggle('hidden', !active);
         let msg;
-        if (active) msg = `Analysing… ${ready} / ${total} ${noun} (${pct}%)`;
-        else if (total && ready >= total) msg = `✓ Done — all ${total} ${noun}`;
-        else msg = `${ready} / ${total} ${noun} (${pct}%)`;
+        // noun is an English template like '{ready} / {total} songs ready'
+        const counts = t(noun, { ready, total, count: total });
+        if (active) msg = `${t('Analysing…')} ${counts} (${pct}%)`;
+        else if (total && ready >= total) msg = `✓ ${t('Done')} — ${counts}`;
+        else msg = `${counts} (${pct}%)`;
         text.textContent = note ? `${msg} · ${note}` : msg;
         text.classList.toggle('scan-progress-done', !active && total > 0 && ready >= total);
     }
 
     _lyricsJobSummary(job) {
         const r = job.result || {};
-        const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
         if (job.status === 'completed') {
             if (job.scope === 'backfill') {
-                if (!r.total) return 'Every song already has word timing';
-                const parts = [`${r.aligned ?? 0} of ${plural(r.total, 'song')} timed`];
-                if (r.fetched) parts.push(`${r.fetched} lyrics fetched`);
-                if (r.no_lyrics) parts.push(`${r.no_lyrics} without synced lyrics`);
-                if (r.failed) parts.push(`${r.failed} failed`);
+                if (!r.total) return t('Every song already has word timing');
+                const parts = [t('{done} of {count} songs timed', { done: r.aligned ?? 0, count: r.total })];
+                if (r.fetched) parts.push(t('{count} lyrics fetched', { count: r.fetched }));
+                if (r.no_lyrics) parts.push(t('{count} without synced lyrics', { count: r.no_lyrics }));
+                if (r.failed) parts.push(t('{count} failed', { count: r.failed }));
                 return parts.join(' · ');
             }
             if (r.skipped) {
-                return r.skipped === 'up to date' ? 'Already up to date'
-                    : r.skipped === 'no synced lyrics' ? 'No synced lyrics for this song'
-                        : 'Skipped (song removed)';
+                return r.skipped === 'up to date' ? t('Already up to date')
+                    : r.skipped === 'no synced lyrics' ? t('No synced lyrics for this song')
+                        : t('Skipped (song removed)');
             }
-            const parts = [`${plural(r.lines ?? 0, 'line')} timed`];
+            const parts = [t('{count} lines timed', { count: r.lines ?? 0 })];
             if (r.language) parts.push(r.language);
-            if (r.re_aligned) parts.push(`${r.re_aligned} re-aligned`);
-            if (r.estimated) parts.push(`${r.estimated} estimated`);
+            if (r.re_aligned) parts.push(t('{count} re-aligned', { count: r.re_aligned }));
+            if (r.estimated) parts.push(t('{count} estimated', { count: r.estimated }));
             return parts.join(' · ');
         }
-        if (job.status === 'failed') return job.error || 'Analysis failed';
-        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Analysing…');
+        if (job.status === 'failed') return t(job.error || 'Analysis failed');
+        return job.message || (job.status === 'queued' ? t('Waiting in queue…') : t('Analysing…'));
     }
 
     _lyricsJobRow(job) {
         const title = job.scope === 'backfill'
-            ? (job.force ? 'Full library re-timing' : 'Library lyrics')
-            : `Song #${job.song_id}`;
+            ? (job.force ? t('Full library re-timing') : t('Library lyrics'))
+            : t('Song #{id}', { id: job.song_id });
         const failures = job.result && job.result.failures;
         const hint = failures && failures.length
             ? failures.map(f => `${f.song}: ${f.error}`).join('\n') : undefined;
@@ -1562,8 +1618,8 @@ export class RainyApp {
         const { queue = [], history = [], coverage = { ready: 0, total: 0, unfetched: 0 } } = data.value || {};
 
         this._renderCoverage('lyrics-coverage', coverage, queue.length > 0, {
-            noun: 'songs with synced lyrics timed',
-            note: coverage.unfetched ? `${coverage.unfetched} not searched yet` : '',
+            noun: '{ready} / {total} songs with synced lyrics timed',
+            note: coverage.unfetched ? t('{count} not searched yet', { count: coverage.unfetched }) : '',
         });
 
         const fill = (el, jobs, emptyText) => {
@@ -1571,7 +1627,7 @@ export class RainyApp {
             if (!jobs.length) {
                 const empty = document.createElement('div');
                 empty.className = 'import-jobs-empty';
-                empty.textContent = emptyText;
+                empty.textContent = t(emptyText);
                 el.appendChild(empty);
             } else {
                 jobs.forEach(job => el.appendChild(this._lyricsJobRow(job)));
@@ -1581,7 +1637,7 @@ export class RainyApp {
         if (queue.length > 6) {
             const more = document.createElement('div');
             more.className = 'import-jobs-empty';
-            more.textContent = `+ ${queue.length - 6} more queued`;
+            more.textContent = t('+ {count} more queued', { count: queue.length - 6 });
             queueEl.appendChild(more);
         }
         fill(historyEl, history, 'No lyrics jobs yet.');
@@ -1596,13 +1652,13 @@ export class RainyApp {
     }
 
     async runLyricsBackfill(force) {
-        if (force && !confirm('Re-time the lyrics of every song? This runs in the background and can take a while on big libraries.')) return;
+        if (force && !confirm(t('Re-time the lyrics of every song? This runs in the background and can take a while on big libraries.'))) return;
         const data = await useLyricsService().backfill(force);
         if (data.error) {
             this.showToast(data.error.error || 'Could not start lyrics analysis', 'error');
             return;
         }
-        this.showToast(force ? "Re-timing every song's lyrics…" : 'Analysing lyrics…', 'success');
+        this.showToast(force ? t("Re-timing every song's lyrics…") : t('Analysing lyrics…'), 'success');
         this.loadLyricsJobs();
     }
 
@@ -1618,14 +1674,14 @@ export class RainyApp {
         }
         const { queue = [], history = [], coverage = { ready: 0, total: 0 } } = data.value || {};
 
-        this._renderCoverage('lightshow-coverage', coverage, queue.length > 0, { noun: 'songs ready' });
+        this._renderCoverage('lightshow-coverage', coverage, queue.length > 0, { noun: '{ready} / {total} songs ready' });
 
         const fill = (el, jobs, emptyText) => {
             el.innerHTML = '';
             if (!jobs.length) {
                 const empty = document.createElement('div');
                 empty.className = 'import-jobs-empty';
-                empty.textContent = emptyText;
+                empty.textContent = t(emptyText);
                 el.appendChild(empty);
             } else {
                 jobs.forEach(job => el.appendChild(this._lightshowJobRow(job)));
@@ -1636,7 +1692,7 @@ export class RainyApp {
         if (queue.length > 6) {
             const more = document.createElement('div');
             more.className = 'import-jobs-empty';
-            more.textContent = `+ ${queue.length - 6} more queued`;
+            more.textContent = t('+ {count} more queued', { count: queue.length - 6 });
             queueEl.appendChild(more);
         }
         fill(historyEl, history, 'No light show jobs yet.');
@@ -1654,19 +1710,20 @@ export class RainyApp {
         const r = job.result || {};
         if (job.status === 'completed') {
             if (job.scope === 'backfill') {
-                if (!r.total) return 'Every song was already analysed';
-                return `${r.enriched ?? 0} of ${r.total} songs analysed${r.failed ? ` (${r.failed} failed)` : ''}`;
+                if (!r.total) return t('Every song was already analysed');
+                return t('{done} of {count} songs analysed', { done: r.enriched ?? 0, count: r.total })
+                    + (r.failed ? ` ${t('({count} failed)', { count: r.failed })}` : '');
             }
-            return 'Metadata updated';
+            return t('Metadata updated');
         }
-        if (job.status === 'failed') return job.error || 'Analysis failed';
-        return job.message || (job.status === 'queued' ? 'Waiting in queue…' : 'Analysing…');
+        if (job.status === 'failed') return t(job.error || 'Analysis failed');
+        return job.message || (job.status === 'queued' ? t('Waiting in queue…') : t('Analysing…'));
     }
 
     _enrichJobRow(job) {
         const title = job.scope === 'backfill'
-            ? (job.force ? 'Full library re-analysis' : 'Library metadata')
-            : `Song #${job.song_id}`;
+            ? (job.force ? t('Full library re-analysis') : t('Library metadata'))
+            : t('Song #{id}', { id: job.song_id });
         return this._analysisJobRow(job, title, this._enrichJobSummary(job));
     }
 
@@ -1687,7 +1744,7 @@ export class RainyApp {
             if (!jobs.length) {
                 const empty = document.createElement('div');
                 empty.className = 'import-jobs-empty';
-                empty.textContent = emptyText;
+                empty.textContent = t(emptyText);
                 el.appendChild(empty);
             } else {
                 jobs.forEach(job => el.appendChild(this._enrichJobRow(job)));
@@ -1698,7 +1755,7 @@ export class RainyApp {
         if (queue.length > 6) {
             const more = document.createElement('div');
             more.className = 'import-jobs-empty';
-            more.textContent = `+ ${queue.length - 6} more queued`;
+            more.textContent = t('+ {count} more queued', { count: queue.length - 6 });
             queueEl.appendChild(more);
         }
         // The history endpoint also lists still-active jobs; don't show them twice.
@@ -1715,35 +1772,37 @@ export class RainyApp {
     }
 
     async runEnrichBackfill(force) {
-        if (force && !confirm('Re-analyse the metadata of every song? This runs in the background and can take a long time on big libraries.')) return;
+        if (force && !confirm(t('Re-analyse the metadata of every song? This runs in the background and can take a long time on big libraries.'))) return;
         const data = await useEnrichmentService().backfill(force);
         if (data.error) {
             this.showToast(data.error.error || 'Could not start metadata analysis', 'error');
             return;
         }
-        this.showToast(force ? 'Re-analysing every song…' : 'Analysing songs without metadata…', 'success');
+        this.showToast(force ? t('Re-analysing every song…') : t('Analysing songs without metadata…'), 'success');
         this.loadEnrichJobs();
     }
 
     _renderYtdlpStatus(st) {
         const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
         if (!st) return;
-        const ver = st.installed || 'not installed';
+        const ver = st.installed || t('not installed');
         let verText = ver;
-        if (st.latest) verText += st.up_to_date ? ' (up to date)' : ` (latest: ${st.latest})`;
-        if (st.updating) verText += ' · updating…';
+        if (st.latest) verText += st.up_to_date ? ` ${t('(up to date)')}` : ` ${t('(latest: {version})', { version: st.latest })}`;
+        if (st.updating) verText += ` · ${t('updating…')}`;
         set('ytdlp-version', verText);
         set('ytdlp-runtime', st.ejs && st.js_runtime
-            ? `Ready (${st.js_runtime})`
-            : !st.js_runtime ? 'No JS runtime found — install Deno or Node.js' : 'Solver missing — click Update now');
+            ? t('Ready ({runtime})', { runtime: st.js_runtime })
+            : !st.js_runtime ? t('No JS runtime found — install Deno or Node.js') : t('Solver missing — click Update now'));
         const u = st.last_update;
         if (u) {
             const when = new Date(u.at * 1000).toLocaleString();
             set('ytdlp-last-update', u.ok
-                ? (u.from === u.to ? `${when} · already current` : `${when} · ${u.from} → ${u.to}`)
-                : `${when} · failed: ${(u.error || '').slice(0, 120)}`);
+                ? (u.from === u.to ? `${when} · ${t('already current')}` : `${when} · ${u.from} → ${u.to}`)
+                : `${when} · ${t('failed: {message}', { message: (u.error || '').slice(0, 120) })}`);
         } else {
-            set('ytdlp-last-update', st.last_check ? `Checked ${new Date(st.last_check * 1000).toLocaleString()}` : 'Not checked yet');
+            set('ytdlp-last-update', st.last_check
+                ? t('Checked {date}', { date: new Date(st.last_check * 1000).toLocaleString() })
+                : t('Not checked yet'));
         }
     }
 
@@ -1760,7 +1819,7 @@ export class RainyApp {
 
     async updateYtdlp() {
         const btn = document.getElementById('ytdlp-update-btn');
-        if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+        if (btn) { btn.disabled = true; btn.textContent = t('Updating…'); }
         try {
             const res = await fetch('/api/music/ytdlp/update', {
                 method: 'POST',
@@ -1771,25 +1830,25 @@ export class RainyApp {
             this._renderYtdlpStatus(data.ytdlp);
             if (res.ok) {
                 const u = data.ytdlp && data.ytdlp.last_update;
-                this.showToast(u && u.from !== u.to ? `yt-dlp updated to ${u.to}` : 'yt-dlp is up to date', 'success');
+                this.showToast(u && u.from !== u.to ? t('yt-dlp updated to {version}', { version: u.to }) : t('yt-dlp is up to date'), 'success');
             } else {
-                this.showToast(data.error ? `yt-dlp update failed: ${data.error.slice(0, 120)}` : 'yt-dlp update failed', 'error');
+                this.showToast(data.error ? t('yt-dlp update failed: {message}', { message: data.error.slice(0, 120) }) : t('yt-dlp update failed'), 'error');
             }
         } catch (e) {
             this.showToast('yt-dlp update failed', 'error');
         } finally {
-            if (btn) { btn.disabled = false; btn.textContent = 'Update now'; }
+            if (btn) { btn.disabled = false; btn.textContent = t('Update now'); }
         }
     }
 
     async runLightshowBackfill(force) {
-        if (force && !confirm('Re-analyse the light show of every song? This runs in the background and can take a while on big libraries.')) return;
+        if (force && !confirm(t('Re-analyse the light show of every song? This runs in the background and can take a while on big libraries.'))) return;
         const data = await useLightshowService().backfill(force);
         if (data.error) {
             this.showToast(data.error.error || 'Could not start light show analysis', 'error');
             return;
         }
-        this.showToast(force ? 'Re-analysing every light show…' : 'Analysing missing light shows…', 'success');
+        this.showToast(force ? t('Re-analysing every light show…') : t('Analysing missing light shows…'), 'success');
         this.loadLightshowJobs();
     }
 
@@ -1803,18 +1862,29 @@ export class RainyApp {
         this.loadImportJobs();
     }
 
-    async loadLibrary() {
+    /**
+     * @param {{ silent?: boolean }} [options] - silent: background refresh
+     *  (no loading state, keeps the current view, search, sort and scroll)
+     * @returns {Promise<boolean>} whether the library was loaded
+     */
+    async loadLibrary({ silent = false } = {}) {
         const loadingState = document.getElementById('loading-state');
         const emptyState = document.getElementById('empty-state');
         const songsGrid = document.getElementById('songs-grid');
 
-        loadingState.classList.remove('hidden');
-        emptyState.classList.add('hidden');
-        songsGrid.innerHTML = '';
-        document.getElementById('songs-list-content').innerHTML = '';
+        if (!silent) {
+            loadingState.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            songsGrid.innerHTML = '';
+            document.getElementById('songs-list-content').innerHTML = '';
+        }
 
         const data = await useMusicService().library();
         if (data.error) {
+            if (silent) {
+                Logger.warn('Background library refresh failed', data.error);
+                return false;
+            }
             Logger.error('Failed to load music libary!', data.error);
             loadingState.classList.add('hidden');
             emptyState.classList.remove('hidden');
@@ -1824,6 +1894,11 @@ export class RainyApp {
 
         const library = data.value;
         if (!library) throw new Error('unreachable');
+        this.libraryWatcher.noteSongsVersion(library.version);
+        if (silent) {
+            this.applyLibraryUpdate(library);
+            return true;
+        }
         loadingState.classList.add('hidden');
 
         const allSongs = library.all_songs;
@@ -1848,10 +1923,55 @@ export class RainyApp {
                 this.refreshLibraryQueue();
             }
 
-            return;
+            return true;
         }
 
         emptyState.classList.remove('hidden');
+        return true;
+    }
+
+    /**
+     * Swap in a library fetched in the background without the loading
+     * flash. Only re-renders when the Library view is on screen, and keeps
+     * the user's place there: search filter, sort and scroll position.
+     * Other views pick the new songs up when the user returns to Library.
+     * @param {import('./services/music.js').LibraryModel} library
+     */
+    applyLibraryUpdate(library) {
+        const allSongs = library.all_songs || [];
+        this.librarySongs = [...allSongs];
+        this.librarySections = JSON.parse(JSON.stringify(library.sections || []));
+
+        if (useContext().get('current-view-type') !== 'library') return;
+
+        const main = document.querySelector('.app-main');
+        const scrollTop = main?.scrollTop ?? 0;
+
+        this.songs = allSongs;
+        this.sections = library.sections || [];
+        this.filteredSongs = [...this.songs];
+
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('empty-state').classList.toggle('hidden', allSongs.length > 0);
+        if (allSongs.length === 0) {
+            document.getElementById('songs-grid').innerHTML = '';
+            document.getElementById('songs-list-content').innerHTML = '';
+        } else if (this.currentSort !== 'default') {
+            this.applySortFilter(this.currentSort); // re-sorts, then renders
+        } else {
+            this.renderSections();
+        }
+
+        const query = document.getElementById('search-input')?.value || '';
+        if (query.trim()) {
+            this.handleSearch(query); // re-applies the filter and stats
+        } else {
+            this.updateViewModeControls();
+            this.updateStats();
+        }
+
+        if (main) main.scrollTop = scrollTop;
+        this.refreshLibraryQueue();
     }
 
     renderSections() {
@@ -1989,7 +2109,7 @@ export class RainyApp {
         // We wrap filtered songs in a section to use Library.renderGridSection
         const section = {
             id: 'filtered-songs',
-            title: 'Search Results',
+            title: t('Search Results'),
             songs: this.filteredSongs
         };
 
@@ -2230,13 +2350,14 @@ export class RainyApp {
 
         document.getElementById('library-subtitle').textContent =
             this.filteredSongs.length === this.songs.length
-                ? 'All your music in one place'
-                : `Showing ${this.filteredSongs.length} of ${this.songs.length} songs`;
+                ? t('All your music in one place')
+                : t('Showing {shown} of {count} songs', { shown: this.filteredSongs.length, count: this.songs.length });
     }
 
     /** Stop playback and background polling tied to the current session. */
     teardownSession() {
         window.player?.shutdownSession();
+        this.libraryWatcher.stop();
         window.friendsModule?.stop();
         this.user = null;
         this.songs = [];
@@ -2388,6 +2509,62 @@ export class RainyApp {
 
         this.playlists = playlists;
         this.renderSidebarPlaylists();
+        return true;
+    }
+
+    /**
+     * Background refresh after playlists changed elsewhere: update the
+     * sidebar and the open playlist, if any.
+     * @returns {Promise<boolean>} whether the playlists were refreshed
+     */
+    async refreshPlaylists() {
+        if (!(await this.loadPlaylists())) return false;
+        await this.refreshOpenPlaylist();
+        return true;
+    }
+
+    /** Re-fetch the open playlist and re-render it in place if it changed. */
+    async refreshOpenPlaylist() {
+        const playlistId = this.currentPlaylistId;
+        const isOpen = () => useContext().get('current-view-type') === 'playlist' &&
+            this.currentPlaylistId === playlistId;
+        if (playlistId == null || !isOpen()) return;
+
+        const data = await usePlaylistService().fetch(playlistId);
+        if (!isOpen()) return; // the user navigated away meanwhile
+        if (data.error) {
+            // Deleted, or access revoked, from another device/user.
+            if (this.user && !(data.error instanceof ResponseError)) {
+                this.showToast('This playlist is no longer available', 'error');
+                this.switchToLibraryView();
+            }
+            return;
+        }
+
+        const playlist = data.value;
+        if (!playlist) return;
+
+        const title = document.querySelector('.section-title');
+        const sameSongs = playlist.songs.length === this.songs.length &&
+            playlist.songs.every((song, i) => song.id === this.songs[i]?.id);
+        if (sameSongs && title?.textContent === playlistDisplayName(playlist.name)) return;
+
+        const main = document.querySelector('.app-main');
+        const scrollTop = main?.scrollTop ?? 0;
+
+        if (title) title.textContent = playlistDisplayName(playlist.name);
+        document.getElementById('library-subtitle').textContent = t('{count} songs', { count: playlist.songs.length });
+
+        this.songs = playlist.songs;
+        this.filteredSongs = [...playlist.songs];
+        this.sections = [{
+            type: 'grid',
+            title: t('Playlist Songs'),
+            songs: this.songs
+        }];
+        this.renderSections();
+
+        if (main) main.scrollTop = scrollTop;
     }
 
     renderSidebarPlaylists() {
@@ -2442,7 +2619,7 @@ export class RainyApp {
 
         // Populate icons - all start grey, selected one gets the color
         iconPicker.innerHTML = Object.entries(PLAYLIST_ICONS).map(([id, icon]) => `
-            <button type="button" class="icon-picker-btn ${id === selectedIcon ? 'selected' : ''}" data-icon="${id}" title="${icon.name}">
+            <button type="button" class="icon-picker-btn ${id === selectedIcon ? 'selected' : ''}" data-icon="${id}" title="${Utils.escapeHtml(t(icon.name))}">
                 <svg viewBox="0 0 24 24" style="fill: ${id === selectedIcon ? selectedColor : '#888888'}"><path d="${icon.path}"/></svg>
             </button>
         `).join('');
@@ -2625,8 +2802,8 @@ export class RainyApp {
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
         this.renderSidebarPlaylists();
 
-        document.querySelector('.section-title').textContent = playlist.name;
-        document.getElementById('library-subtitle').textContent = `${playlist.songs.length} songs`;
+        document.querySelector('.section-title').textContent = playlistDisplayName(playlist.name);
+        document.getElementById('library-subtitle').textContent = t('{count} songs', { count: playlist.songs.length });
         document.getElementById('library-stats').classList.add('hidden');
 
         document.getElementById('playlist-menu-container').classList.remove('hidden');
@@ -2636,7 +2813,7 @@ export class RainyApp {
 
         this.sections = [{
             type: 'grid',
-            title: 'Playlist Songs',
+            title: t('Playlist Songs'),
             songs: this.songs
         }];
 
@@ -2719,8 +2896,8 @@ export class RainyApp {
 
         // Show section header
         document.querySelector('.section-header')?.classList.remove('hidden');
-        document.querySelector('.section-title').textContent = 'Friends';
-        document.getElementById('library-subtitle').textContent = 'Collaborate on playlists together';
+        document.querySelector('.section-title').textContent = t('Friends');
+        document.getElementById('library-subtitle').textContent = t('Collaborate on playlists together');
         document.getElementById('library-stats').classList.add('hidden');
         document.getElementById('playlist-menu-container').classList.add('hidden');
 
@@ -2764,9 +2941,9 @@ export class RainyApp {
         this.filteredSongs = [...this.songs];
 
         // Update Header
-        document.querySelector('.section-title').textContent = 'Your Library';
+        document.querySelector('.section-title').textContent = t('Your Library');
         const totalSongs = this.songs.length;
-        document.getElementById('library-subtitle').textContent = 'All your music in one place';
+        document.getElementById('library-subtitle').textContent = t('All your music in one place');
 
         // Hide playlist settings menu
         document.getElementById('playlist-menu-container').classList.add('hidden');
@@ -2810,8 +2987,8 @@ export class RainyApp {
         this.renderSidebarPlaylists();
 
         // Update Header
-        document.querySelector('.section-title').textContent = 'Discover Music';
-        document.getElementById('library-subtitle').textContent = 'Search and preview from YouTube Music';
+        document.querySelector('.section-title').textContent = t('Discover Music');
+        document.getElementById('library-subtitle').textContent = t('Search and preview from YouTube Music');
 
         // Hide elements
         document.getElementById('playlist-menu-container').classList.add('hidden');
@@ -2870,7 +3047,7 @@ export class RainyApp {
 
             if (data.error) {
                 Logger.error(data.error);
-                this.showToast('Search failed: ' + (data.error.error || 'Unknown error'), 'error');
+                this.showToast(t('Search failed: {message}', { message: t(data.error.error || 'Unknown error') }), 'error');
                 return;
             }
 
@@ -2993,7 +3170,7 @@ export class RainyApp {
             });
 
             artistAlbum.appendChild(artistSpan);
-            artistAlbum.appendChild(document.createTextNode(` • ${song.album || 'Single'}`));
+            artistAlbum.appendChild(document.createTextNode(` • ${song.album || t('Single')}`));
 
             meta.appendChild(title);
             meta.appendChild(artistAlbum);
@@ -3010,7 +3187,7 @@ export class RainyApp {
 
             const previewBtn = document.createElement('button');
             previewBtn.className = 'discover-btn discover-btn-preview';
-            previewBtn.textContent = alreadyDownloaded ? 'Play' : 'Preview';
+            previewBtn.textContent = alreadyDownloaded ? t('Play') : t('Preview');
             previewBtn.addEventListener('click', () => {
                 const currentMatch = this.isSongInLibrary(song);
                 if (currentMatch) {
@@ -3032,10 +3209,10 @@ export class RainyApp {
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'discover-btn discover-btn-download';
             if (alreadyDownloaded) {
-                downloadBtn.textContent = 'In Library';
+                downloadBtn.textContent = t('In Library');
                 downloadBtn.disabled = true;
             } else {
-                downloadBtn.textContent = 'Download';
+                downloadBtn.textContent = t('Download');
             }
             downloadBtn.addEventListener('click', () => {
                 this.downloadDiscoverSong(song, downloadBtn);
@@ -3086,14 +3263,15 @@ export class RainyApp {
                 playlists.forEach(p => {
                     const opt = document.createElement('option');
                     opt.value = p.id;
-                    opt.textContent = p.name + (p.song_count != null ? ` (${p.song_count} tracks)` : '');
+                    opt.textContent = playlistDisplayName(p.name)
+                        + (p.song_count != null ? ` (${t('{count} tracks', { count: p.song_count })})` : '');
                     selectEl.appendChild(opt);
                 });
                 if (currentVal) selectEl.value = currentVal;
                 if (!selectEl.value && playlists.length === 0) {
                     const opt = document.createElement('option');
                     opt.value = '';
-                    opt.textContent = 'No playlists yet — create one first';
+                    opt.textContent = t('No playlists yet — create one first');
                     opt.disabled = true;
                     opt.selected = true;
                     selectEl.appendChild(opt);
@@ -3101,7 +3279,7 @@ export class RainyApp {
             }
         } catch (_) {}
 
-        listEl.innerHTML = '<div class="import-jobs-empty">Loading syncs…</div>';
+        listEl.innerHTML = `<div class="import-jobs-empty">${t('Loading syncs…')}</div>`;
         if (emptyEl) emptyEl.style.display = 'none';
 
         try {
@@ -3118,7 +3296,7 @@ export class RainyApp {
             listEl.innerHTML = '';
             syncs.forEach(s => listEl.appendChild(this._renderSyncRow(s)));
         } catch (e) {
-            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">Error: ${this._esc(e.message)}</div>`;
+            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">${this._esc(t('Error: {message}', { message: t(e.message) }))}</div>`;
         }
     }
 
@@ -3131,59 +3309,59 @@ export class RainyApp {
 
         const intervalLabel = (() => {
             const h = parseInt(s.interval_hours, 10);
-            if (h === 1) return 'Every hour';
-            if (h < 24) return `Every ${h} hours`;
-            if (h === 24) return 'Daily';
-            if (h === 48) return 'Every 2 days';
-            if (h === 72) return 'Every 3 days';
-            if (h === 168) return 'Weekly';
-            return `Every ${h}h`;
+            if (h === 1) return t('Every hour');
+            if (h < 24) return t('Every {count} hours', { count: h });
+            if (h === 24) return t('Daily');
+            if (h === 48) return t('Every 2 days');
+            if (h === 72) return t('Every 3 days');
+            if (h === 168) return t('Weekly');
+            return t('Every {count} hours', { count: h });
         })();
         const sourceBadge = s.source === 'spotify' ? 'Spotify' : 'YouTube';
-        const modeBadge = s.sync_mode === 'mirror' ? 'Mirror' : 'Add only';
+        const modeBadge = s.sync_mode === 'mirror' ? t('Mirror') : t('Add only');
         const statusColor = s.last_status === 'success' ? '#4ade80' : s.last_status === 'failed' ? '#f87171' : s.last_status === 'running' ? '#60a5fa' : 'var(--text-tertiary)';
         const enabled = !!s.enabled;
         const nextSync = s.next_sync_at ? new Date(s.next_sync_at).toLocaleString() : '—';
-        const lastSync = s.last_synced_at ? new Date(s.last_synced_at).toLocaleString() : 'Never';
+        const lastSync = s.last_synced_at ? new Date(s.last_synced_at).toLocaleString() : t('Never');
 
         wrap.innerHTML = `
             <div class="sync-row-layout">
                 <div class="sync-row-info">
                     <div class="sync-row-title">
-                        <span>${this._esc(s.playlist_name || 'Playlist #' + s.playlist_id)}</span>
+                        <span>${this._esc(playlistDisplayName(s.playlist_name) || t('Playlist #{id}', { id: s.playlist_id }))}</span>
                         <span class="import-job-badge" style="background:rgba(61,125,196,0.12); color:var(--accent-primary);">${sourceBadge}</span>
                         <span class="import-job-badge">${modeBadge}</span>
-                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(s.last_status || 'pending')}</span>
+                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(t(s.last_status || 'pending'))}</span>
                     </div>
                     <div class="sync-row-meta">
-                        <span>${this._esc(intervalLabel)}</span> · Next: ${this._esc(nextSync)} · Last: ${this._esc(lastSync)}
+                        <span>${this._esc(intervalLabel)}</span> · ${this._esc(t('Next: {date}', { date: nextSync }))} · ${this._esc(t('Last: {date}', { date: lastSync }))}
                     </div>
                     ${s.last_message ? `<div class="sync-row-message">${this._esc(s.last_message)}</div>` : ''}
                     <div class="sync-row-url">${this._esc(s.url)}</div>
                 </div>
                 <div class="sync-row-actions">
-                    <label class="toggle-switch" title="Enabled">
+                    <label class="toggle-switch" title="${this._esc(t('Enabled'))}">
                         <input type="checkbox" class="sync-enabled-toggle" data-sync-id="${s.id}" ${enabled ? 'checked' : ''}>
                         <span class="toggle-slider"></span>
                     </label>
-                    <button class="btn btn-secondary btn-sm sync-run-btn" data-sync-id="${s.id}">Run now</button>
-                    <button class="btn btn-secondary btn-sm sync-delete-btn" data-sync-id="${s.id}" style="color:var(--error);">Delete</button>
+                    <button class="btn btn-secondary btn-sm sync-run-btn" data-sync-id="${s.id}">${t('Run now')}</button>
+                    <button class="btn btn-secondary btn-sm sync-delete-btn" data-sync-id="${s.id}" style="color:var(--error);">${t('Delete')}</button>
                 </div>
             </div>
             <div class="sync-row-fields">
                 <select class="form-input sync-interval-select" data-sync-id="${s.id}">
-                    <option value="1" ${s.interval_hours==1?'selected':''}>1 hour</option>
-                    <option value="3" ${s.interval_hours==3?'selected':''}>3 hours</option>
-                    <option value="6" ${s.interval_hours==6?'selected':''}>6 hours</option>
-                    <option value="12" ${s.interval_hours==12?'selected':''}>12 hours</option>
-                    <option value="24" ${s.interval_hours==24?'selected':''}>24 hours (daily)</option>
-                    <option value="48" ${s.interval_hours==48?'selected':''}>48 hours</option>
-                    <option value="72" ${s.interval_hours==72?'selected':''}>3 days</option>
-                    <option value="168" ${s.interval_hours==168?'selected':''}>7 days (weekly)</option>
+                    <option value="1" ${s.interval_hours==1?'selected':''}>${t('1 hour')}</option>
+                    <option value="3" ${s.interval_hours==3?'selected':''}>${t('3 hours')}</option>
+                    <option value="6" ${s.interval_hours==6?'selected':''}>${t('6 hours')}</option>
+                    <option value="12" ${s.interval_hours==12?'selected':''}>${t('12 hours')}</option>
+                    <option value="24" ${s.interval_hours==24?'selected':''}>${t('24 hours (daily)')}</option>
+                    <option value="48" ${s.interval_hours==48?'selected':''}>${t('48 hours')}</option>
+                    <option value="72" ${s.interval_hours==72?'selected':''}>${t('3 days')}</option>
+                    <option value="168" ${s.interval_hours==168?'selected':''}>${t('7 days (weekly)')}</option>
                 </select>
                 <select class="form-input sync-mode-select" data-sync-id="${s.id}">
-                    <option value="mirror" ${s.sync_mode==='mirror'?'selected':''}>Mirror — add & remove</option>
-                    <option value="add_only" ${s.sync_mode==='add_only'?'selected':''}>Add only</option>
+                    <option value="mirror" ${s.sync_mode==='mirror'?'selected':''}>${this._esc(t('Mirror — add & remove'))}</option>
+                    <option value="add_only" ${s.sync_mode==='add_only'?'selected':''}>${t('Add only')}</option>
                 </select>
             </div>
         `;
@@ -3200,7 +3378,7 @@ export class RainyApp {
                 });
                 const d = await res.json();
                 if (!res.ok) throw new Error(d.error || 'Update failed');
-                this.showToast(e.target.checked ? 'Sync enabled' : 'Sync disabled', 'success');
+                this.showToast(e.target.checked ? t('Sync enabled') : t('Sync disabled'), 'success');
             } catch (err) {
                 this.showToast(err.message, 'error');
                 e.target.checked = !e.target.checked;
@@ -3211,26 +3389,26 @@ export class RainyApp {
         runBtn?.addEventListener('click', async (e) => {
             const id = parseInt(e.target.dataset.syncId, 10);
             e.target.disabled = true;
-            e.target.textContent = 'Syncing…';
+            e.target.textContent = t('Syncing…');
             try {
                 const res = await fetch(`/api/playlist-syncs/${id}/run`, { method: 'POST', credentials: 'same-origin' });
                 const d = await res.json();
                 if (!res.ok || !d.success) throw new Error(d.error || 'Sync failed');
-                this.showToast(`Synced: +${d.result.added} -${d.result.removed}`, 'success');
+                this.showToast(t('Synced: +{added} -{removed}', { added: d.result.added, removed: d.result.removed }), 'success');
                 this.loadPlaylistSyncs();
                 this.loadSyncHistory();
                 this.loadPlaylists?.();
             } catch (err) {
                 this.showToast(err.message, 'error');
                 e.target.disabled = false;
-                e.target.textContent = 'Run now';
+                e.target.textContent = t('Run now');
             }
         });
 
         const delBtn = wrap.querySelector('.sync-delete-btn');
         delBtn?.addEventListener('click', async (e) => {
             const id = parseInt(e.target.dataset.syncId, 10);
-            if (!confirm('Delete this sync? The playlist itself will not be deleted.')) return;
+            if (!confirm(t('Delete this sync? The playlist itself will not be deleted.'))) return;
             try {
                 const res = await fetch(`/api/playlist-syncs/${id}`, { method: 'DELETE', credentials: 'same-origin' });
                 const d = await res.json();
@@ -3300,15 +3478,15 @@ export class RainyApp {
         if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
         if (!playlistId) {
-            if (errorEl) { errorEl.textContent = 'Select a local playlist.'; errorEl.style.display = ''; }
+            if (errorEl) { errorEl.textContent = t('Select a local playlist.'); errorEl.style.display = ''; }
             return;
         }
         if (!url) {
-            if (errorEl) { errorEl.textContent = 'Paste a playlist URL.'; errorEl.style.display = ''; }
+            if (errorEl) { errorEl.textContent = t('Paste a playlist URL.'); errorEl.style.display = ''; }
             return;
         }
 
-        if (createBtn) { createBtn.disabled = true; createBtn.textContent = 'Creating…'; }
+        if (createBtn) { createBtn.disabled = true; createBtn.textContent = t('Creating…'); }
 
         try {
             const res = await fetch('/api/playlist-syncs', {
@@ -3322,10 +3500,10 @@ export class RainyApp {
             if (urlEl) urlEl.value = '';
             await this.loadPlaylistSyncs();
         } catch (e) {
-            if (errorEl) { errorEl.textContent = e.message; errorEl.style.display = ''; }
+            if (errorEl) { errorEl.textContent = t(e.message); errorEl.style.display = ''; }
             this.showToast(e.message, 'error');
         } finally {
-            if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create sync'; }
+            if (createBtn) { createBtn.disabled = false; createBtn.textContent = t('Create sync'); }
         }
     }
 
@@ -3333,7 +3511,7 @@ export class RainyApp {
         const listEl = document.getElementById('syncs-history-list');
         const emptyEl = document.getElementById('syncs-history-empty');
         if (!listEl) return;
-        listEl.innerHTML = '<div class="import-jobs-empty">Loading history…</div>';
+        listEl.innerHTML = `<div class="import-jobs-empty">${t('Loading history…')}</div>`;
         if (emptyEl) emptyEl.style.display = 'none';
         try {
             const res = await fetch('/api/playlist-syncs/history?limit=30', { credentials: 'same-origin' });
@@ -3359,19 +3537,22 @@ export class RainyApp {
                 card.style.alignItems = 'stretch';
                 card.innerHTML = `
                     <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:center;">
-                        <div style="font-weight:600; color:var(--text-primary);">${this._esc(r.playlist_name || 'Playlist #' + r.playlist_id)} <span style="font-weight:400; color:var(--text-tertiary); font-size:0.85rem;">· ${this._esc(when)}</span></div>
-                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(r.status)}</span>
+                        <div style="font-weight:600; color:var(--text-primary);">${this._esc(playlistDisplayName(r.playlist_name) || t('Playlist #{id}', { id: r.playlist_id }))} <span style="font-weight:400; color:var(--text-tertiary); font-size:0.85rem;">· ${this._esc(when)}</span></div>
+                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(t(r.status))}</span>
                     </div>
                     <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">
-                        +${r.added_count} added · -${r.removed_count} removed · ${r.kept_count} kept · ${r.failed_count} failed · ${r.total_remote} remote
+                        ${this._esc(t('+{added} added · -{removed} removed · {kept} kept · {failed} failed · {remote} remote', {
+                            added: r.added_count, removed: r.removed_count, kept: r.kept_count,
+                            failed: r.failed_count, remote: r.total_remote,
+                        }))}
                     </div>
                     ${r.message ? `<div style="font-size:0.78rem; color:var(--text-tertiary); margin-top:2px;">${this._esc(r.message)}</div>` : ''}
                     ${(added.length || removed.length) ? `
                         <details style="margin-top:8px;">
-                            <summary style="cursor:pointer; font-size:0.8rem; color:var(--accent-primary);">Details</summary>
+                            <summary style="cursor:pointer; font-size:0.8rem; color:var(--accent-primary);">${t('Details')}</summary>
                             <div style="margin-top:8px; display:grid; gap:8px;">
-                                ${added.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#4ade80;">Added (${added.length}):</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${added.map(t=>this._esc(t)).join('<br>')}</div></div>` : ''}
-                                ${removed.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#f87171;">Removed (${removed.length}):</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${removed.map(t=>this._esc(t)).join('<br>')}</div></div>` : ''}
+                                ${added.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#4ade80;">${t('Added ({count}):', { count: added.length })}</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${added.map(x => this._esc(x)).join('<br>')}</div></div>` : ''}
+                                ${removed.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#f87171;">${t('Removed ({count}):', { count: removed.length })}</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${removed.map(x => this._esc(x)).join('<br>')}</div></div>` : ''}
                             </div>
                         </details>
                     ` : ''}
@@ -3379,7 +3560,7 @@ export class RainyApp {
                 listEl.appendChild(card);
             });
         } catch (e) {
-            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">Error: ${this._esc(e.message)}</div>`;
+            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">${this._esc(t('Error: {message}', { message: t(e.message) }))}</div>`;
         }
     }
 
@@ -3447,35 +3628,35 @@ export class RainyApp {
 
     async downloadDiscoverSong(song, btn) {
         btn.disabled = true;
-        btn.textContent = 'Downloading...';
-        this.showToast(`Starting download: "${song.title}"`, 'info');
+        btn.textContent = t('Downloading...');
+        this.showToast(t('Starting download: "{title}"', { title: song.title }), 'info');
 
         const youtubeUrl = `https://www.youtube.com/watch?v=${song.videoId}`;
         const data = await useMusicService().YouTube.import(youtubeUrl);
 
         if (data.error) {
             btn.disabled = false;
-            btn.textContent = 'Download';
+            btn.textContent = t('Download');
             Logger.error(data.error);
-            this.showToast('Download failed: ' + (data.error.error || 'Unknown error'), 'error');
+            this.showToast(t('Download failed: {message}', { message: t(data.error.error || 'Unknown error') }), 'error');
             return;
         }
 
         const result = data.value;
         if (result?.success) {
             if (result.already_exists) {
-                this.showToast(result.message || `"${song.title}" already exists in library`, 'info');
+                this.showToast(t('"{title}" already exists in library', { title: song.title }), 'info');
             } else {
-                this.showToast(`Downloaded: "${song.title}" successfully!`, 'success');
+                this.showToast(t('Downloaded: "{title}" successfully!', { title: song.title }), 'success');
             }
             btn.disabled = true;
-            btn.textContent = 'In Library';
+            btn.textContent = t('In Library');
             const item = btn.closest('.discover-item');
             if (item) {
                 item.classList.add('in-library');
                 const previewBtn = item.querySelector('.discover-btn-preview');
                 if (previewBtn) {
-                    previewBtn.textContent = 'Play';
+                    previewBtn.textContent = t('Play');
                 }
             }
             
@@ -3486,8 +3667,8 @@ export class RainyApp {
             }
         } else {
             btn.disabled = false;
-            btn.textContent = 'Download';
-            this.showToast('Download failed: ' + (result?.message || 'unknown error'), 'error');
+            btn.textContent = t('Download');
+            this.showToast(t('Download failed: {message}', { message: t(result?.message || 'Unknown error') }), 'error');
         }
     }
 
@@ -3750,6 +3931,16 @@ export class RainyApp {
         root.style.setProperty('--accent-bg-subtle', `${color}14`); // ~8% opacity
     }
 
+    /** Hide the anime logo everywhere and show the animated Rainy wordmark instead. */
+    applyNoAnime(enabled) {
+        document.documentElement.classList.toggle('no-anime', !!enabled);
+        // Mirrored locally so the boot splash and login screen match before the user is loaded
+        try {
+            if (enabled) localStorage.setItem('rainy-no-anime', '1');
+            else localStorage.removeItem('rainy-no-anime');
+        } catch (e) { /* ignore */ }
+    }
+
     applyThemeFromPreferences() {
         if (this.user && this.user.preferences) {
             let prefs = this.user.preferences;
@@ -3763,6 +3954,9 @@ export class RainyApp {
             }
             if (prefs && prefs.theme_color) {
                 this.applyTheme(prefs.theme_color);
+            }
+            if (prefs && typeof prefs.no_anime !== 'undefined') {
+                this.applyNoAnime(prefs.no_anime);
             }
         }
     }
@@ -3836,28 +4030,20 @@ export class RainyApp {
             const username = document.getElementById('settings-username');
             const role = document.getElementById('settings-user-role');
             if (avatar) avatar.textContent = this.user.username?.charAt(0).toUpperCase() || 'U';
-            if (username) username.textContent = this.user.username || 'User';
-            if (role) role.textContent = this.user.role === 'sysadmin' ? 'Administrator' : 'User';
+            if (username) username.textContent = this.user.username || t('User');
+            if (role) role.textContent = this.user.role === 'sysadmin' ? t('Administrator') : t('User');
 
-            // Show/hide server settings for sysadmin
-            const serverCategory = document.getElementById('settings-nav-server-category');
-            const usersNav = document.getElementById('settings-nav-users');
-            const httpsNav = document.getElementById('settings-nav-https');
-            if (this.user.role === 'sysadmin') {
-                serverCategory?.classList.remove('hidden');
-                usersNav?.classList.remove('hidden');
-                httpsNav?.classList.remove('hidden');
-            } else {
-                serverCategory?.classList.add('hidden');
-                usersNav?.classList.add('hidden');
-                httpsNav?.classList.add('hidden');
-                // NOTE: the Jobs nav stays visible for every account — jobs
-                // are scoped to the user's own library (see routes/music.py).
-            }
+            // Server Settings (Maintenance, Users) and admin-only controls.
+            // Jobs stays for every account: it is scoped to the user's own
+            // library (see routes/music.py).
+            this.applyRoleVisibility();
         }
 
         // Reset password form
         document.getElementById('change-password-form')?.reset();
+
+        const languageSelect = document.getElementById('settings-language');
+        if (languageSelect) languageSelect.value = getLanguage();
 
         // Set current color in picker
         let currentColor = '#3d7dc4';
@@ -3920,8 +4106,15 @@ export class RainyApp {
         const showBgBlurToggle = document.getElementById('settings-show-bg-blur');
         if (showBgBlurToggle) showBgBlurToggle.checked = showBgBlur;
 
+        const noAnimeToggle = document.getElementById('settings-no-anime');
+        if (noAnimeToggle) noAnimeToggle.checked = document.documentElement.classList.contains('no-anime');
+
         const reduceFlashToggle = document.getElementById('settings-lightshow-reduce-flashing');
         if (reduceFlashToggle) reduceFlashToggle.checked = lightshowReduceFlashing;
+        const lowPowerToggle = document.getElementById('settings-lightshow-low-power');
+        if (lowPowerToggle) {
+            try { lowPowerToggle.checked = localStorage.getItem('rainy-ls-lowpower') === '1'; } catch (e) { /* ignore */ }
+        }
         const stageLyricsToggle = document.getElementById('settings-lightshow-lyrics');
         if (stageLyricsToggle) stageLyricsToggle.checked = lightshowLyrics;
         const offsetInput = document.getElementById('settings-lightshow-offset');
@@ -3981,9 +4174,9 @@ export class RainyApp {
     }
 
     switchSettingsSection(sectionName, { updateUrl = true } = {}) {
-        // Admin-only sections (Users): non-admins fall back to Appearance,
-        // even on direct deep links like /settings/users.
-        if (sectionName === 'users' &&
+        // Admin-only sections (Server Settings): non-admins fall back to
+        // Appearance, even on direct deep links like /settings/users.
+        if (ADMIN_SETTINGS_SECTIONS.has(sectionName) &&
             (!this.user || this.user.role !== 'sysadmin')) {
             sectionName = 'appearance';
         }
@@ -4009,7 +4202,7 @@ export class RainyApp {
 
         // Update title
         const title = document.getElementById('settings-page-title');
-        if (title) title.textContent = SETTINGS_SECTION_TITLES[sectionName] || 'Settings';
+        if (title) title.textContent = t(SETTINGS_SECTION_TITLES[sectionName] || 'Settings');
 
         // Show/hide sections
         document.querySelectorAll('.settings-section').forEach(section => {
@@ -4024,13 +4217,16 @@ export class RainyApp {
                 sectionName === 'users' || sectionName === 'player');
         }
 
-        // Load scan status when switching to jobs section (Library Scanning lives here)
         if (sectionName === 'jobs') {
-            this.loadScanStatus();
             this.loadImportJobs();
             this.loadLightshowJobs();
             this.loadLyricsJobs();
             this.loadEnrichJobs();
+        }
+
+        // Library scanning and yt-dlp live in the admin Maintenance section
+        if (sectionName === 'server') {
+            this.loadScanStatus();
             this.loadYtdlpStatus();
         }
 
@@ -4084,7 +4280,7 @@ export class RainyApp {
             const section = sec.id.replace('settings-section-', '');
             const nav = document.querySelector(`.settings-nav-item[data-section="${section}"]`);
             if (nav?.classList.contains('sysadmin-only') && !isAdmin) return;
-            const sectionTitle = SETTINGS_SECTION_TITLES[section] || section;
+            const sectionTitle = t(SETTINGS_SECTION_TITLES[section] || section);
             const sectionNorm = this._normSearch(sectionTitle);
 
             sec.querySelectorAll('.settings-row-label, .settings-group-title').forEach(labelEl => {
@@ -4199,7 +4395,7 @@ export class RainyApp {
         if (!results.length) {
             const empty = document.createElement('div');
             empty.className = 'settings-search-empty';
-            empty.textContent = `No settings match “${value}”`;
+            empty.textContent = t('No settings match “{query}”', { query: value });
             box.appendChild(empty);
             return;
         }
@@ -4288,6 +4484,30 @@ export class RainyApp {
         requestAnimationFrame(() => reveal());
     }
 
+    /**
+     * Save the account's UI language, then reload so every view and
+     * component is rebuilt in it (playback resumes where it was).
+     */
+    async changeLanguage(code) {
+        const select = document.getElementById('settings-language');
+        if (select) select.disabled = true;
+
+        const data = await useAuthService().updateLanguage(code);
+        if (data.error) {
+            if (select) {
+                select.disabled = false;
+                select.value = getLanguage();
+            }
+            this.showToast(data.error.error || 'Could not save language', 'error');
+            return;
+        }
+
+        if (this.user) this.user.language = code;
+        window.player?.savePlaybackState?.();
+        await setLanguage(code);
+        window.location.reload();
+    }
+
     async savePreferences(newPrefs) {
         // Merge with existing
         let currentPrefs = {};
@@ -4321,7 +4541,7 @@ export class RainyApp {
         const data = await useUsersService().all();
         if (data.error) {
             Logger.error(data.error);
-            list.innerHTML = '<div class="user-list-empty">Failed to load users</div>';
+            list.innerHTML = `<div class="user-list-empty">${t('Failed to load users')}</div>`;
             return;
         }
 
@@ -4336,7 +4556,7 @@ export class RainyApp {
         if (countBadge) countBadge.textContent = String(users.length);
 
         if (!users.length) {
-            list.innerHTML = '<div class="user-list-empty">No users yet. Click “Add User” to create the first account.</div>';
+            list.innerHTML = `<div class="user-list-empty">${t('No users yet. Click “Add User” to create the first account.')}</div>`;
             return;
         }
 
@@ -4351,11 +4571,11 @@ export class RainyApp {
             const initial = Utils.escapeHtml((user.username || '?').charAt(0).toUpperCase());
             const isAdmin = user.role === 'sysadmin';
             const isSelf = user.id === currentUserId;
-            const roleTitle = isAdmin ? 'Make user' : 'Make administrator';
+            const roleTitle = Utils.escapeHtml(isAdmin ? t('Make user') : t('Make administrator'));
             const hasFullLibrary = !!user.full_library;
-            const fullLibraryTitle = hasFullLibrary
-                ? 'Full library access: ON — click to revoke'
-                : 'Full library access: OFF — click to grant';
+            const fullLibraryTitle = Utils.escapeHtml(hasFullLibrary
+                ? t('Full library access: ON — click to revoke')
+                : t('Full library access: OFF — click to grant'));
 
             return `
                 <div class="user-list-item" data-id="${user.id}">
@@ -4363,9 +4583,9 @@ export class RainyApp {
                     <div class="user-list-info">
                         <div class="user-list-name">
                             <span class="user-list-name-text">${Utils.escapeHtml(user.username)}</span>
-                            ${isSelf ? '<span class="user-role-badge you">You</span>' : ''}
-                            <span class="user-role-badge ${isAdmin ? 'admin' : ''}">${isAdmin ? 'Admin' : 'User'}</span>
-                            ${hasFullLibrary ? '<span class="user-role-badge full-library">Full library</span>' : ''}
+                            ${isSelf ? `<span class="user-role-badge you">${t('You')}</span>` : ''}
+                            <span class="user-role-badge ${isAdmin ? 'admin' : ''}">${isAdmin ? t('Admin') : t('User')}</span>
+                            ${hasFullLibrary ? `<span class="user-role-badge full-library">${t('Full library')}</span>` : ''}
                         </div>
                         <div class="user-list-email" title="${Utils.escapeHtml(user.email)}">${Utils.escapeHtml(user.email)}</div>
                     </div>
@@ -4376,10 +4596,10 @@ export class RainyApp {
                         <button class="icon-btn-small user-role-toggle ${isAdmin ? 'active-admin' : ''}" data-id="${user.id}" data-role="${user.role}" title="${roleTitle}" aria-label="${roleTitle}">
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="${shieldPath}"/></svg>
                         </button>
-                        <button class="icon-btn-small user-reset-password" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="Reset password" aria-label="Reset password">
+                        <button class="icon-btn-small user-reset-password" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="${Utils.escapeHtml(t('Reset password'))}" aria-label="${Utils.escapeHtml(t('Reset password'))}">
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="${keyPath}"/></svg>
                         </button>
-                        <button class="icon-btn-small user-action-delete user-delete" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="${isSelf ? 'You cannot delete yourself' : 'Delete user'}" aria-label="Delete user" ${isSelf ? 'disabled' : ''}>
+                        <button class="icon-btn-small user-action-delete user-delete" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="${Utils.escapeHtml(isSelf ? t('You cannot delete yourself') : t('Delete user'))}" aria-label="${Utils.escapeHtml(t('Delete user'))}" ${isSelf ? 'disabled' : ''}>
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="${trashPath}"/></svg>
                         </button>
                     </div>
@@ -4416,11 +4636,11 @@ export class RainyApp {
         const label = btn.querySelector('.add-user-btn-label');
         const iconPath = btn.querySelector('svg path');
         if (open) {
-            if (label) label.textContent = 'Cancel';
+            if (label) label.textContent = t('Cancel');
             if (iconPath) iconPath.setAttribute('d', 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
             setTimeout(() => document.getElementById('new-user-username')?.focus(), 50);
         } else {
-            if (label) label.textContent = 'Add User';
+            if (label) label.textContent = t('Add User');
             if (iconPath) iconPath.setAttribute('d', 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z');
         }
     }
@@ -4438,7 +4658,7 @@ export class RainyApp {
             return;
         }
 
-        this.showToast(`User "${username}" created`, 'success');
+        this.showToast(t('User "{name}" created', { name: username }), 'success');
         document.getElementById('create-user-form').reset();
         this.setCreateUserFormOpen(false);
         await this.loadUsers();
@@ -4474,7 +4694,7 @@ export class RainyApp {
 
     openResetUserPasswordModal(userId, username) {
         this._resetPasswordUserId = userId;
-        document.getElementById('reset-user-password-target').textContent = `Set a new password for ${username}`;
+        document.getElementById('reset-user-password-target').textContent = t('Set a new password for {name}', { name: username });
         document.getElementById('reset-user-password-input').value = '';
         document.getElementById('reset-user-password-modal').classList.remove('hidden');
     }
@@ -4495,7 +4715,7 @@ export class RainyApp {
     openDeleteUserModal(userId, username) {
         this._deleteUserId = userId;
         document.getElementById('delete-user-target').textContent =
-            `Are you sure you want to delete "${username}"? This action cannot be undone.`;
+            t('Are you sure you want to delete "{name}"? This action cannot be undone.', { name: username });
         document.getElementById('delete-user-modal').classList.remove('hidden');
     }
 
@@ -4540,8 +4760,8 @@ export class RainyApp {
         this.renderSidebarPlaylists();
 
         // Update Header
-        document.querySelector('.section-title').textContent = 'Artists';
-        document.getElementById('library-subtitle').textContent = 'Browse your music by artist';
+        document.querySelector('.section-title').textContent = t('Artists');
+        document.getElementById('library-subtitle').textContent = t('Browse your music by artist');
 
         // Hide elements
         document.getElementById('playlist-menu-container').classList.add('hidden');
@@ -4636,11 +4856,11 @@ export class RainyApp {
             // Update stats badge
             const countEl = document.getElementById('artists-count-badge');
             if (countEl) {
-                countEl.textContent = `${filteredKeys.length} Artist${filteredKeys.length === 1 ? '' : 's'}`;
+                countEl.textContent = t('{count} Artists', { count: filteredKeys.length });
             }
 
             if (filteredKeys.length === 0) {
-                gridList.innerHTML = '<div class="empty-state">No artists found</div>';
+                gridList.innerHTML = `<div class="empty-state">${t('No artists found')}</div>`;
                 return;
             }
 
@@ -4660,7 +4880,7 @@ export class RainyApp {
                             </div>
                         </div>
                         <div class="artist-circle-name">${Utils.escapeHtml(artistName)}</div>
-                        <div class="artist-circle-meta">${count} song${count === 1 ? '' : 's'}</div>
+                        <div class="artist-circle-meta">${t('{count} songs', { count })}</div>
                     </div>
                 `;
             }).join('');
@@ -4729,8 +4949,8 @@ export class RainyApp {
 
         // Set initial state / defaults
         nameText.textContent = artistName;
-        bioText.textContent = 'No description available. Click Edit Profile to add one.';
-        metaText.textContent = `${songs.length} song${songs.length === 1 ? '' : 's'} in library`;
+        bioText.textContent = t('No description available. Click Edit Profile to add one.');
+        metaText.textContent = t('{count} songs in library', { count: songs.length });
         
         // Generate dynamic fallback gradient
         const grad = getGradientForName(artistName);
@@ -4799,7 +5019,7 @@ export class RainyApp {
                 <div class="artist-track-row fade-in" data-index="${globalIndex}" data-id="${song.id}">
                     <div class="track-number-col">
                         <span class="track-number">${trackIndex + 1}</span>
-                        <button class="track-play-btn" title="Play">
+                        <button class="track-play-btn" title="${escapeHtml(t('Play'))}">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                                 <path d="M8 5v14l11-7z"/>
                             </svg>
@@ -4812,7 +5032,7 @@ export class RainyApp {
                             <div class="track-artists">${artistLinksHtml}</div>
                         </div>
                     </div>
-                    <div class="track-album-col">${escapeHtml(song.album || 'Single')}</div>
+                    <div class="track-album-col">${escapeHtml(song.album || t('Single'))}</div>
                     <div class="track-duration-col">${Utils.formatDuration(song.duration)}</div>
                     <div class="track-actions-col">
                         <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}" data-song-cover="${escapeHtml(song.cover_path || song.cover || '')}" data-song-duration="${song.duration || 0}" data-song-album="${escapeHtml(song.album || '')}">
@@ -4962,7 +5182,7 @@ export class RainyApp {
         const bioToggle = document.getElementById('artist-bio-toggle');
         if (bioToggle) {
             bioText.classList.remove('expanded');
-            bioToggle.textContent = 'more';
+            bioToggle.textContent = t('more');
             bioToggle.classList.add('hidden');
             requestAnimationFrame(() => {
                 if (bioText.scrollHeight > bioText.clientHeight + 2) {
@@ -4971,7 +5191,7 @@ export class RainyApp {
             });
             bioToggle.onclick = () => {
                 const expanded = bioText.classList.toggle('expanded');
-                bioToggle.textContent = expanded ? 'less' : 'more';
+                bioToggle.textContent = expanded ? t('less') : t('more');
             };
         }
     }
@@ -4996,7 +5216,7 @@ export class RainyApp {
 
         // Update modal title
         const titleEl = document.getElementById('edit-artist-modal-title');
-        if (titleEl) titleEl.textContent = `Edit: ${artistName}`;
+        if (titleEl) titleEl.textContent = t('Edit: {name}', { name: artistName });
 
         // Clean background image URL if set
         let bgUrl = '';
@@ -5010,7 +5230,7 @@ export class RainyApp {
 
         // Populate fields
         imgInput.value = bgUrl;
-        bioInput.value = currentBio.includes('No description available') ? '' : currentBio;
+        bioInput.value = currentBio === t('No description available. Click Edit Profile to add one.') ? '' : currentBio;
 
         // Live image preview
         const updatePreview = (url) => {
@@ -5052,7 +5272,7 @@ export class RainyApp {
                         <div class="scrape-candidate-name">${c.name}</div>
                         <div class="scrape-candidate-desc">${c.description || ''}</div>
                     </div>
-                    <a class="scrape-candidate-link" href="${c.source_url}" target="_blank" rel="noopener noreferrer">View</a>
+                    <a class="scrape-candidate-link" href="${c.source_url}" target="_blank" rel="noopener noreferrer">${t('View')}</a>
                 `;
                 card.onclick = (e) => {
                     if (e.target.tagName === 'A') return;
@@ -5067,7 +5287,7 @@ export class RainyApp {
                         scrapeResultBanner.classList.remove('hidden');
                     }
                     scrapePicker.classList.add('hidden');
-                    this.showToast(`Picked "${c.name}"`, 'success');
+                    this.showToast(t('Picked "{name}"', { name: c.name }), 'success');
                 };
                 scrapePickerList.appendChild(card);
             });
@@ -5113,7 +5333,7 @@ export class RainyApp {
         if (scrapeBtn) {
             scrapeBtn.onclick = async () => {
                 scrapeBtn.disabled = true;
-                if (scrapeBtnText) scrapeBtnText.textContent = 'Scraping...';
+                if (scrapeBtnText) scrapeBtnText.textContent = t('Scraping...');
                 try {
                     const res = await fetch(`/api/music/artists/${encodeURIComponent(artistName)}/scrape`, {
                         method: 'POST'
@@ -5132,19 +5352,19 @@ export class RainyApp {
                                 scrapeSourceLink.href = c.source_url || '#';
                                 scrapeResultBanner.classList.remove('hidden');
                             }
-                            this.showToast(`Found "${c.name}" on YouTube Music`, 'success');
+                            this.showToast(t('Found "{name}" on YouTube Music', { name: c.name }), 'success');
                         } else {
                             renderScrapePicker(data.candidates);
-                            this.showToast(`Found ${data.candidates.length} candidates for "${artistName}" — pick one`, 'success');
+                            this.showToast(t('Found {count} candidates for "{name}" — pick one', { count: data.candidates.length, name: artistName }), 'success');
                         }
                     } else {
                         this.showToast(data.error || 'Nothing found on YouTube Music for this artist', 'error');
                     }
                 } catch (e) {
-                    this.showToast('Scrape failed: ' + e.message, 'error');
+                    this.showToast(t('Scrape failed: {message}', { message: e.message }), 'error');
                 } finally {
                     scrapeBtn.disabled = false;
-                    if (scrapeBtnText) scrapeBtnText.textContent = 'Scrape Info';
+                    if (scrapeBtnText) scrapeBtnText.textContent = t('Scrape Info');
                 }
             };
         }
@@ -5202,7 +5422,7 @@ export class RainyApp {
             const data = await res.json();
             allSongs = data.songs || [];
         } catch (e) {
-            listEl.innerHTML = '<div style="padding: 24px; color: var(--text-tertiary); text-align: center; font-size: 0.875rem;">Failed to load songs</div>';
+            listEl.innerHTML = `<div style="padding: 24px; color: var(--text-tertiary); text-align: center; font-size: 0.875rem;">${t('Failed to load songs')}</div>`;
             if (loadingEl) loadingEl.classList.add('hidden');
             return;
         }
@@ -5215,17 +5435,17 @@ export class RainyApp {
                 ? allSongs.filter(s => s.title.toLowerCase().includes(lower) || (s.album || '').toLowerCase().includes(lower))
                 : allSongs;
 
-            if (countEl) countEl.textContent = `${filtered.length} song${filtered.length === 1 ? '' : 's'}`;
+            if (countEl) countEl.textContent = t('{count} songs', { count: filtered.length });
 
             listEl.innerHTML = filtered.map(song => `
                 <div class="artist-song-row" data-song-id="${song.id}">
-                    <label class="artist-song-toggle" title="${song.has_artist ? 'Remove from artist' : 'Add to artist'}">
+                    <label class="artist-song-toggle" title="${Utils.escapeHtml(song.has_artist ? t('Remove from artist') : t('Add to artist'))}">
                         <input type="checkbox" ${song.has_artist ? 'checked' : ''} data-song-id="${song.id}">
                         <span class="artist-song-slider"></span>
                     </label>
                     <div class="artist-song-meta">
                         <div class="artist-song-title">${Utils.escapeHtml(song.title)}</div>
-                        <div class="artist-song-album">${Utils.escapeHtml(song.album || 'Unknown Album')}</div>
+                        <div class="artist-song-album">${Utils.escapeHtml(song.album || t('Unknown Album'))}</div>
                     </div>
                 </div>
             `).join('');
@@ -5252,7 +5472,9 @@ export class RainyApp {
                                 const libSong = this.librarySongs.find(s => s.id === songId);
                                 if (libSong) libSong.artist = d.new_artist;
                             }
-                            this.showToast(action === 'add' ? `Added to ${artistName}` : `Removed from ${artistName}`, 'success');
+                            this.showToast(action === 'add'
+                                ? t('Added to {name}', { name: artistName })
+                                : t('Removed from {name}', { name: artistName }), 'success');
                         } else {
                             cb.checked = !cb.checked;
                             this.showToast('Failed to update song', 'error');

@@ -5,6 +5,7 @@ import { usePlaylistService } from "../services/playlist.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, s, useRef } from "./index.js";
 import { Modal } from "./modal.js";
+import { t } from "../i18n/index.js";
 
 export class NewPlaylistModal extends Component {
     static componentName = 'rainy-new-playlist-modal';
@@ -156,22 +157,22 @@ export class NewPlaylistModal extends Component {
     render() {
         const root = this.root = H.of(Modal,
             I.Plus('currentColor', a.slot('header-icon')),
-            h.h2(a.slot('header-title'), 'New Playlist'),
-            h.p(a.slot('header-subtitle'), 'Create a personalized playlist'),
+            h.h2(a.slot('header-title'), t('New Playlist')),
+            h.p(a.slot('header-subtitle'), t('Create a personalized playlist')),
             h.div(a.slot('body'), a.class('playlist-preview-section'),
                 h.div(this._previewIcon, a.class('playlist-preview-icon')),
-                h.input(this._nameInput, a.type('text'), a.class('playlist-name-input-styled'), a.placeholder('Playlist name'))
+                h.input(this._nameInput, a.type('text'), a.class('playlist-name-input-styled'), a.placeholder(t('Playlist name')))
             ),
             h.div(a.slot('body'), a.class('playlist-customize-section'),
                 h.div(a.class('customize-row'),
                     h.div(a.class('customize-group'),
-                        h.label(a.class('form-label'), 'Choose Icon'),
+                        h.label(a.class('form-label'), t('Choose Icon')),
                         h.div(this._iconPicker, a.class('icon-picker'))
                     )
                 ),
                 h.div(a.class('customize-row'),
                     h.div(a.class('customize-group'),
-                        h.label(a.class('form-label'), 'Choose Color'),
+                        h.label(a.class('form-label'), t('Choose Color')),
                         h.div(a.class('color-picker-row'),
                             h.input(a.type('color'), a.class('color-input'), a.value('#888888'), on.change((ev) => this._changeColor(ev))),
                             h.div(this._colorPresets, a.class('color-presets'))
@@ -179,8 +180,8 @@ export class NewPlaylistModal extends Component {
                     )
                 ),
             ),
-            h.button(a.slot('action'), a.class('btn', 'btn-secondary'), on.click(() => this.hide()), 'Cancel'),
-            h.button(a.slot('action'), a.class('btn', 'btn-primary'), on.click(() => this.createPlaylist()), 'Create Playlist')
+            h.button(a.slot('action'), a.class('btn', 'btn-secondary'), on.click(() => this.hide()), t('Cancel')),
+            h.button(a.slot('action'), a.class('btn', 'btn-primary'), on.click(() => this.createPlaylist()), t('Create Playlist'))
         );
 
         this._renderIconPreview();

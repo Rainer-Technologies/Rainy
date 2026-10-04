@@ -9,7 +9,7 @@ same user can:
   - transfer playback to itself ("play here instead")
 
 Devices that stop heartbeating are considered stale after STALE_SECONDS and
-are pruned from listings. State lives in MySQL so it's shared across the
+are pruned from listings. State lives in the database so it's shared across the
 Flask workers and visible to every client.
 
 Storage layout (Sep 2026): connect_sessions holds only the small per-beat
@@ -21,9 +21,7 @@ import hashlib
 import time
 import uuid
 
-import mysql.connector
-
-from models.database import Database
+from models.database import Database, DatabaseError, is_lock_timeout
 
 # A device is considered gone after this many seconds without a heartbeat.
 STALE_SECONDS = 20
@@ -154,8 +152,8 @@ class ConnectModel:
                     now,
                 ),
             )
-        except mysql.connector.errors.DatabaseError as e:
-            if e.errno == 1205:
+        except DatabaseError as e:
+            if is_lock_timeout(e):
                 print(f"[connect] heartbeat lock-wait timeout for {device_id}"
                       " — state kept from previous beat")
                 return False
@@ -183,8 +181,8 @@ class ConnectModel:
                         """,
                         (device_id, user_id, qhash, queue_raw or None, now),
                     )
-            except mysql.connector.errors.DatabaseError as e:
-                if e.errno == 1205:
+            except DatabaseError as e:
+                if is_lock_timeout(e):
                     print(f"[connect] queue write lock-wait timeout for {device_id}"
                           " — queue kept from previous beat")
                     return False
@@ -202,9 +200,11 @@ class ConnectModel:
         # otherwise accumulate forever.
         Database.execute_query(
             """
-            DELETE q FROM connect_session_queues q
-            LEFT JOIN connect_sessions s ON s.device_id = q.device_id
-            WHERE q.user_id = %s AND s.device_id IS NULL
+            DELETE FROM connect_session_queues
+            WHERE user_id = %s AND NOT EXISTS (
+                SELECT 1 FROM connect_sessions s
+                WHERE s.device_id = connect_session_queues.device_id
+            )
             """,
             (user_id,),
         )

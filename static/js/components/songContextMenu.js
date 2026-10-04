@@ -1,12 +1,13 @@
 import { Modal } from "../components/modal.js";
 import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
-import { Utils } from "../modules/utils.js";
 import { useMusicService } from "../services/music.js";
 import { usePlaylistService } from "../services/playlist.js";
 import { ContextMenu, ContextMenuItem, ContextSubMenu } from "./contextMenu.js";
 import { I } from "./icon.js";
 import { a, Component, h, H, on, p, Ref, s, useRef } from "./index.js";
+import { t } from "../i18n/index.js";
+import { playlistDisplayName } from "../modules/playlists.js";
 
 /**
  * @typedef {Object} SongModel
@@ -97,7 +98,7 @@ export class SongContextMenu extends Component {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || 'Publish failed');
-            window.showToast?.(data.message || 'Song published to all accounts', 'success');
+            window.showToast?.('Song published to all accounts', 'success');
         } catch (e) {
             Logger.error(e);
             window.showToast?.(e.message, 'error');
@@ -114,11 +115,11 @@ export class SongContextMenu extends Component {
         /** @type {Modal} */
         const dialog = H.of(Modal,
             I.Bin('currentColor', a.slot('header-icon')),
-            h.h2(a.slot('header-title'), `Delete song`),
-            h.p(a.slot('body'), 'Are you sure you want to delete this song? This action cannot be undone.'),
+            h.h2(a.slot('header-title'), t('Delete song')),
+            h.p(a.slot('body'), t('Are you sure you want to delete this song? This action cannot be undone.')),
             h.button(a.slot('action'), a.class('btn btn-secondary'), on.click(() => {
                 dialog.remove();
-            }), 'Cancel'),
+            }), t('Cancel')),
             h.button(a.slot('action'), a.class('btn btn-danger'), on.click(async () => {
                 dialog.remove();
 
@@ -141,7 +142,7 @@ export class SongContextMenu extends Component {
                 /** @type {import('../app.js').RainyApp} */
                 const app = useContext().get('app');
                 app.loadLibrary();
-            }), 'Delete'),
+            }), t('Delete')),
         ); document.body.append(dialog); dialog.show();
     }
 
@@ -172,7 +173,7 @@ export class SongContextMenu extends Component {
             return;
         }
 
-        app.showToast(`Added to "${playlist.name}"`, 'success');
+        app.showToast(t('Added to "{name}"', { name: playlistDisplayName(playlist.name) }), 'success');
         app.refreshPlayerQueueIfNeeded(playlist.id);
     }
 
@@ -201,9 +202,9 @@ export class SongContextMenu extends Component {
         }
 
         const playlist = app.playlists.find(p => p.id === app.currentPlaylistId);
-        const playlistName = playlist ? playlist.name : 'playlist';
+        const playlistName = playlist ? playlistDisplayName(playlist.name) : t('playlist');
 
-        app.showToast(`Removed from "${playlistName}"`, 'success');
+        app.showToast(t('Removed from "{name}"', { name: playlistName }), 'success');
         await app.openPlaylist(app.currentPlaylistId);
         await app.refreshPlayerQueueIfNeeded(app.currentPlaylistId);
 
@@ -244,7 +245,7 @@ export class SongContextMenu extends Component {
                 s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
                     s.path(a.d('M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z'))
                 ),
-                h.span(Utils.escapeHtml(playlist.name))
+                h.span(playlistDisplayName(playlist.name))
             ));
         }
     }
@@ -280,7 +281,7 @@ export class SongContextMenu extends Component {
 
         if(!player || player.currentIndex < 0) {
             player.playSong(0, [song], { type: 'library', id: null });
-            app.showToast(`Now playing: "${song.title}"`, 'success');
+            app.showToast(t('Now playing: "{title}"', { title: song.title }), 'success');
 
             return;
         }
@@ -296,7 +297,7 @@ export class SongContextMenu extends Component {
         player.savePlaybackState();
 
         if(player.fsQueueList) player.renderFullscreenQueue();
-        app.showToast(`"${song.title}" added to queue (${(position - player.currentIndex)} songs away)`, 'success');
+        app.showToast(t('"{title}" added to queue ({count} songs away)', { title: song.title, count: position - player.currentIndex }), 'success');
     }
 
     addCurrentSongToQueue() {
@@ -390,11 +391,11 @@ export class SongContextMenu extends Component {
         return H.of(ContextMenu,
             H.of(ContextMenuItem, a.hasSubmenu(),
                 I.ListWithPlus(),
-                h.span('Add to Playlist'),
+                h.span(t('Add to Playlist')),
                 H.of(ContextSubMenu, p.onOpen(() => this._renderPlaylists()),
                     H.of(ContextMenuItem, on.click(() => this.newPlaylist()),
                         I.Plus(),
-                        h.span('New Playlist'),
+                        h.span(t('New Playlist')),
                     ),
                     h.div(a.class('dropdown-divider')),
                     h.div(this._playlistList, a.style('overflow-y: auto;', 'max-height: 200px;'))
@@ -403,49 +404,49 @@ export class SongContextMenu extends Component {
             h.div(a.class('context-menu-divider')),
             H.of(ContextMenuItem, a.hasSubmenu(),
                 I.Play(),
-                h.span('Playback'),
+                h.span(t('Playback')),
                 H.of(ContextSubMenu,
                     H.of(ContextMenuItem, on.click(() => this.playCurrentSongAsNext()),
                         I.Next(),
-                        h.span('Play Next'),
+                        h.span(t('Play Next')),
                     ),
                     H.of(ContextMenuItem, on.click(() => this.addCurrentSongToQueue()),
                         I.ListWithPlay(),
-                        h.span('Add to Queue'),
+                        h.span(t('Add to Queue')),
                     ),
                 )
             ),
             H.of(ContextMenuItem, a.hasSubmenu(),
                 I.Cog(),
-                h.span('Song Tools'),
+                h.span(t('Song Tools')),
                 H.of(ContextSubMenu,
                     H.of(ContextMenuItem, this._findMetadataItem, on.click(() => this.findMetadataForCurrentSong()),
                         I.Magnifier(),
-                        h.span('Find Metadata'),
+                        h.span(t('Find Metadata')),
                     ),
                     H.of(ContextMenuItem, on.click(() => this.openSongSettings()),
                         I.Cog(),
-                        h.span('Song Settings'),
+                        h.span(t('Song Settings')),
                     ),
                     H.of(ContextMenuItem, on.click(() => this.downloadCurrentSong()),
                         I.Download(),
-                        h.span('Download Song'),
+                        h.span(t('Download Song')),
                     ),
                 )
             ),
             h.div(a.class('context-menu-divider')),
             H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
                 I.Bin(),
-                h.span('Remove from Playlist'),
+                h.span(t('Remove from Playlist')),
             ),
             H.of(ContextMenuItem, this._publishSongItem, on.click(() => this.publishCurrentSong()),
                 I.Plus(),
-                h.span('Publish to Everyone'),
+                h.span(t('Publish to Everyone')),
             ),
             h.div(a.class('context-menu-divider')),
             H.of(ContextMenuItem, this._removeSongItem, a.danger(), on.click(() => this.deleteCurrentSong()),
                 I.Bin(),
-                h.span('Remove Song'),
+                h.span(t('Remove Song')),
             ),
         );
     }

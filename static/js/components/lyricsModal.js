@@ -5,6 +5,7 @@ import { useLyricsService } from "../services/lyrics.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
+import { t } from "../i18n/index.js";
 
 export class LyricsModal extends Component {
     static componentName = 'rainy-lyrics-modal';
@@ -103,7 +104,7 @@ export class LyricsModal extends Component {
                 h.div(a.class('lyrics-result-title'),
                     h.span(Utils.escapeHtml(candidate.title)),
                     h.span(a.class(candidate.synced ? 'lyrics-synced-badge' : 'lyrics-plain-badge'),
-                        candidate.synced ? 'Synced' : 'Plain'),
+                        candidate.synced ? t('Synced') : t('Plain')),
                 ),
                 h.div(a.class('lyrics-result-artist'), Utils.escapeHtml(candidate.artist)),
                 meta ? h.div(a.class('lyrics-result-meta'), meta) : null,
@@ -112,7 +113,7 @@ export class LyricsModal extends Component {
                     : null,
             ),
             h.div(a.class('lyrics-result-action'),
-                h.button(a.class('btn', 'btn-primary', 'apply-lyrics-btn'), on.click(() => this.apply(candidate)), 'Use')
+                h.button(a.class('btn', 'btn-primary', 'apply-lyrics-btn'), on.click(() => this.apply(candidate)), t('Use'))
             )
         );
     }
@@ -178,13 +179,13 @@ export class LyricsModal extends Component {
     render() {
         return H.of(Modal,
             I.Lyrics('currentColor', a.slot('header-icon')),
-            h.h2(a.slot('header-title'), 'Find Lyrics'),
+            h.h2(a.slot('header-title'), t('Find Lyrics')),
             h.div(a.slot('body'), a.class('metadata-current-song'),
-                h.span(a.class('label'), 'Searching for:'),
-                h.span(this._songName, a.class('song-name'), 'Song Name')
+                h.span(a.class('label'), t('Searching for:')),
+                h.span(this._songName, a.class('song-name'), t('Song Name'))
             ),
             h.div(a.slot('body'), a.class('metadata-search-bar'),
-                h.input(this._queryInput, a.type('text'), a.placeholder('Search LRCLIB...'),
+                h.input(this._queryInput, a.type('text'), a.placeholder(t('Search LRCLIB...')),
                     on.keydown((ev) => {
                         if(ev.key === 'Enter') this.search((this._queryInput.value).value);
                     })),
@@ -194,11 +195,11 @@ export class LyricsModal extends Component {
             ),
             h.div(this._loading, a.slot('body'), a.class('metadata-loading', 'hidden'),
                 h.div(a.class('loading-spinner')),
-                h.p('Searching...')
+                h.p(t('Searching...'))
             ),
             h.div(this._results, a.slot('body'), a.class('metadata-results', 'lyrics-results')),
             h.div(this._noResults, a.slot('body'), a.class('metadata-no-results', 'hidden'),
-                h.p('No lyrics found. Try a different search term.')
+                h.p(t('No lyrics found. Try a different search term.'))
             )
         );
     }

@@ -1,9 +1,18 @@
-from flask import Blueprint, jsonify, request, session
-from routes.auth import require_auth
+from flask import Blueprint, jsonify, request
+from routes.auth import get_current_user_id, is_sysadmin, require_auth, server_error
 from models.playlist import PlaylistModel
 from models.playlist_sync import PlaylistSyncModel
 
 playlist_syncs_bp = Blueprint('playlist_syncs', __name__, url_prefix='/api/playlist-syncs')
+
+
+def _can_manage(pl):
+    """Owners manage their playlist's sync. A legacy ownerless playlist is
+    shared by every account (and an orphaned sync has none), so only a
+    sysadmin may manage those."""
+    if not pl or pl.get('owner_user_id') is None:
+        return is_sysadmin()
+    return pl['owner_user_id'] == get_current_user_id()
 
 
 def _serialize(row):
@@ -37,15 +46,13 @@ def _serialize(row):
 def list_syncs():
     rows = PlaylistSyncModel.list_all() or []
     # filter to playlists visible to user
-    user_id = session.get('user_id')
     visible = []
     for r in rows:
         pl = PlaylistModel.get_playlist_by_id(r['playlist_id'])
         if not pl:
             continue
-        # private playlist visibility check
-        if pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
-            # still show if owner? skip others
+        # Only syncs the caller can manage.
+        if not _can_manage(pl):
             continue
         visible.append(_serialize(r))
     return jsonify({'success': True, 'syncs': visible})
@@ -74,8 +81,7 @@ def create_sync():
     pl = PlaylistModel.get_playlist_by_id(playlist_id)
     if not pl:
         return jsonify({'error': 'Playlist not found'}), 404
-    user_id = session.get('user_id')
-    if pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+    if not _can_manage(pl):
         return jsonify({'error': 'Forbidden'}), 403
 
     existing = PlaylistSyncModel.get_by_playlist(playlist_id)
@@ -100,8 +106,8 @@ def create_sync():
         row['icon'] = pl.get('icon')
         row['icon_color'] = pl.get('icon_color')
         return jsonify({'success': True, 'sync': _serialize(row)})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlist_syncs_bp.route('/<int:sync_id>', methods=['PUT'])
@@ -111,8 +117,7 @@ def update_sync(sync_id):
     if not row:
         return jsonify({'error': 'Sync not found'}), 404
     pl = PlaylistModel.get_playlist_by_id(row['playlist_id'])
-    user_id = session.get('user_id')
-    if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+    if not _can_manage(pl):
         return jsonify({'error': 'Forbidden'}), 403
     data = request.get_json() or {}
     fields = {}
@@ -143,8 +148,8 @@ def update_sync(sync_id):
             updated['icon'] = pl.get('icon')
             updated['icon_color'] = pl.get('icon_color')
         return jsonify({'success': True, 'sync': _serialize(updated)})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @playlist_syncs_bp.route('/<int:sync_id>', methods=['DELETE'])
@@ -154,8 +159,7 @@ def delete_sync(sync_id):
     if not row:
         return jsonify({'error': 'Sync not found'}), 404
     pl = PlaylistModel.get_playlist_by_id(row['playlist_id'])
-    user_id = session.get('user_id')
-    if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+    if not _can_manage(pl):
         return jsonify({'error': 'Forbidden'}), 403
     PlaylistSyncModel.delete(sync_id)
     return jsonify({'success': True})
@@ -168,8 +172,7 @@ def run_sync_now(sync_id):
     if not row:
         return jsonify({'error': 'Sync not found'}), 404
     pl = PlaylistModel.get_playlist_by_id(row['playlist_id'])
-    user_id = session.get('user_id')
-    if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+    if not _can_manage(pl):
         return jsonify({'error': 'Forbidden'}), 403
     from models.settings import SettingsModel
     music_path = SettingsModel.get_music_path()
@@ -183,7 +186,7 @@ def run_sync_now(sync_id):
         result = sync_playlist(
             row['playlist_id'], row['source'], row['url'], music_path,
             sync_mode=row.get('sync_mode') or 'mirror',
-            user_id=user_id
+            user_id=get_current_user_id()
         )
         if result.get('success'):
             msg = f"Added {result.get('added',0)}, removed {result.get('removed',0)}, kept {result.get('kept',0)}, failed {result.get('failed',0)}"
@@ -213,7 +216,7 @@ def run_sync_now(sync_id):
             PlaylistSyncModel.add_history(sync_id, row['playlist_id'], status='failed', message=str(e))
         except Exception:
             pass
-        return jsonify({'error': str(e)}), 500
+        return server_error()
 
 
 @playlist_syncs_bp.route('/<int:sync_id>/history', methods=['GET'])
@@ -223,8 +226,7 @@ def get_sync_history(sync_id):
     if not row:
         return jsonify({'error': 'Sync not found'}), 404
     pl = PlaylistModel.get_playlist_by_id(row['playlist_id'])
-    user_id = session.get('user_id')
-    if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+    if not _can_manage(pl):
         return jsonify({'error': 'Forbidden'}), 403
     try:
         limit = int(request.args.get('limit', '20'))
@@ -268,11 +270,10 @@ def get_all_sync_history():
     rows = PlaylistSyncModel.get_all_history(limit) or []
     import json as _json
     out = []
-    user_id = session.get('user_id')
     for r in rows:
-        # filter private playlists not visible
+        # Only history of syncs the caller can manage.
         pl = PlaylistModel.get_playlist_by_id(r['playlist_id'])
-        if pl and pl.get('owner_user_id') is not None and pl.get('owner_user_id') != user_id:
+        if not _can_manage(pl):
             continue
         details = None
         try:

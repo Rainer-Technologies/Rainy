@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, session
 from models.user import UserModel
+from routes.auth import server_error
 
 setup_bp = Blueprint('setup', __name__, url_prefix='/api/setup')
 
@@ -12,8 +13,8 @@ def get_setup_status():
             'needs_setup': needs_setup,
             'message': 'Setup required' if needs_setup else 'Setup complete'
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 @setup_bp.route('/complete', methods=['POST'])
 def complete_setup():
@@ -50,9 +51,16 @@ def complete_setup():
         if not os.path.isdir(music_path):
             return jsonify({'error': 'Music path does not exist or is not a directory'}), 400
         
-        # Create admin user
-        user_id = UserModel.create_user(username, email, password, role='sysadmin')
+        # Create admin user, in the language picked on the setup screen
+        language = UserModel.normalize_language(data.get('language'))
+        user_id = UserModel.create_user(username, email, password, role='sysadmin',
+                                        language=language)
         
+        # Remember the "No Anime" choice made on the setup form
+        if data.get('no_anime') is True:
+            import json
+            UserModel.update_preferences(user_id, json.dumps({'no_anime': True}))
+
         # Save music path setting
         from models.settings import SettingsModel
         SettingsModel.set_music_path(music_path)
@@ -68,7 +76,8 @@ def complete_setup():
                 'id': user_id,
                 'username': username,
                 'email': email,
-                'role': 'sysadmin'
+                'role': 'sysadmin',
+                'language': language
             }
         })
 

@@ -10,6 +10,28 @@ import json
 
 from models.database import Database
 
+# Genre tags that aren't genres: generic ID3 placeholders (iTunes' "Music",
+# "Other"...) and YouTube video categories, which yt-dlp used to write as the
+# genre of every YouTube download. Lowercase; compare against
+# LOWER(TRIM(genre)). "Comedy" is left out on purpose because it is also a
+# real genre (stand-up albums).
+PLACEHOLDER_GENRES = frozenset({
+    'music', 'gaming', 'other', 'unknown', 'various',
+    'autos & vehicles', 'education', 'entertainment', 'film & animation',
+    'howto & style', 'news & politics', 'nonprofits & activism',
+    'people & blogs', 'pets & animals', 'science & technology', 'sports',
+    'travel & events',
+})
+_PLACEHOLDER_SQL = ', '.join(['%s'] * len(PLACEHOLDER_GENRES))
+
+
+def clean_genre(raw):
+    """Return the genre stripped, or None if it's empty or a placeholder."""
+    genre = (raw or '').strip()
+    if not genre or genre.lower() in PLACEHOLDER_GENRES:
+        return None
+    return genre
+
 
 class SongFeaturesModel:
     """CRUD for the `song_features` table (librosa audio analysis)."""
@@ -177,28 +199,36 @@ class SongMetadataModel:
             (genre, song_id),
         )
 
-    # Genres that are generic ID3 placeholders (iTunes' "Music", game-ripped
-    # "Gaming", etc.) — the local classifier's verdict beats these.
-    _PLACEHOLDER_GENRES = {'music', 'gaming', 'other', 'unknown', 'various'}
-
     @staticmethod
     def set_genre_if_placeholder(song_id, genre):
         """Fill in the genre unless the song has a real one.
 
         Unlike ``set_genre_if_missing`` this also replaces junk ID3 genres
-        (e.g. 'Music', 'Gaming') with the classifier's verdict — but keeps any
+        (e.g. 'Music', 'People & Blogs') with the classifier's verdict — but keeps any
         genre that looks like a genuine tag (e.g. 'Rock', 'Electronic').
         """
         if not genre:
             return
         Database.execute_query(
-            """
+            f"""
             UPDATE songs SET genre = %s
             WHERE id = %s
               AND (genre IS NULL OR genre = ''
-                   OR LOWER(TRIM(genre)) IN (%s, %s, %s, %s, %s))
+                   OR LOWER(TRIM(genre)) IN ({_PLACEHOLDER_SQL}))
             """,
-            (genre, song_id, *sorted(SongMetadataModel._PLACEHOLDER_GENRES)),
+            (genre, song_id, *sorted(PLACEHOLDER_GENRES)),
+        )
+
+    @staticmethod
+    def clear_placeholder_genres(cursor):
+        """NULL out placeholder genres so they never surface as a genre.
+
+        Takes a raw cursor so Database.init_db can run it at startup.
+        """
+        cursor.execute(
+            f"UPDATE songs SET genre = NULL"
+            f" WHERE LOWER(TRIM(genre)) IN ({_PLACEHOLDER_SQL})",
+            tuple(sorted(PLACEHOLDER_GENRES)),
         )
 
     @staticmethod

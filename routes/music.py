@@ -3,7 +3,8 @@ from models.settings import SettingsModel
 from models.song import SongModel, ScanHistoryModel
 from models.database import Database
 from utils.scanner import MusicScanner
-from routes.auth import require_auth, require_sysadmin, get_current_user_id
+from routes.auth import (get_current_user_id, is_sysadmin, require_auth,
+                         require_song_access, require_sysadmin, server_error)
 import os
 
 music_bp = Blueprint('music', __name__, url_prefix='/api/music')
@@ -20,13 +21,16 @@ def get_library():
             return jsonify({'error': 'Music path not configured'}), 400
         
         # Per-account isolation: only songs this user has access to.
-        # Backfill first so new 'scan'-origin songs appear without a rescan.
+        # Sysadmins backfill first so newly scanned songs appear.
         user_id = get_current_user_id()
         from models.library_access import LibraryAccessModel
-        LibraryAccessModel.backfill_user(user_id)
+        if is_sysadmin():
+            LibraryAccessModel.backfill_user(user_id)
 
         # Get all songs visible to this user
         all_songs = SongModel.get_all_songs(user_id=user_id)
+        # Lets the client's change watcher know which state it has rendered.
+        version = SongModel.get_library_version(user_id)
         
         # If database is empty, suggest running a scan
         if not all_songs:
@@ -35,6 +39,7 @@ def get_library():
                 'sections': [],
                 'all_songs': [],
                 'total': 0,
+                'version': version,
                 'message': 'Library is empty. Run a scan to populate the library.'
             })
         
@@ -64,11 +69,29 @@ def get_library():
             'success': True,
             'sections': sections,
             'all_songs': all_songs,  # Keep for backward compatibility and search
-            'total': len(all_songs)
+            'total': len(all_songs),
+            'version': version
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
+
+
+@music_bp.route('/library/version', methods=['GET'])
+@require_auth
+def get_library_version():
+    """Fingerprints of the user's songs and playlists.
+
+    Polled by open clients so new songs/playlists (added from another tab,
+    device, user, or a background job) show up without a page reload. Both
+    values are opaque: compare them, never parse them.
+    """
+    from models.playlist import PlaylistModel
+    user_id = get_current_user_id()
+    return jsonify({
+        'songs': SongModel.get_library_version(user_id),
+        'playlists': PlaylistModel.get_version_for_user(user_id),
+    })
 
 
 @music_bp.route('/tempo', methods=['GET'])
@@ -94,8 +117,8 @@ def get_tempo_map():
                 for row in rows
             ]
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/scan', methods=['POST'])
@@ -129,14 +152,14 @@ def rescan_library():
             'total': SongModel.get_song_count()
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/scan/full', methods=['POST'])
 @require_sysadmin
 def full_rescan_library():
-    """Full rescan - clear database and rescan everything."""
+    """Full rescan - re-read the tags of every file, updating rows in place."""
     try:
         # Check if a scan is already running
         if ScanHistoryModel.is_scan_running():
@@ -161,8 +184,8 @@ def full_rescan_library():
             'total': SongModel.get_song_count()
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/scan/status', methods=['GET'])
@@ -170,6 +193,7 @@ def full_rescan_library():
 def get_scan_status():
     """Get the status of the most recent scan."""
     try:
+        from models.library_access import LibraryAccessModel
         latest_scan = ScanHistoryModel.get_latest_scan()
         
         if not latest_scan:
@@ -194,11 +218,47 @@ def get_scan_status():
                 'started_at': latest_scan['started_at'].isoformat() if latest_scan['started_at'] else None,
                 'completed_at': latest_scan['completed_at'].isoformat() if latest_scan['completed_at'] else None
             },
-            'library_total': SongModel.get_song_count()
+            'library_total': (SongModel.get_song_count() if is_sysadmin() else
+                              len(LibraryAccessModel.visible_song_ids(get_current_user_id())))
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
+
+
+def _remove_song_files(songs):
+    """Delete the audio files of songs whose rows are already gone, plus
+    each cover image no remaining song or playlist still uses.
+
+    Only paths inside the music folder are touched. Best-effort: the rows
+    are already deleted, so a file that can't be removed is just logged.
+    """
+    from flask import current_app
+    music_path = SettingsModel.get_music_path()
+    if not music_path:
+        return
+    root = os.path.realpath(music_path)
+
+    def inside(rel):
+        full = os.path.realpath(os.path.join(root, rel.replace('\\', '/')))
+        return full if full != root and os.path.commonpath([root, full]) == root else None
+
+    def remove(full):
+        try:
+            if full and os.path.isfile(full):
+                os.remove(full)
+        except OSError:
+            current_app.logger.exception('Could not delete %s', full)
+
+    for song in songs:
+        if song.get('file_path'):
+            remove(inside(song['file_path']))
+        cover = song.get('cover_path')
+        if cover and not Database.execute_query(
+                "SELECT 1 FROM songs WHERE cover_path = %s "
+                "UNION SELECT 1 FROM playlists WHERE cover_path = %s",
+                (cover, cover), fetch_one=True):
+            remove(inside(cover))
 
 
 @music_bp.route('/song/<int:song_id>', methods=['DELETE'])
@@ -208,8 +268,8 @@ def delete_song(song_id):
 
     - Admins: full delete (database row + file + cover) as before.
     - Regular users: the song is REMOVED FROM THEIR LIBRARY only — the file
-      and row stay if it is also in the shared/communal library (any
-      scan-origin access row) or if ANY other account has access to it.
+      and row stay if it is published or in the scanned admin library, or
+      if ANY other account has access to it.
       Only when this user is the sole owner (their own personal import) is
       the file+row deleted from the system too.
     """
@@ -229,14 +289,12 @@ def delete_song(song_id):
         if not LibraryAccessModel.has_access(user_id, song_id):
             return jsonify({'error': 'Song not found'}), 404
 
-        from models.user import UserModel
-        user = UserModel.get_user_by_id(user_id)
-        is_admin = bool(user and user['role'] == 'sysadmin')
+        is_admin = is_sysadmin()
 
         if not is_admin:
             # Regular user: revoke-only unless this song is exclusively theirs
             # (their own personal import, not in the shared folder).
-            communal = LibraryAccessModel.song_is_scan_shared(song_id)
+            communal = LibraryAccessModel.song_is_communal(song_id)
             others = LibraryAccessModel.access_count_excluding(user_id, song_id)
             if communal or others > 0:
                 LibraryAccessModel.revoke(user_id, song_id)
@@ -246,22 +304,9 @@ def delete_song(song_id):
                     'message': 'Song removed from your library'
                 })
 
-        file_path = song['file_path']
-        cover_path = song.get('cover_path')
-
-        # Delete song file from disk
-        full_song_path = os.path.normpath(os.path.join(music_path, file_path))
-        if full_song_path.startswith(os.path.normpath(music_path)) and os.path.isfile(full_song_path):
-            os.remove(full_song_path)
-
-        # Delete cover image if it exists
-        if cover_path:
-            full_cover_path = os.path.normpath(os.path.join(music_path, cover_path))
-            if full_cover_path.startswith(os.path.normpath(music_path)) and os.path.isfile(full_cover_path):
-                os.remove(full_cover_path)
-
-        # Delete from database
+        # Delete the row first, then the file and (if now unused) the cover.
         SongModel.delete_song_by_id(song_id)
+        _remove_song_files([song])
 
         return jsonify({
             'success': True,
@@ -269,8 +314,8 @@ def delete_song(song_id):
             'message': 'Song removed from library and disk'
         })
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/stream/<int:song_id>', methods=['GET'])
@@ -368,8 +413,8 @@ def stream_song(song_id):
         response.headers['Cache-Control'] = 'no-cache'
         return response
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 def _cast_base_url():
@@ -408,6 +453,7 @@ def _cast_urls_for_song(song):
 
 @music_bp.route('/cast-url/<int:song_id>', methods=['GET'])
 @require_auth
+@require_song_access
 def cast_url(song_id):
     """Return an absolute, token-authenticated stream URL a Chromecast can
     fetch directly (Cast receivers can't use the browser's session cookie)."""
@@ -422,13 +468,17 @@ def cast_url(song_id):
 def cast_urls():
     """Batch variant of /cast-url: resolve absolute stream URLs for a whole
     queue in one round trip. Body: {"song_ids": [1, 2, 3]}."""
+    from models.library_access import LibraryAccessModel
     data = request.get_json(silent=True) or {}
     song_ids = data.get('song_ids') or []
+    user_id = get_current_user_id()
     urls = {}
     for raw_id in song_ids:
         try:
             sid = int(raw_id)
         except (TypeError, ValueError):
+            continue
+        if not LibraryAccessModel.has_access(user_id, sid):
             continue
         song = SongModel.get_song_by_id(sid)
         if song:
@@ -438,6 +488,7 @@ def cast_urls():
 
 @music_bp.route('/info/<int:song_id>', methods=['GET'])
 @require_auth
+@require_song_access
 def get_song_info(song_id):
     """Get detailed info for a specific song."""
     try:
@@ -463,8 +514,8 @@ def get_song_info(song_id):
         
         return jsonify({'error': 'Song not found'}), 404
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/metadata/search', methods=['POST'])
@@ -488,8 +539,8 @@ def search_metadata():
             'results': results
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/metadata/apply/<int:song_id>', methods=['POST'])
@@ -582,8 +633,8 @@ def apply_metadata(song_id):
             }
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/cover/<path:cover_path>', methods=['GET'])
@@ -636,8 +687,8 @@ def serve_cover(cover_path):
         
         return send_file(full_path, mimetype=mime_type)
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/upload', methods=['POST'])
@@ -728,8 +779,8 @@ def upload_files():
             'errors': errors if errors else None
         })
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/youtube-import', methods=['POST'])
@@ -820,8 +871,8 @@ def youtube_import():
         
     except ImportError:
         return jsonify({'error': 'yt-dlp not installed. Please install it with: pip install yt-dlp'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/import-playlist-precheck', methods=['POST'])
@@ -877,8 +928,8 @@ def import_playlist_precheck():
             'exists': bool(existing),
             'existing_id': existing['id'] if existing else None,
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 class _ImportPlaylistConflict(Exception):
@@ -1130,8 +1181,8 @@ def youtube_playlist_import():
                 }) + '\n'
 
         return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 def _spotify_match_score(track_title, track_artist, result):
@@ -1252,8 +1303,8 @@ def spotify_import():
             'artist': result.get('artist') or artist
         })
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/spotify-playlist-import', methods=['POST'])
@@ -1432,8 +1483,8 @@ def spotify_playlist_import():
             }) + '\n'
 
         return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 # ==================== Background Import Jobs ====================
@@ -1506,11 +1557,8 @@ def list_import_jobs():
 
     Regular users see ONLY their own jobs; sysadmins see everything."""
     from models.import_job import ImportJobModel
-    from models.user import UserModel
 
-    user = UserModel.get_user_by_id(get_current_user_id())
-    user_id = None if (user and user['role'] == 'sysadmin') \
-        else get_current_user_id()
+    user_id = None if is_sysadmin() else get_current_user_id()
 
     active = ImportJobModel.active_jobs(user_id=user_id)
     history = ImportJobModel.list_recent(limit=25, user_id=user_id)
@@ -1528,16 +1576,13 @@ def list_import_jobs():
 def get_import_job(job_id):
     """Return a single job's current state (for polling)."""
     from models.import_job import ImportJobModel
-    from models.user import UserModel
 
     job = ImportJobModel.get(job_id)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
 
     # Per-account isolation: only the owner (or a sysadmin) may see a job.
-    user = UserModel.get_user_by_id(get_current_user_id())
-    if not (user and user['role'] == 'sysadmin') \
-            and job.get('user_id') != get_current_user_id():
+    if not is_sysadmin() and job.get('user_id') != get_current_user_id():
         return jsonify({'error': 'Job not found'}), 404
 
     return jsonify({'success': True, 'job': _serialize_job(job)})
@@ -1548,15 +1593,12 @@ def get_import_job(job_id):
 def cancel_import_job(job_id):
     """Cancel a queued (not yet running) job — owners only (or sysadmins)."""
     from models.import_job import ImportJobModel
-    from models.user import UserModel
 
     job = ImportJobModel.get(job_id)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
 
-    user = UserModel.get_user_by_id(get_current_user_id())
-    if not (user and user['role'] == 'sysadmin') \
-            and job.get('user_id') != get_current_user_id():
+    if not is_sysadmin() and job.get('user_id') != get_current_user_id():
         return jsonify({'error': 'Forbidden'}), 403
 
     if job['status'] != 'queued':
@@ -1599,6 +1641,7 @@ def _serialize_enrichment_job(job):
 
 @music_bp.route('/songs/<int:song_id>/metadata', methods=['GET'])
 @require_auth
+@require_song_access
 def get_song_metadata(song_id):
     """Return all enrichment metadata for a song (features, tags, similar artists)."""
     from models.song_metadata import SongMetadataModel
@@ -1656,14 +1699,15 @@ def backfill_metadata():
     from utils import enrichment_worker
 
     data = request.get_json(silent=True) or {}
+    denied = _forced_backfill_denied(data)
+    if denied:
+        return denied
     force = bool(data.get('force'))
 
     # Per-account scoping: a regular user's backfill covers their own visible
     # library; only sysadmins can enqueue a whole-library analysis.
     from models.library_access import LibraryAccessModel
-    from models.user import UserModel
-    user = UserModel.get_user_by_id(get_current_user_id())
-    if user and user['role'] == 'sysadmin':
+    if is_sysadmin():
         song_ids = None
     else:
         song_ids = sorted(
@@ -1789,8 +1833,8 @@ def download_song(song_id):
         filename = os.path.basename(full_path)
         return send_file(full_path, as_attachment=True, download_name=filename)
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/discover/search', methods=['GET'])
@@ -1825,8 +1869,8 @@ def discover_search():
             song['library_song_id'] = match_id
 
         return jsonify(results)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/discover/preview/<video_id>', methods=['GET'])
@@ -1930,7 +1974,7 @@ def discover_preview(video_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return server_error()
 
 
 @music_bp.route('/artists/<path:artist_name>', methods=['GET'])
@@ -1950,19 +1994,45 @@ def get_artist_metadata(artist_name):
             'description': '',
             'image_url': ''
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
+
+
+def _visible_songs(user_id):
+    """(id, title, artist, album) of every song the user can see."""
+    from models.library_access import LibraryAccessModel
+    join_sql, join_params = LibraryAccessModel.access_join(user_id)
+    return Database.execute_query(
+        f"SELECT s.id, s.title, s.artist, s.album FROM songs s {join_sql} "
+        "ORDER BY s.artist, s.album, s.track_number",
+        join_params, fetch_all=True) or []
+
+
+def _credits_artist(song, artist_name):
+    target = artist_name.strip().lower()
+    return any(a.strip().lower() == target
+               for a in (song.get('artist') or '').split(','))
 
 
 @music_bp.route('/artists/<path:artist_name>', methods=['POST'])
 @require_auth
 def update_artist_metadata(artist_name):
-    """Save or update bio description and custom image URL for an artist."""
+    """Save or update bio description and custom image URL for an artist.
+
+    Artist profiles are shared by every account, so only a sysadmin or a
+    user with one of the artist's songs in their library may edit one."""
     try:
         from models.database import Database
         data = request.get_json() or {}
         description = data.get('description', '').strip()
         image_url = data.get('image_url', '').strip()
+
+        if image_url and not image_url.lower().startswith(('https://', 'http://')):
+            return jsonify({'error': 'Image URL must start with http:// or https://'}), 400
+        if not is_sysadmin() and not any(
+                _credits_artist(song, artist_name)
+                for song in _visible_songs(get_current_user_id())):
+            return jsonify({'error': 'Artist not found in your library'}), 404
 
         # Insert or update using MySQL INSERT INTO ... ON DUPLICATE KEY UPDATE
         query = """
@@ -1972,8 +2042,8 @@ def update_artist_metadata(artist_name):
         """
         Database.execute_query(query, (artist_name, description, image_url, description, image_url))
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 def _serialize_lightshow_job(job):
@@ -2009,6 +2079,7 @@ def _serialize_lightshow_job(job):
 
 @music_bp.route('/song/<int:song_id>/lightshow', methods=['GET'])
 @require_auth
+@require_song_access
 def get_lightshow(song_id):
     """Return the song's light show score.
 
@@ -2038,12 +2109,13 @@ def get_lightshow(song_id):
             'pending': bool(job and job['status'] in ('queued', 'running')),
             'job': _serialize_lightshow_job(job),
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lightshow/status', methods=['GET'])
 @require_auth
+@require_song_access
 def get_lightshow_status(song_id):
     """Summary of a song's show (no envelopes) + its latest analysis job."""
     try:
@@ -2068,12 +2140,13 @@ def get_lightshow_status(song_id):
             'show': summary,
             'job': _serialize_lightshow_job(LightshowJobModel.song_job_state(song_id)),
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lightshow/analyze', methods=['POST'])
 @require_auth
+@require_song_access
 def analyze_lightshow(song_id):
     """Queue a (forced) light show re-analysis for one song."""
     try:
@@ -2085,30 +2158,51 @@ def analyze_lightshow(song_id):
         job_id = LightshowJobModel.enqueue_song(song_id, force=True)
         lightshow_worker.notify()
         return jsonify({'success': True, 'job': _serialize_lightshow_job(LightshowJobModel.get(job_id))})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lightshow', methods=['DELETE'])
 @require_auth
+@require_song_access
 def delete_lightshow(song_id):
     """Remove the stored light show for a song."""
     try:
         from models.lightshow_job import LightshowJobModel
         LightshowJobModel.delete_score(song_id)
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
+
+
+def _forced_backfill_denied(data):
+    """403 when a non-admin asks for a forced backfill, else None.
+
+    Forcing re-analyses songs every account shares (the results are stored
+    once per song) and is heavy, so it is reserved for sysadmins; a regular
+    "Run" only fills in the user's songs that are missing data."""
+    if data.get('force') and not is_sysadmin():
+        return jsonify({'error': 'Only an administrator can force a re-analysis'}), 403
+    return None
 
 
 def _lightshow_scope_ids():
     """None for sysadmins (whole library), else the user's visible songs."""
     from models.library_access import LibraryAccessModel
-    from models.user import UserModel
-    user = UserModel.get_user_by_id(get_current_user_id())
-    if user and user['role'] == 'sysadmin':
+    if is_sysadmin():
         return None
     return sorted(LibraryAccessModel.visible_song_ids(get_current_user_id()))
+
+
+def _visible_jobs(jobs, scope_ids):
+    """Drop per-song jobs (their messages name the song) for songs outside
+    scope_ids; library-wide jobs stay. scope_ids None = everything."""
+    jobs = jobs or []
+    if scope_ids is None:
+        return jobs
+    visible = set(scope_ids)
+    return [j for j in jobs
+            if j.get('song_id') is None or j['song_id'] in visible]
 
 
 @music_bp.route('/lightshow/backfill', methods=['POST'])
@@ -2125,12 +2219,15 @@ def backfill_lightshows():
         from utils import lightshow_worker
 
         data = request.get_json(silent=True) or {}
+        denied = _forced_backfill_denied(data)
+        if denied:
+            return denied
         job_id = LightshowJobModel.enqueue_backfill(
             force=bool(data.get('force')), song_ids=_lightshow_scope_ids())
         lightshow_worker.notify()
         return jsonify({'success': True, 'job': _serialize_lightshow_job(LightshowJobModel.get(job_id))})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/lightshow/jobs', methods=['GET'])
@@ -2140,15 +2237,16 @@ def lightshow_jobs():
     try:
         from models.lightshow_job import LightshowJobModel
 
-        ready, total = LightshowJobModel.coverage(_lightshow_scope_ids())
+        scope = _lightshow_scope_ids()
+        ready, total = LightshowJobModel.coverage(scope)
         return jsonify({
             'success': True,
             'coverage': {'ready': ready, 'total': total},
-            'queue': [_serialize_lightshow_job(j) for j in (LightshowJobModel.active_jobs() or [])],
-            'history': [_serialize_lightshow_job(j) for j in (LightshowJobModel.list_recent() or [])],
+            'queue': [_serialize_lightshow_job(j) for j in _visible_jobs(LightshowJobModel.active_jobs(), scope)],
+            'history': [_serialize_lightshow_job(j) for j in _visible_jobs(LightshowJobModel.list_recent(), scope)],
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/ytdlp/status', methods=['GET'])
@@ -2431,12 +2529,13 @@ def search_lyrics():
 
         results = _search_lyrics_candidates(query)
         return jsonify({'success': True, 'results': results})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['GET'])
 @require_auth
+@require_song_access
 def get_lyrics(song_id):
     """Return cached lyrics for a song (cache-only by default).
 
@@ -2498,12 +2597,13 @@ def get_lyrics(song_id):
             'success': True,
             'lyrics': {'synced': synced or [], 'plain': plain or ''}
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['DELETE'])
 @require_auth
+@require_song_access
 def delete_lyrics(song_id):
     """Clear cached lyrics so they can be re-fetched."""
     try:
@@ -2511,12 +2611,13 @@ def delete_lyrics(song_id):
         Database.execute_query("DELETE FROM song_lyrics WHERE song_id = %s", (song_id,))
         Database.execute_query("DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
         return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['POST'])
 @require_auth
+@require_song_access
 def apply_lyrics(song_id):
     """Manually apply a specific LRCLIB record as this song's lyrics."""
     try:
@@ -2566,12 +2667,13 @@ def apply_lyrics(song_id):
             'success': True,
             'lyrics': {'synced': synced or [], 'plain': plain or ''}
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lyrics-words', methods=['GET'])
 @require_auth
+@require_song_access
 def get_lyrics_words(song_id):
     """Return a song's aligned word timings.
 
@@ -2608,12 +2710,13 @@ def get_lyrics_words(song_id):
             'pending': bool(job and job['status'] in ('queued', 'running')),
             'job': _serialize_lightshow_job(job),
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/song/<int:song_id>/lyrics-words/analyze', methods=['POST'])
 @require_auth
+@require_song_access
 def analyze_lyrics_words(song_id):
     """Queue a forced lyrics re-alignment for one song."""
     try:
@@ -2625,8 +2728,8 @@ def analyze_lyrics_words(song_id):
         job_id = LyricsJobModel.enqueue_song(song_id, force=True)
         lyrics_worker.notify()
         return jsonify({'success': True, 'job': _serialize_lightshow_job(LyricsJobModel.get(job_id))})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/lyrics/backfill', methods=['POST'])
@@ -2643,12 +2746,15 @@ def backfill_lyrics():
         from utils import lyrics_worker
 
         data = request.get_json(silent=True) or {}
+        denied = _forced_backfill_denied(data)
+        if denied:
+            return denied
         job_id = LyricsJobModel.enqueue_backfill(
             force=bool(data.get('force')), song_ids=_lightshow_scope_ids())
         lyrics_worker.notify()
         return jsonify({'success': True, 'job': _serialize_lightshow_job(LyricsJobModel.get(job_id))})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/lyrics/jobs', methods=['GET'])
@@ -2658,14 +2764,15 @@ def lyrics_jobs():
     try:
         from models.lyrics_job import LyricsJobModel
 
+        scope = _lightshow_scope_ids()
         return jsonify({
             'success': True,
-            'coverage': LyricsJobModel.coverage(_lightshow_scope_ids()),
-            'queue': [_serialize_lightshow_job(j) for j in (LyricsJobModel.active_jobs() or [])],
-            'history': [_serialize_lightshow_job(j) for j in (LyricsJobModel.list_recent() or [])],
+            'coverage': LyricsJobModel.coverage(scope),
+            'queue': [_serialize_lightshow_job(j) for j in _visible_jobs(LyricsJobModel.active_jobs(), scope)],
+            'history': [_serialize_lightshow_job(j) for j in _visible_jobs(LyricsJobModel.list_recent(), scope)],
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/artists/<path:artist_name>/scrape', methods=['POST'])
@@ -2749,33 +2856,24 @@ def scrape_all_artists():
 @music_bp.route('/artists/<path:artist_name>/songs', methods=['GET'])
 @require_auth
 def get_artist_songs(artist_name):
-    """Get all songs in the library and flag which ones have this artist credited."""
+    """Get the user's songs and flag which ones have this artist credited."""
     try:
-        from models.database import Database
-        query = "SELECT id, title, artist, album FROM songs ORDER BY artist, album, track_number"
-        all_songs = Database.execute_query(query, fetch_all=True)
-
-        songs_out = []
-        target = artist_name.strip().lower()
-        for s in all_songs:
-            raw = s.get('artist') or ''
-            artist_list = [a.strip() for a in raw.split(',') if a.strip()]
-            has_artist = any(a.lower() == target for a in artist_list)
-            songs_out.append({
-                'id': s['id'],
-                'title': s['title'],
-                'artist': s['artist'],
-                'album': s.get('album') or '',
-                'has_artist': has_artist
-            })
+        songs_out = [{
+            'id': s['id'],
+            'title': s['title'],
+            'artist': s['artist'],
+            'album': s.get('album') or '',
+            'has_artist': _credits_artist(s, artist_name),
+        } for s in _visible_songs(get_current_user_id())]
 
         return jsonify({'success': True, 'songs': songs_out})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/artists/<path:artist_name>/songs/<int:song_id>', methods=['POST'])
 @require_auth
+@require_song_access
 def toggle_artist_on_song(artist_name, song_id):
     """Add or remove an artist credit from a song's artist field."""
     try:
@@ -2802,16 +2900,37 @@ def toggle_artist_on_song(artist_name, song_id):
         new_artist_str = ', '.join(artists) if artists else 'Unknown Artist'
         Database.execute_query("UPDATE songs SET artist = %s WHERE id = %s", (new_artist_str, song_id))
         return jsonify({'success': True, 'new_artist': new_artist_str})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
+
+def _duplicate_groups():
+    """Duplicate groups the caller can see, each flagged with can_merge.
+
+    Sysadmins see and may merge every group. Other accounts see duplicates
+    among their own songs and may merge a group only when every copy is
+    theirs alone (a merge deletes the other copies for everyone)."""
+    from models.duplicates import DuplicateModel
+    from models.library_access import LibraryAccessModel
+    groups = DuplicateModel.find_groups()
+    if is_sysadmin():
+        return [{**g, 'can_merge': True} for g in groups]
+    user_id = get_current_user_id()
+    visible = LibraryAccessModel.visible_song_ids(user_id)
+    groups = [g for g in (
+        {**g, 'songs': [s for s in g['songs'] if s['id'] in visible]}
+        for g in groups) if len(g['songs']) > 1]
+    exclusive = LibraryAccessModel.exclusive_song_ids(
+        user_id, [s['id'] for g in groups for s in g['songs']])
+    return [{**g, 'can_merge': all(s['id'] in exclusive for s in g['songs'])}
+            for g in groups]
+
 
 @music_bp.route('/duplicates', methods=['GET'])
 @require_auth
 def get_duplicates():
-    """Find groups of duplicate songs in the library."""
+    """Find groups of duplicate songs in the caller's library."""
     try:
-        from models.duplicates import DuplicateModel
-        groups = DuplicateModel.find_groups()
+        groups = _duplicate_groups()
         total_dupes = sum(len(g['songs']) - 1 for g in groups)
         return jsonify({
             'success': True,
@@ -2819,12 +2938,12 @@ def get_duplicates():
             'group_count': len(groups),
             'duplicate_count': total_dupes,
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/duplicates/merge', methods=['POST'])
-@require_sysadmin
+@require_auth
 def merge_duplicates():
     """Merge a group of duplicate songs into one keeper.
 
@@ -2832,15 +2951,23 @@ def merge_duplicates():
     """
     try:
         from models.duplicates import DuplicateModel
-        data = request.get_json() or {}
-        song_ids = data.get('song_ids') or []
-        keeper_id = data.get('keeper_id')
-        result = DuplicateModel.merge_group(song_ids, keeper_id=keeper_id)
+        from models.library_access import LibraryAccessModel
+        data = request.get_json(silent=True) or {}
+        try:
+            song_ids = [int(i) for i in (data.get('song_ids') or [])]
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid song_ids'}), 400
+        if not is_sysadmin() and LibraryAccessModel.exclusive_song_ids(
+                get_current_user_id(), song_ids) != set(song_ids):
+            return jsonify({'error': 'Only an administrator can merge songs '
+                                     'other accounts share'}), 403
+        result = DuplicateModel.merge_group(song_ids, keeper_id=data.get('keeper_id'))
         if not result.get('success'):
             return jsonify(result), 400
+        _remove_song_files(result.pop('removed_files'))
         return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/artists/fix', methods=['POST'])
@@ -2851,17 +2978,18 @@ def fix_artist_metadata():
         from models.song import SongModel
         fixed = SongModel.fix_artist_duplicates()
         return jsonify({'success': True, 'fixed': fixed})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()
 
 
 @music_bp.route('/duplicates/merge-all', methods=['POST'])
-@require_sysadmin
+@require_auth
 def merge_all_duplicates():
-    """Auto-merge every duplicate group, keeping the best candidate in each."""
+    """Auto-merge every group the caller may merge, keeping the best
+    candidate in each."""
     try:
         from models.duplicates import DuplicateModel
-        groups = DuplicateModel.find_groups()
+        groups = [g for g in _duplicate_groups() if g['can_merge']]
         merged = 0
         removed = 0
         for g in groups:
@@ -2871,6 +2999,7 @@ def merge_all_duplicates():
                 if res.get('success'):
                     merged += 1
                     removed += res.get('removed_count', 0)
+                    _remove_song_files(res['removed_files'])
             except Exception as e:
                 print(f"merge group failed: {e}")
                 continue
@@ -2879,5 +3008,5 @@ def merge_all_duplicates():
             'groups_merged': merged,
             'songs_removed': removed,
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        return server_error()

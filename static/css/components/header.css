@@ -56,6 +56,9 @@
     border-radius: inherit;
 }
 
+/* No Anime mode: the animated title alone carries the brand */
+.no-anime .header-logo { display: none; }
+
 .header-title {
     font-size: var(--font-size-xl);
     font-weight: 700;

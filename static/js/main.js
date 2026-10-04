@@ -15,8 +15,15 @@ import { GlobalSearch } from './modules/globalSearch.js';
 import { ShortcutOverlay } from './modules/shortcutOverlay.js';
 import { NewViews } from './modules/newViews.js';
 
-// Document ready handler
-document.addEventListener('DOMContentLoaded', () => {
+// The i18n module loads its dictionary with a top-level await, so this
+// module can run after DOMContentLoaded has already fired: boot right away
+// in that case instead of waiting for an event that will never come.
+function onDocumentReady(fn) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+    else fn();
+}
+
+onDocumentReady(() => {
     Logger.log('🎵 Rainy Music Player - Initializing...');
 
     // Make utility functions globally available (for inline HTML event handlers)
@@ -67,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
+        const register = () => {
             navigator.serviceWorker.register('/sw.js')
                 .then((reg) => {
                     Logger.log('Service worker registered:', reg.scope);
@@ -82,7 +89,9 @@ function registerServiceWorker() {
                     });
                 })
                 .catch((err) => Logger.warn('Service worker registration failed:', err));
-        });
+        };
+        if (document.readyState === 'complete') register();
+        else window.addEventListener('load', register);
     }
 }
 
