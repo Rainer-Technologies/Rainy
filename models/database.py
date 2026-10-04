@@ -783,6 +783,12 @@ class Database:
                 "NOT NULL DEFAULT 'lastfm'"
             )
 
+        # Clear placeholder genres: yt-dlp wrote the YouTube category
+        # ("People & Blogs", "Education", ...) as the genre of every download.
+        # Cheap and idempotent, so it runs on every start.
+        from models.song_metadata import SongMetadataModel
+        SongMetadataModel.clear_placeholder_genres(cursor)
+
         # Playlist sync — periodic mirroring of remote Spotify / YouTube playlists.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS playlist_syncs (

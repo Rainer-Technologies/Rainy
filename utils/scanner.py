@@ -238,7 +238,10 @@ class MusicScanner:
                 raw_artist = self._get_tag(audio, 'artist', metadata['artist'])
                 metadata['artist'] = normalize_artist(raw_artist)
                 metadata['album'] = self._get_tag(audio, 'album', metadata['album'])
-                metadata['genre'] = self._get_tag(audio, 'genre', None)
+                # Drop placeholder genres (YouTube categories like
+                # "People & Blogs", iTunes' "Music") so enrichment fills a real one.
+                from models.song_metadata import clean_genre
+                metadata['genre'] = clean_genre(self._get_tag(audio, 'genre', None))
                 metadata['year'] = self._get_tag(audio, 'date', None)
                 
                 # Track number handling
