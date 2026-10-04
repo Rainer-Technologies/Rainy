@@ -54,4 +54,4 @@ class Config:
     # If unset, Last.fm enrichment is skipped (MusicBrainz still works).
     LASTFM_API_KEY = os.getenv('LASTFM_API_KEY', '')
 
-    SUPPORTED_FORMATS = {'.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma'}
+    SUPPORTED_FORMATS = {'.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma', '.mkv'}

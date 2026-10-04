@@ -723,8 +723,9 @@ export class AddMusicModal extends Component {
                         h.span(a.class('format-tag'), 'FLAC'),
                         h.span(a.class('format-tag'), 'WAV'),
                         h.span(a.class('format-tag'), 'OGG'),
+                        h.span(a.class('format-tag'), 'MKV'),
                     ),
-                    h.input(this._fileInput, a.type('file'), a.id('file-upload-input'), a.accept('audio/*'), a.multiple(''), a.hidden(''), on.change((ev) => this._onFileChange(ev)))
+                    h.input(this._fileInput, a.type('file'), a.id('file-upload-input'), a.accept('audio/*,.mkv'), a.multiple(''), a.hidden(''), on.change((ev) => this._onFileChange(ev)))
                 ),
                 h.div(this._uploadProgress, a.class('upload-progress-modern', 'hidden'), a.id('upload-progress'),
                     h.div(a.class('progress-info'),
