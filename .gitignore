@@ -18,6 +18,9 @@ classifier/
 dj_audio/
 bin/fpcalc
 
+# SQLite database (RAINY_DB=sqlite)
+data/
+
 # Local tooling
 .venv/
 venv/

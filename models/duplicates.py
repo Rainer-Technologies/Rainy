@@ -116,13 +116,12 @@ class DuplicateModel:
             for loser in losers:
                 cursor.execute(
                     """
-                    UPDATE song_ratings r
-                    SET r.song_id = %s
-                    WHERE r.song_id = %s
-                      AND NOT EXISTS (
-                          SELECT 1 FROM (SELECT user_id FROM song_ratings
-                                         WHERE song_id = %s) k
-                          WHERE k.user_id = r.user_id
+                    UPDATE song_ratings
+                    SET song_id = %s
+                    WHERE song_id = %s
+                      AND user_id NOT IN (
+                          SELECT user_id FROM (SELECT user_id FROM song_ratings
+                                               WHERE song_id = %s) k
                       )
                     """,
                     (keeper_id, loser, keeper_id),
@@ -139,14 +138,16 @@ class DuplicateModel:
                 )
             cursor.execute(
                 """
-                DELETE pe1 FROM playlist_entries pe1
-                INNER JOIN playlist_entries pe2
-                  ON pe1.playlist_id = pe2.playlist_id
-                 AND pe1.track_id = pe2.track_id
-                 AND pe1.id > pe2.id
-                WHERE pe1.track_id = %s
+                DELETE FROM playlist_entries
+                WHERE track_id = %s
+                  AND id NOT IN (
+                      SELECT keep_id FROM (
+                          SELECT MIN(id) AS keep_id FROM playlist_entries
+                          WHERE track_id = %s GROUP BY playlist_id
+                      ) k
+                  )
                 """,
-                (keeper_id,),
+                (keeper_id, keeper_id),
             )
 
             # 3) One-to-one child tables keyed by song_id (PK). Move the loser's
@@ -180,15 +181,16 @@ class DuplicateModel:
             # Dedupe tags that now collide on (song_id, tag_name, source).
             cursor.execute(
                 """
-                DELETE t1 FROM song_tags t1
-                INNER JOIN song_tags t2
-                  ON t1.song_id = t2.song_id
-                 AND t1.tag_name = t2.tag_name
-                 AND t1.source = t2.source
-                 AND t1.id > t2.id
-                WHERE t1.song_id = %s
+                DELETE FROM song_tags
+                WHERE song_id = %s
+                  AND id NOT IN (
+                      SELECT keep_id FROM (
+                          SELECT MIN(id) AS keep_id FROM song_tags
+                          WHERE song_id = %s GROUP BY tag_name, source
+                      ) k
+                  )
                 """,
-                (keeper_id,),
+                (keeper_id, keeper_id),
             )
 
             # 5) playback_state references the song with ON DELETE SET NULL, so

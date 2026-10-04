@@ -105,19 +105,22 @@ class PlaylistModel:
         Remove duplicate songs from a playlist, keeping only the first occurrence.
         Returns the number of duplicates removed.
         """
-        # Find duplicates: keep the entry with the lowest id for each track_id
+        # Find duplicates: keep the entry with the lowest id for each track_id.
+        # The derived table `k` lets MySQL read the table it deletes from.
         query = """
-            DELETE pe1 FROM playlist_entries pe1
-            INNER JOIN playlist_entries pe2
-            WHERE pe1.playlist_id = %s
-            AND pe1.track_id = pe2.track_id
-            AND pe1.playlist_id = pe2.playlist_id
-            AND pe1.id > pe2.id
+            DELETE FROM playlist_entries
+            WHERE playlist_id = %s
+            AND id NOT IN (
+                SELECT keep_id FROM (
+                    SELECT MIN(id) AS keep_id FROM playlist_entries
+                    WHERE playlist_id = %s GROUP BY track_id
+                ) k
+            )
         """
         conn = Database.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(query, (playlist_id,))
+            cursor.execute(query, (playlist_id, playlist_id))
             conn.commit()
             deleted_count = cursor.rowcount
             cursor.close()

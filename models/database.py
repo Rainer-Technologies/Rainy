@@ -1,11 +1,40 @@
+import sqlite3
+
 import mysql.connector
 from mysql.connector import errorcode, pooling
 from flask import g, has_app_context
 from config import Config
+from models import sqlite_backend
+
+# Backend-neutral exception groups, for callers that need to catch DB errors
+# without knowing whether MySQL or SQLite is underneath.
+DB_ERRORS = (mysql.connector.Error, sqlite3.Error)
+IntegrityError = (mysql.connector.IntegrityError, sqlite3.IntegrityError)
+DatabaseError = (mysql.connector.errors.DatabaseError, sqlite3.DatabaseError)
+
+
+def is_fk_violation(err):
+    """True when a write referenced a row that doesn't exist (MySQL 1452)."""
+    if getattr(err, 'errno', None) == 1452:
+        return True
+    return isinstance(err, sqlite3.IntegrityError) and 'FOREIGN KEY' in str(err)
+
+
+def is_lock_timeout(err):
+    """True when a write gave up waiting for a lock (MySQL 1205 / SQLite busy)."""
+    if getattr(err, 'errno', None) == 1205:
+        return True
+    return isinstance(err, sqlite3.OperationalError) and 'locked' in str(err)
+
 
 class Database:
     _pool = None
-    
+    _sqlite_ready = False
+
+    @staticmethod
+    def is_sqlite():
+        return Config.DB_BACKEND == 'sqlite'
+
     @classmethod
     def get_pool(cls):
         if cls._pool is None:
@@ -22,34 +51,55 @@ class Database:
     
     @classmethod
     def get_connection(cls):
+        if cls.is_sqlite():
+            # One short-lived connection per caller: opening a SQLite file is
+            # cheap, and it keeps threads from sharing a transaction.
+            if not cls._sqlite_ready:
+                sqlite_backend.prepare_database(Config.SQLITE_PATH)
+                cls._sqlite_ready = True
+            return sqlite_backend.connect(Config.SQLITE_PATH)
         return cls.get_pool().get_connection()
-    
+
+    @classmethod
+    def _column_exists(cls, cursor, table, column):
+        if cls.is_sqlite():
+            return sqlite_backend.column_exists(cursor, table, column)
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+        """, (Config.MYSQL_DATABASE, table, column))
+        result = cursor.fetchone()
+        return bool(result and result[0])
+
+    @classmethod
+    def _add_column(cls, cursor, table, column, ddl):
+        """Migration helper: ADD COLUMN unless it's already there."""
+        if cls._column_exists(cursor, table, column):
+            return False
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        return True
+
+    @classmethod
+    def _column_type(cls, cursor, table, column):
+        """MySQL column_type ('enum(...)' etc.); None on SQLite, whose
+        translated schema has no ENUM constraints to migrate."""
+        if cls.is_sqlite():
+            return None
+        cursor.execute("""
+            SELECT column_type FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+        """, (Config.MYSQL_DATABASE, table, column))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
     @classmethod
     def init_db(cls):
         """Initialize the database and create tables if they don't exist."""
-        # First connect without database to create it if needed
-        try:
-            conn = mysql.connector.connect(
-                host=Config.MYSQL_HOST,
-                port=Config.MYSQL_PORT,
-                user=Config.MYSQL_USER,
-                password=Config.MYSQL_PASSWORD
-            )
-            cursor = conn.cursor()
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {Config.MYSQL_DATABASE}")
-            cursor.close()
-            conn.close()
-        except mysql.connector.Error as err:
-            # Docker Compose creates the application database before this
-            # service starts, but its non-root application user cannot create
-            # databases. It can still create and migrate tables within the
-            # pre-created database, so continue in that case.
-            if err.errno == errorcode.ER_DBACCESS_DENIED_ERROR:
-                print(f"Database already provisioned; skipping creation: {err}")
-            else:
-                print(f"Error creating database: {err}")
-                raise
-        
+        if cls.is_sqlite():
+            print(f"Using SQLite database at {Config.SQLITE_PATH}")
+        else:
+            cls._create_mysql_database()
+
         # Now connect to the database and create tables
         conn = cls.get_connection()
         cursor = conn.cursor()
@@ -68,25 +118,13 @@ class Database:
         """)
 
         # Migration: Add preferences column if it doesn't exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns 
-            WHERE table_schema = %s AND table_name = 'users' AND column_name = 'preferences'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE users ADD COLUMN preferences TEXT")
+        cls._add_column(cursor, 'users', 'preferences', 'TEXT')
 
         # Migration: full_library permission — grants the user visibility of
         # EVERY song on the system (incl. other accounts' personal imports).
         # Deliberately NOT defaulted for anyone, admins included: the admin
         # must flip it on at account creation (or later via the users panel).
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns 
-            WHERE table_schema = %s AND table_name = 'users' AND column_name = 'full_library'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE users ADD COLUMN full_library TINYINT(1) NOT NULL DEFAULT 0")
+        cls._add_column(cursor, 'users', 'full_library', 'TINYINT(1) NOT NULL DEFAULT 0')
         
         # Settings table
         cursor.execute("""
@@ -119,13 +157,7 @@ class Database:
         """)
         
         # Migration: Add cover_path column if it doesn't exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns 
-            WHERE table_schema = %s AND table_name = 'songs' AND column_name = 'cover_path'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE songs ADD COLUMN cover_path VARCHAR(768)")
+        cls._add_column(cursor, 'songs', 'cover_path', 'VARCHAR(768)')
             
         # Playlists table
         cursor.execute("""
@@ -140,31 +172,13 @@ class Database:
         """)
         
         # Migration: Add icon column if it doesn't exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns 
-            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'icon'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE playlists ADD COLUMN icon VARCHAR(50) DEFAULT 'music-note'")
+        cls._add_column(cursor, 'playlists', 'icon', "VARCHAR(50) DEFAULT 'music-note'")
         
         # Migration: Add icon_color column if it doesn't exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns 
-            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'icon_color'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE playlists ADD COLUMN icon_color VARCHAR(7) DEFAULT '#888888'")
+        cls._add_column(cursor, 'playlists', 'icon_color', "VARCHAR(7) DEFAULT '#888888'")
         
         # Migration: Add owner_user_id column if it doesn't exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns 
-            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'owner_user_id'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE playlists ADD COLUMN owner_user_id INT NULL")
+        if cls._add_column(cursor, 'playlists', 'owner_user_id', 'INT NULL'):
             # Optional: add foreign key constraint if users table exists
             try:
                 cursor.execute("""
@@ -172,17 +186,11 @@ class Database:
                     ADD CONSTRAINT fk_playlists_owner 
                     FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL
                 """)
-            except mysql.connector.Error:
+            except DB_ERRORS:
                 pass
 
         # Migration: Add cover_path column (auto-generated playlist cover) if missing
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'playlists' AND column_name = 'cover_path'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE playlists ADD COLUMN cover_path VARCHAR(768) NULL")
+        cls._add_column(cursor, 'playlists', 'cover_path', 'VARCHAR(768) NULL')
 
         # ── Per-account library isolation ─────────────────────────────
         # A song row stays global (one file on disk = one row). Visibility
@@ -322,13 +330,7 @@ class Database:
 
         # Migration: 'editor' tier renamed to 'admin'; 'viewer' tier added.
         # Update rows BEFORE altering the ENUM so no value is lost.
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'playlist_shares'
-              AND column_name = 'role' AND column_type LIKE '%%editor%%'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] > 0:
+        if 'editor' in (cls._column_type(cursor, 'playlist_shares', 'role') or ''):
             cursor.execute(
                 "UPDATE playlist_shares SET role = 'admin' WHERE role = 'editor'")
             cursor.execute(
@@ -419,13 +421,7 @@ class Database:
             ('version', 'INT NOT NULL DEFAULT 1'),
             ('language', 'VARCHAR(16) NULL'),
         ):
-            cursor.execute("""
-                SELECT COUNT(*) as cnt FROM information_schema.columns
-                WHERE table_schema = %s AND table_name = 'song_lyrics_words' AND column_name = %s
-            """, (Config.MYSQL_DATABASE, column))
-            result = cursor.fetchone()
-            if result and result[0] == 0:
-                cursor.execute(f"ALTER TABLE song_lyrics_words ADD COLUMN {column} {ddl}")
+            cls._add_column(cursor, 'song_lyrics_words', column, ddl)
 
         # Lyrics analysis queue (fetch lyrics + word-timing alignment). Same
         # shape and claim-token scheme as lightshow_jobs.
@@ -479,20 +475,18 @@ class Database:
             ('counted', 'TINYINT(1) NOT NULL DEFAULT 1'),
             ('client', 'VARCHAR(16) NULL'),
         ):
+            cls._add_column(cursor, 'play_history', column, ddl)
+        if cls.is_sqlite():
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS play_history_uq_user_play "
+                           "ON play_history (user_id, play_id)")
+        else:
             cursor.execute("""
-                SELECT COUNT(*) as cnt FROM information_schema.columns
-                WHERE table_schema = %s AND table_name = 'play_history' AND column_name = %s
-            """, (Config.MYSQL_DATABASE, column))
+                SELECT COUNT(*) as cnt FROM information_schema.statistics
+                WHERE table_schema = %s AND table_name = 'play_history' AND index_name = 'uq_user_play'
+            """, (Config.MYSQL_DATABASE,))
             result = cursor.fetchone()
             if result and result[0] == 0:
-                cursor.execute(f"ALTER TABLE play_history ADD COLUMN {column} {ddl}")
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.statistics
-            WHERE table_schema = %s AND table_name = 'play_history' AND index_name = 'uq_user_play'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE play_history ADD UNIQUE KEY uq_user_play (user_id, play_id)")
+                cursor.execute("ALTER TABLE play_history ADD UNIQUE KEY uq_user_play (user_id, play_id)")
 
         # Playback state — cross-device sync (one row per user)
         cursor.execute("""
@@ -537,13 +531,7 @@ class Database:
 
         # Migration: how a playlist import resolves a name collision
         # ('add' | 'override' | 'new'). NULL lets the handler use its default.
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'import_jobs' AND column_name = 'conflict_mode'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE import_jobs ADD COLUMN conflict_mode VARCHAR(16) NULL")
+        cls._add_column(cursor, 'import_jobs', 'conflict_mode', 'VARCHAR(16) NULL')
 
         # Song audio features — objective signal analysis from librosa.
         # One row per song, computed locally from the audio file itself so it
@@ -618,23 +606,11 @@ class Database:
 
         # Migration: add musicbrainz_id to songs (universal recording ID,
         # the open-standard key that links a track across free databases).
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'songs' AND column_name = 'musicbrainz_id'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE songs ADD COLUMN musicbrainz_id VARCHAR(36) NULL")
+        cls._add_column(cursor, 'songs', 'musicbrainz_id', 'VARCHAR(36) NULL')
 
         # Migration: track when a song last went through metadata enrichment so
         # the "analyse unanalysed songs" job can skip already-processed tracks.
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'songs' AND column_name = 'enriched_at'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE songs ADD COLUMN enriched_at TIMESTAMP NULL")
+        cls._add_column(cursor, 'songs', 'enriched_at', 'TIMESTAMP NULL')
 
         # Enrichment jobs — background queue for metadata enrichment
         # (librosa audio analysis + Last.fm tags + MusicBrainz IDs).
@@ -659,13 +635,7 @@ class Database:
 
         # Migration: flag a job as a forced full re-analysis (redo audio
         # analysis + external metadata even for already-enriched songs).
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'enrichment_jobs' AND column_name = 'force_full'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE enrichment_jobs ADD COLUMN force_full TINYINT(1) NOT NULL DEFAULT 0")
+        cls._add_column(cursor, 'enrichment_jobs', 'force_full', 'TINYINT(1) NOT NULL DEFAULT 0')
 
         # Light show analysis queue (server-side score generation). Same shape
         # as enrichment_jobs plus a claim token so several gunicorn workers
@@ -698,23 +668,11 @@ class Database:
             ('song_ids', 'MEDIUMTEXT NULL'),
             ('heartbeat_at', 'TIMESTAMP NULL'),
         ):
-            cursor.execute("""
-                SELECT COUNT(*) as cnt FROM information_schema.columns
-                WHERE table_schema = %s AND table_name = 'lightshow_jobs' AND column_name = %s
-            """, (Config.MYSQL_DATABASE, column))
-            result = cursor.fetchone()
-            if result and result[0] == 0:
-                cursor.execute(f"ALTER TABLE lightshow_jobs ADD COLUMN {column} {ddl}")
+            cls._add_column(cursor, 'lightshow_jobs', column, ddl)
 
         # Migration: score format version, so analyser upgrades can re-run
         # only on outdated shows (v1 = old in-browser analysis).
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'song_lightshows' AND column_name = 'version'
-        """, (Config.MYSQL_DATABASE,))
-        result = cursor.fetchone()
-        if result and result[0] == 0:
-            cursor.execute("ALTER TABLE song_lightshows ADD COLUMN version INT NOT NULL DEFAULT 1")
+        cls._add_column(cursor, 'song_lightshows', 'version', 'INT NOT NULL DEFAULT 1')
 
         # Rainy Connect — active player device sessions (Spotify-Connect-style).
         cursor.execute("""
@@ -744,12 +702,7 @@ class Database:
         """)
 
         # Migrate: add queue columns to existing connect_sessions tables.
-        cursor.execute("""
-            SELECT COUNT(*) FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'connect_sessions' AND column_name = 'queue'
-        """, (Config.MYSQL_DATABASE,))
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue MEDIUMTEXT NULL")
+        if cls._add_column(cursor, 'connect_sessions', 'queue', 'MEDIUMTEXT NULL'):
             cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue_index INT DEFAULT 0")
 
         # Queue blobs live in their own table (Sep 2026). Keeping the multi-KB
@@ -795,13 +748,8 @@ class Database:
         # Migration: extend song_tags.source with the local genre classifier.
         # The source enum started as ('lastfm','musicbrainz'); Discogs-EffNet
         # (local, no API key) adds a third origin for genre/style labels.
-        cursor.execute("""
-            SELECT column_type FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = 'song_tags'
-              AND column_name = 'source'
-        """, (Config.MYSQL_DATABASE,))
-        row = cursor.fetchone()
-        if row and 'discogs-effnet' not in (row[0] or ''):
+        source_type = cls._column_type(cursor, 'song_tags', 'source')
+        if source_type is not None and 'discogs-effnet' not in source_type:
             cursor.execute(
                 "ALTER TABLE song_tags MODIFY COLUMN source "
                 "ENUM('lastfm', 'musicbrainz', 'discogs-effnet') "
@@ -855,6 +803,31 @@ class Database:
         cursor.close()
         conn.close()
     
+    @classmethod
+    def _create_mysql_database(cls):
+        # First connect without database to create it if needed
+        try:
+            conn = mysql.connector.connect(
+                host=Config.MYSQL_HOST,
+                port=Config.MYSQL_PORT,
+                user=Config.MYSQL_USER,
+                password=Config.MYSQL_PASSWORD
+            )
+            cursor = conn.cursor()
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {Config.MYSQL_DATABASE}")
+            cursor.close()
+            conn.close()
+        except mysql.connector.Error as err:
+            # Docker Compose creates the application database before this
+            # service starts, but its non-root application user cannot create
+            # databases. It can still create and migrate tables within the
+            # pre-created database, so continue in that case.
+            if err.errno == errorcode.ER_DBACCESS_DENIED_ERROR:
+                print(f"Database already provisioned; skipping creation: {err}")
+            else:
+                print(f"Error creating database: {err}")
+                raise
+
     @classmethod
     def execute_query(cls, query, params=None, fetch_one=False, fetch_all=False):
         """Execute a query and return results."""

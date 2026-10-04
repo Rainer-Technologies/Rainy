@@ -132,13 +132,15 @@ docker compose down -v          # stop and delete the database volume (music is 
 
 ### Run locally
 
-Requirements: **Python 3.11+**, a **MySQL 8** server, **ffmpeg** and a JS runtime (Deno, Node or Bun) for yt-dlp.
+Requirements: **Python 3.11+**, **ffmpeg**, a JS runtime (Deno, Node or Bun) for yt-dlp, and optionally a **MySQL 8** server.
+
+No database server? Set `RAINY_DB=sqlite` in `.env` and Rainy keeps everything in a single SQLite file (`data/rainy.db` by default), created on first start. It suits a personal or family install. Use MySQL for many concurrent users, since SQLite allows one write at a time.
 
 ```sh
 python -m venv .venv
 .venv/Scripts/activate           # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env             # set FLASK_SECRET_KEY and the MYSQL_* values
+cp .env.example .env             # set FLASK_SECRET_KEY and the MYSQL_* values (or RAINY_DB=sqlite)
 python app.py
 ```
 
@@ -151,6 +153,8 @@ All settings live in `.env` (see [.env.example](.env.example)).
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `FLASK_SECRET_KEY` | *required* | Session signing key (32+ chars) |
+| `RAINY_DB` | `mysql` if any `MYSQL_*` is set, else `sqlite` | Database backend: `mysql` or `sqlite` |
+| `SQLITE_PATH` | `data/rainy.db` | SQLite database file (relative to the project root) |
 | `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_DATABASE` | `localhost` / `3306` / `root` / – / `rainy` | Database connection (Compose wires this for you) |
 | `RAINY_PORT` | `6969` | Host port published by Docker Compose |
 | `RAINY_HTTP_PORT` | `6969` | Port for `python app.py` |
@@ -197,7 +201,7 @@ pytest                                   # backend tests
 node --test "tests/js/*.test.mjs"        # front-end tests
 ```
 
-Some backend tests may need a reachable MySQL database, since the suite imports the full app. The light show analyser tests synthesise a known 72 s track and assert tempo, downbeats, drop and stop detection, so they need no fixtures.
+The suite imports the full app, so backend tests need a database: either a reachable MySQL, or SQLite with `RAINY_DB=sqlite SQLITE_PATH=/tmp/rainy-test.db` (some tests expect user and song #1 to exist). The light show analyser tests synthesise a known 72 s track and assert tempo, downbeats, drop and stop detection, so they need no fixtures.
 
 ```
 app.py            application factory, worker startup

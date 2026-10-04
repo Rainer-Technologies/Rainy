@@ -65,9 +65,13 @@ class LightshowJobModel:
             """
             UPDATE lightshow_jobs
             SET status = 'running', started_at = NOW(), heartbeat_at = NOW(), claim_token = %s
-            WHERE status = 'queued'
-            ORDER BY (scope = 'song') DESC, created_at ASC, id ASC
-            LIMIT 1
+            WHERE status = 'queued' AND id = (
+                SELECT id FROM (
+                    SELECT id FROM lightshow_jobs WHERE status = 'queued'
+                    ORDER BY (scope = 'song') DESC, created_at ASC, id ASC
+                    LIMIT 1
+                ) AS next_job
+            )
             """,
             (token,),
         )

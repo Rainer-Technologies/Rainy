@@ -12,7 +12,29 @@ def parse_host_port(host_string, default_port=3306):
 
 _host, _port = parse_host_port(os.getenv('MYSQL_HOST', 'localhost'))
 
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def resolve_db_backend():
+    """'mysql' or 'sqlite'. RAINY_DB wins; otherwise any MYSQL_* setting means
+    an existing MySQL install (never silently swap it for an empty SQLite
+    file), and no database configuration at all falls back to SQLite."""
+    backend = os.getenv('RAINY_DB', '').strip().lower()
+    if backend in ('mysql', 'sqlite'):
+        return backend
+    if backend:
+        raise ValueError(f"RAINY_DB must be 'mysql' or 'sqlite', got {backend!r}")
+    mysql_vars = ('MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_DATABASE')
+    return 'mysql' if any(os.getenv(v) for v in mysql_vars) else 'sqlite'
+
+
 class Config:
+    # Database backend: a MySQL server, or a single SQLite file for installs
+    # without a dedicated database server.
+    DB_BACKEND = resolve_db_backend()
+    SQLITE_PATH = os.path.abspath(os.path.join(
+        _ROOT, os.getenv('SQLITE_PATH', os.path.join('data', 'rainy.db'))))
+
     MYSQL_HOST = _host
     MYSQL_PORT = int(os.getenv('MYSQL_PORT', _port))
     MYSQL_USER = os.getenv('MYSQL_USER', 'root')
