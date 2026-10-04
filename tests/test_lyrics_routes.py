@@ -134,3 +134,35 @@ def test_routes_require_auth(anon_client, store):
     assert anon_client.get('/api/music/song/5/lyrics-words').status_code == 401
     assert anon_client.post('/api/music/lyrics/backfill').status_code == 401
     assert anon_client.get('/api/music/lyrics/jobs').status_code == 401
+
+
+def _apply_lyrics(monkeypatch, client, record):
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return record
+
+    monkeypatch.setattr('requests.get', lambda *a, **k: Resp())
+    import models.database as db_module
+    real = db_module.Database.execute_query
+
+    def execute(query, *args, **kwargs):
+        if 'song_lyrics' in query:  # only stub the lyrics writes; auth still needs the real DB
+            return None
+        return real(query, *args, **kwargs)
+
+    monkeypatch.setattr(db_module.Database, 'execute_query', staticmethod(execute))
+    return client.post('/api/music/song/5/lyrics', json={'lrclib_id': 1})
+
+
+def test_applying_synced_lyrics_queues_a_word_sync(client, store, monkeypatch):
+    res = _apply_lyrics(monkeypatch, client, {'syncedLyrics': '[00:01.00] hi', 'plainLyrics': 'hi'})
+    assert res.status_code == 200
+    assert store['enqueued'] == [(5, False)]
+
+
+def test_applying_plain_lyrics_does_not_queue_a_word_sync(client, store, monkeypatch):
+    res = _apply_lyrics(monkeypatch, client, {'plainLyrics': 'hi'})
+    assert res.status_code == 200
+    assert store['enqueued'] == []
