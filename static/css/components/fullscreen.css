@@ -1905,6 +1905,21 @@
         justify-content: flex-end;
     }
 
+    /* The swapped-side rules above carry an id, so they outrank the plain
+       mobile rules: undo them so both layouts stack the same way. */
+    #fullscreen-player.layout-swapped .fs-content {
+        flex-direction: column-reverse;
+    }
+
+    #fullscreen-player.layout-swapped .fs-queue-container {
+        padding-left: 0;
+        border-left: none;
+    }
+
+    #fullscreen-player.layout-swapped .fs-current-info {
+        padding-right: 0;
+    }
+
     .fs-artwork-container {
         width: 180px;
         height: 180px;
