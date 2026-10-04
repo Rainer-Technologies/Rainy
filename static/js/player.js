@@ -58,7 +58,7 @@ export class AudioPlayer {
         this.lyricsData = null;
         this.lyricsSongId = null;
         this.activeLyricIndex = -1;
-        this.lyricsEffect = 'default';
+        this.lyricsEffect = 'word';
         this._activeWordEls = null;
         this._activeWordLit = -1;
         this._slideWordFracs = null;
@@ -1774,7 +1774,14 @@ export class AudioPlayer {
         this._showLyricsEmpty('Lyrics haven’t been fetched yet', 'Fetch lyrics');
     }
 
+    /** Forget the cached word-sync state so the next lyrics load re-requests timings (lyrics were replaced). */
+    invalidateLyricsAnalysis() {
+        this._lyricsAnalysisSongId = null;
+        clearTimeout(this._wordTimesPoll);
+    }
+
     async loadLyrics(songId, refresh = false) {
+        if (refresh) this.invalidateLyricsAnalysis();
         this.lyricsSongId = songId;
         this.lyricsData = null;
         this.activeLyricIndex = -1;

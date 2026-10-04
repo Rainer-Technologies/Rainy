@@ -147,6 +147,7 @@ export class LyricsModal extends Component {
         app.showToast('Lyrics updated', 'success');
 
         if(window.player && window.player.currentSong && window.player.currentSong.id === currentSong.id) {
+            window.player.invalidateLyricsAnalysis();
             window.player.loadLyrics(currentSong.id);
         }
     }

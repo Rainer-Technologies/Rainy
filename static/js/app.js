@@ -4048,7 +4048,7 @@ export class RainyApp {
         // Set current color in picker
         let currentColor = '#3d7dc4';
         let currentFsMode = 'standard'; // default for new/no-pref accounts — keep in sync with player.js toggleFullscreen
-        let currentLyricsEffect = 'default';
+        let currentLyricsEffect = 'word';
         let currentLightshowIntensity = 'auto';
         let lightshowReduceFlashing = false;
         let lightshowLyrics = true;

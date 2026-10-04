@@ -2533,6 +2533,12 @@ def search_lyrics():
         return server_error()
 
 
+def _queue_word_sync(song_id):
+    """Queue a word-timing alignment for lyrics that were just added or replaced."""
+    from utils import lyrics_worker
+    lyrics_worker.enqueue_song(song_id)
+
+
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['GET'])
 @require_auth
 @require_song_access
@@ -2589,6 +2595,8 @@ def get_lyrics(song_id):
              found, synced_json, plain_text))
         # Word timings were aligned against the previous lyrics — drop them.
         Database.execute_query("DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
+        if synced:
+            _queue_word_sync(song_id)
 
         if not found:
             return jsonify({'error': 'No lyrics found for this song', 'state': 'not_found'}), 404
@@ -2662,6 +2670,8 @@ def apply_lyrics(song_id):
             (song_id, 1, synced_json, plain_text, 1, synced_json, plain_text))
         # Word timings were aligned against the previous lyrics — drop them.
         Database.execute_query("DELETE FROM song_lyrics_words WHERE song_id = %s", (song_id,))
+        if synced:
+            _queue_word_sync(song_id)
 
         return jsonify({
             'success': True,
