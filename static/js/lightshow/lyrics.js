@@ -111,6 +111,8 @@ export class StageLyrics {
         this._interOn = false;
         this._noteCount = 0;
         this._axis = 0;          // px the stage is shifted to sit on the cover's centre line
+        this.lowPower = false;   // set by the engine: cheaper styling for slow machines
+        this._vars = {};         // last value written per CSS variable
 
         const el = document.createElement('div');
         el.className = 'ls-lyrics';
@@ -633,23 +635,26 @@ export class StageLyrics {
             for (let k = 0; k < 3; k++) ds[k].classList.toggle('lit', k < lit);
         }
 
-        // ---- Show-driven styling (throttled to ~30 Hz) ----
-        if (now - this._varsAt > 0.033) {
+        // ---- Show-driven styling (throttled to ~30 Hz, ~8 Hz in low power) ----
+        // The variables are inherited by every letter, so each write restyles the
+        // whole line; only write the ones that changed.
+        if (now - this._varsAt > (this.lowPower ? 0.125 : 0.033)) {
             this._varsAt = now;
-            const s = this.el.style;
+            const low = this.lowPower;
             const sec = (F.section && F.section.label) || 'verse';
             const genre = (F.profile && F.profile.genre) || 'pop';
             const want = `ls-lyrics sec-${sec} g-${genre}${this._visible ? ' visible' : ''}${resting ? ' resting' : ''}${dotsOn ? ' dots-on' : ''}${this._it > 0.03 ? ' interlude' : ''}`;
             if (this.el.className !== want) this.el.className = want;
-            s.setProperty('--c1', `rgb(${P.a[0] | 0},${P.a[1] | 0},${P.a[2] | 0})`);
-            s.setProperty('--c2', `rgb(${P.b[0] | 0},${P.b[1] | 0},${P.b[2] | 0})`);
-            s.setProperty('--kick', F.pulse.k.toFixed(3));
-            s.setProperty('--snare', F.pulse.s.toFixed(3));
-            s.setProperty('--rms', F.bands.rms.toFixed(3));
-            s.setProperty('--build', (F.buildProgress || 0).toFixed(3));
-            s.setProperty('--dim', (1 - 0.85 * (F.stopDepth || 0)).toFixed(3));
-            s.setProperty('--it', this._it.toFixed(3));
-            s.setProperty('--prog', (this._prog || 0).toFixed(3));
+            this._setVar('--c1', `rgb(${P.a[0] | 0},${P.a[1] | 0},${P.a[2] | 0})`);
+            this._setVar('--c2', `rgb(${P.b[0] | 0},${P.b[1] | 0},${P.b[2] | 0})`);
+            // Low power: the letters stop answering the beat (that restyled them every frame).
+            this._setVar('--kick', low ? '0' : F.pulse.k.toFixed(3));
+            this._setVar('--snare', low ? '0' : F.pulse.s.toFixed(3));
+            this._setVar('--rms', low ? '0' : F.bands.rms.toFixed(3));
+            this._setVar('--build', (F.buildProgress || 0).toFixed(low ? 2 : 3));
+            this._setVar('--dim', (1 - 0.85 * (F.stopDepth || 0)).toFixed(low ? 2 : 3));
+            this._setVar('--it', this._it.toFixed(low ? 2 : 3));
+            this._setVar('--prog', (this._prog || 0).toFixed(low ? 2 : 3));
         }
 
         // ---- Follow-spot target ----
@@ -707,6 +712,12 @@ export class StageLyrics {
 
         this._updateAdlibs(t);
         this._updateInterlude(F, t, dt, line, next, resting);
+    }
+
+    _setVar(name, value) {
+        if (this._vars[name] === value) return;
+        this._vars[name] = value;
+        this.el.style.setProperty(name, value);
     }
 
     // ------------------------------------------------------------- ad-libs
@@ -785,7 +796,7 @@ export class StageLyrics {
         this._prog = br && Number.isFinite(br.b) ? clamp((t - br.a) / Math.max(0.1, br.b - br.a - beat * 5), 0, 1) : 0;
 
         // Notes rise on the beat while the break plays.
-        if (this._it > 0.5 && F.newBeat && F.running !== false && this._noteCount < 10 && Math.random() < 0.6) {
+        if (this._it > 0.5 && F.newBeat && F.running !== false && this._noteCount < (this.lowPower ? 4 : 10) && Math.random() < 0.6) {
             const n = document.createElement('span');
             n.className = 'ls-note';
             n.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${Math.random() < 0.35 ? NOTE_B : NOTE_A}</svg>`;

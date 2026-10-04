@@ -16,6 +16,7 @@
  *   start(audioEl) · stop() · resume() · loadScript(songId, force) · clearScript(songId)
  */
 import { Logger } from '../helper/logger.js';
+import { t } from '../i18n/index.js';
 import { useLightshowService } from '../services/lightshow.js';
 import { PlaybackClock } from './clock.js';
 import { Score } from './score.js';
@@ -29,6 +30,12 @@ const POLL_MS = 8000;
 const MIN_FLASH_GAP = 1 / 3;          // ≤ 3 flashes per second (WCAG 2.3.1)
 const INTENSITY = { chill: 0.3, balanced: 0.65, hype: 1 };
 const QUALITY_SCALE = [1, 0.75, 0.5];
+// Low performance mode: fixed render scale (ignores DPR) and a 30 fps cap.
+const LOW_SCALE = 0.6;
+const LOW_FRAME_MS = 1000 / 30 - 2;
+const LOW_POWER_KEY = 'rainy-ls-lowpower';
+const SLOW_HINT_AFTER = 10;  // seconds at the lowest auto quality, still slow, before suggesting low power
+const SLOW_HINT_KEY = 'rainy-ls-slow-hint';
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
 const HUD_SETTLE = 0.7;      // seconds to wait for the stage layout before the HUD moves to the cover
 const GENRE_NAMES ={ edm: 'EDM', pop: 'Pop', rock: 'Rock', hiphop: 'Hip-hop', latin: 'Latin', chill: 'Chill', orchestral: 'Orchestral' };
@@ -75,17 +82,27 @@ export class LightShowEngine {
         this.accentHue = 350;
         this.palette = paletteFor({ accentHue: this.accentHue, label: 'intro', genre: 'pop' });
 
-        this._prefs = { disableLasers: false, showBgBlur: false, reduceFlashing: false, intensity: 'auto', offset: 0 };
+        this._prefs = { disableLasers: false, showBgBlur: false, reduceFlashing: false, intensity: 'auto', offset: 0, lowPower: false };
         this._prefsAt = -1;
 
         this._quality = 0;
         this._frameEma = 1 / 60;
         this._qualityTimer = 0;
+        this._lowPower = false;
+        this._lastFrameAt = 0;
+        this._slowFor = 0;
+        this._backdropKey = '';
 
         this._hud = null;
+        this._lpPrompt = null;
+        this._lpPending = false;
+        this._lpTimer = null;
         this._hudTimer = null;
         this.stage = container ? new StageLyrics(container) : null;
         this._stageOn = false;
+        // Stage lyrics are opt-in per queue: off for every new queue, and once
+        // switched on they stay on for the songs that follow in that queue.
+        this.stageLyrics = false;
         this._lastSprayAt = 0;
         this._onLoadStart = () => this._onTrackChange();
     }
@@ -107,6 +124,8 @@ export class LightShowEngine {
         if (this.container) this.container.classList.add('lightshow-on');
         this._ensureHud();
         this._renderHud(true);
+        // An unanswered low-power offer comes back with the show.
+        if (this._lpPending && this._lpPrompt) this._lpPrompt.classList.add('show');
         this._startLoop();
     }
 
@@ -117,9 +136,20 @@ export class LightShowEngine {
         this._clearPoll();
         if (this.renderer) this.renderer.clear();
         if (this.canvas) this.canvas.style.filter = 'none';
-        if (this.container) this.container.classList.remove('lightshow-on');
+        if (this.container) this.container.classList.remove('lightshow-on', 'ls-lowpower');
+        this._lowPower = false;
+        this._backdropKey = '';
         if (this._hud) this._hud.classList.remove('show', 'compact');
+        if (this._lpPrompt) this._lpPrompt.classList.remove('show');
         this._setStage(false);
+    }
+
+    /** A new queue started: stage lyrics go back to off until picked again. */
+    resetStageLyrics() {
+        if (!this.stageLyrics) return;
+        this.stageLyrics = false;
+        this._setStage(false);
+        this._renderHud(true);
     }
 
     /** Called when the fullscreen player re-opens while the show is active. */
@@ -236,6 +266,7 @@ export class LightShowEngine {
             intensity: ['auto', 'chill', 'balanced', 'hype'].includes(p.lightshow_intensity) ? p.lightshow_intensity : 'auto',
             offset: clamp(Number(p.lightshow_offset_ms) || 0, -500, 500) / 1000,
             stageLyrics: p.lightshow_lyrics !== false,
+            lowPower: readLowPower(),
         };
         return this._prefs;
     }
@@ -262,13 +293,27 @@ export class LightShowEngine {
         const loop = (ts) => {
             this._raf = null;
             if (!this.active) return;
-            this._frame(ts);
+            // Low power: render every other frame on a 60 Hz display (the loop itself keeps running).
+            if (!this._prefs.lowPower || ts - this._lastFrameAt >= LOW_FRAME_MS) {
+                this._lastFrameAt = ts;
+                this._frame(ts);
+            }
             if (this.active) this._raf = requestAnimationFrame(loop);
         };
         this._raf = requestAnimationFrame(loop);
     }
 
-    _resize(dt) {
+    _resize(dt, lowPower) {
+        const r = this.renderer;
+        r.floorPx = this.container && this.container.classList.contains('mode-standard') ? 90 : 0;
+        if (lowPower) {
+            // Fixed lowest quality; the adaptive state is left as it was.
+            this._slowFor = 0;
+            r.quality = 2;
+            r.lowPower = true;
+            r.resize(window.innerWidth, window.innerHeight, LOW_SCALE);
+            return;
+        }
         // Adaptive quality: drop resolution/effects when frames run long.
         this._frameEma = lerp(this._frameEma, dt, 0.05);
         this._qualityTimer += dt;
@@ -281,9 +326,10 @@ export class LightShowEngine {
         } else if (this._frameEma >= 1 / 57 && this._frameEma <= 1 / 40) {
             this._qualityTimer = 0;
         }
-        const r = this.renderer;
+        this._slowFor = this._quality === 2 && this._frameEma > 1 / 40 ? this._slowFor + dt : 0;
+        if (this._slowFor > SLOW_HINT_AFTER) this._hintLowPower();
         r.quality = this._quality;
-        r.floorPx = this.container && this.container.classList.contains('mode-standard') ? 90 : 0;
+        r.lowPower = false;
         const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
         r.resize(window.innerWidth, window.innerHeight, dpr * QUALITY_SCALE[this._quality]);
     }
@@ -296,7 +342,14 @@ export class LightShowEngine {
         this._lastTs = now;
 
         const prefs = this._getPrefs();
-        this._resize(dt);
+        if (prefs.lowPower !== this._lowPower) {
+            this._lowPower = prefs.lowPower;
+            this._backdropKey = '';
+            // Leaving low power: the ~30 fps frame times would otherwise read as a slow machine.
+            if (!prefs.lowPower) this._frameEma = 1 / 60;
+            this.container.classList.toggle('ls-lowpower', prefs.lowPower);
+        }
+        this._resize(dt, prefs.lowPower);
         this._alignHud(now);
 
         // ---- Musical state ----
@@ -376,9 +429,11 @@ export class LightShowEngine {
 
         // ---- Stage lyrics ----
         const stage = this.stage;
-        if (stage && prefs.stageLyrics && this.songId && stage.songId !== this.songId) stage.load(this.songId);
-        this._setStage(!!(stage && prefs.stageLyrics && stage.ready && stage.songId === this.songId));
+        const wantStage = prefs.stageLyrics && this.stageLyrics;
+        if (stage && wantStage && this.songId && stage.songId !== this.songId) stage.load(this.songId);
+        this._setStage(!!(stage && wantStage && stage.ready && stage.songId === this.songId));
         if (this._stageOn) {
+            stage.lowPower = prefs.lowPower;
             stage.update(F, t, P, now);
             const lbl = F.section && F.section.label;
             const hot = lbl === 'drop' || lbl === 'chorus';
@@ -415,7 +470,8 @@ export class LightShowEngine {
         this.burstAmt *= Math.exp(-dt / 0.6);
 
         // ---- Render ----
-        const want = prefs.showBgBlur ? 'blur(24px)' : 'none';
+        // A CSS blur on a canvas that changes every frame is re-filtered every frame.
+        const want = prefs.showBgBlur && !prefs.lowPower ? 'blur(24px)' : 'none';
         if (this.canvas.style.filter !== want) this.canvas.style.filter = want;
         try {
             this._render(F, a, b, mix, dt, P);
@@ -424,10 +480,16 @@ export class LightShowEngine {
         }
 
         if (this.backdrop) {
-            const scale = 1.02 + 0.05 * p.k * this.dim;
-            const opacity = (0.4 + 0.35 * F.bands.rms) * this.dim;
-            this.backdrop.style.transform = `scale(${scale.toFixed(3)})`;
-            this.backdrop.style.opacity = opacity.toFixed(3);
+            // Low power: no sub-bass pump, so the heavily blurred backdrop is
+            // only recomposited when the dimmer moves (blackouts, pause).
+            const scale = prefs.lowPower ? 1.02 : 1.02 + 0.05 * p.k * this.dim;
+            const opacity = prefs.lowPower ? 0.5 * Math.round(this.dim * 10) / 10 : (0.4 + 0.35 * F.bands.rms) * this.dim;
+            const key = `${scale.toFixed(3)}|${opacity.toFixed(3)}`;
+            if (key !== this._backdropKey) {
+                this._backdropKey = key;
+                this.backdrop.style.transform = `scale(${scale.toFixed(3)})`;
+                this.backdrop.style.opacity = opacity.toFixed(3);
+            }
         }
     }
 
@@ -492,7 +554,7 @@ export class LightShowEngine {
         const hazeAmt = lerp(b ? b.haze : a.haze, a.haze, mix);
         const lights = r.lightsOf(a, ka);
         if (b && kb > 0.05) lights.push(...r.lightsOf(b, kb));
-        r.hazeLayer(hazeAmt, lights.slice(0, 16), this.pulse.h * dim, dt);
+        r.hazeLayer(hazeAmt, lights.slice(0, this._lowPower ? 6 : 16), this.pulse.h * dim, dt);
 
         // Follow spots on the word being sung.
         const band = this._stageOn && this.stage.band;
@@ -540,6 +602,51 @@ export class LightShowEngine {
         r.vignette();
     }
 
+    /**
+     * The show is still struggling at the lowest auto quality: offer low power
+     * on stage. The card stays until it is answered (once per session).
+     */
+    _hintLowPower() {
+        this._slowFor = -Infinity;
+        if (this._lpPending) return;
+        try {
+            if (sessionStorage.getItem(SLOW_HINT_KEY)) return;
+        } catch (e) { /* offer it anyway */ }
+        this._lpPending = true;
+        this._ensureLowPowerPrompt();
+        this._lpPrompt.classList.remove('done');
+        this._lpPrompt.classList.add('show');
+    }
+
+    _ensureLowPowerPrompt() {
+        if (this._lpPrompt || !this.container) return;
+        const el = document.createElement('div');
+        el.className = 'ls-lp-prompt';
+        el.setAttribute('role', 'status');
+        el.innerHTML = `<p class="ls-lp-ask"><b>${t('The light show is running slowly on this device.')}</b>`
+            + ` ${t('Low Performance Mode keeps it smooth with lighter effects.')}</p>`
+            + `<p class="ls-lp-done"><b>${t('Low Performance Mode is on.')}</b> ${t('You can change it in Settings → Light Show.')}</p>`
+            + `<div class="ls-lp-actions"><button type="button" class="ls-lp-later">${t('Not now')}</button>`
+            + `<button type="button" class="ls-lp-on">${t('Turn on')}</button></div>`;
+        const answer = (on) => {
+            this._lpPending = false;
+            try { sessionStorage.setItem(SLOW_HINT_KEY, '1'); } catch (e) { /* ignore */ }
+            if (!on) {
+                el.classList.remove('show');
+                return;
+            }
+            try { localStorage.setItem(LOW_POWER_KEY, '1'); } catch (e) { /* ignore */ }
+            this._prefsAt = -1;   // apply on the next frame
+            el.classList.add('done');
+            clearTimeout(this._lpTimer);
+            this._lpTimer = setTimeout(() => el.classList.remove('show'), 4000);
+        };
+        el.querySelector('.ls-lp-later').addEventListener('click', (e) => { e.stopPropagation(); answer(false); });
+        el.querySelector('.ls-lp-on').addEventListener('click', (e) => { e.stopPropagation(); answer(true); });
+        this.container.appendChild(el);
+        this._lpPrompt = el;
+    }
+
     // ------------------------------------------------------------------ HUD
 
     _ensureHud() {
@@ -547,15 +654,12 @@ export class LightShowEngine {
         const el = document.createElement('div');
         el.className = 'ls-hud';
         el.innerHTML = '<span class="ls-hud-side ls-hud-l"><b></b><small>BPM</small></span>'
-            + `<button type="button" class="ls-hud-lyrics" title="Lyrics on stage" aria-pressed="false">${MIC_ICON}</button>`
+            + `<button type="button" class="ls-hud-lyrics" title="${t('Lyrics on stage')}" aria-pressed="false">${MIC_ICON}</button>`
             + '<span class="ls-hud-side ls-hud-r"><span class="ls-hud-meta"></span></span>';
         el.querySelector('.ls-hud-lyrics').addEventListener('click', (e) => {
             e.stopPropagation();
-            const on = !this._getPrefs(true).stageLyrics;
-            if (window.app && typeof window.app.savePreferences === 'function') {
-                window.app.savePreferences({ lightshow_lyrics: on });
-            }
-            this._prefs.stageLyrics = on;
+            const on = !this.stageLyrics;
+            this.stageLyrics = on;
             if (on && this.stage && this.songId) this.stage.load(this.songId);
             this._renderHud(true);
             if (on && this.stage && !this.stage.ready) window.showToast?.('No synced lyrics for this song', 'info');
@@ -581,9 +685,12 @@ export class LightShowEngine {
     _syncHudStage(prefs) {
         const btn = this._hud && this._hud.querySelector('.ls-hud-lyrics');
         if (!btn) return;
-        const pressed = String(!!prefs.stageLyrics);
+        // The settings toggle decides whether stage lyrics are offered at all.
+        btn.hidden = !prefs.stageLyrics;
+        const on = !!prefs.stageLyrics && this.stageLyrics;
+        const pressed = String(on);
         if (btn.getAttribute('aria-pressed') !== pressed) btn.setAttribute('aria-pressed', pressed);
-        const missing = !!prefs.stageLyrics && !!this.stage && !this.stage.ready;
+        const missing = on && !!this.stage && !this.stage.ready;
         btn.classList.toggle('missing', missing);
     }
 
@@ -631,10 +738,10 @@ export class LightShowEngine {
         let meta;
         if (synced) {
             el.querySelector('.ls-hud-l b').textContent = String(Math.round(this.score.tempo));
-            meta = GENRE_NAMES[this.score.profile.genre] || 'Synced';
-        } else if (this.status === 'analysing') meta = 'Analysing song';
-        else if (this.status === 'loading') meta = 'Loading show';
-        else meta = 'Live';
+            meta = t(GENRE_NAMES[this.score.profile.genre] || 'Synced');
+        } else if (this.status === 'analysing') meta = t('Analysing song');
+        else if (this.status === 'loading') meta = t('Loading show');
+        else meta = t('Live');
         el.querySelector('.ls-hud-meta').textContent = meta;
         el.dataset.status = synced ? 'synced' : this.status;
         el.classList.add('show');
@@ -643,6 +750,14 @@ export class LightShowEngine {
             clearTimeout(this._hudTimer);
             this._hudTimer = setTimeout(() => el.classList.add('compact'), 4500);
         }
+    }
+}
+
+function readLowPower() {
+    try {
+        return localStorage.getItem(LOW_POWER_KEY) === '1';
+    } catch (e) {
+        return false;
     }
 }
 

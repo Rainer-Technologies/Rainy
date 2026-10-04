@@ -363,6 +363,14 @@ export class RainyApp {
             this.savePreferences({ lightshow_reduce_flashing: e.target.checked });
         });
 
+        // Per device, not per account: the same user may have a desktop that runs the full show fine.
+        document.getElementById('settings-lightshow-low-power')?.addEventListener('change', (e) => {
+            try {
+                if (e.target.checked) localStorage.setItem('rainy-ls-lowpower', '1');
+                else localStorage.removeItem('rainy-ls-lowpower');
+            } catch (err) { /* ignore */ }
+        });
+
         const lightshowOffset = document.getElementById('settings-lightshow-offset');
         lightshowOffset?.addEventListener('input', (e) => this._renderLightshowOffset(Number(e.target.value)));
         lightshowOffset?.addEventListener('change', (e) => {
@@ -3981,6 +3989,10 @@ export class RainyApp {
 
         const reduceFlashToggle = document.getElementById('settings-lightshow-reduce-flashing');
         if (reduceFlashToggle) reduceFlashToggle.checked = lightshowReduceFlashing;
+        const lowPowerToggle = document.getElementById('settings-lightshow-low-power');
+        if (lowPowerToggle) {
+            try { lowPowerToggle.checked = localStorage.getItem('rainy-ls-lowpower') === '1'; } catch (e) { /* ignore */ }
+        }
         const stageLyricsToggle = document.getElementById('settings-lightshow-lyrics');
         if (stageLyricsToggle) stageLyricsToggle.checked = lightshowLyrics;
         const offsetInput = document.getElementById('settings-lightshow-offset');

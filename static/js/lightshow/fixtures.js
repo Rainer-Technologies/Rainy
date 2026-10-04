@@ -10,6 +10,8 @@ import { TAU, clamp, lerp, rgba, toWhite, mixRgb } from './palette.js';
 import { N_PIX } from './scenes.js';
 
 const HAZE_MAX = 90;
+const SPARK_CAP = [260, 160, 90];
+const LOW_SPARK_CAP = 40;
 
 /** Underdamped spring on a 2D point (device px): lags its target, then overshoots a little. */
 class Spring {
@@ -41,6 +43,7 @@ export class Renderer {
         this.s = 1;           // device px per CSS px (DPR × quality)
         this.floorPx = 0;     // CSS px reserved at the bottom (player controls)
         this.quality = 0;     // 0 best … 2 lowest
+        this.lowPower = false; // low performance mode: a thinner rig (fewer lines, sparks, rings)
         this.haze = [];
         for (let i = 0; i < HAZE_MAX; i++) {
             this.haze.push({
@@ -123,8 +126,13 @@ export class Renderer {
             ctx.closePath();
             ctx.fill();
         };
-        cone(b.width, a * 0.55, 0.8);
-        cone(b.width * 0.3, a * 0.7, 0.6);
+        if (this.lowPower) {
+            // One cone between the wide body and the hot core.
+            cone(b.width * 0.7, a * 0.7, 0.75);
+        } else {
+            cone(b.width, a * 0.55, 0.8);
+            cone(b.width * 0.3, a * 0.7, 0.6);
+        }
         this._glow(X, Y, 26 * this.s, b.color, Math.min(1, a * 1.6));
     }
 
@@ -280,7 +288,7 @@ export class Renderer {
      */
     sprayAt(tx, ty, count, colors, spread = 0) {
         const s = this.s;
-        const cap = [260, 160, 90][this.quality];
+        const cap = this.lowPower ? LOW_SPARK_CAP : SPARK_CAP[this.quality];
         count = Math.min(count, cap - this.sparks.length);
         for (let i = 0; i < count; i++) {
             const ang = Math.random() * TAU;
@@ -299,14 +307,16 @@ export class Renderer {
     fan(f, k) {
         const a = f.alpha * k;
         if (a < 0.01 || f.count < 1) return;
+        // Low power: half the lines over the same spread (a fan of 9 becomes 5).
+        const count = this.lowPower ? Math.ceil(f.count / 2) : f.count;
         const ctx = this.ctx;
         const X = this.X(f.x), Y = this.Y(f.y), L = this.L;
         const r0 = (f.r0 || 0) * this.minDim;
         const full = f.spread >= TAU - 1e-3;
         ctx.beginPath();
-        for (let i = 0; i < f.count; i++) {
-            const ang = full ? f.angle + (TAU * i) / f.count
-                : f.count === 1 ? f.angle : f.angle - f.spread / 2 + (f.spread * i) / (f.count - 1);
+        for (let i = 0; i < count; i++) {
+            const ang = full ? f.angle + (TAU * i) / count
+                : count === 1 ? f.angle : f.angle - f.spread / 2 + (f.spread * i) / (count - 1);
             const sx = Math.sin(ang), sy = -Math.cos(ang);
             ctx.moveTo(X + sx * r0, Y + sy * r0);
             ctx.lineTo(X + sx * L, Y + sy * L);
@@ -437,7 +447,7 @@ export class Renderer {
 
     burst(count, colors, strength = 1) {
         const s = this.s;
-        const cap = [260, 160, 90][this.quality];
+        const cap = this.lowPower ? LOW_SPARK_CAP : SPARK_CAP[this.quality];
         count = Math.min(count, cap - this.sparks.length);
         for (let i = 0; i < count; i++) {
             const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
@@ -452,7 +462,7 @@ export class Renderer {
     }
 
     ring(kind, color, alpha, speed = 1) {
-        if (this.rings.length > 12) this.rings.shift();
+        if (this.rings.length > (this.lowPower ? 5 : 12)) this.rings.shift();
         this.rings.push({ kind, color, alpha, r: 0, speed });
     }
 

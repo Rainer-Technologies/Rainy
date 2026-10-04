@@ -502,6 +502,11 @@ export class AudioPlayer {
             // Reset queue modifications when switching to a new playlist/context
             this.queueModified = false;
             this.queueOperations = [];
+            // A different queue: stage lyrics must be picked again manually.
+            const prev = this.playbackContext;
+            const sameContext = context && prev && prev.type === context.type
+                && prev.id != null && String(prev.id) === String(context.id);
+            if (!sameContext && this.lightShow) this.lightShow.resetStageLyrics();
         }
 
         if (this.playlist.length > 1) {
