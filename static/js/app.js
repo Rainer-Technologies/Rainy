@@ -2481,6 +2481,10 @@ export class RainyApp {
         const songContextMenu = document.querySelector('rainy-song-context-menu');
         if(!songContextMenu) return;
 
+        // Playlist songs carry in_library (false = only playable through a
+        // shared playlist); the menu offers "Add to Your Library" for those.
+        const viewSong = (this.songs || []).find(s => String(s.id) === String(songData.songId));
+
         songContextMenu.setCurrentSong({
             id: songData.songId,
             title: songData.songTitle,
@@ -2489,6 +2493,7 @@ export class RainyApp {
             duration: Number(songData.songDuration) || 0,
             cover_path: songData.songCover || null,
             genre: songData.songGenre || null,
+            in_library: viewSong?.in_library,
         });
 
         songContextMenu.show({ 

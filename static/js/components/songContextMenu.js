@@ -14,6 +14,7 @@ import { playlistDisplayName } from "../modules/playlists.js";
  * @property {number} id
  * @property {string} title
  * @property {string} artist
+ * @property {boolean} [in_library]
  */
 
 export class SongContextMenu extends Component {
@@ -30,6 +31,8 @@ export class SongContextMenu extends Component {
         this._publishSongItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._findMetadataItem = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._saveToLibraryItem = useRef(null);
 
         this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
@@ -103,6 +106,28 @@ export class SongContextMenu extends Component {
             Logger.error(e);
             window.showToast?.(e.message, 'error');
         }
+    }
+
+    /** Keep a song from a shared playlist in the user's own library. */
+    async saveCurrentSongToLibrary() {
+        this.hide();
+
+        const song = this.get('current-song');
+        if(!song) return;
+
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+        const data = await useMusicService().saveToLibrary(song.id);
+        if(data.error) {
+            Logger.error(data.error);
+            app?.showToast?.(data.error.error || data.error.message || t('Failed to add to Your Library'), 'error');
+            return;
+        }
+        for (const s of app?.songs || []) {
+            if (String(s.id) === String(song.id)) s.in_library = true;
+        }
+        app?.showToast?.(t('Added to Your Library'), 'success');
+        app?.libraryWatcher?.check();
     }
 
     deleteCurrentSong() {
@@ -372,6 +397,12 @@ export class SongContextMenu extends Component {
             const isAdmin = app?.user?.role === 'sysadmin';
             this._publishSongItem.value.style.display = isAdmin ? 'block' : 'none';
         }
+        // "Add to Your Library" only for songs heard through a shared playlist.
+        if (this._saveToLibraryItem.value) {
+            const song = this.get('current-song');
+            this._saveToLibraryItem.value.style.display =
+                song?.in_library === false ? 'block' : 'none';
+        }
         // "Find Metadata" edits the shared song row via /metadata/apply
         // (access-checked but a system-wide write) — sysadmins only.
         if (this._findMetadataItem.value) {
@@ -400,6 +431,10 @@ export class SongContextMenu extends Component {
                     h.div(a.class('dropdown-divider')),
                     h.div(this._playlistList, a.style('overflow-y: auto;', 'max-height: 200px;'))
                 )
+            ),
+            H.of(ContextMenuItem, this._saveToLibraryItem, on.click(() => this.saveCurrentSongToLibrary()),
+                I.Plus(),
+                h.span(t('Add to Your Library')),
             ),
             h.div(a.class('context-menu-divider')),
             H.of(ContextMenuItem, a.hasSubmenu(),

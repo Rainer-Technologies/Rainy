@@ -20,6 +20,8 @@ import { Service } from "./index.js";
  * @property {string} genre
  * @property {string} cover_path
  * @property {?number} tempo_bpm
+ * @property {boolean} [in_library] - playlist songs only: false when the song
+ *   is playable only through a shared playlist
  */
 
 /**
@@ -76,6 +78,17 @@ export class MusicService extends Service {
      */
     libraryVersion() {
         return this.wrap(RequestHelper.request(this.url('/library/version')));
+    }
+
+    /**
+     * Add a song heard through a shared playlist to the user's library.
+     * @param {number} songId
+     * @returns {Promise<Result<{ success: boolean }, ErrorModel | ResponseError>>}
+     */
+    saveToLibrary(songId) {
+        return this.wrap(RequestHelper.request(this.url(`/library/songs/${songId}`), {
+            method: 'POST'
+        }));
     }
 
     /** @returns {Promise<Result<{ tempos: Array<{ song_id: number, tempo_bpm: number }> }, ErrorModel | ResponseError>>} */

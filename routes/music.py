@@ -78,6 +78,20 @@ def get_library():
         return server_error()
 
 
+@music_bp.route('/library/songs/<int:song_id>', methods=['POST'])
+@require_auth
+@require_song_play_access
+def save_song_to_library(song_id):
+    """Add a song the user can hear through a shared playlist to their own
+    library, so it stays after the share ends."""
+    try:
+        from models.library_access import LibraryAccessModel
+        LibraryAccessModel.save_to_library(get_current_user_id(), song_id)
+        return jsonify({'success': True})
+    except Exception:
+        return server_error()
+
+
 @music_bp.route('/library/version', methods=['GET'])
 @require_auth
 def get_library_version():
@@ -1820,7 +1834,7 @@ def download_song(song_id):
         # download it (same rule as /stream — otherwise any logged-in user
         # could grab any file by id).
         from models.library_access import LibraryAccessModel
-        if not LibraryAccessModel.has_access(get_current_user_id(), song_id):
+        if not LibraryAccessModel.can_play(get_current_user_id(), song_id):
             return jsonify({'error': 'Song not found'}), 404
         
         relative_path = song['file_path']

@@ -9,6 +9,12 @@ A song ROW is global (one file on disk = one row), but each user only
                     sysadmin publishes it to everyone.
 - origin 'public' → the song is published (`songs.published = 1`); every
                     account gets it, including ones created later.
+- origin 'saved'  → added from a shared playlist the user is a member of.
+                    It's someone else's song, so it isn't the user's
+                    import (never counted or published as theirs).
+
+Members of a shared playlist can also play its songs without any row
+(see can_play); that access is temporary.
 """
 from .database import Database
 
@@ -131,8 +137,8 @@ class LibraryAccessModel:
         rows), so it ends when the share is revoked, the user leaves, or the
         song is removed from the playlist, and the song never lands in the
         user's library. Use it for read-only surfaces (stream, lyrics, light
-        show); anything that changes, downloads or re-shares a song still
-        needs has_access.
+        show, download); anything that changes or re-shares a song still
+        needs has_access. save_to_library turns it into a permanent row.
         """
         if LibraryAccessModel.has_access(user_id, song_id):
             return True
@@ -144,6 +150,16 @@ class LibraryAccessModel:
         """
         return Database.execute_query(query, (song_id, user_id, user_id),
                                       fetch_one=True) is not None
+
+    @staticmethod
+    def save_to_library(user_id, song_id):
+        """Keep a song from a shared playlist in the user's library.
+        Idempotent. Published songs keep the 'public' origin."""
+        return Database.execute_query("""
+            INSERT IGNORE INTO library_access (user_id, song_id, origin)
+            SELECT %s, s.id, CASE WHEN s.published = 1 THEN 'public' ELSE 'saved' END
+            FROM songs s WHERE s.id = %s
+        """, (user_id, song_id))
 
     @staticmethod
     def shares_playlist(user_id, playlist_id):

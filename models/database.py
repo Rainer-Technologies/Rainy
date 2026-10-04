@@ -206,12 +206,14 @@ class Database:
         #     'import' — the user's own import (personal),
         #     'public' — a song a sysadmin published (songs.published = 1);
         #                every account, including future ones, gets it.
+        #     'saved'  — added from a shared playlist (someone else's song,
+        #                so it doesn't count as the user's import).
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS library_access (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
                 song_id INT NOT NULL,
-                origin ENUM('scan', 'import', 'public') NOT NULL DEFAULT 'import',
+                origin ENUM('scan', 'import', 'public', 'saved') NOT NULL DEFAULT 'import',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_user_song (user_id, song_id),
                 INDEX idx_user_origin (user_id, origin),
@@ -245,6 +247,12 @@ class Database:
             cursor.execute(
                 "ALTER TABLE library_access MODIFY COLUMN origin "
                 "ENUM('scan', 'import', 'public') NOT NULL DEFAULT 'import'")
+        # Migration: 'saved' origin for songs added from a shared playlist.
+        origin_type = cls._column_type(cursor, 'library_access', 'origin')
+        if origin_type is not None and 'saved' not in origin_type:
+            cursor.execute(
+                "ALTER TABLE library_access MODIFY COLUMN origin "
+                "ENUM('scan', 'import', 'public', 'saved') NOT NULL DEFAULT 'import'")
         if cls._add_column(cursor, 'songs', 'published', 'TINYINT(1) NOT NULL DEFAULT 0'):
             # One-time: a song a regular account holds via a 'scan' row was
             # published (or pre-dates isolation) — keep it visible to all.
