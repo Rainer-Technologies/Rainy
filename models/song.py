@@ -185,7 +185,26 @@ class SongModel:
                 'cover_path': row['cover_path']
             })
         return songs
-    
+
+    @staticmethod
+    def get_library_version(user_id):
+        """Cheap fingerprint of which songs a user can see.
+
+        Changes whenever a song is added to or removed from the user's
+        library (imports, scans, publishes, deletes), so clients can poll it
+        and only re-fetch the full library when something actually changed.
+        """
+        from models.library_access import LibraryAccessModel
+        join_sql, join_params = LibraryAccessModel.access_join(user_id)
+        query = f"""
+            SELECT COUNT(*) AS n, COALESCE(MAX(s.id), 0) AS max_id,
+                   COALESCE(SUM(s.id), 0) AS id_sum
+            FROM songs s
+            {join_sql}
+        """
+        row = Database.execute_query(query, join_params, fetch_one=True) or {}
+        return f"{row.get('n', 0)}-{row.get('max_id', 0)}-{row.get('id_sum', 0)}"
+
     @staticmethod
     def get_recently_added(limit=20, user_id=None):
         """Get recently added songs, ordered by scan date (newest first).

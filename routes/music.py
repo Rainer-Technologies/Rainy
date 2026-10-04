@@ -29,6 +29,8 @@ def get_library():
 
         # Get all songs visible to this user
         all_songs = SongModel.get_all_songs(user_id=user_id)
+        # Lets the client's change watcher know which state it has rendered.
+        version = SongModel.get_library_version(user_id)
         
         # If database is empty, suggest running a scan
         if not all_songs:
@@ -37,6 +39,7 @@ def get_library():
                 'sections': [],
                 'all_songs': [],
                 'total': 0,
+                'version': version,
                 'message': 'Library is empty. Run a scan to populate the library.'
             })
         
@@ -66,11 +69,29 @@ def get_library():
             'success': True,
             'sections': sections,
             'all_songs': all_songs,  # Keep for backward compatibility and search
-            'total': len(all_songs)
+            'total': len(all_songs),
+            'version': version
         })
         
     except Exception:
         return server_error()
+
+
+@music_bp.route('/library/version', methods=['GET'])
+@require_auth
+def get_library_version():
+    """Fingerprints of the user's songs and playlists.
+
+    Polled by open clients so new songs/playlists (added from another tab,
+    device, user, or a background job) show up without a page reload. Both
+    values are opaque: compare them, never parse them.
+    """
+    from models.playlist import PlaylistModel
+    user_id = get_current_user_id()
+    return jsonify({
+        'songs': SongModel.get_library_version(user_id),
+        'playlists': PlaylistModel.get_version_for_user(user_id),
+    })
 
 
 @music_bp.route('/tempo', methods=['GET'])

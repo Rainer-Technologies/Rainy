@@ -5,6 +5,7 @@ import { ResponseError } from './helper/request.js';
 import { Result } from './helper/result.js';
 import { Router, View } from './helper/router.js';
 import { Library } from './modules/library.js';
+import { LibraryWatcher } from './modules/libraryWatcher.js';
 import { Playlists, playlistDisplayName } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
 import { browserLanguage, fillLanguageSelect, getLanguage, setLanguage, t } from './i18n/index.js';
@@ -78,6 +79,9 @@ export class RainyApp {
         this.coverOverride = {};
         this._routingStarted = false;
         this._settingsReturnPath = null;
+        // Picks up songs/playlists added elsewhere (other tabs, devices,
+        // users, background imports) without a reload.
+        this.libraryWatcher = new LibraryWatcher(this);
 
         useContext().set('app', this);
 
@@ -1858,18 +1862,29 @@ export class RainyApp {
         this.loadImportJobs();
     }
 
-    async loadLibrary() {
+    /**
+     * @param {{ silent?: boolean }} [options] - silent: background refresh
+     *  (no loading state, keeps the current view, search, sort and scroll)
+     * @returns {Promise<boolean>} whether the library was loaded
+     */
+    async loadLibrary({ silent = false } = {}) {
         const loadingState = document.getElementById('loading-state');
         const emptyState = document.getElementById('empty-state');
         const songsGrid = document.getElementById('songs-grid');
 
-        loadingState.classList.remove('hidden');
-        emptyState.classList.add('hidden');
-        songsGrid.innerHTML = '';
-        document.getElementById('songs-list-content').innerHTML = '';
+        if (!silent) {
+            loadingState.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            songsGrid.innerHTML = '';
+            document.getElementById('songs-list-content').innerHTML = '';
+        }
 
         const data = await useMusicService().library();
         if (data.error) {
+            if (silent) {
+                Logger.warn('Background library refresh failed', data.error);
+                return false;
+            }
             Logger.error('Failed to load music libary!', data.error);
             loadingState.classList.add('hidden');
             emptyState.classList.remove('hidden');
@@ -1879,6 +1894,11 @@ export class RainyApp {
 
         const library = data.value;
         if (!library) throw new Error('unreachable');
+        this.libraryWatcher.noteSongsVersion(library.version);
+        if (silent) {
+            this.applyLibraryUpdate(library);
+            return true;
+        }
         loadingState.classList.add('hidden');
 
         const allSongs = library.all_songs;
@@ -1903,10 +1923,55 @@ export class RainyApp {
                 this.refreshLibraryQueue();
             }
 
-            return;
+            return true;
         }
 
         emptyState.classList.remove('hidden');
+        return true;
+    }
+
+    /**
+     * Swap in a library fetched in the background without the loading
+     * flash. Only re-renders when the Library view is on screen, and keeps
+     * the user's place there: search filter, sort and scroll position.
+     * Other views pick the new songs up when the user returns to Library.
+     * @param {import('./services/music.js').LibraryModel} library
+     */
+    applyLibraryUpdate(library) {
+        const allSongs = library.all_songs || [];
+        this.librarySongs = [...allSongs];
+        this.librarySections = JSON.parse(JSON.stringify(library.sections || []));
+
+        if (useContext().get('current-view-type') !== 'library') return;
+
+        const main = document.querySelector('.app-main');
+        const scrollTop = main?.scrollTop ?? 0;
+
+        this.songs = allSongs;
+        this.sections = library.sections || [];
+        this.filteredSongs = [...this.songs];
+
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('empty-state').classList.toggle('hidden', allSongs.length > 0);
+        if (allSongs.length === 0) {
+            document.getElementById('songs-grid').innerHTML = '';
+            document.getElementById('songs-list-content').innerHTML = '';
+        } else if (this.currentSort !== 'default') {
+            this.applySortFilter(this.currentSort); // re-sorts, then renders
+        } else {
+            this.renderSections();
+        }
+
+        const query = document.getElementById('search-input')?.value || '';
+        if (query.trim()) {
+            this.handleSearch(query); // re-applies the filter and stats
+        } else {
+            this.updateViewModeControls();
+            this.updateStats();
+        }
+
+        if (main) main.scrollTop = scrollTop;
+        this.refreshLibraryQueue();
     }
 
     renderSections() {
@@ -2292,6 +2357,7 @@ export class RainyApp {
     /** Stop playback and background polling tied to the current session. */
     teardownSession() {
         window.player?.shutdownSession();
+        this.libraryWatcher.stop();
         window.friendsModule?.stop();
         this.user = null;
         this.songs = [];
@@ -2443,6 +2509,62 @@ export class RainyApp {
 
         this.playlists = playlists;
         this.renderSidebarPlaylists();
+        return true;
+    }
+
+    /**
+     * Background refresh after playlists changed elsewhere: update the
+     * sidebar and the open playlist, if any.
+     * @returns {Promise<boolean>} whether the playlists were refreshed
+     */
+    async refreshPlaylists() {
+        if (!(await this.loadPlaylists())) return false;
+        await this.refreshOpenPlaylist();
+        return true;
+    }
+
+    /** Re-fetch the open playlist and re-render it in place if it changed. */
+    async refreshOpenPlaylist() {
+        const playlistId = this.currentPlaylistId;
+        const isOpen = () => useContext().get('current-view-type') === 'playlist' &&
+            this.currentPlaylistId === playlistId;
+        if (playlistId == null || !isOpen()) return;
+
+        const data = await usePlaylistService().fetch(playlistId);
+        if (!isOpen()) return; // the user navigated away meanwhile
+        if (data.error) {
+            // Deleted, or access revoked, from another device/user.
+            if (this.user && !(data.error instanceof ResponseError)) {
+                this.showToast('This playlist is no longer available', 'error');
+                this.switchToLibraryView();
+            }
+            return;
+        }
+
+        const playlist = data.value;
+        if (!playlist) return;
+
+        const title = document.querySelector('.section-title');
+        const sameSongs = playlist.songs.length === this.songs.length &&
+            playlist.songs.every((song, i) => song.id === this.songs[i]?.id);
+        if (sameSongs && title?.textContent === playlistDisplayName(playlist.name)) return;
+
+        const main = document.querySelector('.app-main');
+        const scrollTop = main?.scrollTop ?? 0;
+
+        if (title) title.textContent = playlistDisplayName(playlist.name);
+        document.getElementById('library-subtitle').textContent = t('{count} songs', { count: playlist.songs.length });
+
+        this.songs = playlist.songs;
+        this.filteredSongs = [...playlist.songs];
+        this.sections = [{
+            type: 'grid',
+            title: t('Playlist Songs'),
+            songs: this.songs
+        }];
+        this.renderSections();
+
+        if (main) main.scrollTop = scrollTop;
     }
 
     renderSidebarPlaylists() {

@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from .database import Database
 
 class PlaylistModel:
@@ -36,7 +39,34 @@ class PlaylistModel:
             ORDER BY p.name
         """
         return Database.execute_query(query, (user_id, user_id), fetch_all=True)
-    
+
+    @staticmethod
+    def get_version_for_user(user_id):
+        """Cheap fingerprint of the playlists a user can see and their songs.
+
+        Covers playlists appearing/disappearing (created, deleted, shared,
+        left), renames, icon/cover changes, and songs being added, removed
+        or reordered, so clients can poll it instead of re-fetching.
+        """
+        query = """
+            SELECT p.id, p.name, p.icon, p.icon_color, p.cover_path,
+                   ps.role AS share_role,
+                   COUNT(pe.id) AS n,
+                   COALESCE(MAX(pe.id), 0) AS last_entry,
+                   COALESCE(SUM(pe.track_id * (pe.order_num + 1)), 0) AS layout
+            FROM playlists p
+            LEFT JOIN playlist_shares ps
+                   ON ps.playlist_id = p.id AND ps.user_id = %s AND ps.status = 'accepted'
+            LEFT JOIN playlist_entries pe ON pe.playlist_id = p.id
+            WHERE p.owner_user_id IS NULL OR p.owner_user_id = %s
+               OR ps.user_id IS NOT NULL
+            GROUP BY p.id, p.name, p.icon, p.icon_color, p.cover_path, ps.role
+            ORDER BY p.id
+        """
+        rows = Database.execute_query(query, (user_id, user_id), fetch_all=True) or []
+        payload = json.dumps([list(r.values()) for r in rows], default=str)
+        return hashlib.sha1(payload.encode()).hexdigest()[:16]
+
     @staticmethod
     def get_playlist_by_id(playlist_id):
         """Get a specific playlist by ID."""

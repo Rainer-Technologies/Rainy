@@ -28,6 +28,7 @@ export async function handle(data, userdata) {
         userdata.loadPlaylists(),
         userdata.loadLibrary()
     ]);
+    userdata.libraryWatcher?.start();
     userdata.startRouting?.();
     document.dispatchEvent(new CustomEvent('rainy:ready'));
 };

@@ -37,6 +37,13 @@ import { Service } from "./index.js";
  * @property {Array<SectionModel>} sections
  * @property {Array<SongModel>} all_songs
  * @property {number} total
+ * @property {string} version - opaque songs fingerprint (see libraryVersion)
+ */
+
+/**
+ * @typedef {Object} LibraryVersionModel
+ * @property {string} songs - opaque fingerprint of the visible songs
+ * @property {string} playlists - opaque fingerprint of the visible playlists
  */
 
 /**
@@ -60,6 +67,15 @@ export class MusicService extends Service {
     /** @returns {Promise<Result<LibraryModel, ErrorModel | ResponseError>>} */
     library() {
         return this.wrap(RequestHelper.request(this.url('/library')));
+    }
+
+    /**
+     * Cheap fingerprints that change when songs or playlists are added,
+     * removed or edited, so the UI can poll and only re-fetch on change.
+     * @returns {Promise<Result<LibraryVersionModel, ErrorModel | ResponseError>>}
+     */
+    libraryVersion() {
+        return this.wrap(RequestHelper.request(this.url('/library/version')));
     }
 
     /** @returns {Promise<Result<{ tempos: Array<{ song_id: number, tempo_bpm: number }> }, ErrorModel | ResponseError>>} */
