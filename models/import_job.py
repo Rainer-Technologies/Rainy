@@ -1,5 +1,6 @@
 """Data-access layer for background import jobs (YouTube / Spotify)."""
 import json
+import uuid
 
 from models.database import Database
 
@@ -34,29 +35,25 @@ class ImportJobModel:
         """Atomically claim the oldest queued job, marking it running.
 
         Returns the claimed row (with its id) or None if the queue is empty.
-        Uses an UPDATE ... LIMIT 1 followed by a SELECT on the affected row so
-        only one worker ever picks up a given job.
+        The UPDATE only matches a still-queued row and stamps it with a fresh
+        token, so when several server processes poll the queue only one of
+        them ever gets a given job.
         """
-        # Mark the oldest queued job as running.
+        token = str(uuid.uuid4())
         update = """
             UPDATE import_jobs
-            SET status = 'running', started_at = NOW()
-            WHERE id = (
+            SET status = 'running', started_at = NOW(), claim_token = %s
+            WHERE status = 'queued' AND id = (
                 SELECT id FROM (
                     SELECT id FROM import_jobs WHERE status = 'queued'
                     ORDER BY created_at ASC, id ASC LIMIT 1
                 ) AS next_job
             )
         """
-        Database.execute_query(update)
-
-        # Fetch the job we just started (the one with the latest started_at
-        # among running jobs is ours, since only one worker runs at a time).
-        select = """
-            SELECT * FROM import_jobs WHERE status = 'running'
-            ORDER BY started_at DESC, id DESC LIMIT 1
-        """
-        return Database.execute_query(select, fetch_one=True)
+        Database.execute_query(update, (token,))
+        return Database.execute_query(
+            "SELECT * FROM import_jobs WHERE claim_token = %s LIMIT 1",
+            (token,), fetch_one=True)
 
     @staticmethod
     def update_progress(job_id, progress, message):

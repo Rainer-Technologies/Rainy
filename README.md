@@ -144,7 +144,7 @@ cp .env.example .env             # set FLASK_SECRET_KEY and the MYSQL_* values (
 python app.py
 ```
 
-On Windows, `start.bat` does all of this: it creates the virtualenv, installs requirements, copies `.env` and starts the server. Set `RAINY_DEV=1` to allow an auto-generated session secret and the debug server for local development only.
+On Linux/macOS, `./start.sh` (or `start.bat` on Windows) does all of this: it creates the virtualenv, installs requirements, copies `.env` and starts the server. Set `RAINY_DEV=1` to allow an auto-generated session secret and the debug server for local development only. (On Linux/macOS, `./start.sh --gunicorn` or `RAINY_USE_GUNICORN=1` can also be used to launch with Gunicorn workers).
 
 ## ⚙️ Configuration
 

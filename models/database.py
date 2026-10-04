@@ -532,6 +532,8 @@ class Database:
         # Migration: how a playlist import resolves a name collision
         # ('add' | 'override' | 'new'). NULL lets the handler use its default.
         cls._add_column(cursor, 'import_jobs', 'conflict_mode', 'VARCHAR(16) NULL')
+        # Lets several server processes (gunicorn workers) share the queue.
+        cls._add_column(cursor, 'import_jobs', 'claim_token', 'VARCHAR(36) NULL')
 
         # Song audio features — objective signal analysis from librosa.
         # One row per song, computed locally from the audio file itself so it
@@ -636,6 +638,7 @@ class Database:
         # Migration: flag a job as a forced full re-analysis (redo audio
         # analysis + external metadata even for already-enriched songs).
         cls._add_column(cursor, 'enrichment_jobs', 'force_full', 'TINYINT(1) NOT NULL DEFAULT 0')
+        cls._add_column(cursor, 'enrichment_jobs', 'claim_token', 'VARCHAR(36) NULL')
 
         # Light show analysis queue (server-side score generation). Same shape
         # as enrichment_jobs plus a claim token so several gunicorn workers

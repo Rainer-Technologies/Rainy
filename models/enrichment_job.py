@@ -1,9 +1,10 @@
 """Data-access layer for background enrichment jobs.
 
-Mirrors the import_jobs model: a single background worker drains the queue
+Mirrors the import_jobs model: background workers drain the queue
 one job at a time, streaming progress into the DB so the frontend can poll.
 """
 import json
+import uuid
 
 from models.database import Database
 
@@ -74,23 +75,24 @@ class EnrichmentJobModel:
 
     @staticmethod
     def claim_next():
-        """Atomically claim the oldest queued job, marking it running."""
+        """Atomically claim the oldest queued job, marking it running.
+
+        Token-stamped so concurrent server processes never share a job."""
+        token = str(uuid.uuid4())
         update = """
             UPDATE enrichment_jobs
-            SET status = 'running', started_at = NOW()
-            WHERE id = (
+            SET status = 'running', started_at = NOW(), claim_token = %s
+            WHERE status = 'queued' AND id = (
                 SELECT id FROM (
                     SELECT id FROM enrichment_jobs WHERE status = 'queued'
                     ORDER BY created_at ASC, id ASC LIMIT 1
                 ) AS next_job
             )
         """
-        Database.execute_query(update)
-        select = """
-            SELECT * FROM enrichment_jobs WHERE status = 'running'
-            ORDER BY started_at DESC, id DESC LIMIT 1
-        """
-        return Database.execute_query(select, fetch_one=True)
+        Database.execute_query(update, (token,))
+        return Database.execute_query(
+            "SELECT * FROM enrichment_jobs WHERE claim_token = %s LIMIT 1",
+            (token,), fetch_one=True)
 
     @staticmethod
     def update_progress(job_id, progress, message):
