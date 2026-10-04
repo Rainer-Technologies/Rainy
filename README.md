@@ -1,3 +1,5 @@
+<img src="static/icons/icon-512.png" alt="Rainy" width="120" height="120">
+
 # Rainy
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
