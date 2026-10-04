@@ -7,6 +7,7 @@
  */
 import { Logger } from '../helper/logger.js';
 import { Utils } from './utils.js';
+import { t } from '../i18n/index.js';
 import { useFriendsService } from '../services/friends.js';
 import { usePlaylistService } from '../services/playlist.js';
 
@@ -136,14 +137,13 @@ export class FriendsModule {
         if (friends.length === 0) {
             container.innerHTML = `
                 <div class="friends-empty">
-                    No friends yet. Add someone by email or username — once they
-                    accept, you can invite them to edit your playlists together.
+                    ${t('No friends yet. Add someone by email or username — once they accept, you can invite them to edit your playlists together.')}
                 </div>`;
             return;
         }
         container.innerHTML = `
             <div class="friends-subheader">
-                <span>Your friends</span>
+                <span>${t('Your friends')}</span>
                 <span class="friends-count">${friends.length}</span>
             </div>
             ${friends.map(f => `
@@ -154,7 +154,7 @@ export class FriendsModule {
                     <div class="friend-email">${Utils.escapeHtml(f.email)}</div>
                 </div>
                 <button type="button" class="btn btn-sm btn-danger" data-action="unfriend" data-id="${f.id}">
-                    Unfriend
+                    ${t('Unfriend')}
                 </button>
             </div>`).join('')}`;
 
@@ -170,7 +170,7 @@ export class FriendsModule {
         const outgoing = this.requests?.outgoing || [];
 
         const incomingHtml = incoming.length === 0
-            ? `<div class="friends-empty">No incoming requests.</div>`
+            ? `<div class="friends-empty">${t('No incoming requests.')}</div>`
             : incoming.map(r => `
                 <div class="friend-row" data-id="${r.id}">
                     <div class="friend-avatar">${Utils.escapeHtml((r.username || '?')[0].toUpperCase())}</div>
@@ -179,13 +179,13 @@ export class FriendsModule {
                         <div class="friend-email">${Utils.escapeHtml(r.email)}</div>
                     </div>
                     <div class="friend-actions">
-                        <button type="button" class="btn btn-sm btn-primary" data-action="accept-req" data-id="${r.id}">Accept</button>
-                        <button type="button" class="btn btn-sm btn-danger" data-action="decline-req" data-id="${r.id}">Decline</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-action="accept-req" data-id="${r.id}">${t('Accept')}</button>
+                        <button type="button" class="btn btn-sm btn-danger" data-action="decline-req" data-id="${r.id}">${t('Decline')}</button>
                     </div>
                 </div>`).join('');
 
         const outgoingHtml = outgoing.length === 0
-            ? `<div class="friends-empty">No pending requests you sent.</div>`
+            ? `<div class="friends-empty">${t('No pending requests you sent.')}</div>`
             : outgoing.map(r => `
                 <div class="friend-row" data-id="${r.id}">
                     <div class="friend-avatar">${Utils.escapeHtml((r.username || '?')[0].toUpperCase())}</div>
@@ -194,19 +194,19 @@ export class FriendsModule {
                         <div class="friend-email">${Utils.escapeHtml(r.email)}</div>
                     </div>
                     <div class="friend-actions">
-                        <span class="friend-chip">Pending</span>
-                        <button type="button" class="btn btn-sm" data-action="withdraw-req" data-id="${r.id}">Withdraw</button>
+                        <span class="friend-chip">${t('Pending')}</span>
+                        <button type="button" class="btn btn-sm" data-action="withdraw-req" data-id="${r.id}">${t('Withdraw')}</button>
                     </div>
                 </div>`).join('');
 
         container.innerHTML = `
             <div class="friends-subheader">
-                <span>Incoming</span>
+                <span>${t('Incoming')}</span>
                 <span class="friends-count">${incoming.length}</span>
             </div>
             ${incomingHtml}
             <div class="friends-subheader">
-                <span>Sent</span>
+                <span>${t('Sent')}</span>
                 <span class="friends-count">${outgoing.length}</span>
             </div>
             ${outgoingHtml}`;
@@ -229,14 +229,13 @@ export class FriendsModule {
         if (invites.length === 0) {
             container.innerHTML = `
                 <div class="friends-empty">
-                    No playlist invitations. When a friend shares a playlist with
-                    you, it shows up here — accept it to add it to your library.
+                    ${t('No playlist invitations. When a friend shares a playlist with you, it shows up here — accept it to add it to your library.')}
                 </div>`;
             return;
         }
         container.innerHTML = `
             <div class="friends-subheader">
-                <span>Playlist invites</span>
+                <span>${t('Playlist invites')}</span>
                 <span class="friends-count">${invites.length}</span>
             </div>
             ${invites.map(i => `
@@ -244,11 +243,11 @@ export class FriendsModule {
                 <div class="friend-avatar">${Utils.escapeHtml((i.playlist_name || '?')[0].toUpperCase())}</div>
                 <div class="friend-info">
                     <div class="friend-name">${Utils.escapeHtml(i.playlist_name)}</div>
-                    <div class="friend-email">invited by ${Utils.escapeHtml(i.invited_by_username)}</div>
+                    <div class="friend-email">${t('invited by {name}', { name: Utils.escapeHtml(i.invited_by_username) })}</div>
                 </div>
                 <div class="friend-actions">
-                    <button type="button" class="btn btn-sm btn-primary" data-action="accept-invite" data-id="${i.id}">Accept</button>
-                    <button type="button" class="btn btn-sm" data-action="decline-invite" data-id="${i.id}">Decline</button>
+                    <button type="button" class="btn btn-sm btn-primary" data-action="accept-invite" data-id="${i.id}">${t('Accept')}</button>
+                    <button type="button" class="btn btn-sm" data-action="decline-invite" data-id="${i.id}">${t('Decline')}</button>
                 </div>
             </div>`).join('')}`;
 
@@ -318,7 +317,7 @@ export class FriendsModule {
         const modal = document.getElementById('playlist-share-modal');
         if (!modal) return;
         document.getElementById('playlist-share-modal-title').textContent =
-            `Invite friends — ${playlistName}`;
+            t('Invite friends — {name}', { name: playlistName });
 
         const [sharesRes, friendsRes] = await Promise.all([
             usePlaylistService().shares(playlistId),
@@ -332,7 +331,7 @@ export class FriendsModule {
 
         const friendsList = document.getElementById('share-friends-list');
         if (available.length === 0) {
-            friendsList.innerHTML = `<div class="friends-empty">No friends left to invite — everyone's in!</div>`;
+            friendsList.innerHTML = `<div class="friends-empty">${t("No friends left to invite — everyone's in!")}</div>`;
         } else {
             friendsList.innerHTML = available.map(f => `
                 <div class="friend-row" data-id="${f.id}">
@@ -342,7 +341,7 @@ export class FriendsModule {
                         <div class="friend-email">${Utils.escapeHtml(f.email)}</div>
                     </div>
                     <button type="button" class="btn btn-sm btn-primary" data-action="invite" data-id="${f.id}">
-                        Invite
+                        ${t('Invite')}
                     </button>
                 </div>`).join('');
             friendsList.querySelectorAll('[data-action="invite"]').forEach(btn => {
@@ -359,7 +358,7 @@ export class FriendsModule {
 
         const currentList = document.getElementById('share-current-list');
         if (shares.length === 0) {
-            currentList.innerHTML = `<div class="friends-empty">No collaborators yet.</div>`;
+            currentList.innerHTML = `<div class="friends-empty">${t('No collaborators yet.')}</div>`;
         } else {
             currentList.innerHTML = shares.map(s => `
                 <div class="friend-row" data-id="${s.id}">
@@ -367,16 +366,16 @@ export class FriendsModule {
                     <div class="friend-info">
                         <div class="friend-name">${Utils.escapeHtml(s.username)}</div>
                         <div class="friend-email">
-                            ${s.status === 'pending' ? '<span class="friend-chip friend-chip-warn">invited</span>' : ''}
+                            ${s.status === 'pending' ? `<span class="friend-chip friend-chip-warn">${t('invited')}</span>` : ''}
                         </div>
                     </div>
                     <div class="friend-actions">
-                        <select class="share-role-change" data-share-id="${s.id}" title="Change role">
-                            <option value="admin" ${s.role === 'admin' ? 'selected' : ''}>Admin</option>
-                            <option value="viewer" ${s.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                        <select class="share-role-change" data-share-id="${s.id}" title="${t('Change role')}">
+                            <option value="admin" ${s.role === 'admin' ? 'selected' : ''}>${t('Admin')}</option>
+                            <option value="viewer" ${s.role === 'viewer' ? 'selected' : ''}>${t('Viewer')}</option>
                         </select>
                         <button type="button" class="btn btn-sm btn-danger" data-action="revoke" data-id="${s.id}">
-                            Revoke
+                            ${t('Revoke')}
                         </button>
                     </div>
                 </div>`).join('');
@@ -409,7 +408,7 @@ export class FriendsModule {
     // ── Leave playlist (collaborators) ──────────────────────────────
 
     async leavePlaylist(playlistId, playlistName) {
-        if (!window.confirm?.(`Leave "${playlistName}"? It will be removed from your library.`)) return;
+        if (!window.confirm?.(t('Leave "{name}"? It will be removed from your library.', { name: playlistName }))) return;
         const res = await usePlaylistService().leavePlaylist(playlistId);
         if (res.error) return window.showToast?.(res.error.error, 'error');
         window.showToast?.(res.value.message || 'Playlist removed');

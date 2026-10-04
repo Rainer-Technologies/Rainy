@@ -92,7 +92,7 @@
 
 <body>
     <!-- Boot splash: removed by the script at the end of <body> once the app is ready -->
-    <div id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy">
+    <div id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy" data-i18n-attr="aria-label">
         <img src="/icons/icon-192.png" alt="" width="88" height="88" decoding="async" fetchpriority="high">
         <div class="rs-line" aria-hidden="true"></div>
     </div>
@@ -105,40 +105,51 @@
                     <div class="setup-logo">
                         <img src="/icons/icon-192.png" alt="Rainy" />
                     </div>
-                    <h1>Welcome to Rainy</h1>
-                    <p>Let's set up your music server</p>
+                    <h1 data-i18n>Welcome to Rainy</h1>
+                    <p data-i18n>Let's set up your music server</p>
                 </div>
 
                 <div id="setup-error" class="error-message"></div>
 
                 <form id="setup-form">
                     <div class="form-group">
-                        <label class="form-label" for="setup-username">Username</label>
+                        <label class="form-label" for="setup-language" data-i18n>Language</label>
+                        <div class="select-wrapper">
+                            <select id="setup-language" class="form-input"></select>
+                            <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 10l5 5 5-5z" />
+                            </svg>
+                        </div>
+                        <span class="form-hint" data-i18n>Used for your account. Each user can pick their own in Settings.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="setup-username" data-i18n>Username</label>
                         <input type="text" id="setup-username" class="form-input" placeholder="Enter your username"
-                            required>
+                            required data-i18n-attr="placeholder">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="setup-email">Email</label>
-                        <input type="email" id="setup-email" class="form-input" placeholder="Enter your email" required>
+                        <label class="form-label" for="setup-email" data-i18n>Email</label>
+                        <input type="email" id="setup-email" class="form-input" placeholder="Enter your email" required data-i18n-attr="placeholder">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="setup-password">Password</label>
+                        <label class="form-label" for="setup-password" data-i18n>Password</label>
                         <input type="password" id="setup-password" class="form-input" placeholder="Create a password"
-                            required minlength="6">
-                        <span class="form-hint">Must be at least 6 characters</span>
+                            required minlength="8" data-i18n-attr="placeholder">
+                        <span class="form-hint" data-i18n>Must be at least 8 characters</span>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="setup-music-path">Music Library Path</label>
+                        <label class="form-label" for="setup-music-path" data-i18n>Music Library Path</label>
                         <input type="text" id="setup-music-path" class="form-input"
-                            placeholder="C:\Music or /home/user/music" required>
-                        <span class="form-hint">Full path to your music folder</span>
+                            placeholder="C:\Music or /home/user/music" required data-i18n-attr="placeholder">
+                        <span class="form-hint" data-i18n>Full path to your music folder</span>
                     </div>
 
                     <button type="submit" class="btn btn-primary" id="setup-submit">
-                        <span>Complete Setup</span>
+                        <span data-i18n>Complete Setup</span>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                         </svg>
@@ -156,26 +167,26 @@
                     <div class="setup-logo">
                         <img src="/icons/icon-192.png" alt="Rainy" />
                     </div>
-                    <h1>Welcome Back</h1>
-                    <p>Sign in to your music library</p>
+                    <h1 data-i18n>Welcome Back</h1>
+                    <p data-i18n>Sign in to your music library</p>
                 </div>
 
                 <div id="login-error" class="error-message"></div>
 
                 <form id="login-form">
                     <div class="form-group">
-                        <label class="form-label" for="login-email">Email</label>
-                        <input type="email" id="login-email" class="form-input" placeholder="Enter your email" required>
+                        <label class="form-label" for="login-email" data-i18n>Email</label>
+                        <input type="email" id="login-email" class="form-input" placeholder="Enter your email" required data-i18n-attr="placeholder">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="login-password">Password</label>
+                        <label class="form-label" for="login-password" data-i18n>Password</label>
                         <input type="password" id="login-password" class="form-input" placeholder="Enter your password"
-                            required>
+                            required data-i18n-attr="placeholder">
                     </div>
 
                     <button type="submit" class="btn btn-primary" id="login-submit">
-                        <span>Sign In</span>
+                        <span data-i18n>Sign In</span>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                         </svg>
@@ -192,7 +203,7 @@
             <!-- Left section - toggle wrapper for alignment + brand -->
             <div class="header-left">
                 <div class="header-toggle-wrapper">
-                    <button class="sidebar-toggle header-icon-btn" id="sidebar-toggle" type="button" title="Toggle navigation" aria-label="Toggle navigation" aria-expanded="true">
+                    <button class="sidebar-toggle header-icon-btn" id="sidebar-toggle" type="button" title="Toggle navigation" aria-label="Toggle navigation" aria-expanded="true" data-i18n-attr="title aria-label">
                         <svg viewBox="0 0 24 24" fill="currentColor">
                             <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
                         </svg>
@@ -213,11 +224,11 @@
                         <path
                             d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                     </svg>
-                    <input type="text" id="search-input" placeholder="Search songs, artists..." aria-label="Search your library">
+                    <input type="text" id="search-input" placeholder="Search songs, artists..." aria-label="Search your library" data-i18n-attr="aria-label placeholder">
                 </div>
 
                 <button type="button" class="header-icon-btn shortcuts-btn" id="shortcuts-btn"
-                    title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
+                    title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" data-i18n-attr="title aria-label">
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path
                             d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" />
@@ -225,7 +236,7 @@
                 </button>
                 <div class="user-menu" id="user-menu">
                     <div class="user-menu-trigger" id="user-menu-trigger" role="button" tabindex="0"
-                        aria-label="Open account menu" aria-expanded="false">
+                        aria-label="Open account menu" aria-expanded="false" data-i18n-attr="aria-label">
                         <div class="user-avatar" id="user-avatar">U</div>
                         <span class="user-name" id="user-name">User</span>
                         <svg class="user-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -238,7 +249,7 @@
                                 <path
                                     d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zM10 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
                             </svg>
-                            <span>Import music</span>
+                            <span data-i18n>Import music</span>
                         </button>
                         <div class="dropdown-divider"></div>
                         <button type="button" class="dropdown-item" id="menu-settings">
@@ -246,7 +257,7 @@
                                 <path
                                     d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                             </svg>
-                            <span>Settings</span>
+                            <span data-i18n>Settings</span>
                         </button>
                         <div class="dropdown-divider"></div>
                         <button type="button" class="dropdown-item logout" id="menu-logout">
@@ -254,7 +265,7 @@
                                 <path
                                     d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
                             </svg>
-                            <span>Logout</span>
+                            <span data-i18n>Logout</span>
                         </button>
                     </div>
                 </div>
@@ -263,20 +274,20 @@
 
         <!-- Main Content -->
         <div class="app-body">
-            <aside class="app-sidebar" aria-label="Main navigation">
+            <aside class="app-sidebar" aria-label="Main navigation" data-i18n-attr="aria-label">
                 <nav class="sidebar-nav">
                     <div class="nav-section">
-                        <h3 class="nav-header">Library</h3>
+                        <h3 class="nav-header" data-i18n>Library</h3>
                         <a href="/library" class="nav-item active" id="nav-library">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 16h8V4h-2v6l-2.5-1.5L11 10V4h-1v12z" />
                             </svg>
-                            <span>Library</span>
+                            <span data-i18n>Library</span>
                         </a>
                         <button class="nav-more-toggle" id="nav-more-toggle" type="button" aria-expanded="false"
                             aria-controls="nav-secondary-items">
-                            <span>More</span>
+                            <span data-i18n>More</span>
                             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
@@ -286,26 +297,26 @@
                                 <svg viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
                                 </svg>
-                                <span>Recently Played</span>
+                                <span data-i18n>Recently Played</span>
                             </a>
                             <a href="/smart-mix" class="nav-item nav-secondary-item" id="nav-smartmix">
                                 <svg viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
                                 </svg>
-                                <span>Smart Mix</span>
+                                <span data-i18n>Smart Mix</span>
                             </a>
                             <a href="/discover" class="nav-item nav-secondary-item" id="nav-discover">
                                 <svg viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13l-2 5 5 2-2 5-5-2 2-5-5-2z"/>
                                 </svg>
-                                <span>Discover Music</span>
+                                <span data-i18n>Discover Music</span>
                             </a>
                             <a href="/friends" class="nav-item nav-secondary-item" id="nav-friends">
                                 <svg viewBox="0 0 24 24" fill="currentColor">
                                     <path
                                         d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                                 </svg>
-                                <span>Friends</span>
+                                <span data-i18n>Friends</span>
                                 <span class="nav-badge hidden" id="friends-badge">0</span>
                             </a>
                         </div>
@@ -314,7 +325,7 @@
                     <div class="nav-section">
                         <button class="nav-header nav-collapse-toggle" id="nav-browse-toggle" type="button"
                             aria-expanded="true" aria-controls="nav-browse-items">
-                            <span>Browse</span>
+                            <span data-i18n>Browse</span>
                             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
@@ -324,21 +335,21 @@
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
                             </svg>
-                            <span>Albums</span>
+                            <span data-i18n>Albums</span>
                         </a>
                         <a href="/artists" class="nav-item nav-browse-item" id="nav-artists">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                             </svg>
-                            <span>Artists</span>
+                            <span data-i18n>Artists</span>
                         </a>
                         </div>
                     </div>
 
                     <div class="nav-section">
                         <div class="nav-header-row">
-                            <h3 class="nav-header">Playlists</h3>
-                            <button class="icon-btn-small" id="sidebar-new-playlist" type="button" title="New Playlist" aria-label="New playlist">
+                            <h3 class="nav-header" data-i18n>Playlists</h3>
+                            <button class="icon-btn-small" id="sidebar-new-playlist" type="button" title="New Playlist" aria-label="New playlist" data-i18n-attr="title aria-label">
                                 <svg viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                                 </svg>
@@ -351,14 +362,14 @@
                 </nav>
             </aside>
             <button class="sidebar-backdrop hidden" id="sidebar-backdrop" type="button"
-                aria-label="Close navigation" aria-hidden="true"></button>
+                aria-label="Close navigation" aria-hidden="true" data-i18n-attr="aria-label"></button>
             <main class="app-main" id="app-main">
                 <div class="section-header">
                     <div>
                         <div class="title-row">
-                            <h1 class="section-title">Your Library</h1>
+                            <h1 class="section-title" data-i18n>Your Library</h1>
                             <div class="playlist-menu-container hidden" id="playlist-menu-container">
-                                <button class="icon-btn" id="playlist-settings-btn" title="Playlist Settings">
+                                <button class="icon-btn" id="playlist-settings-btn" title="Playlist Settings" data-i18n-attr="title">
                                     <svg viewBox="0 0 24 24" fill="currentColor">
                                         <path
                                             d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
@@ -370,71 +381,71 @@
                                             <path
                                                 d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                                         </svg>
-                                        <span>Edit Icon</span>
+                                        <span data-i18n>Edit Icon</span>
                                     </div>
                                     <div class="dropdown-item" id="action-rename-playlist">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path
                                                 d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                                         </svg>
-                                        <span>Rename</span>
+                                        <span data-i18n>Rename</span>
                                     </div>
                                     <div class="dropdown-item" id="action-share-playlist">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                                         </svg>
-                                        <span>Invite Friend</span>
+                                        <span data-i18n>Invite Friend</span>
                                     </div>
                                     <div class="dropdown-item" id="action-leave-playlist">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
                                         </svg>
-                                        <span>Leave Playlist</span>
+                                        <span data-i18n>Leave Playlist</span>
                                     </div>
                                     <div class="dropdown-item" id="action-download-playlist">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
                                         </svg>
-                                        <span>Download Playlist</span>
+                                        <span data-i18n>Download Playlist</span>
                                     </div>
                                     <div class="dropdown-item" id="action-export-m3u">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v7h7v9H6zm2-5h8v1.5H8V15zm0-3h8v1.5H8V12z" />
                                         </svg>
-                                        <span>Export as M3U</span>
+                                        <span data-i18n>Export as M3U</span>
                                     </div>
                                     <div class="dropdown-item" id="action-export-csv">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v7h7v9H6zm2-5h8v1.5H8V15zm0-3h8v1.5H8V12zm0-3h4v1.5H8V9z" />
                                         </svg>
-                                        <span>Export as CSV</span>
+                                        <span data-i18n>Export as CSV</span>
                                     </div>
                                     <div class="dropdown-item" id="action-regen-cover">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                                         </svg>
-                                        <span>Regenerate Cover</span>
+                                        <span data-i18n>Regenerate Cover</span>
                                     </div>
                                     <div class="dropdown-item danger" id="action-delete-playlist">
                                         <svg viewBox="0 0 24 24" fill="currentColor">
                                             <path
                                                 d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                                         </svg>
-                                        <span>Delete</span>
+                                        <span data-i18n>Delete</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <p class="section-subtitle" id="library-subtitle">All your music in one place</p>
+                        <p class="section-subtitle" id="library-subtitle" data-i18n>All your music in one place</p>
                     </div>
 
                     <div class="view-toggle">
-                        <button class="view-toggle-btn active" id="grid-view-btn" type="button" title="Grid View" aria-label="Grid view" aria-pressed="true">
+                        <button class="view-toggle-btn active" id="grid-view-btn" type="button" title="Grid View" aria-label="Grid view" aria-pressed="true" data-i18n-attr="title aria-label">
                             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
                             </svg>
                         </button>
-                        <button class="view-toggle-btn" id="list-view-btn" type="button" title="List View" aria-label="List view" aria-pressed="false">
+                        <button class="view-toggle-btn" id="list-view-btn" type="button" title="List View" aria-label="List view" aria-pressed="false" data-i18n-attr="title aria-label">
                             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path
                                     d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
@@ -447,22 +458,22 @@
                 <div class="library-stats" id="library-stats">
                     <div class="stat-card">
                         <div class="stat-value" id="stat-songs">0</div>
-                        <div class="stat-label">Songs</div>
+                        <div class="stat-label" data-i18n>Songs</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value" id="stat-artists">0</div>
-                        <div class="stat-label">Artists</div>
+                        <div class="stat-label" data-i18n>Artists</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value" id="stat-albums">0</div>
-                        <div class="stat-label">Albums</div>
+                        <div class="stat-label" data-i18n>Albums</div>
                     </div>
                 </div>
 
                 <!-- Loading State -->
                 <div id="loading-state" class="loading-container hidden">
                     <div class="loading-spinner"></div>
-                    <p class="loading-text">Loading your library...</p>
+                    <p class="loading-text" data-i18n>Loading your library...</p>
                 </div>
 
                 <!-- Empty State -->
@@ -471,8 +482,8 @@
                         <path
                             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                     </svg>
-                    <h3>No Music Found</h3>
-                    <p>Add some music files to your library folder and refresh to see them here.</p>
+                    <h3 data-i18n>No Music Found</h3>
+                    <p data-i18n>Add some music files to your library folder and refresh to see them here.</p>
                 </div>
 
                 <!-- Songs Grid View -->
@@ -482,14 +493,14 @@
                 <div id="songs-list" class="songs-list hidden">
                     <div class="list-header">
                         <span>#</span>
-                        <span class="list-header-sortable" id="list-sort-title">
+                        <span class="list-header-sortable" id="list-sort-title" data-i18n>
                             Title
                             <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
                         </span>
-                        <span>Album</span>
-                        <span>Duration</span>
+                        <span data-i18n>Album</span>
+                        <span data-i18n>Duration</span>
                     </div>
                     <div id="songs-list-content"></div>
                 </div>
@@ -503,8 +514,8 @@
                                     <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                                 </svg>
                             </span>
-                            <input type="text" id="discover-search-input" placeholder="Search YouTube Music for songs...">
-                            <button id="discover-search-btn" class="search-btn-pill" title="Search">
+                            <input type="text" id="discover-search-input" placeholder="Search YouTube Music for songs..." data-i18n-attr="placeholder">
+                            <button id="discover-search-btn" class="search-btn-pill" title="Search" data-i18n-attr="title">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                                 </svg>
@@ -515,15 +526,15 @@
                     <!-- Discover Results -->
                     <div id="discover-loading" class="loading-container hidden">
                         <div class="loading-spinner"></div>
-                        <p class="loading-text">Searching YouTube...</p>
+                        <p class="loading-text" data-i18n>Searching YouTube...</p>
                     </div>
                     
                     <div id="discover-empty" class="empty-state hidden">
                         <svg viewBox="0 0 24 24" fill="currentColor">
                             <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                         </svg>
-                        <h3>No Results Found</h3>
-                        <p>Try searching for a different song title or artist.</p>
+                        <h3 data-i18n>No Results Found</h3>
+                        <p data-i18n>Try searching for a different song title or artist.</p>
                     </div>
 
                     <div id="discover-results" class="discover-results-list"></div>
@@ -531,7 +542,7 @@
                     <!-- Preview Player Floating Bar -->
                     <div id="discover-preview-bar" class="discover-preview-bar hidden">
                         <div class="preview-info">
-                            <img id="preview-cover" src="" alt="Cover" class="preview-cover-art">
+                            <img id="preview-cover" src="" alt="Cover" class="preview-cover-art" data-i18n-attr="alt">
                             <div class="preview-metadata">
                                 <span id="preview-title" class="preview-title-text">Song Title</span>
                                 <span id="preview-artist" class="preview-artist-text">Artist Name</span>
@@ -559,18 +570,18 @@
                 <!-- Friends View -->
                 <div id="friends-view" class="friends-view hidden">
                     <div class="friends-tabs">
-                        <button type="button" class="friends-tab active" data-tab="friends">Friends</button>
-                        <button type="button" class="friends-tab" data-tab="requests">Requests</button>
-                        <button type="button" class="friends-tab" data-tab="invites">Playlist Invites</button>
+                        <button type="button" class="friends-tab active" data-tab="friends" data-i18n>Friends</button>
+                        <button type="button" class="friends-tab" data-tab="requests" data-i18n>Requests</button>
+                        <button type="button" class="friends-tab" data-tab="invites" data-i18n>Playlist Invites</button>
                     </div>
 
                     <div id="friends-friends-panel" class="friends-panel">
                         <form id="friends-add-form" class="friends-add-form">
                             <input type="text" id="friends-add-input" class="form-input"
-                                placeholder="Add a friend by email or username">
-                            <button type="submit" class="btn btn-primary">Add</button>
+                                placeholder="Add a friend by email or username" data-i18n-attr="placeholder">
+                            <button type="submit" class="btn btn-primary" data-i18n>Add</button>
                         </form>
-                        <div class="friends-subheader">Your friends</div>
+                        <div class="friends-subheader" data-i18n>Your friends</div>
                         <div id="friends-list" class="friends-list"></div>
                     </div>
 
@@ -589,7 +600,7 @@
                         <div class="artists-header-bar">
                             <div class="artists-search-wrapper">
                                 <svg viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                                <input type="text" id="artists-search-input" placeholder="Search artists..." class="artists-search-input">
+                                <input type="text" id="artists-search-input" placeholder="Search artists..." class="artists-search-input" data-i18n-attr="placeholder">
                                 <button id="artists-search-clear" class="search-clear-btn hidden">&times;</button>
                             </div>
                             <div class="artists-stats-badge" id="artists-count-badge">0 Artists</div>
@@ -618,7 +629,7 @@
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                                         </svg>
-                                        <span>Verified Artist</span>
+                                        <span data-i18n>Verified Artist</span>
                                     </div>
                                     <h1 class="artist-profile-name" id="artist-profile-name-text">Artist Name</h1>
                                     <span class="artist-profile-meta" id="artist-profile-meta-text">0 songs in library</span>
@@ -631,37 +642,37 @@
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                                     <path d="M8 5v14l11-7z"/>
                                 </svg>
-                                <span>Play All</span>
+                                <span data-i18n>Play All</span>
                             </button>
                             <button class="artist-action-btn" id="artist-discover-btn">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                                     <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                                 </svg>
-                                <span>Discover</span>
+                                <span data-i18n>Discover</span>
                             </button>
                             <button class="artist-action-btn" id="edit-artist-profile-btn">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                     <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                                 </svg>
-                                <span>Edit</span>
+                                <span data-i18n>Edit</span>
                             </button>
                         </div>
 
                         <div class="artist-bio-row">
-                            <p class="artist-bio-inline" id="artist-profile-bio-text">No description available. Click Edit Profile to add one.</p>
-                            <button class="artist-bio-toggle hidden" id="artist-bio-toggle">more</button>
+                            <p class="artist-bio-inline" id="artist-profile-bio-text" data-i18n>No description available. Click Edit Profile to add one.</p>
+                            <button class="artist-bio-toggle hidden" id="artist-bio-toggle" data-i18n>more</button>
                         </div>
 
                         <div class="artist-songs-section">
                             <div class="artist-section-header">
-                                <h2 class="artist-section-title">Songs</h2>
+                                <h2 class="artist-section-title" data-i18n>Songs</h2>
                                 <div class="view-toggle">
-                                    <button class="view-toggle-btn" id="artist-grid-view-btn" title="Grid View">
+                                    <button class="view-toggle-btn" id="artist-grid-view-btn" title="Grid View" data-i18n-attr="title">
                                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
                                         </svg>
                                     </button>
-                                    <button class="view-toggle-btn active" id="artist-list-view-btn" title="List View">
+                                    <button class="view-toggle-btn active" id="artist-list-view-btn" title="List View" data-i18n-attr="title">
                                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                                         </svg>
@@ -679,19 +690,19 @@
                     <div class="albums-header-bar">
                         <div class="albums-search-wrapper">
                             <svg viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                            <input type="text" id="albums-search-input" placeholder="Search albums..." class="albums-search-input">
+                            <input type="text" id="albums-search-input" placeholder="Search albums..." class="albums-search-input" data-i18n-attr="placeholder">
                         </div>
                         <select id="albums-sort-select" class="albums-sort-select">
-                            <option value="name">Name</option>
-                            <option value="artist">Artist</option>
-                            <option value="year">Year</option>
-                            <option value="recent">Recently Added</option>
+                            <option value="name" data-i18n>Name</option>
+                            <option value="artist" data-i18n>Artist</option>
+                            <option value="year" data-i18n>Year</option>
+                            <option value="recent" data-i18n>Recently Added</option>
                         </select>
                     </div>
                     <div class="albums-grid" id="albums-grid-list"></div>
                     <!-- Album Detail -->
                     <div id="album-detail-view" class="album-detail-view hidden">
-                        <button id="album-back-btn" class="album-back-btn">&larr; Back to Albums</button>
+                        <button id="album-back-btn" class="album-back-btn" data-i18n>&larr; Back to Albums</button>
                         <div class="album-detail-hero" id="album-detail-hero"></div>
                         <div class="album-detail-tracks" id="album-detail-tracks"></div>
                     </div>
@@ -701,11 +712,11 @@
                 <div id="recent-view" class="recent-view hidden">
                     <div class="recent-header-bar">
                         <div class="recent-tabs">
-                            <button class="recent-tab active" data-tab="recent">Recently Played</button>
-                            <button class="recent-tab" data-tab="top">Most Played</button>
-                            <button class="recent-tab" data-tab="stats">Listening Stats</button>
+                            <button class="recent-tab active" data-tab="recent" data-i18n>Recently Played</button>
+                            <button class="recent-tab" data-tab="top" data-i18n>Most Played</button>
+                            <button class="recent-tab" data-tab="stats" data-i18n>Listening Stats</button>
                         </div>
-                        <button id="clear-history-btn" class="clear-history-btn">Clear History</button>
+                        <button id="clear-history-btn" class="clear-history-btn" data-i18n>Clear History</button>
                     </div>
                     <div id="recent-content" class="recent-content"></div>
                     <div id="recent-stats" class="recent-stats hidden"></div>
@@ -724,7 +735,7 @@
         <!-- Player Bar -->
         <div class="player-bar">
             <!-- Now Playing -->
-            <div class="now-playing" role="button" tabindex="0" aria-label="Open full player">
+            <div class="now-playing" role="button" tabindex="0" aria-label="Open full player" data-i18n-attr="aria-label">
                 <div class="now-playing-artwork" id="now-playing-artwork" aria-hidden="true">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
@@ -732,25 +743,25 @@
                     </svg>
                 </div>
                 <div class="now-playing-info">
-                    <div class="now-playing-title" id="now-playing-title">Not Playing</div>
-                    <div class="now-playing-artist" id="now-playing-artist">Select a song to play</div>
+                    <div class="now-playing-title" id="now-playing-title" data-i18n>Not Playing</div>
+                    <div class="now-playing-artist" id="now-playing-artist" data-i18n>Select a song to play</div>
                 </div>
             </div>
 
             <!-- Controls -->
             <div class="player-controls">
                 <div class="controls-main">
-                    <button class="control-btn secondary" id="shuffle-btn" type="button" title="Shuffle" aria-label="Shuffle" aria-pressed="false">
+                    <button class="control-btn secondary" id="shuffle-btn" type="button" title="Shuffle" aria-label="Shuffle" aria-pressed="false" data-i18n-attr="title aria-label">
                         <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
                         </svg>
                     </button>
-                    <button class="control-btn secondary" id="prev-btn" type="button" title="Previous" aria-label="Previous track">
+                    <button class="control-btn secondary" id="prev-btn" type="button" title="Previous" aria-label="Previous track" data-i18n-attr="title aria-label">
                         <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                         </svg>
                     </button>
-                    <button class="control-btn play-pause" id="play-pause-btn" type="button" title="Play" aria-label="Play">
+                    <button class="control-btn play-pause" id="play-pause-btn" type="button" title="Play" aria-label="Play" data-i18n-attr="title aria-label">
                         <svg class="icon-play" width="20" height="20" viewBox="0 0 24 24"
                             xmlns="http://www.w3.org/2000/svg">
                             <path d="M8 5v14l11-7z" />
@@ -764,12 +775,12 @@
                             <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z" />
                         </svg>
                     </button>
-                    <button class="control-btn secondary" id="next-btn" type="button" title="Next" aria-label="Next track">
+                    <button class="control-btn secondary" id="next-btn" type="button" title="Next" aria-label="Next track" data-i18n-attr="title aria-label">
                         <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                         </svg>
                     </button>
-                    <button class="control-btn secondary" id="repeat-btn" type="button" title="Repeat" aria-label="Repeat" aria-pressed="false">
+                    <button class="control-btn secondary" id="repeat-btn" type="button" title="Repeat" aria-label="Repeat" aria-pressed="false" data-i18n-attr="title aria-label">
                         <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
                         </svg>
@@ -788,17 +799,17 @@
 
             <!-- Compact actions -->
             <div class="player-actions">
-                <button class="control-btn secondary" id="like-btn" type="button" title="Like" aria-label="Like" aria-pressed="false">
+                <button class="control-btn secondary" id="like-btn" type="button" title="Like" aria-label="Like" aria-pressed="false" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
                     </svg>
                 </button>
-                <button class="control-btn secondary" id="dislike-btn" type="button" title="Dislike" aria-label="Dislike" aria-pressed="false">
+                <button class="control-btn secondary" id="dislike-btn" type="button" title="Dislike" aria-label="Dislike" aria-pressed="false" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
                     </svg>
                 </button>
-                <button class="control-btn secondary" id="queue-btn" type="button" title="Queue" aria-label="Open queue">
+                <button class="control-btn secondary" id="queue-btn" type="button" title="Queue" aria-label="Open queue" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
                     </svg>
@@ -807,12 +818,12 @@
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                     </svg>
-                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" step="0.1" value="80" aria-label="Volume">
+                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" step="0.1" value="80" aria-label="Volume" data-i18n-attr="aria-label">
                     <span class="volume-readout" id="volume-readout">80%</span>
                 </div>
                 <button class="control-btn secondary player-more-btn" id="player-more-btn" type="button"
                     title="More playback controls" aria-label="More playback controls" aria-expanded="false"
-                    aria-controls="player-extra">
+                    aria-controls="player-extra" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
                     </svg>
@@ -820,42 +831,42 @@
             </div>
 
             <!-- Advanced playback tools, progressively disclosed from More -->
-            <div class="player-extra context-menu hidden" id="player-extra" role="menu" aria-label="Advanced playback controls">
-                <button class="context-menu-item player-menu-item" id="sleep-timer-btn" type="button" title="Sleep Timer" aria-label="Sleep timer" role="menuitem">
+            <div class="player-extra context-menu hidden" id="player-extra" role="menu" aria-label="Advanced playback controls" data-i18n-attr="aria-label">
+                <button class="context-menu-item player-menu-item" id="sleep-timer-btn" type="button" title="Sleep Timer" aria-label="Sleep timer" role="menuitem" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
                     </svg>
-                    <span class="player-menu-label">Sleep Timer</span>
+                    <span class="player-menu-label" data-i18n>Sleep Timer</span>
                 </button>
-                <button class="context-menu-item player-menu-item" id="ab-repeat-btn" type="button" title="A-B Repeat (loop a section)" aria-label="A-B repeat" role="menuitem">
+                <button class="context-menu-item player-menu-item" id="ab-repeat-btn" type="button" title="A-B Repeat (loop a section)" aria-label="A-B repeat" role="menuitem" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
                         <text x="12" y="14.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="Arial">AB</text>
                     </svg>
-                    <span class="player-menu-label">A-B Repeat</span>
+                    <span class="player-menu-label" data-i18n>A-B Repeat</span>
                 </button>
-                <button class="context-menu-item player-menu-item" id="speed-btn" type="button" title="Playback Speed" aria-label="Playback speed" role="menuitem">
+                <button class="context-menu-item player-menu-item" id="speed-btn" type="button" title="Playback Speed" aria-label="Playback speed" role="menuitem" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.28-10.43z"/>
                         <path d="M10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/>
                     </svg>
-                    <span class="player-menu-label">Playback Speed</span>
+                    <span class="player-menu-label" data-i18n>Playback Speed</span>
                     <span class="speed-label" id="speed-label">1x</span>
                 </button>
-                <button class="context-menu-item player-menu-item" id="eq-btn" type="button" title="Equalizer" aria-label="Equalizer" role="menuitem">
+                <button class="context-menu-item player-menu-item" id="eq-btn" type="button" title="Equalizer" aria-label="Equalizer" role="menuitem" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M3 21h2v-6H3v6zm0-8h2V3H3v10zm4 8h2v-10H7v10zm0-12h2V3H7v6zm4 12h2v-4h-2v4zm0-6h2V3h-2v12zm4 6h2v-8h-2v8zm0-10h2V3h-2v6zm4 10h2v-2h-2v2zm0-4h2V3h-2v14z"/>
                     </svg>
-                    <span class="player-menu-label">Equalizer</span>
+                    <span class="player-menu-label" data-i18n>Equalizer</span>
                 </button>
-                <button class="context-menu-item player-menu-item" id="crossfade-btn" type="button" title="Crossfade" aria-label="Crossfade" role="menuitem">
+                <button class="context-menu-item player-menu-item" id="crossfade-btn" type="button" title="Crossfade" aria-label="Crossfade" role="menuitem" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M6.5 5.5C4 7.5 3 10 3 12s1 4.5 3.5 6.5M17.5 5.5C20 7.5 21 10 21 12s-1 4.5-3.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                         <path d="M8 8l-3 4 3 4M16 8l3 4-3 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    <span class="player-menu-label">Crossfade</span>
+                    <span class="player-menu-label" data-i18n>Crossfade</span>
                 </button>
-                <button class="context-menu-item player-menu-item" id="connect-btn" type="button" title="Rainy Connect — play on other devices" aria-label="Rainy Connect" role="menuitem">
+                <button class="context-menu-item player-menu-item" id="connect-btn" type="button" title="Rainy Connect — play on other devices" aria-label="Rainy Connect" role="menuitem" data-i18n-attr="title">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/>
                     </svg>
@@ -885,9 +896,9 @@
                         d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                 </svg>
                 <input type="text" id="settings-search-input" placeholder="Search settings..." autocomplete="off"
-                    spellcheck="false" aria-label="Search settings" aria-controls="settings-search-results">
+                    spellcheck="false" aria-label="Search settings" aria-controls="settings-search-results" data-i18n-attr="aria-label placeholder">
                 <button type="button" class="settings-search-clear hidden" id="settings-search-clear"
-                    aria-label="Clear search">
+                    aria-label="Clear search" data-i18n-attr="aria-label">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -897,69 +908,77 @@
 
             <!-- Navigation -->
             <nav class="settings-nav">
-                <div class="settings-nav-category">User Settings</div>
+                <div class="settings-nav-category" data-i18n>User Settings</div>
                 <a href="/settings/appearance" class="settings-nav-item active" data-section="appearance">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                     </svg>
-                    <span>Appearance</span>
+                    <span data-i18n>Appearance</span>
                 </a>
                 <a href="/settings/player" class="settings-nav-item" data-section="player">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                     </svg>
-                    <span>Player</span>
+                    <span data-i18n>Player</span>
                 </a>
                 <a href="/settings/account" class="settings-nav-item" data-section="account">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                     </svg>
-                    <span>Account</span>
+                    <span data-i18n>Account</span>
                 </a>
                 <a href="/settings/syncs" class="settings-nav-item" data-section="syncs" id="settings-nav-syncs">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
                     </svg>
-                    <span>Playlist Sync</span>
+                    <span data-i18n>Playlist Sync</span>
                 </a>
 
-                <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category">Server
-                    Settings</div>
                 <a href="/settings/jobs" class="settings-nav-item" data-section="jobs" id="settings-nav-jobs">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z" />
                     </svg>
-                    <span>Jobs</span>
+                    <span data-i18n>Jobs</span>
+                </a>
+                <a href="/settings/chromecast" class="settings-nav-item" data-section="chromecast" id="settings-nav-chromecast">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+                    </svg>
+                    <span data-i18n>Chromecast Setup</span>
+                </a>
+
+                <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category" data-i18n>Server
+                    Settings</div>
+                <a href="/settings/server" class="settings-nav-item sysadmin-only hidden" data-section="server" id="settings-nav-server">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
+                    </svg>
+                    <span data-i18n>Maintenance</span>
                 </a>
                 <a href="/settings/users" class="settings-nav-item sysadmin-only hidden" data-section="users" id="settings-nav-users">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                     </svg>
-                    <span>Users</span>
-                </a>
-                <a href="/settings/chromecast" class="settings-nav-item" data-section="chromecast" id="settings-nav-chromecast">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
-                    </svg>
-                    <span>Chromecast Setup</span>
+                    <span data-i18n>Users</span>
                 </a>
             </nav>
 
             <!-- Search results (replace the navigation while a query is typed) -->
             <div class="settings-search-results hidden" id="settings-search-results" role="listbox"
-                aria-label="Search results"></div>
+                aria-label="Search results" data-i18n-attr="aria-label"></div>
         </div>
 
         <!-- Settings Main Content -->
         <div class="settings-main">
             <div class="settings-header">
-                <h1 class="settings-title" id="settings-page-title">Appearance</h1>
-                <button class="settings-close" id="settings-close" type="button" aria-label="Close settings">
+                <h1 class="settings-title" id="settings-page-title" data-i18n>Appearance</h1>
+                <button class="settings-close" id="settings-close" type="button" aria-label="Close settings" data-i18n-attr="aria-label">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -971,14 +990,38 @@
                 <!-- Section: Appearance -->
                 <div class="settings-section active" id="settings-section-appearance">
                     <div class="settings-group">
-                        <div class="settings-group-title">Theme</div>
-                        <div class="settings-group-description">Customize the look and feel of Rainy.</div>
+                        <div class="settings-group-title" data-i18n>Language</div>
+                        <div class="settings-group-description" data-i18n>Choose the language Rainy uses for your account.</div>
 
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Accent Color</div>
-                                    <div class="settings-row-hint">Choose a color that matches your style</div>
+                                    <div class="settings-row-label" data-i18n>Interface Language</div>
+                                    <div class="settings-row-hint" data-i18n>Saved to your account and used on every device you
+                                        sign in from</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <div class="select-wrapper">
+                                        <select id="settings-language" class="form-input"
+                                            aria-label="Interface language" data-i18n-attr="aria-label"></select>
+                                        <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M7 10l5 5 5-5z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <div class="settings-group-title" data-i18n>Theme</div>
+                        <div class="settings-group-description" data-i18n>Customize the look and feel of Rainy.</div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Accent Color</div>
+                                    <div class="settings-row-hint" data-i18n>Choose a color that matches your style</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <div class="settings-color-picker">
@@ -988,26 +1031,26 @@
                                             id="settings-accent-color-value">#3d7dc4</span>
                                         <div class="settings-color-presets">
                                             <button class="settings-color-preset" data-color="#3d7dc4"
-                                                style="background-color: #3d7dc4;" title="Rainy Blue (Default)"></button>
+                                                style="background-color: #3d7dc4;" title="Rainy Blue (Default)" data-i18n-attr="title"></button>
                                             <button class="settings-color-preset" data-color="#007aff"
-                                                style="background-color: #007aff;" title="Blue"></button>
+                                                style="background-color: #007aff;" title="Blue" data-i18n-attr="title"></button>
                                             <button class="settings-color-preset" data-color="#34c759"
-                                                style="background-color: #34c759;" title="Green"></button>
+                                                style="background-color: #34c759;" title="Green" data-i18n-attr="title"></button>
                                             <button class="settings-color-preset" data-color="#af52de"
-                                                style="background-color: #af52de;" title="Purple"></button>
+                                                style="background-color: #af52de;" title="Purple" data-i18n-attr="title"></button>
                                             <button class="settings-color-preset" data-color="#ff9500"
-                                                style="background-color: #ff9500;" title="Orange"></button>
+                                                style="background-color: #ff9500;" title="Orange" data-i18n-attr="title"></button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Reset Theme</div>
-                                    <div class="settings-row-hint">Restore the default accent color</div>
+                                    <div class="settings-row-label" data-i18n>Reset Theme</div>
+                                    <div class="settings-row-hint" data-i18n>Restore the default accent color</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="reset-theme-btn">Reset to
+                                    <button class="btn btn-secondary btn-sm" id="reset-theme-btn" data-i18n>Reset to
                                         Default</button>
                                 </div>
                             </div>
@@ -1018,15 +1061,15 @@
                 <!-- Section: Player -->
                 <div class="settings-section" id="settings-section-player">
                     <div class="settings-group">
-                        <div class="settings-group-title">Player Bar</div>
-                        <div class="settings-group-description">Choose which controls appear on the player bar at the
+                        <div class="settings-group-title" data-i18n>Player Bar</div>
+                        <div class="settings-group-description" data-i18n>Choose which controls appear on the player bar at the
                             bottom of the screen. Changes are saved automatically.</div>
 
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Sleep Timer</div>
-                                    <div class="settings-row-hint">Automatically pause playback after a set amount of
+                                    <div class="settings-row-label" data-i18n>Sleep Timer</div>
+                                    <div class="settings-row-hint" data-i18n>Automatically pause playback after a set amount of
                                         time</div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1039,8 +1082,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Queue</div>
-                                    <div class="settings-row-hint">View and manage the upcoming songs</div>
+                                    <div class="settings-row-label" data-i18n>Queue</div>
+                                    <div class="settings-row-hint" data-i18n>View and manage the upcoming songs</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <label class="toggle-switch">
@@ -1052,8 +1095,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">A-B Repeat</div>
-                                    <div class="settings-row-hint">Loop a specific section of the current track</div>
+                                    <div class="settings-row-label" data-i18n>A-B Repeat</div>
+                                    <div class="settings-row-hint" data-i18n>Loop a specific section of the current track</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <label class="toggle-switch">
@@ -1065,8 +1108,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Playback Speed</div>
-                                    <div class="settings-row-hint">Adjust the tempo of the current track</div>
+                                    <div class="settings-row-label" data-i18n>Playback Speed</div>
+                                    <div class="settings-row-hint" data-i18n>Adjust the tempo of the current track</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <label class="toggle-switch">
@@ -1078,8 +1121,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Equalizer</div>
-                                    <div class="settings-row-hint">Tune the frequency response of the audio output
+                                    <div class="settings-row-label" data-i18n>Equalizer</div>
+                                    <div class="settings-row-hint" data-i18n>Tune the frequency response of the audio output
                                     </div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1092,8 +1135,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Crossfade</div>
-                                    <div class="settings-row-hint">Blend the end of one track into the start of the next
+                                    <div class="settings-row-label" data-i18n>Crossfade</div>
+                                    <div class="settings-row-hint" data-i18n>Blend the end of one track into the start of the next
                                     </div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1106,8 +1149,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Volume Slider</div>
-                                    <div class="settings-row-hint">Show the volume control on the player bar</div>
+                                    <div class="settings-row-label" data-i18n>Volume Slider</div>
+                                    <div class="settings-row-hint" data-i18n>Show the volume control on the player bar</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <label class="toggle-switch">
@@ -1121,28 +1164,28 @@
                     </div>
 
                     <div class="settings-group">
-                        <div class="settings-group-title">Fullscreen Player</div>
-                        <div class="settings-group-description">Control how the fullscreen player looks and behaves.
+                        <div class="settings-group-title" data-i18n>Fullscreen Player</div>
+                        <div class="settings-group-description" data-i18n>Control how the fullscreen player looks and behaves.
                         </div>
 
                         <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-md);">Fullscreen Mode
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-md);" data-i18n>Fullscreen Mode
                             </div>
                             <div class="settings-radio-group settings-radio-group--horizontal"
                                 data-pref="fullscreen_mode">
                                 <div class="settings-radio-item selected" data-value="standard">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Standard</div>
-                                        <div class="settings-radio-description">Keeps the player bar visible at the
+                                        <div class="settings-radio-title" data-i18n>Standard</div>
+                                        <div class="settings-radio-description" data-i18n>Keeps the player bar visible at the
                                             bottom</div>
                                     </div>
                                 </div>
                                 <div class="settings-radio-item" data-value="modern">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Modern</div>
-                                        <div class="settings-radio-description">Uses a dedicated full-screen player
+                                        <div class="settings-radio-title" data-i18n>Modern</div>
+                                        <div class="settings-radio-description" data-i18n>Uses a dedicated full-screen player
                                             experience</div>
                                     </div>
                                 </div>
@@ -1150,33 +1193,33 @@
                         </div>
 
                         <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Lyrics Effect
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Lyrics Effect
                             </div>
-                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Choose how
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Choose how
                                 the active lyric line is highlighted while a song plays.</div>
                             <div class="settings-radio-group settings-radio-group--horizontal"
                                 data-pref="lyrics_effect">
                                 <div class="settings-radio-item selected" data-value="default">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Solid</div>
-                                        <div class="settings-radio-description">The whole line lights up at once
+                                        <div class="settings-radio-title" data-i18n>Solid</div>
+                                        <div class="settings-radio-description" data-i18n>The whole line lights up at once
                                             (default)</div>
                                     </div>
                                 </div>
                                 <div class="settings-radio-item" data-value="word">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Word by word</div>
-                                        <div class="settings-radio-description">Words light up one at a time as they are
+                                        <div class="settings-radio-title" data-i18n>Word by word</div>
+                                        <div class="settings-radio-description" data-i18n>Words light up one at a time as they are
                                             sung</div>
                                     </div>
                                 </div>
                                 <div class="settings-radio-item" data-value="slide">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Slide</div>
-                                        <div class="settings-radio-description">A smooth fill sweeps across the line
+                                        <div class="settings-radio-title" data-i18n>Slide</div>
+                                        <div class="settings-radio-description" data-i18n>A smooth fill sweeps across the line
                                         </div>
                                     </div>
                                 </div>
@@ -1184,8 +1227,8 @@
                         </div>
 
                         <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Light Show</div>
-                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Every song
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Light Show</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Every song
                                 is analysed on the server so lasers, strobes and scene changes land exactly on its beats,
                                 builds and drops. Pick how hard the rig goes.</div>
                             <div class="settings-radio-group settings-radio-group--horizontal"
@@ -1193,40 +1236,40 @@
                                 <div class="settings-radio-item selected" data-value="auto">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Auto</div>
-                                        <div class="settings-radio-description">Follows each song's energy and genre
+                                        <div class="settings-radio-title" data-i18n>Auto</div>
+                                        <div class="settings-radio-description" data-i18n>Follows each song's energy and genre
                                             (default)</div>
                                     </div>
                                 </div>
                                 <div class="settings-radio-item" data-value="chill">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Chill</div>
-                                        <div class="settings-radio-description">Slow sweeps, soft washes, no big
+                                        <div class="settings-radio-title" data-i18n>Chill</div>
+                                        <div class="settings-radio-description" data-i18n>Slow sweeps, soft washes, no big
                                             strobes</div>
                                     </div>
                                 </div>
                                 <div class="settings-radio-item" data-value="balanced">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Balanced</div>
-                                        <div class="settings-radio-description">A full show that still keeps it
+                                        <div class="settings-radio-title" data-i18n>Balanced</div>
+                                        <div class="settings-radio-description" data-i18n>A full show that still keeps it
                                             tasteful</div>
                                     </div>
                                 </div>
                                 <div class="settings-radio-item" data-value="hype">
                                     <div class="settings-radio-circle"></div>
                                     <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Hype</div>
-                                        <div class="settings-radio-description">Festival mode: every chorus is a
+                                        <div class="settings-radio-title" data-i18n>Hype</div>
+                                        <div class="settings-radio-description" data-i18n>Festival mode: every chorus is a
                                             drop</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Lyrics on Stage</div>
-                                    <div class="settings-row-hint">Show synced lyrics as part of the show: big
+                                    <div class="settings-row-label" data-i18n>Lyrics on Stage</div>
+                                    <div class="settings-row-hint" data-i18n>Show synced lyrics as part of the show: big
                                         word-by-word typography with follow spots on the word being sung. Word timing
                                         is exact once "Analyse Lyrics" has run for the song.</div>
                                 </div>
@@ -1239,8 +1282,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Reduce Flashing</div>
-                                    <div class="settings-row-hint">Replace white strobes with soft colour pulses
+                                    <div class="settings-row-label" data-i18n>Reduce Flashing</div>
+                                    <div class="settings-row-hint" data-i18n>Replace white strobes with soft colour pulses
                                         (recommended if you are sensitive to flashing lights)</div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1252,27 +1295,27 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Sync Offset <span class="settings-range-value"
+                                    <div class="settings-row-label" data-i18n>Sync Offset <span class="settings-range-value"
                                             id="settings-lightshow-offset-value">0 ms</span></div>
-                                    <div class="settings-row-hint">Delay the lights if they flash before you hear the
+                                    <div class="settings-row-hint" data-i18n>Delay the lights if they flash before you hear the
                                         beat (e.g. on Bluetooth headphones)</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <input type="range" class="settings-range" id="settings-lightshow-offset" min="-300"
-                                        max="300" step="10" value="0" aria-label="Light show sync offset">
+                                        max="300" step="10" value="0" aria-label="Light show sync offset" data-i18n-attr="aria-label">
                                 </div>
                             </div>
                         </div>
 
                         <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);">Layout &amp;
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Layout &amp;
                                 Effects</div>
-                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);">Arrange the
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Arrange the
                                 fullscreen player and tune its visual effects.</div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Swap image and queue</div>
-                                    <div class="settings-row-hint">Switch the positions of album art and up next queue
+                                    <div class="settings-row-label" data-i18n>Swap image and queue</div>
+                                    <div class="settings-row-hint" data-i18n>Switch the positions of album art and up next queue
                                     </div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1284,8 +1327,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Disable Lasers</div>
-                                    <div class="settings-row-hint">Turn off the stage laser beam animations completely
+                                    <div class="settings-row-label" data-i18n>Disable Lasers</div>
+                                    <div class="settings-row-hint" data-i18n>Turn off the stage laser beam animations completely
                                     </div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1297,8 +1340,8 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Blur Animated Background</div>
-                                    <div class="settings-row-hint">Apply a smooth ambient blur filter to the light show
+                                    <div class="settings-row-label" data-i18n>Blur Animated Background</div>
+                                    <div class="settings-row-hint" data-i18n>Apply a smooth ambient blur filter to the light show
                                         visuals</div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1315,29 +1358,29 @@
                 <!-- Section: Account -->
                 <div class="settings-section" id="settings-section-account">
                     <div class="settings-group">
-                        <div class="settings-group-title">Change Password</div>
-                        <div class="settings-group-description">Update your login password to keep your account secure.
+                        <div class="settings-group-title" data-i18n>Change Password</div>
+                        <div class="settings-group-description" data-i18n>Update your login password to keep your account secure.
                         </div>
 
                         <div class="settings-card">
                             <form id="change-password-form">
                                 <div class="form-group">
-                                    <label class="form-label" for="current-password">Current Password</label>
+                                    <label class="form-label" for="current-password" data-i18n>Current Password</label>
                                     <input type="password" id="current-password" class="form-input" required
-                                        placeholder="Enter current password">
+                                        placeholder="Enter current password" data-i18n-attr="placeholder">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label" for="new-password">New Password</label>
-                                    <input type="password" id="new-password" class="form-input" required minlength="6"
-                                        placeholder="Enter new password">
+                                    <label class="form-label" for="new-password" data-i18n>New Password</label>
+                                    <input type="password" id="new-password" class="form-input" required minlength="8"
+                                        placeholder="Enter new password" data-i18n-attr="placeholder">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label" for="confirm-password">Confirm New Password</label>
+                                    <label class="form-label" for="confirm-password" data-i18n>Confirm New Password</label>
                                     <input type="password" id="confirm-password" class="form-input" required
-                                        minlength="6" placeholder="Confirm new password">
+                                        minlength="8" placeholder="Confirm new password" data-i18n-attr="placeholder">
                                 </div>
                                 <div class="modal-actions">
-                                    <button type="submit" class="btn btn-primary">Update Password</button>
+                                    <button type="submit" class="btn btn-primary" data-i18n>Update Password</button>
                                 </div>
                             </form>
                         </div>
@@ -1347,74 +1390,74 @@
                 <!-- Section: Playlist Sync -->
                 <div class="settings-section" id="settings-section-syncs">
                     <div class="settings-group">
-                        <div class="settings-group-title">Playlist Sync</div>
-                        <div class="settings-group-description">Link a local playlist to a remote Spotify or YouTube Music playlist. Rainy will automatically check the remote playlist every X hours and sync new tracks (optionally removing tracks no longer in the remote).</div>
+                        <div class="settings-group-title" data-i18n>Playlist Sync</div>
+                        <div class="settings-group-description" data-i18n>Link a local playlist to a remote Spotify or YouTube Music playlist. Rainy will automatically check the remote playlist every X hours and sync new tracks (optionally removing tracks no longer in the remote).</div>
 
                         <div class="settings-card">
                             <div class="settings-row" style="border-bottom:none; padding-bottom:0;">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Automatic sync jobs</div>
-                                    <div class="settings-row-hint">Runs in the background — no action needed after setup</div>
+                                    <div class="settings-row-label" data-i18n>Automatic sync jobs</div>
+                                    <div class="settings-row-hint" data-i18n>Runs in the background — no action needed after setup</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="syncs-refresh-btn">Refresh</button>
+                                    <button class="btn btn-secondary btn-sm" id="syncs-refresh-btn" data-i18n>Refresh</button>
                                 </div>
                             </div>
                             <div id="syncs-list" style="margin-top:14px;"></div>
-                            <div id="syncs-empty" class="import-jobs-empty" style="margin-top:12px;">No syncs configured yet.</div>
+                            <div id="syncs-empty" class="import-jobs-empty" style="margin-top:12px;" data-i18n>No syncs configured yet.</div>
                         </div>
 
                         <div class="settings-card" id="syncs-create-card">
-                            <div class="settings-group-title" style="font-size:0.95rem; margin-bottom:12px;">Create new sync</div>
+                            <div class="settings-group-title" style="font-size:0.95rem; margin-bottom:12px;" data-i18n>Create new sync</div>
                             <div class="form-group" style="margin-bottom:12px;">
-                                <label class="form-label" for="sync-playlist-select">Local playlist</label>
+                                <label class="form-label" for="sync-playlist-select" data-i18n>Local playlist</label>
                                 <select id="sync-playlist-select" class="form-input"></select>
                             </div>
                             <div class="form-group" style="margin-bottom:12px;">
-                                <label class="form-label">Source</label>
+                                <label class="form-label" data-i18n>Source</label>
                                 <div class="settings-radio-group settings-radio-group--horizontal" id="sync-source-group" style="margin-top:6px;">
                                     <div class="settings-radio-item selected" data-value="spotify">
                                         <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content"><div class="settings-radio-title">Spotify</div><div class="settings-radio-description">Paste a spotify.com/playlist/... link</div></div>
+                                        <div class="settings-radio-content"><div class="settings-radio-title">Spotify</div><div class="settings-radio-description" data-i18n>Paste a spotify.com/playlist/... link</div></div>
                                     </div>
                                     <div class="settings-radio-item" data-value="youtube">
                                         <div class="settings-radio-circle"></div>
-                                        <div class="settings-radio-content"><div class="settings-radio-title">YouTube Music</div><div class="settings-radio-description">Paste a youtube.com/playlist?list=... link</div></div>
+                                        <div class="settings-radio-content"><div class="settings-radio-title">YouTube Music</div><div class="settings-radio-description" data-i18n>Paste a youtube.com/playlist?list=... link</div></div>
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group" style="margin-bottom:12px;">
-                                <label class="form-label" for="sync-url-input">Playlist URL</label>
+                                <label class="form-label" for="sync-url-input" data-i18n>Playlist URL</label>
                                 <input type="text" id="sync-url-input" class="form-input" placeholder="https://open.spotify.com/playlist/... or https://www.youtube.com/playlist?list=...">
                             </div>
                             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
                                 <div class="form-group" style="margin-bottom:0;">
-                                    <label class="form-label" for="sync-interval-select">Check every</label>
+                                    <label class="form-label" for="sync-interval-select" data-i18n>Check every</label>
                                     <select id="sync-interval-select" class="form-input">
-                                        <option value="1">1 hour</option>
-                                        <option value="3">3 hours</option>
-                                        <option value="6">6 hours</option>
-                                        <option value="12">12 hours</option>
-                                        <option value="24" selected>24 hours (daily)</option>
-                                        <option value="48">48 hours</option>
-                                        <option value="72">3 days</option>
-                                        <option value="168">7 days (weekly)</option>
+                                        <option value="1" data-i18n>1 hour</option>
+                                        <option value="3" data-i18n>3 hours</option>
+                                        <option value="6" data-i18n>6 hours</option>
+                                        <option value="12" data-i18n>12 hours</option>
+                                        <option value="24" selected data-i18n>24 hours (daily)</option>
+                                        <option value="48" data-i18n>48 hours</option>
+                                        <option value="72" data-i18n>3 days</option>
+                                        <option value="168" data-i18n>7 days (weekly)</option>
                                     </select>
                                 </div>
                                 <div class="form-group" style="margin-bottom:0;">
-                                    <label class="form-label" for="sync-mode-select">Sync mode</label>
+                                    <label class="form-label" for="sync-mode-select" data-i18n>Sync mode</label>
                                     <select id="sync-mode-select" class="form-input">
-                                        <option value="mirror" selected>Mirror — add &amp; remove to match remote</option>
-                                        <option value="add_only">Add only — never remove</option>
+                                        <option value="mirror" selected data-i18n>Mirror — add &amp; remove to match remote</option>
+                                        <option value="add_only" data-i18n>Add only — never remove</option>
                                     </select>
                                 </div>
                             </div>
                             <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
                                 <label class="toggle-switch"><input type="checkbox" id="sync-enabled-check" checked><span class="toggle-slider"></span></label>
-                                <span style="font-size:0.9rem; color:var(--text-secondary);">Enabled</span>
+                                <span style="font-size:0.9rem; color:var(--text-secondary);" data-i18n>Enabled</span>
                             </div>
                             <div class="modal-actions" style="justify-content:flex-end; margin-top:8px;">
-                                <button class="btn btn-primary" id="sync-create-btn">Create sync</button>
+                                <button class="btn btn-primary" id="sync-create-btn" data-i18n>Create sync</button>
                             </div>
                             <div id="sync-create-error" style="margin-top:10px; font-size:0.85rem; color:#f87171; display:none;"></div>
                         </div>
@@ -1422,15 +1465,15 @@
                         <div class="settings-card" id="syncs-history-card">
                             <div class="settings-row" style="border-bottom:none; padding-bottom:0;">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Sync history</div>
-                                    <div class="settings-row-hint">Recent changes pulled from remote playlists</div>
+                                    <div class="settings-row-label" data-i18n>Sync history</div>
+                                    <div class="settings-row-hint" data-i18n>Recent changes pulled from remote playlists</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="syncs-history-refresh-btn">Refresh</button>
+                                    <button class="btn btn-secondary btn-sm" id="syncs-history-refresh-btn" data-i18n>Refresh</button>
                                 </div>
                             </div>
                             <div id="syncs-history-list" style="margin-top:14px;"></div>
-                            <div id="syncs-history-empty" class="import-jobs-empty" style="margin-top:12px;">No sync history yet — run a sync to see changes.</div>
+                            <div id="syncs-history-empty" class="import-jobs-empty" style="margin-top:12px;" data-i18n>No sync history yet — run a sync to see changes.</div>
                         </div>
                     </div>
                 </div>
@@ -1438,72 +1481,21 @@
                 <!-- Section: Jobs (Server Settings) -->
                 <div class="settings-section" id="settings-section-jobs">
                     <div class="settings-group">
-                        <div class="settings-group-title">Jobs</div>
-                        <div class="settings-group-description">Run background tasks to scan your library and enrich its
-                            metadata.
-                        </div>
-
-                        <div class="settings-card sysadmin-only">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Library Scanning</div>
-                                    <div class="settings-row-hint">Scan your music library to update the database with new
-                                        files</div>
-                                </div>
-                            </div>
-
-                            <div class="settings-scan-status" id="scan-status">
-                                <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Library Status:</span>
-                                    <span class="settings-scan-value" id="library-count">-- songs</span>
-                                </div>
-                                <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Last Scan:</span>
-                                    <span class="settings-scan-value" id="last-scan-time">Never</span>
-                                </div>
-                            </div>
-
-                            <div class="settings-scan-actions">
-                                <button class="btn btn-secondary" id="quick-scan-btn">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                                        <path
-                                            d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-                                    </svg>
-                                    <span>Quick Scan</span>
-                                </button>
-                                <button class="btn btn-warning" id="full-scan-btn">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                                        <path
-                                            d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
-                                    </svg>
-                                    <span>Full Rescan</span>
-                                </button>
-                            </div>
-
-                            <div class="scan-progress hidden" id="scan-progress">
-                                <div class="progress-bar-container">
-                                    <div class="progress-bar-fill" id="scan-progress-bar"></div>
-                                </div>
-                                <p class="scan-progress-text" id="scan-progress-text">Scanning...</p>
-                            </div>
-
-                            <div class="scan-result hidden" id="scan-result">
-                                <div class="scan-result-stats">
-                                    <div class="stat"><span id="scan-files-found">0</span> files found</div>
-                                    <div class="stat"><span id="scan-files-added">0</span> added</div>
-                                    <div class="stat"><span id="scan-files-updated">0</span> updated</div>
-                                    <div class="stat"><span id="scan-files-removed">0</span> removed</div>
-                                </div>
-                            </div>
+                        <div class="settings-group-title" data-i18n>Jobs</div>
+                        <div class="settings-group-description" data-i18n>Background tasks for the songs in your library: find
+                            duplicates, fill in lyrics, audio features and light shows, and follow your imports.
                         </div>
 
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Duplicate Songs</div>
-                                    <div class="settings-row-hint">Find songs that appear more than once in your
+                                    <div class="settings-row-label" data-i18n>Duplicate Songs</div>
+                                    <div class="settings-row-hint" data-i18n>Find songs that appear more than once in your
                                         library (grouped by title and artist) and merge them. Merging keeps the copy
-                                        with your likes and playlist placements, so nothing you care about is lost.
+                                        with your likes and playlist placements, so nothing you care about is lost,
+                                        and deletes the other copies' files from disk.
+                                        <span class="sysadmin-only hidden" data-i18n>The other copies are removed for every
+                                            account.</span>
                                     </div>
                                 </div>
                                 <div class="settings-row-control">
@@ -1512,98 +1504,45 @@
                                             <path
                                                 d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                                         </svg>
-                                        <span>Scan</span>
+                                        <span data-i18n>Scan</span>
                                     </button>
                                 </div>
                             </div>
 
                             <div class="settings-scan-status" id="dup-summary" style="display:none;">
                                 <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Duplicate groups:</span>
+                                    <span class="settings-scan-label" data-i18n>Duplicate groups:</span>
                                     <span class="settings-scan-value" id="dup-group-count">0</span>
                                 </div>
                                 <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Redundant songs:</span>
+                                    <span class="settings-scan-label" data-i18n>Redundant songs:</span>
                                     <span class="settings-scan-value" id="dup-redundant-count">0</span>
                                 </div>
                             </div>
 
                             <div class="settings-scan-actions" id="dup-merge-all-wrap" style="display:none;">
                                 <button class="btn btn-warning" id="dup-merge-all-btn">
-                                    <span>Merge all automatically</span>
+                                    <span data-i18n>Merge all automatically</span>
                                 </button>
                             </div>
 
                             <div id="dup-results"></div>
                         </div>
 
-                        <div class="settings-card sysadmin-only">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Scrape Artist Images</div>
-                                    <div class="settings-row-hint">Automatically fetch images from YouTube Music for all
-                                        artists missing one</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="scrape-artists-btn">Run</button>
-                                </div>
-                            </div>
-                            <div class="scan-progress hidden" id="scrape-artists-progress">
-                                <div class="progress-bar-container">
-                                    <div class="progress-bar-fill" id="scrape-artists-progress-bar"></div>
-                                </div>
-                                <p class="scan-progress-text" id="scrape-artists-progress-text">Starting...</p>
-                            </div>
-                            <div class="scan-result hidden" id="scrape-artists-result">
-                                <div class="scan-result-stats">
-                                    <div class="stat"><span id="scrape-artists-scraped">0</span> scraped</div>
-                                    <div class="stat"><span id="scrape-artists-skipped">0</span> already had image
-                                    </div>
-                                    <div class="stat"><span id="scrape-artists-failed">0</span> not found</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="settings-card sysadmin-only">
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label">Scrape Artist Descriptions</div>
-                                    <div class="settings-row-hint">Automatically fetch bios from YouTube Music for all
-                                        artists missing one</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="scrape-descriptions-btn">Run</button>
-                                </div>
-                            </div>
-                            <div class="scan-progress hidden" id="scrape-descriptions-progress">
-                                <div class="progress-bar-container">
-                                    <div class="progress-bar-fill" id="scrape-descriptions-progress-bar"></div>
-                                </div>
-                                <p class="scan-progress-text" id="scrape-descriptions-progress-text">Starting...</p>
-                            </div>
-                            <div class="scan-result hidden" id="scrape-descriptions-result">
-                                <div class="scan-result-stats">
-                                    <div class="stat"><span id="scrape-descriptions-scraped">0</span> scraped</div>
-                                    <div class="stat"><span id="scrape-descriptions-skipped">0</span> already had bio
-                                    </div>
-                                    <div class="stat"><span id="scrape-descriptions-failed">0</span> not found</div>
-                                </div>
-                            </div>
-                        </div>
-
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Analyse Lyrics</div>
-                                    <div class="settings-row-hint">Time every word of the synced lyrics against the
+                                    <div class="settings-row-label" data-i18n>Analyse Lyrics</div>
+                                    <div class="settings-row-hint" data-i18n>Time every word of the synced lyrics against the
                                         audio (used by the word / slide lyric effects and the stage lyrics), and look
                                         up lyrics for songs that were never searched. Runs in the background and is
                                         cached, so lyrics stay instant. "Run" fills in songs that are missing word
-                                        timing, "Force" re-times the whole library.</div>
+                                        timing. <span class="sysadmin-only hidden" data-i18n>"Force" re-times the whole
+                                        library.</span></div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="lyrics-run-btn">Run</button>
-                                    <button class="btn btn-secondary btn-sm" id="lyrics-force-btn">Force</button>
+                                    <button class="btn btn-secondary btn-sm" id="lyrics-run-btn" data-i18n>Run</button>
+                                    <button class="btn btn-secondary btn-sm sysadmin-only hidden" id="lyrics-force-btn" data-i18n>Force</button>
                                 </div>
                             </div>
 
@@ -1615,52 +1554,53 @@
                             </div>
 
                             <div class="import-jobs-queue" id="lyrics-jobs-queue">
-                                <div class="import-jobs-empty">No analysis running or queued.</div>
+                                <div class="import-jobs-empty" data-i18n>No analysis running or queued.</div>
                             </div>
 
-                            <div class="import-jobs-history-header">Recent history</div>
+                            <div class="import-jobs-history-header" data-i18n>Recent history</div>
                             <div class="import-jobs-history" id="lyrics-jobs-history">
-                                <div class="import-jobs-empty">No lyrics jobs yet.</div>
+                                <div class="import-jobs-empty" data-i18n>No lyrics jobs yet.</div>
                             </div>
                         </div>
 
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Analyse Song Metadata</div>
-                                    <div class="settings-row-hint">Fetch audio features, genre/mood tags and artist
+                                    <div class="settings-row-label" data-i18n>Analyse Song Metadata</div>
+                                    <div class="settings-row-hint" data-i18n>Fetch audio features, genre/mood tags and artist
                                         data for every song. Runs in the background — you can keep using Rainy while it
-                                        works. "Run" only analyses songs not done yet; "Force" re-analyses the whole
-                                        library from scratch.</div>
+                                        works. "Run" only analyses songs not done yet. <span class="sysadmin-only hidden" data-i18n>"Force"
+                                        re-analyses the whole library from scratch.</span></div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="enrich-run-btn">Run</button>
-                                    <button class="btn btn-secondary btn-sm" id="enrich-force-btn">Force</button>
+                                    <button class="btn btn-secondary btn-sm" id="enrich-run-btn" data-i18n>Run</button>
+                                    <button class="btn btn-secondary btn-sm sysadmin-only hidden" id="enrich-force-btn" data-i18n>Force</button>
                                 </div>
                             </div>
 
                             <div class="import-jobs-queue" id="enrich-jobs-queue">
-                                <div class="import-jobs-empty" id="enrich-jobs-queue-empty">No analysis running or
+                                <div class="import-jobs-empty" id="enrich-jobs-queue-empty" data-i18n>No analysis running or
                                     queued.</div>
                             </div>
 
-                            <div class="import-jobs-history-header">Recent history</div>
+                            <div class="import-jobs-history-header" data-i18n>Recent history</div>
                             <div class="import-jobs-history" id="enrich-jobs-history">
-                                <div class="import-jobs-empty" id="enrich-jobs-history-empty">No analysis jobs yet.</div>
+                                <div class="import-jobs-empty" id="enrich-jobs-history-empty" data-i18n>No analysis jobs yet.</div>
                             </div>
                         </div>
 
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Analyse Light Shows</div>
-                                    <div class="settings-row-hint">Build the synced light show (beats, sections, drops)
+                                    <div class="settings-row-label" data-i18n>Analyse Light Shows</div>
+                                    <div class="settings-row-hint" data-i18n>Build the synced light show (beats, sections, drops)
                                         for every song. New imports are analysed automatically; "Run" fills in songs
-                                        that are missing one, "Force" re-analyses the whole library.</div>
+                                        that are missing one. <span class="sysadmin-only hidden" data-i18n>"Force" re-analyses the whole
+                                        library.</span></div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="lightshow-run-btn">Run</button>
-                                    <button class="btn btn-secondary btn-sm" id="lightshow-force-btn">Force</button>
+                                    <button class="btn btn-secondary btn-sm" id="lightshow-run-btn" data-i18n>Run</button>
+                                    <button class="btn btn-secondary btn-sm sysadmin-only hidden" id="lightshow-force-btn" data-i18n>Force</button>
                                 </div>
                             </div>
 
@@ -1672,39 +1612,98 @@
                             </div>
 
                             <div class="import-jobs-queue" id="lightshow-jobs-queue">
-                                <div class="import-jobs-empty">No analysis running or queued.</div>
+                                <div class="import-jobs-empty" data-i18n>No analysis running or queued.</div>
                             </div>
 
-                            <div class="import-jobs-history-header">Recent history</div>
+                            <div class="import-jobs-history-header" data-i18n>Recent history</div>
                             <div class="import-jobs-history" id="lightshow-jobs-history">
-                                <div class="import-jobs-empty">No light show jobs yet.</div>
+                                <div class="import-jobs-empty" data-i18n>No light show jobs yet.</div>
                             </div>
                         </div>
 
-                        <div class="settings-card sysadmin-only">
+                        <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">YouTube Downloader (yt-dlp)</div>
-                                    <div class="settings-row-hint">YouTube changes often and breaks old versions.
-                                        Rainy checks for updates at startup and every 12 hours, and updates straight
-                                        away when a download fails with an "outdated" error.</div>
+                                    <div class="settings-row-label" data-i18n>Import Jobs</div>
+                                    <div class="settings-row-hint" data-i18n>Background YouTube / Spotify imports. Toggle
+                                        "Process in background" in Add Music to queue one.</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="ytdlp-update-btn">Update now</button>
+                                    <button class="btn btn-secondary btn-sm" id="import-jobs-refresh-btn" data-i18n>Refresh</button>
                                 </div>
                             </div>
-                            <div class="settings-scan-status" id="ytdlp-status">
+
+                            <div class="import-jobs-queue" id="import-jobs-queue">
+                                <div class="import-jobs-empty" id="import-jobs-queue-empty" data-i18n>No imports running or queued.
+                                </div>
+                            </div>
+
+                            <div class="import-jobs-history-header" data-i18n>Recent history</div>
+                            <div class="import-jobs-history" id="import-jobs-history">
+                                <div class="import-jobs-empty" id="import-jobs-history-empty" data-i18n>No imports yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Maintenance (Server Settings, sysadmin only) -->
+                <div class="settings-section" id="settings-section-server">
+                    <div class="settings-group">
+                        <div class="settings-group-title" data-i18n>Server Maintenance</div>
+                        <div class="settings-group-description" data-i18n>Server-wide tasks: scan the shared music folder, fetch
+                            artist info for everyone, and keep the YouTube downloader current.
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Library Scanning</div>
+                                    <div class="settings-row-hint" data-i18n>Scan your music library to update the database with new
+                                        files</div>
+                                </div>
+                            </div>
+
+                            <div class="settings-scan-status" id="scan-status">
                                 <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Version:</span>
-                                    <span class="settings-scan-value" id="ytdlp-version">--</span>
+                                    <span class="settings-scan-label" data-i18n>Library Status:</span>
+                                    <span class="settings-scan-value" id="library-count">-- songs</span>
                                 </div>
                                 <div class="settings-scan-row">
-                                    <span class="settings-scan-label">JS challenge solver:</span>
-                                    <span class="settings-scan-value" id="ytdlp-runtime">--</span>
+                                    <span class="settings-scan-label" data-i18n>Last Scan:</span>
+                                    <span class="settings-scan-value" id="last-scan-time" data-i18n>Never</span>
                                 </div>
-                                <div class="settings-scan-row">
-                                    <span class="settings-scan-label">Last update:</span>
-                                    <span class="settings-scan-value" id="ytdlp-last-update">--</span>
+                            </div>
+
+                            <div class="settings-scan-actions">
+                                <button class="btn btn-secondary" id="quick-scan-btn">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                        <path
+                                            d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                                    </svg>
+                                    <span data-i18n>Quick Scan</span>
+                                </button>
+                                <button class="btn btn-warning" id="full-scan-btn">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                        <path
+                                            d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
+                                    </svg>
+                                    <span data-i18n>Full Rescan</span>
+                                </button>
+                            </div>
+
+                            <div class="scan-progress hidden" id="scan-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="scan-progress-bar"></div>
+                                </div>
+                                <p class="scan-progress-text" id="scan-progress-text" data-i18n>Scanning...</p>
+                            </div>
+
+                            <div class="scan-result hidden" id="scan-result">
+                                <div class="scan-result-stats">
+                                    <div class="stat" data-i18n><span id="scan-files-found">0</span> files found</div>
+                                    <div class="stat" data-i18n><span id="scan-files-added">0</span> added</div>
+                                    <div class="stat" data-i18n><span id="scan-files-updated">0</span> updated</div>
+                                    <div class="stat" data-i18n><span id="scan-files-removed">0</span> removed</div>
                                 </div>
                             </div>
                         </div>
@@ -1712,25 +1711,85 @@
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Import Jobs</div>
-                                    <div class="settings-row-hint">Background YouTube / Spotify imports. Toggle
-                                        "Process in background" in Add Music to queue one.</div>
+                                    <div class="settings-row-label" data-i18n>Scrape Artist Images</div>
+                                    <div class="settings-row-hint" data-i18n>Automatically fetch images from YouTube Music for all
+                                        artists missing one</div>
                                 </div>
                                 <div class="settings-row-control">
-                                    <button class="btn btn-secondary btn-sm" id="import-jobs-refresh-btn">Refresh</button>
+                                    <button class="btn btn-secondary btn-sm" id="scrape-artists-btn" data-i18n>Run</button>
                                 </div>
                             </div>
-
-                            <div class="import-jobs-queue" id="import-jobs-queue">
-                                <div class="import-jobs-empty" id="import-jobs-queue-empty">No imports running or queued.
+                            <div class="scan-progress hidden" id="scrape-artists-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="scrape-artists-progress-bar"></div>
                                 </div>
+                                <p class="scan-progress-text" id="scrape-artists-progress-text" data-i18n>Starting...</p>
                             </div>
-
-                            <div class="import-jobs-history-header">Recent history</div>
-                            <div class="import-jobs-history" id="import-jobs-history">
-                                <div class="import-jobs-empty" id="import-jobs-history-empty">No imports yet.</div>
+                            <div class="scan-result hidden" id="scrape-artists-result">
+                                <div class="scan-result-stats">
+                                    <div class="stat" data-i18n><span id="scrape-artists-scraped">0</span> scraped</div>
+                                    <div class="stat" data-i18n><span id="scrape-artists-skipped">0</span> already had image
+                                    </div>
+                                    <div class="stat" data-i18n><span id="scrape-artists-failed">0</span> not found</div>
+                                </div>
                             </div>
                         </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Scrape Artist Descriptions</div>
+                                    <div class="settings-row-hint" data-i18n>Automatically fetch bios from YouTube Music for all
+                                        artists missing one</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="scrape-descriptions-btn" data-i18n>Run</button>
+                                </div>
+                            </div>
+                            <div class="scan-progress hidden" id="scrape-descriptions-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="scrape-descriptions-progress-bar"></div>
+                                </div>
+                                <p class="scan-progress-text" id="scrape-descriptions-progress-text" data-i18n>Starting...</p>
+                            </div>
+                            <div class="scan-result hidden" id="scrape-descriptions-result">
+                                <div class="scan-result-stats">
+                                    <div class="stat" data-i18n><span id="scrape-descriptions-scraped">0</span> scraped</div>
+                                    <div class="stat" data-i18n><span id="scrape-descriptions-skipped">0</span> already had bio
+                                    </div>
+                                    <div class="stat" data-i18n><span id="scrape-descriptions-failed">0</span> not found</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>YouTube Downloader (yt-dlp)</div>
+                                    <div class="settings-row-hint" data-i18n>YouTube changes often and breaks old versions.
+                                        Rainy checks for updates at startup and every 12 hours, and updates straight
+                                        away when a download fails with an "outdated" error.</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <button class="btn btn-secondary btn-sm" id="ytdlp-update-btn" data-i18n>Update now</button>
+                                </div>
+                            </div>
+                            <div class="settings-scan-status" id="ytdlp-status">
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label" data-i18n>Version:</span>
+                                    <span class="settings-scan-value" id="ytdlp-version">--</span>
+                                </div>
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label" data-i18n>JS challenge solver:</span>
+                                    <span class="settings-scan-value" id="ytdlp-runtime">--</span>
+                                </div>
+                                <div class="settings-scan-row">
+                                    <span class="settings-scan-label" data-i18n>Last update:</span>
+                                    <span class="settings-scan-value" id="ytdlp-last-update">--</span>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -1738,13 +1797,13 @@
                 <div class="settings-section" id="settings-section-users">
                     <div class="users-layout" id="users-layout">
                         <div class="settings-group users-manage-group">
-                            <div class="settings-group-title">Manage Users</div>
-                            <div class="settings-group-description">View and manage existing accounts. Use “Add User” to
+                            <div class="settings-group-title" data-i18n>Manage Users</div>
+                            <div class="settings-group-description" data-i18n>View and manage existing accounts. Use “Add User” to
                                 create a new one.</div>
 
                             <div class="settings-card users-card">
                                 <div class="user-list-header">
-                                    <span class="user-list-header-label">Members</span>
+                                    <span class="user-list-header-label" data-i18n>Members</span>
                                     <div class="user-list-header-right">
                                         <span class="user-count-badge" id="user-count">0</span>
                                         <button type="button" class="btn btn-secondary btn-sm add-user-btn"
@@ -1752,7 +1811,7 @@
                                             <svg viewBox="0 0 24 24">
                                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                                             </svg>
-                                            <span class="add-user-btn-label">Add User</span>
+                                            <span class="add-user-btn-label" data-i18n>Add User</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1763,32 +1822,32 @@
                         </div>
 
                         <div class="settings-group users-create-group hidden" id="users-create-group">
-                            <div class="settings-group-title">Create User</div>
+                            <div class="settings-group-title" data-i18n>Create User</div>
 
                             <div class="settings-card">
                                 <form id="create-user-form">
                                     <div class="users-form-grid">
                                         <div class="form-group">
-                                            <label class="form-label" for="new-user-username">Username</label>
+                                            <label class="form-label" for="new-user-username" data-i18n>Username</label>
                                             <input type="text" id="new-user-username" class="form-input" required
-                                                placeholder="Enter username">
+                                                placeholder="Enter username" data-i18n-attr="placeholder">
                                         </div>
                                         <div class="form-group">
-                                            <label class="form-label" for="new-user-email">Email</label>
+                                            <label class="form-label" for="new-user-email" data-i18n>Email</label>
                                             <input type="email" id="new-user-email" class="form-input" required
-                                                placeholder="Enter email address">
+                                                placeholder="Enter email address" data-i18n-attr="placeholder">
                                         </div>
                                         <div class="form-group">
-                                            <label class="form-label" for="new-user-password">Password</label>
+                                            <label class="form-label" for="new-user-password" data-i18n>Password</label>
                                             <input type="password" id="new-user-password" class="form-input" required
-                                                minlength="6" placeholder="At least 6 characters">
+                                                minlength="8" placeholder="At least 8 characters" data-i18n-attr="placeholder">
                                         </div>
                                         <div class="form-group">
-                                            <label class="form-label" for="new-user-role">Role</label>
+                                            <label class="form-label" for="new-user-role" data-i18n>Role</label>
                                             <div class="select-wrapper">
                                                 <select id="new-user-role" class="form-input">
-                                                    <option value="user">User</option>
-                                                    <option value="sysadmin">Administrator</option>
+                                                    <option value="user" data-i18n>User</option>
+                                                    <option value="sysadmin" data-i18n>Administrator</option>
                                                 </select>
                                                 <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
                                                     <path d="M7 10l5 5 5-5z" />
@@ -1799,14 +1858,14 @@
                                     <div class="form-group" style="margin-top: 14px;">
                                         <label class="form-label users-full-library-toggle" for="new-user-full-library">
                                             <input type="checkbox" id="new-user-full-library" class="form-checkbox">
-                                            <span>Full system library access</span>
+                                            <span data-i18n>Full system library access</span>
                                         </label>
-                                        <div class="settings-row-hint">Sees every song on the server, including other accounts' personal imports. Off by default — even for administrators.</div>
+                                        <div class="settings-row-hint" data-i18n>Sees every song on the server, including other accounts' personal imports. Off by default — even for administrators.</div>
                                     </div>
                                     <div class="users-form-actions">
                                         <button type="button" class="btn btn-secondary"
-                                            id="cancel-create-user">Cancel</button>
-                                        <button type="submit" class="btn btn-primary">Create User</button>
+                                            id="cancel-create-user" data-i18n>Cancel</button>
+                                        <button type="submit" class="btn btn-primary" data-i18n>Create User</button>
                                     </div>
                                 </form>
                             </div>
@@ -1818,8 +1877,8 @@
                 <!-- Chromecast Setup Guide -->
                 <div class="settings-section" id="settings-section-chromecast">
                     <div class="settings-group">
-                        <div class="settings-group-title">Chromecast Setup & Browser Configuration</div>
-                        <div class="settings-group-description">
+                        <div class="settings-group-title" data-i18n>Chromecast Setup & Browser Configuration</div>
+                        <div class="settings-group-description" data-i18n-html>
                             Google's Cast Web SDK requires a <strong>secure origin</strong> to discover and connect to Chromecast devices.
                             By configuring your browser to treat your Rainy network URL as secure, casting works seamlessly over HTTP with zero certificates or warnings.
                         </div>
@@ -1828,18 +1887,18 @@
                         <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Your Rainy Server Origin</div>
-                                    <div class="settings-row-hint">Copy this address to paste into your browser's secure origin flag.</div>
+                                    <div class="settings-row-label" data-i18n>Your Rainy Server Origin</div>
+                                    <div class="settings-row-hint" data-i18n>Copy this address to paste into your browser's secure origin flag.</div>
                                 </div>
                                 <div class="settings-row-control ssl-flag-control">
                                     <code class="https-url" id="chromecast-origin-url">http://...:6969</code>
-                                    <button type="button" class="btn btn-secondary btn-sm" id="chromecast-copy-origin-btn">Copy Origin</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="chromecast-copy-origin-btn" data-i18n>Copy Origin</button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Browser Instructions Cards -->
-                        <div class="settings-group-title" style="margin-top: var(--spacing-lg);">Browser Setup Instructions</div>
+                        <div class="settings-group-title" style="margin-top: var(--spacing-lg);" data-i18n>Browser Setup Instructions</div>
                         
                         <div class="settings-card">
                             <!-- Chrome / Brave / Opera / Vivaldi -->
@@ -1848,10 +1907,10 @@
                                     <div class="settings-row-label">Google Chrome / Brave / Vivaldi / Opera</div>
                                     <div class="settings-row-hint">
                                         <ol style="margin: 6px 0 0 18px; padding: 0; line-height: 1.6;">
-                                            <li>Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
-                                            <li>Paste your Rainy URL (<code>http://...:6969</code>) into the <strong>Insecure origins treated as secure</strong> text box.</li>
-                                            <li>Change the dropdown setting from <em>Disabled</em> to <strong>Enabled</strong>.</li>
-                                            <li>Click <strong>Relaunch</strong> at the bottom of the browser.</li>
+                                            <li data-i18n-html>Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
+                                            <li data-i18n-html>Paste your Rainy URL (<code>http://...:6969</code>) into the <strong>Insecure origins treated as secure</strong> text box.</li>
+                                            <li data-i18n-html>Change the dropdown setting from <em>Disabled</em> to <strong>Enabled</strong>.</li>
+                                            <li data-i18n-html>Click <strong>Relaunch</strong> at the bottom of the browser.</li>
                                         </ol>
                                     </div>
                                 </div>
@@ -1863,9 +1922,9 @@
                                     <div class="settings-row-label">Microsoft Edge</div>
                                     <div class="settings-row-hint">
                                         <ol style="margin: 6px 0 0 18px; padding: 0; line-height: 1.6;">
-                                            <li>Open <code>edge://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
-                                            <li>Paste your Rainy URL (<code>http://...:6969</code>) into the text box.</li>
-                                            <li>Set to <strong>Enabled</strong> and click <strong>Restart</strong>.</li>
+                                            <li data-i18n-html>Open <code>edge://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
+                                            <li data-i18n-html>Paste your Rainy URL (<code>http://...:6969</code>) into the text box.</li>
+                                            <li data-i18n-html>Set to <strong>Enabled</strong> and click <strong>Restart</strong>.</li>
                                         </ol>
                                     </div>
                                 </div>
@@ -1874,8 +1933,8 @@
                             <!-- Localhost Shortcut -->
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Localhost Shortcut</div>
-                                    <div class="settings-row-hint">
+                                    <div class="settings-row-label" data-i18n>Localhost Shortcut</div>
+                                    <div class="settings-row-hint" data-i18n-html>
                                         When listening directly on the host machine using <code>http://localhost:6969</code>, browsers automatically treat localhost as a secure context with <strong>zero configuration</strong> needed.
                                     </div>
                                 </div>
@@ -1884,8 +1943,8 @@
                             <!-- Firefox Note -->
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label">Firefox / Safari Note</div>
-                                    <div class="settings-row-hint">
+                                    <div class="settings-row-label" data-i18n>Firefox / Safari Note</div>
+                                    <div class="settings-row-hint" data-i18n>
                                         The Google Cast Web Sender API is a Chromium-exclusive browser API. To cast music to a Chromecast device, please use Chrome, Edge, Brave, Vivaldi, or Opera.
                                     </div>
                                 </div>
@@ -1912,24 +1971,24 @@
         <div class="modal-content playlist-share-modal-content">
             <div class="modal-header">
                 <div class="modal-header-info">
-                    <h2 class="modal-title" id="playlist-share-modal-title">Invite friends</h2>
-                    <p class="modal-subtitle">Admins can add &amp; remove songs — viewers can only listen</p>
+                    <h2 class="modal-title" id="playlist-share-modal-title" data-i18n>Invite friends</h2>
+                    <p class="modal-subtitle" data-i18n>Admins can add &amp; remove songs — viewers can only listen</p>
                 </div>
-                <button class="modal-close" id="close-playlist-share-modal" type="button" aria-label="Close">
+                <button class="modal-close" id="close-playlist-share-modal" type="button" aria-label="Close" data-i18n-attr="aria-label">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
                 </button>
             </div>
             <div class="modal-body">
-                <div class="friends-subheader">Invite a friend to edit together</div>
+                <div class="friends-subheader" data-i18n>Invite a friend to edit together</div>
                 <div class="share-invite-role">
-                    <label for="share-role-select">Role</label>
-                    <select id="share-role-select" title="What this friend may do">
-                        <option value="admin">Admin — can edit songs</option>
-                        <option value="viewer">Viewer — view only</option>
+                    <label for="share-role-select" data-i18n>Role</label>
+                    <select id="share-role-select" title="What this friend may do" data-i18n-attr="title">
+                        <option value="admin" data-i18n>Admin — can edit songs</option>
+                        <option value="viewer" data-i18n>Viewer — view only</option>
                     </select>
                 </div>
                 <div id="share-friends-list" class="friends-list friend-share-list"></div>
-                <div class="friends-subheader">People with access</div>
+                <div class="friends-subheader" data-i18n>People with access</div>
                 <div id="share-current-list" class="friends-list friend-share-list"></div>
             </div>
         </div>
@@ -1952,8 +2011,8 @@
                         </svg>
                     </div>
                     <div>
-                        <h2>Edit Icon</h2>
-                        <p class="modal-subtitle">Customize your playlist appearance</p>
+                        <h2 data-i18n>Edit Icon</h2>
+                        <p class="modal-subtitle" data-i18n>Customize your playlist appearance</p>
                     </div>
                 </div>
                 <button class="modal-close" id="close-edit-icon-modal">
@@ -1969,13 +2028,13 @@
                     <div class="playlist-preview-icon" id="edit-playlist-preview-icon">
                         <!-- Preview icon populated via JS -->
                     </div>
-                    <span class="preview-label">Preview</span>
+                    <span class="preview-label" data-i18n>Preview</span>
                 </div>
 
                 <div class="playlist-customize-section">
                     <div class="customize-row">
                         <div class="customize-group">
-                            <label class="form-label">Choose Icon</label>
+                            <label class="form-label" data-i18n>Choose Icon</label>
                             <div class="icon-picker" id="edit-playlist-icon-picker">
                                 <!-- Icons populated via JS -->
                             </div>
@@ -1984,7 +2043,7 @@
 
                     <div class="customize-row">
                         <div class="customize-group">
-                            <label class="form-label">Choose Color</label>
+                            <label class="form-label" data-i18n>Choose Color</label>
                             <div class="color-picker-row">
                                 <input type="color" id="edit-playlist-icon-color" class="color-input" value="#888888">
                                 <div class="color-presets" id="edit-playlist-color-presets">
@@ -1996,8 +2055,8 @@
                 </div>
 
                 <div class="modal-actions">
-                    <button class="btn btn-secondary" id="cancel-edit-icon-btn">Cancel</button>
-                    <button class="btn btn-primary" id="save-edit-icon-btn">Save Changes</button>
+                    <button class="btn btn-secondary" id="cancel-edit-icon-btn" data-i18n>Cancel</button>
+                    <button class="btn btn-primary" id="save-edit-icon-btn" data-i18n>Save Changes</button>
                 </div>
             </div>
         </div>
@@ -2016,7 +2075,7 @@
     <div class="modal-overlay hidden" id="rename-playlist-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Rename Playlist</h2>
+                <h2 data-i18n>Rename Playlist</h2>
                 <button class="modal-close" id="close-rename-playlist-modal">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -2026,13 +2085,13 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Playlist Name</label>
-                    <input type="text" class="form-input" id="rename-playlist-input" placeholder="Enter playlist name">
+                    <label class="form-label" data-i18n>Playlist Name</label>
+                    <input type="text" class="form-input" id="rename-playlist-input" placeholder="Enter playlist name" data-i18n-attr="placeholder">
                 </div>
                 <div class="modal-actions"
                     style="display: flex; justify-content: flex-end; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
-                    <button class="btn" id="cancel-rename-playlist">Cancel</button>
-                    <button class="btn btn-primary" id="save-rename-playlist">Save</button>
+                    <button class="btn" id="cancel-rename-playlist" data-i18n>Cancel</button>
+                    <button class="btn btn-primary" id="save-rename-playlist" data-i18n>Save</button>
                 </div>
             </div>
         </div>
@@ -2052,19 +2111,19 @@
             </div>
             <span class="fs-brand-title">Rainy</span>
         </div>
-        <button id="fs-volume-btn" title="Volume">
+        <button id="fs-volume-btn" title="Volume" data-i18n-attr="title">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                 <path
                     d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"
                     fill="currentColor" />
             </svg>
         </button>
-        <button id="fs-lightshow-btn" title="Toggle Light Show">
+        <button id="fs-lightshow-btn" title="Toggle Light Show" data-i18n-attr="title">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M4 9h2v6H4zm3-4h2v14H7zm3 6h2v4h-2zm3-8h2v16h-2zm3 5h2v9h-2zm3-2h2v7h-2z"/>
             </svg>
         </button>
-        <button id="fs-close-btn" title="Close Fullscreen">
+        <button id="fs-close-btn" title="Close Fullscreen" data-i18n-attr="title">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     fill="none" />
@@ -2076,8 +2135,8 @@
         <div class="fs-content">
             <div class="fs-queue-container">
                 <div class="fs-queue-header fs-side-tabs">
-                    <button class="fs-side-tab" id="fs-tab-queue" type="button">Up Next</button>
-                    <button class="fs-side-tab" id="fs-tab-lyrics" type="button">Lyrics</button>
+                    <button class="fs-side-tab" id="fs-tab-queue" type="button" data-i18n>Up Next</button>
+                    <button class="fs-side-tab" id="fs-tab-lyrics" type="button" data-i18n>Lyrics</button>
                 </div>
                 <div id="fs-queue-list">
                     <!-- Queue items will be populated by JS -->
@@ -2107,18 +2166,18 @@
                     </div>
 
                     <div class="fs-buttons">
-                        <button class="fs-control-btn secondary" id="fs-shuffle-btn" title="Shuffle">
+                        <button class="fs-control-btn secondary" id="fs-shuffle-btn" title="Shuffle" data-i18n-attr="title">
                             <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path
                                     d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
                             </svg>
                         </button>
-                        <button class="fs-control-btn" id="fs-prev-btn" title="Previous">
+                        <button class="fs-control-btn" id="fs-prev-btn" title="Previous" data-i18n-attr="title">
                             <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                             </svg>
                         </button>
-                        <button class="fs-control-btn play-pause" id="fs-play-pause-btn" title="Play">
+                        <button class="fs-control-btn play-pause" id="fs-play-pause-btn" title="Play" data-i18n-attr="title">
                             <svg class="icon-play" width="48" height="48" viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 5v14l11-7z" />
@@ -2128,24 +2187,24 @@
                                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                             </svg>
                         </button>
-                        <button class="fs-control-btn" id="fs-next-btn" title="Next">
+                        <button class="fs-control-btn" id="fs-next-btn" title="Next" data-i18n-attr="title">
                             <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                             </svg>
                         </button>
                         <div class="fs-like-group">
-                            <button class="fs-control-btn secondary" id="fs-like-btn" title="Like">
+                            <button class="fs-control-btn secondary" id="fs-like-btn" title="Like" data-i18n-attr="title">
                                 <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
                                 </svg>
                             </button>
-                            <button class="fs-control-btn secondary" id="fs-dislike-btn" title="Dislike">
+                            <button class="fs-control-btn secondary" id="fs-dislike-btn" title="Dislike" data-i18n-attr="title">
                                 <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
                                 </svg>
                             </button>
                         </div>
-                        <button class="fs-control-btn secondary" id="fs-repeat-btn" title="Repeat">
+                        <button class="fs-control-btn secondary" id="fs-repeat-btn" title="Repeat" data-i18n-attr="title">
                             <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
                             </svg>
@@ -2160,17 +2219,17 @@
         <svg slot='header-icon' viewBox='0 0 24 24' fill='currentColor'>
             <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' />
         </svg>
-        <h2 slot='header-title'>Delete Playlist</h2>
-        <p slot='body'>Are you sure you want to delete this playlist? This action cannot be undone.</p>
-        <button slot='action' class='btn' id='cancel-delete-playlist'>Cancel</button>
-        <button slot='action' class='btn btn-danger' id='confirm-delete-playlist'>Delete</button>
+        <h2 slot='header-title' data-i18n>Delete Playlist</h2>
+        <p slot='body' data-i18n>Are you sure you want to delete this playlist? This action cannot be undone.</p>
+        <button slot='action' class='btn' id='cancel-delete-playlist' data-i18n>Cancel</button>
+        <button slot='action' class='btn btn-danger' id='confirm-delete-playlist' data-i18n>Delete</button>
     </rainy-modal>
 
     <!-- Reset User Password Modal -->
     <div class="modal-overlay hidden" id="reset-user-password-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Reset Password</h2>
+                <h2 data-i18n>Reset Password</h2>
                 <button class="modal-close" id="close-reset-user-password-modal">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -2182,14 +2241,14 @@
                 <p class="modal-subtitle" id="reset-user-password-target" style="margin-bottom: var(--spacing-md);">
                 </p>
                 <div class="form-group">
-                    <label class="form-label" for="reset-user-password-input">New Password</label>
-                    <input type="password" class="form-input" id="reset-user-password-input" minlength="6"
-                        placeholder="At least 6 characters">
+                    <label class="form-label" for="reset-user-password-input" data-i18n>New Password</label>
+                    <input type="password" class="form-input" id="reset-user-password-input" minlength="8"
+                        placeholder="At least 8 characters" data-i18n-attr="placeholder">
                 </div>
                 <div class="modal-actions"
                     style="display: flex; justify-content: flex-end; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
-                    <button class="btn" id="cancel-reset-user-password">Cancel</button>
-                    <button class="btn btn-primary" id="confirm-reset-user-password">Reset Password</button>
+                    <button class="btn" id="cancel-reset-user-password" data-i18n>Cancel</button>
+                    <button class="btn btn-primary" id="confirm-reset-user-password" data-i18n>Reset Password</button>
                 </div>
             </div>
         </div>
@@ -2199,7 +2258,7 @@
     <div class="modal-overlay hidden" id="delete-user-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Delete User</h2>
+                <h2 data-i18n>Delete User</h2>
                 <button class="modal-close" id="close-delete-user-modal">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -2211,8 +2270,8 @@
                 <p class="modal-subtitle" id="delete-user-target" style="margin-bottom: var(--spacing-md);"></p>
                 <div class="modal-actions"
                     style="display: flex; justify-content: flex-end; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
-                    <button class="btn" id="cancel-delete-user">Cancel</button>
-                    <button class="btn btn-danger" id="confirm-delete-user">Delete</button>
+                    <button class="btn" id="cancel-delete-user" data-i18n>Cancel</button>
+                    <button class="btn btn-danger" id="confirm-delete-user" data-i18n>Delete</button>
                 </div>
             </div>
         </div>
@@ -2286,8 +2345,8 @@
         <div class="modal-content artist-edit-modal-content">
             <div class="modal-header">
                 <div>
-                    <h2 id="edit-artist-modal-title">Edit Artist Profile</h2>
-                    <p class="modal-subtitle" id="edit-artist-modal-subtitle">Update profile info and manage songs</p>
+                    <h2 id="edit-artist-modal-title" data-i18n>Edit Artist Profile</h2>
+                    <p class="modal-subtitle" id="edit-artist-modal-subtitle" data-i18n>Update profile info and manage songs</p>
                 </div>
                 <button class="modal-close" id="close-edit-artist-modal">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
@@ -2296,11 +2355,11 @@
 
             <!-- Tab Nav -->
             <div class="artist-modal-tabs">
-                <button class="artist-modal-tab active" data-tab="profile">
+                <button class="artist-modal-tab active" data-tab="profile" data-i18n>
                     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     Profile
                 </button>
-                <button class="artist-modal-tab" data-tab="songs">
+                <button class="artist-modal-tab" data-tab="songs" data-i18n>
                     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                     Songs
                 </button>
@@ -2314,11 +2373,11 @@
                     <div class="scrape-section">
                         <div class="scrape-info">
                             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
-                            <span>Auto-fill from <strong>YouTube Music</strong></span>
+                            <span data-i18n-html>Auto-fill from <strong>YouTube Music</strong></span>
                         </div>
                         <button class="btn btn-scrape" id="scrape-artist-btn">
                             <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
-                            <span id="scrape-btn-text">Scrape Info</span>
+                            <span id="scrape-btn-text" data-i18n>Scrape Info</span>
                         </button>
                     </div>
 
@@ -2326,22 +2385,22 @@
                     <div class="scrape-picker hidden" id="scrape-picker">
                         <div class="scrape-picker-header">
                             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                            <span>Multiple matches found — pick the correct artist:</span>
-                            <button class="scrape-picker-close" id="scrape-picker-close" type="button" aria-label="Close picker">×</button>
+                            <span data-i18n>Multiple matches found — pick the correct artist:</span>
+                            <button class="scrape-picker-close" id="scrape-picker-close" type="button" aria-label="Close picker" data-i18n-attr="aria-label">×</button>
                         </div>
                         <div class="scrape-picker-list" id="scrape-picker-list">
                             <!-- candidate cards inserted by JS -->
                         </div>
                     </div>
 
-                    <div class="scrape-result hidden" id="scrape-result-banner">
+                    <div class="scrape-result hidden" id="scrape-result-banner" data-i18n>
                         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                         Found on YouTube Music: <a id="scrape-source-link" href="#" target="_blank" rel="noopener noreferrer" class="scrape-wiki-link"></a>
                     </div>
 
                     <!-- Image URL field -->
                     <div class="artist-modal-field">
-                        <label class="artist-modal-label" for="edit-artist-image-input">Artist Image URL</label>
+                        <label class="artist-modal-label" for="edit-artist-image-input" data-i18n>Artist Image URL</label>
                         <div class="artist-image-row">
                             <div class="artist-image-preview" id="artist-image-preview">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -2352,14 +2411,14 @@
 
                     <!-- Bio field -->
                     <div class="artist-modal-field">
-                        <label class="artist-modal-label" for="edit-artist-bio-input">Description / Bio</label>
-                        <textarea id="edit-artist-bio-input" class="artist-modal-input artist-modal-textarea" rows="6" placeholder="Write artist description here..."></textarea>
+                        <label class="artist-modal-label" for="edit-artist-bio-input" data-i18n>Description / Bio</label>
+                        <textarea id="edit-artist-bio-input" class="artist-modal-input artist-modal-textarea" rows="6" placeholder="Write artist description here..." data-i18n-attr="placeholder"></textarea>
                     </div>
                 </div>
 
                 <div class="artist-modal-footer">
-                    <button class="btn artist-modal-btn-cancel" id="cancel-edit-artist-btn">Cancel</button>
-                    <button class="btn artist-modal-btn-save" id="save-edit-artist-btn">
+                    <button class="btn artist-modal-btn-cancel" id="cancel-edit-artist-btn" data-i18n>Cancel</button>
+                    <button class="btn artist-modal-btn-save" id="save-edit-artist-btn" data-i18n>
                         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
                         Save Changes
                     </button>
@@ -2370,18 +2429,18 @@
             <div class="artist-modal-tab-panel" id="artist-tab-songs">
                 <div class="artist-songs-search">
                     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                    <input type="text" id="artist-songs-search" class="artist-songs-search-input" placeholder="Search songs...">
+                    <input type="text" id="artist-songs-search" class="artist-songs-search-input" placeholder="Search songs..." data-i18n-attr="placeholder">
                 </div>
                 <div class="artist-songs-loading hidden" id="artist-songs-loading">
                     <div class="artist-songs-spinner"></div>
-                    <span>Loading songs...</span>
+                    <span data-i18n>Loading songs...</span>
                 </div>
                 <div class="artist-songs-list" id="artist-songs-list">
                     <!-- Populated dynamically -->
                 </div>
                 <div class="artist-modal-footer">
                     <span class="artist-songs-count" id="artist-songs-count"></span>
-                    <button class="btn artist-modal-btn-cancel" id="close-songs-tab-btn">Close</button>
+                    <button class="btn artist-modal-btn-cancel" id="close-songs-tab-btn" data-i18n>Close</button>
                 </div>
             </div>
         </div>

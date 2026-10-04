@@ -5,6 +5,7 @@ import { useMetadataService } from "../services/metadata.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
+import { t } from "../i18n/index.js";
 
 export class MetadataModal extends Component {
     static componentName = 'rainy-metadata-modal';
@@ -108,7 +109,7 @@ export class MetadataModal extends Component {
                 h.div(a.class('metadata-result-duration'), song.duration_text || Utils.formatDuration(song.duration))
             ),
             h.div(a.class('metadata-result-action'),
-                h.button(a.class('btn', 'btn-primary', 'apply-metadata-btn'), on.click(() => this.apply(song)), 'Apply')
+                h.button(a.class('btn', 'btn-primary', 'apply-metadata-btn'), on.click(() => this.apply(song)), t('Apply'))
             )
         );
     }
@@ -243,24 +244,24 @@ export class MetadataModal extends Component {
     render() {
         return H.of(Modal,
             I.Magnifier('currentColor', a.slot('header-icon')),
-            h.h2(a.slot('header-title'), 'Find Metadata'),
+            h.h2(a.slot('header-title'), t('Find Metadata')),
             h.div(a.slot('body'), a.class('metadata-current-song'),
-                h.span(a.class('label'), 'Searching for:'),
-                h.span(this._songName, a.class('song-name'), 'Song Name')
+                h.span(a.class('label'), t('Searching for:')),
+                h.span(this._songName, a.class('song-name'), t('Song Name'))
             ),
             h.div(a.slot('body'), a.class('metadata-search-bar'),
-                h.input(this._queryInput, a.type('text'), a.placeholder('Search YouTube Music...')),
+                h.input(this._queryInput, a.type('text'), a.placeholder(t('Search YouTube Music...'))),
                 h.button(a.class('btn', 'btn-primary'), on.click(() => this.search((this._queryInput.value).value)),
                     I.Magnifier()
                 )
             ),
             h.div(this._loading, a.slot('body'), a.class('metadata-loading', 'hidden'),
                 h.div(a.class('loading-spinner')),
-                h.p('Searching...')
+                h.p(t('Searching...'))
             ),
             h.div(this._results, a.slot('body'), a.class('metadata-results')),
             h.div(this._noResults, a.slot('body'), a.class('metadata-no-results', 'hidden'),
-                h.p('No results found. Try a different search term.')
+                h.p(t('No results found. Try a different search term.'))
             )
         );
     }

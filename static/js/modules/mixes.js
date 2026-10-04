@@ -9,6 +9,7 @@
  */
 import { Logger } from '../helper/logger.js';
 import { Utils } from './utils.js';
+import { t } from '../i18n/index.js';
 
 const SHELVES = [
     { id: 'made', title: 'Made for you' },
@@ -28,7 +29,30 @@ const coverUrl = (p) => `/api/music/cover/${encodeURIComponent(p)}`;
 
 function fmtTotal(seconds) {
     const m = Math.round((seconds || 0) / 60);
-    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr ${m % 60} min`;
+    return m < 60
+        ? t('{count} min', { count: m })
+        : t('{hours} hr {minutes} min', { hours: Math.floor(m / 60), minutes: m % 60 });
+}
+
+// Mix names are built in English on the server (utils/mixes.py): fixed
+// strings plus a few patterns that carry a number or an artist name.
+function mixTitle(mix) {
+    const title = mix.title || '';
+    let m;
+    if (mix.kind === 'my' && (m = title.match(/^My Mix (\d+)$/))) return t('My Mix {number}', { number: m[1] });
+    if (mix.kind === 'artist' && (m = title.match(/^(.*) Mix$/))) return t('{name} Mix', { name: m[1] });
+    return t(title);
+}
+
+function mixSubtitle(mix) {
+    const sub = mix.subtitle || '';
+    if (sub.endsWith(' and more')) return t('{names} and more', { names: sub.slice(0, -' and more'.length) });
+    return t(sub);
+}
+
+function mixTag(mix) {
+    const m = (mix.tag || '').match(/^(\d+) liked$/);
+    return m ? t('{count} liked', { count: Number(m[1]) }) : t(mix.tag);
 }
 
 // --- artwork tint ---------------------------------------------------------
@@ -133,12 +157,12 @@ export class MixesView {
             this.status.classList.remove('hidden');
             this.status.innerHTML = `<div class="loading-container">
                 <div class="loading-spinner"></div>
-                <p class="loading-text">Building your mixes…</p></div>`;
+                <p class="loading-text">${t('Building your mixes…')}</p></div>`;
         } else if (kind === 'error') {
             this.status.classList.remove('hidden');
             this.status.innerHTML = `<div class="empty-state">
-                <h3>Couldn’t build your mixes</h3><p>${esc(msg || 'Something went wrong.')}</p>
-                <button class="mix-btn" id="mixes-retry" type="button">Try again</button></div>`;
+                <h3>${t('Couldn’t build your mixes')}</h3><p>${esc(t(msg || 'Something went wrong.'))}</p>
+                <button class="mix-btn" id="mixes-retry" type="button">${t('Try again')}</button></div>`;
             this.status.querySelector('#mixes-retry')
                 ?.addEventListener('click', () => this.load({ refresh: true }));
         } else {
@@ -159,7 +183,7 @@ export class MixesView {
     }
 
     _meta(mix) {
-        const count = `${mix.count} ${mix.count === 1 ? 'song' : 'songs'}`;
+        const count = t('{count} songs', { count: mix.count });
         return `${count} · ${fmtTotal(mix.duration)}`;
     }
 
@@ -168,12 +192,12 @@ export class MixesView {
             <section class="mix-hero">
                 <div class="mix-cover mix-hero-cover">${this._cover(mix)}</div>
                 <div class="mix-hero-body">
-                    <h2 class="mix-hero-title">${esc(mix.title)}</h2>
-                    <p class="mix-hero-sub">${esc(mix.subtitle)}</p>
+                    <h2 class="mix-hero-title">${esc(mixTitle(mix))}</h2>
+                    <p class="mix-hero-sub">${esc(mixSubtitle(mix))}</p>
                     <p class="mix-hero-meta">${this._meta(mix)}</p>
                     <div class="mix-actions">
-                        <button class="album-play-btn mix-play" type="button" data-play="${esc(mix.id)}">${ICON.play}Play</button>
-                        <button class="mix-btn" type="button" data-mix="${esc(mix.id)}">See tracks</button>
+                        <button class="album-play-btn mix-play" type="button" data-play="${esc(mix.id)}">${ICON.play}${t('Play')}</button>
+                        <button class="mix-btn" type="button" data-mix="${esc(mix.id)}">${t('See tracks')}</button>
                     </div>
                 </div>
             </section>`;
@@ -185,10 +209,10 @@ export class MixesView {
                 <div class="mix-cover">
                     ${this._cover(mix)}
                     <button class="mix-quickplay" type="button" data-play="${esc(mix.id)}"
-                        aria-label="Play ${esc(mix.title)}">${ICON.play}</button>
+                        aria-label="${esc(t('Play {title}', { title: mixTitle(mix) }))}">${ICON.play}</button>
                 </div>
-                <div class="mix-card-title">${esc(mix.title)}</div>
-                <div class="mix-card-sub">${esc(mix.subtitle)}</div>
+                <div class="mix-card-title">${esc(mixTitle(mix))}</div>
+                <div class="mix-card-sub">${esc(mixSubtitle(mix))}</div>
             </div>`;
     }
 
@@ -197,8 +221,8 @@ export class MixesView {
         this._setStatus('done');
         if (!this.mixes.length) {
             this.home.innerHTML = `<div class="empty-state">
-                <h3>No mixes yet</h3>
-                <p>Add some music and play a few songs. Mixes are built from what you listen to.</p></div>`;
+                <h3>${t('No mixes yet')}</h3>
+                <p>${t('Add some music and play a few songs. Mixes are built from what you listen to.')}</p></div>`;
             return;
         }
 
@@ -208,11 +232,11 @@ export class MixesView {
         const bar = `
             <div class="mix-bar">
                 <div class="recent-tabs mix-moods">
-                    ${moods.map(m => `<button class="recent-tab" type="button" data-mix="${esc(m.id)}">${esc(m.title)}</button>`).join('')}
+                    ${moods.map(m => `<button class="recent-tab" type="button" data-mix="${esc(m.id)}">${esc(mixTitle(m))}</button>`).join('')}
                 </div>
                 <div class="mix-tools">
                     <button class="mix-btn" id="mixes-refresh" type="button"
-                        title="Pick a new set of songs for each mix">${ICON.refresh}Refresh</button>
+                        title="${esc(t('Pick a new set of songs for each mix'))}">${ICON.refresh}${t('Refresh')}</button>
                 </div>
             </div>`;
 
@@ -222,10 +246,10 @@ export class MixesView {
             return `
                 <section class="mix-shelf">
                     <div class="mix-shelf-head">
-                        <h3 class="section-heading">${esc(shelf.title)}</h3>
+                        <h3 class="section-heading">${esc(t(shelf.title))}</h3>
                         <div class="mix-nav">
-                            <button class="icon-btn-small" type="button" data-scroll="-1" aria-label="Scroll left">${ICON.prev}</button>
-                            <button class="icon-btn-small" type="button" data-scroll="1" aria-label="Scroll right">${ICON.next}</button>
+                            <button class="icon-btn-small" type="button" data-scroll="-1" aria-label="${esc(t('Scroll left'))}">${ICON.prev}</button>
+                            <button class="icon-btn-small" type="button" data-scroll="1" aria-label="${esc(t('Scroll right'))}">${ICON.next}</button>
                         </div>
                     </div>
                     <div class="mix-row">${items.map(m => this._card(m)).join('')}</div>
@@ -300,17 +324,17 @@ export class MixesView {
             </div>`).join('');
 
         this.detail.innerHTML = `
-            <button class="album-back-btn" id="mix-back" type="button">&larr; Back to Smart Mix</button>
+            <button class="album-back-btn" id="mix-back" type="button">&larr; ${t('Back to Smart Mix')}</button>
             <div class="mix-detail-head">
                 <div class="mix-cover mix-detail-cover">${this._cover(mix)}</div>
                 <div class="mix-detail-info">
-                    <h1 class="mix-detail-title">${esc(mix.title)}</h1>
-                    <p class="mix-hero-sub">${esc(mix.subtitle)}</p>
-                    <p class="mix-hero-meta">${mix.tag ? `${esc(mix.tag)} · ` : ''}${this._meta(mix)}</p>
+                    <h1 class="mix-detail-title">${esc(mixTitle(mix))}</h1>
+                    <p class="mix-hero-sub">${esc(mixSubtitle(mix))}</p>
+                    <p class="mix-hero-meta">${mix.tag ? `${esc(mixTag(mix))} · ` : ''}${this._meta(mix)}</p>
                     <div class="mix-actions">
-                        <button class="album-play-btn mix-play" id="mix-play" type="button">${ICON.play}Play</button>
-                        <button class="mix-btn" id="mix-shuffle" type="button">Shuffle</button>
-                        <button class="mix-btn" id="mix-save" type="button">Save as playlist</button>
+                        <button class="album-play-btn mix-play" id="mix-play" type="button">${ICON.play}${t('Play')}</button>
+                        <button class="mix-btn" id="mix-shuffle" type="button">${t('Shuffle')}</button>
+                        <button class="mix-btn" id="mix-save" type="button">${t('Save as playlist')}</button>
                     </div>
                 </div>
             </div>
@@ -357,13 +381,13 @@ export class MixesView {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: generic ? `${mix.title} ${new Date().toLocaleDateString()}` : mix.title,
+                    name: generic ? `${mixTitle(mix)} ${new Date().toLocaleDateString()}` : mixTitle(mix),
                     song_ids: mix.songs.map(s => s.id),
                 }),
             });
             const data = await res.json();
             if (!res.ok || data.error) throw new Error(data.error || 'Could not save');
-            window.showToast?.(`Saved “${data.name}” (${data.count} songs)`, 'success');
+            window.showToast?.(t('Saved “{name}” ({count} songs)', { name: data.name, count: data.count }), 'success');
             this.app.loadPlaylists?.();
         } catch (e) {
             Logger.error('Save mix error:', e);

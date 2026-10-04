@@ -109,7 +109,8 @@ def login():
                 'username': user['username'],
                 'email': user['email'],
                 'role': user['role'],
-                'full_library': bool(user.get('full_library'))
+                'full_library': bool(user.get('full_library')),
+                'language': user.get('language')
             }
         })
 
@@ -149,6 +150,7 @@ def get_current_user():
             'email': user['email'],
             'role': user['role'],
             'full_library': bool(user.get('full_library')),
+            'language': user.get('language'),
             'preferences': user.get('preferences')
         }
     })
@@ -245,6 +247,26 @@ def update_preferences():
     except Exception:
         current_app.logger.exception('Preferences update failed')
         return jsonify({'error': 'Could not update preferences'}), 500
+
+@auth_bp.route('/language', methods=['POST'])
+def update_language():
+    """Set the signed-in user's UI language (null = follow the browser)."""
+    if validate_session() is None:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or 'language' not in data:
+        return jsonify({'error': 'Invalid request body'}), 400
+    raw = data.get('language')
+    language = UserModel.normalize_language(raw)
+    if raw is not None and language is None:
+        return jsonify({'error': 'Unsupported language'}), 400
+
+    try:
+        UserModel.update_language(session['user_id'], language)
+        return jsonify({'success': True, 'language': language})
+    except Exception:
+        return server_error('update language')
 
 def get_current_user_id():
     """Authenticated user id for this request, or None.

@@ -3,6 +3,7 @@
  * Handles first-time setup and user authentication
  */
 import { Logger } from "./helper/logger.js";
+import { fillLanguageSelect, getLanguage, setLanguage, t } from "./i18n/index.js";
 
 export function initSetup() {
     const setupForm = document.getElementById('setup-form');
@@ -10,6 +11,13 @@ export function initSetup() {
     const setupSubmit = document.getElementById('setup-submit');
 
     if (!setupForm) return;
+
+    // Language: previews live, and is saved as the admin account's language
+    const languageSelect = document.getElementById('setup-language');
+    if (languageSelect) {
+        fillLanguageSelect(languageSelect);
+        languageSelect.addEventListener('change', () => setLanguage(languageSelect.value));
+    }
 
     setupForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -22,18 +30,18 @@ export function initSetup() {
 
         // Validate
         if (!username || !email || !password || !musicPath) {
-            showError(setupError, 'All fields are required');
+            showError(setupError, t('All fields are required'));
             return;
         }
 
         if (password.length < 8) {
-            showError(setupError, 'Password must be at least 8 characters');
+            showError(setupError, t('Password must be at least 8 characters'));
             return;
         }
 
         // Disable button
         setupSubmit.disabled = true;
-        setupSubmit.innerHTML = '<span>Setting up...</span>';
+        setupSubmit.innerHTML = `<span>${t('Setting up...')}</span>`;
 
         try {
             const response = await fetch('/api/setup/complete', {
@@ -46,7 +54,8 @@ export function initSetup() {
                     username,
                     email,
                     password,
-                    music_path: musicPath
+                    music_path: musicPath,
+                    language: getLanguage()
                 })
             });
 
@@ -56,15 +65,15 @@ export function initSetup() {
                 // Reload to show main app
                 window.location.reload();
             } else {
-                showError(setupError, data.error || 'Setup failed');
+                showError(setupError, t(data.error || 'Setup failed'));
                 setupSubmit.disabled = false;
-                setupSubmit.innerHTML = '<span>Complete Setup</span>';
+                setupSubmit.innerHTML = `<span>${t('Complete Setup')}</span>`;
             }
         } catch (error) {
             Logger.error('Setup error:', error);
-            showError(setupError, 'Connection error. Please try again.');
+            showError(setupError, t('Connection error. Please try again.'));
             setupSubmit.disabled = false;
-            setupSubmit.innerHTML = '<span>Complete Setup</span>';
+            setupSubmit.innerHTML = `<span>${t('Complete Setup')}</span>`;
         }
     });
 }
@@ -85,13 +94,13 @@ export function initLogin() {
 
         // Validate
         if (!email || !password) {
-            showError(loginError, 'Email and password are required');
+            showError(loginError, t('Email and password are required'));
             return;
         }
 
         // Disable button
         loginSubmit.disabled = true;
-        loginSubmit.innerHTML = '<span>Signing in...</span>';
+        loginSubmit.innerHTML = `<span>${t('Signing in...')}</span>`;
 
         try {
             const response = await fetch('/api/auth/login', {
@@ -109,15 +118,15 @@ export function initLogin() {
                 // Reload to show main app
                 window.location.reload();
             } else {
-                showError(loginError, data.error || 'Login failed');
+                showError(loginError, t(data.error || 'Login failed'));
                 loginSubmit.disabled = false;
-                loginSubmit.innerHTML = '<span>Sign In</span>';
+                loginSubmit.innerHTML = `<span>${t('Sign In')}</span>`;
             }
         } catch (error) {
             Logger.error('Login error:', error);
-            showError(loginError, 'Connection error. Please try again.');
+            showError(loginError, t('Connection error. Please try again.'));
             loginSubmit.disabled = false;
-            loginSubmit.innerHTML = '<span>Sign In</span>';
+            loginSubmit.innerHTML = `<span>${t('Sign In')}</span>`;
         }
     });
 }

@@ -8,6 +8,7 @@ import { useContext } from '../helper/context.js';
 import { useAlbumService } from '../services/album.js';
 import { usePlaybackService } from '../services/playback.js';
 import { MixesView } from './mixes.js';
+import { getLanguage, t } from '../i18n/index.js';
 
 export class NewViews {
     constructor(app, player) {
@@ -117,8 +118,8 @@ export class NewViews {
         this.hideAllViews();
         document.getElementById('albums-view').classList.remove('hidden');
         this.updateNav('nav-albums');
-        document.querySelector('.section-title').textContent = 'Albums';
-        document.getElementById('library-subtitle').textContent = 'Browse your music by album';
+        document.querySelector('.section-title').textContent = t('Albums');
+        document.getElementById('library-subtitle').textContent = t('Browse your music by album');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('library-stats')?.classList.add('hidden');
         document.getElementById('playlist-menu-container')?.classList.add('hidden');
@@ -153,7 +154,7 @@ export class NewViews {
     renderAlbums(albums) {
         const grid = document.getElementById('albums-grid-list');
         if (!albums.length) {
-            grid.innerHTML = '<div class="empty-state"><h3>No Albums Found</h3><p>Try a different search or add more music.</p></div>';
+            grid.innerHTML = `<div class="empty-state"><h3>${t('No Albums Found')}</h3><p>${t('Try a different search or add more music.')}</p></div>`;
             return;
         }
         grid.innerHTML = albums.map(album => `
@@ -166,7 +167,7 @@ export class NewViews {
                 <div class="album-card-info">
                     <div class="album-card-title">${Utils.escapeHtml(album.album)}</div>
                     <div class="album-card-artist">${Utils.escapeHtml(album.artist)}</div>
-                    <div class="album-card-meta">${album.song_count} songs • ${Utils.formatDuration(album.total_duration)}</div>
+                    <div class="album-card-meta">${t('{count} songs', { count: album.song_count })} • ${Utils.formatDuration(album.total_duration)}</div>
                 </div>
             </div>
         `).join('');
@@ -236,11 +237,11 @@ export class NewViews {
                         : '<div class="album-no-cover-large">💿</div>'}
                 </div>
                 <div class="album-detail-info">
-                    <div class="album-detail-type">Album</div>
+                    <div class="album-detail-type">${t('Album')}</div>
                     <h1 class="album-detail-title">${Utils.escapeHtml(album.album)}</h1>
                     <div class="album-detail-artist">${Utils.escapeHtml(album.artist)}</div>
-                    <div class="album-detail-meta">${album.year || 'Unknown year'} • ${album.song_count} songs • ${Utils.formatDuration(album.total_duration)}</div>
-                    <button class="album-play-btn" id="album-play-all">▶ Play Album</button>
+                    <div class="album-detail-meta">${album.year || t('Unknown year')} • ${t('{count} songs', { count: album.song_count })} • ${Utils.formatDuration(album.total_duration)}</div>
+                    <button class="album-play-btn" id="album-play-all">▶ ${t('Play Album')}</button>
                 </div>
             `;
 
@@ -283,8 +284,8 @@ export class NewViews {
         this.hideAllViews();
         document.getElementById('recent-view').classList.remove('hidden');
         this.updateNav('nav-recent');
-        document.querySelector('.section-title').textContent = 'Recently Played';
-        document.getElementById('library-subtitle').textContent = 'Your listening history and stats';
+        document.querySelector('.section-title').textContent = t('Recently Played');
+        document.getElementById('library-subtitle').textContent = t('Your listening history and stats');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('library-stats')?.classList.add('hidden');
         document.getElementById('playlist-menu-container')?.classList.add('hidden');
@@ -331,7 +332,7 @@ export class NewViews {
 
     renderSongList(container, songs, mode) {
         if (!songs.length) {
-            container.innerHTML = '<div class="empty-state"><h3>No History Yet</h3><p>Play some songs to see them here.</p></div>';
+            container.innerHTML = `<div class="empty-state"><h3>${t('No History Yet')}</h3><p>${t('Play some songs to see them here.')}</p></div>`;
             return;
         }
         container.innerHTML = songs.map((song, idx) => `
@@ -346,7 +347,7 @@ export class NewViews {
                     <div class="recent-song-title">${Utils.escapeHtml(song.title)}</div>
                     <div class="recent-song-artist">${Utils.escapeHtml(song.artist)}</div>
                 </div>
-                ${mode === 'top' ? `<div class="recent-song-plays">${song.play_count} plays</div>` : ''}
+                ${mode === 'top' ? `<div class="recent-song-plays">${t('{count} plays', { count: song.play_count })}</div>` : ''}
                 ${mode === 'recent' && song.played_at ? `<div class="recent-song-time">${this.timeAgo(song.played_at)}</div>` : ''}
                 <div class="recent-song-duration">${Utils.formatDuration(song.duration)}</div>
             </div>
@@ -379,41 +380,41 @@ export class NewViews {
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-value">${stats.total_plays || 0}</div>
-                        <div class="stat-label">Total Plays</div>
+                        <div class="stat-label">${t('Total Plays')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${stats.unique_songs || 0}</div>
-                        <div class="stat-label">Unique Songs</div>
+                        <div class="stat-label">${t('Unique Songs')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${stats.active_days || 0}</div>
-                        <div class="stat-label">Active Days</div>
+                        <div class="stat-label">${t('Active Days')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${Utils.formatHumanDuration(stats.total_seconds || 0)}</div>
-                        <div class="stat-label">Listening Time</div>
+                        <div class="stat-label">${t('Listening Time')}</div>
                     </div>
                 </div>
                 <div class="stats-section">
-                    <h3>Top Artists</h3>
+                    <h3>${t('Top Artists')}</h3>
                     <div class="stats-list">
                         ${artists.map((a, i) => `
                             <div class="stats-list-item">
                                 <span class="stats-rank">${i + 1}</span>
                                 <span class="stats-name">${Utils.escapeHtml(a.artist)}</span>
-                                <span class="stats-count">${a.play_count} plays</span>
+                                <span class="stats-count">${t('{count} plays', { count: a.play_count })}</span>
                             </div>
                         `).join('')}
                     </div>
                 </div>
                 <div class="stats-section">
-                    <h3>Top Genres</h3>
+                    <h3>${t('Top Genres')}</h3>
                     <div class="stats-list">
                         ${genres.map((g, i) => `
                             <div class="stats-list-item">
                                 <span class="stats-rank">${i + 1}</span>
                                 <span class="stats-name">${Utils.escapeHtml(g.genre)}</span>
-                                <span class="stats-count">${g.play_count} plays</span>
+                                <span class="stats-count">${t('{count} plays', { count: g.play_count })}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -425,7 +426,7 @@ export class NewViews {
     }
 
     async clearHistory() {
-        if (!confirm('Clear all play history? This cannot be undone.')) return;
+        if (!confirm(t('Clear all play history? This cannot be undone.'))) return;
         try {
             const res = await usePlaybackService().clearHistory();
             if (res.error) return Logger.error('Clear history error:', res.error);
@@ -442,10 +443,11 @@ export class NewViews {
         const date = new Date(isoString);
         const now = new Date();
         const diff = Math.floor((now - date) / 1000);
-        if (diff < 60) return 'just now';
-        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-        if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+        if (diff < 60) return t('just now');
+        const rtf = new Intl.RelativeTimeFormat(getLanguage(), { style: 'short' });
+        if (diff < 3600) return rtf.format(-Math.floor(diff / 60), 'minute');
+        if (diff < 86400) return rtf.format(-Math.floor(diff / 3600), 'hour');
+        if (diff < 604800) return rtf.format(-Math.floor(diff / 86400), 'day');
         return date.toLocaleDateString();
     }
 
@@ -461,8 +463,8 @@ export class NewViews {
         this.hideAllViews();
         document.getElementById('smartmix-view').classList.remove('hidden');
         this.updateNav('nav-smartmix');
-        document.querySelector('.section-title').textContent = 'Smart Mix';
-        document.getElementById('library-subtitle').textContent = 'Made from your taste, always changing';
+        document.querySelector('.section-title').textContent = t('Smart Mix');
+        document.getElementById('library-subtitle').textContent = t('Made from your taste, always changing');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('library-stats')?.classList.add('hidden');
         document.getElementById('playlist-menu-container')?.classList.add('hidden');

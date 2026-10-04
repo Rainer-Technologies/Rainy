@@ -1,0 +1,27 @@
+// English is the source language: t() falls back to the key itself.
+// Only strings whose singular differs from the plural key need an entry.
+export default {
+    "{count} songs": {"one": "{count} song", "other": "{count} songs"},
+    "Merge into the selected copy and permanently delete the other {count} files from disk?": {"one": "Merge into the selected copy and permanently delete the other {count} file from disk?", "other": "Merge into the selected copy and permanently delete the other {count} files from disk?"},
+    "Merged {count} duplicates": {"one": "Merged {count} duplicate", "other": "Merged {count} duplicates"},
+    "Scraped {count} artist images": {"one": "Scraped {count} artist image", "other": "Scraped {count} artist images"},
+    "Scraped {count} artist bios": {"one": "Scraped {count} artist bio", "other": "Scraped {count} artist bios"},
+    "{done} of {count} songs analysed": {"one": "{done} of {count} song analysed", "other": "{done} of {count} songs analysed"},
+    "{count} sections": {"one": "{count} section", "other": "{count} sections"},
+    "{done} of {count} songs timed": {"one": "{done} of {count} song timed", "other": "{done} of {count} songs timed"},
+    "{count} lines timed": {"one": "{count} line timed", "other": "{count} lines timed"},
+    "Showing {shown} of {count} songs": {"one": "Showing {shown} of {count} song", "other": "Showing {shown} of {count} songs"},
+    "{count} tracks": {"one": "{count} track", "other": "{count} tracks"},
+    "Every {count} hours": {"one": "Every {count} hour", "other": "Every {count} hours"},
+    "{count} Artists": {"one": "{count} Artist", "other": "{count} Artists"},
+    "{count} songs in library": {"one": "{count} song in library", "other": "{count} songs in library"},
+    "\"{title}\" added to queue ({count} songs away)": {"one": "\"{title}\" added to queue ({count} song away)", "other": "\"{title}\" added to queue ({count} songs away)"},
+    "Uploading {count} files...": {"one": "Uploading {count} file...", "other": "Uploading {count} files..."},
+    "Successfully uploaded {count} files!": {"one": "Successfully uploaded {count} file!", "other": "Successfully uploaded {count} files!"},
+    "Imported: {count} songs to \"{name}\"": {"one": "Imported: {count} song to \"{name}\"", "other": "Imported: {count} songs to \"{name}\""},
+    "{count} lines": {"one": "{count} line", "other": "{count} lines"},
+    "+ {count} more lines": {"one": "+ {count} more line", "other": "+ {count} more lines"},
+    "Queue ({count} songs)": {"one": "Queue ({count} song)", "other": "Queue ({count} songs)"},
+    "{count} plays": {"one": "{count} play", "other": "{count} plays"},
+    "Saved “{name}” ({count} songs)": {"one": "Saved “{name}” ({count} song)", "other": "Saved “{name}” ({count} songs)"},
+};

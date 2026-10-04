@@ -5,6 +5,7 @@ import { useImportJobsService } from "../services/importJobs.js";
 import { I } from "./icon.js";
 import { a, Component, H, h, on, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
+import { t } from "../i18n/index.js";
 
 export class AddMusicModal extends Component {
     static componentName = 'rainy-add-music-modal';
@@ -230,7 +231,7 @@ export class AddMusicModal extends Component {
         }
 
         try {
-            statusText.textContent = `Uploading ${files.length} file(s)...`;
+            statusText.textContent = t('Uploading {count} files...', { count: files.length });
 
             const response = await fetch('/api/music/upload', {
                 method: 'POST',
@@ -243,7 +244,7 @@ export class AddMusicModal extends Component {
 
             const result = await response.json();
             progressFill.style.width = '100%';
-            statusText.textContent = `Successfully uploaded ${result.uploaded || files.length} file(s)!`;
+            statusText.textContent = t('Successfully uploaded {count} files!', { count: result.uploaded || files.length });
 
             setTimeout(() => {
                 this.hide();
@@ -251,7 +252,7 @@ export class AddMusicModal extends Component {
             }, 1500);
         } catch (error) {
             Logger.error('Upload error:', error);
-            statusText.textContent = 'Upload failed. Please try again.';
+            statusText.textContent = t('Upload failed. Please try again.');
         } finally {
             setTimeout(() => {
                 dropzone.classList.remove('hidden');
@@ -289,7 +290,7 @@ export class AddMusicModal extends Component {
             return false; // fall back to foreground import on failure
         }
 
-        Utils.showToast(`Import queued — track it in Settings → Jobs`, 'success', 4000);
+        Utils.showToast('Import queued — track it in Settings → Jobs', 'success', 4000);
         setTimeout(() => this.hide(), 800);
         return true;
     }
@@ -318,18 +319,18 @@ export class AddMusicModal extends Component {
                         h.div(a.class('modal-header-info'),
                             h.div(a.class('modal-icon'), I.Note()),
                             h.div(a.class('modal-header-title'),
-                                h.div('Playlist already exists'),
-                                h.p(a.class('modal-subtitle'), `“${name}” is already in your library`)
+                                h.div(t('Playlist already exists')),
+                                h.p(a.class('modal-subtitle'), t('“{name}” is already in your library', { name }))
                             )
                         )
                     ),
                     h.div(a.class('modal-body'),
                         h.p(a.style('color:var(--text-secondary);margin:0 0 16px;line-height:1.5'),
-                            'A playlist with this name already exists. Replace it to update its songs and order, or add only the new songs while keeping the current order.'),
+                            t('A playlist with this name already exists. Replace it to update its songs and order, or add only the new songs while keeping the current order.')),
                         h.div(a.class('modal-actions'),
-                            h.button(a.class('btn'), on.click(() => done('new')), 'Create new'),
-                            h.button(a.class('btn', 'btn-danger'), on.click(() => done('override')), 'Replace'),
-                            h.button(a.class('btn', 'btn-primary'), on.click(() => done('add')), 'Add new songs')
+                            h.button(a.class('btn'), on.click(() => done('new')), t('Create new')),
+                            h.button(a.class('btn', 'btn-danger'), on.click(() => done('override')), t('Replace')),
+                            h.button(a.class('btn', 'btn-primary'), on.click(() => done('add')), t('Add new songs'))
                         )
                     )
                 )
@@ -370,7 +371,7 @@ export class AddMusicModal extends Component {
 
         const updateProgress = (percent, message) => {
             progressFill.style.width = `${percent}%`;
-            statusText.textContent = message;
+            statusText.textContent = t(message);
         };
 
         updateProgress(10, 'Connecting to YouTube...');
@@ -411,8 +412,8 @@ export class AddMusicModal extends Component {
 
         // Check if song already existed
         if (result.already_exists) {
-            updateProgress(100, `Song already in library`);
-            window.Utils.showToast(result.message || `"${result.title}" by ${result.artist} already exists`, 'error', 4000);
+            updateProgress(100, 'Song already in library');
+            window.Utils.showToast(t('"{title}" by {artist} already exists', { title: result.title, artist: result.artist }), 'error', 4000);
             setTimeout(() => {
                 status.classList.add('hidden');
                 progressFill.style.width = '0%';
@@ -422,7 +423,7 @@ export class AddMusicModal extends Component {
             return;
         }
 
-        updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
+        updateProgress(100, `✓ ${t('Imported: {title}', { title: result.title || t('song') })}`);
         setTimeout(() => {
             this.hide();
             window.app?.loadLibrary();
@@ -455,7 +456,7 @@ export class AddMusicModal extends Component {
 
         const updateProgress = (percent, message) => {
             progressFill.style.width = `${percent}%`;
-            statusText.textContent = message;
+            statusText.textContent = t(message);
         };
 
         updateProgress(5, 'Checking for conflicts...');
@@ -490,7 +491,7 @@ export class AddMusicModal extends Component {
         const result = data.value;
         if (!result) return Logger.error('unreachable');
 
-        updateProgress(100, `✓ Imported: ${result.song_count} songs to "${result.playlist_name}"`);
+        updateProgress(100, `✓ ${t('Imported: {count} songs to "{name}"', { count: result.song_count, name: result.playlist_name })}`);
         setTimeout(() => {
             this.hide();
             window.app?.loadLibrary();
@@ -524,7 +525,7 @@ export class AddMusicModal extends Component {
 
         const updateProgress = (percent, message) => {
             progressFill.style.width = `${percent}%`;
-            statusText.textContent = message;
+            statusText.textContent = t(message);
         };
 
         updateProgress(10, 'Fetching track from Spotify...');
@@ -564,8 +565,8 @@ export class AddMusicModal extends Component {
         if (!result) return Logger.error('unreachable');
 
         if (result.already_exists) {
-            updateProgress(100, `Song already in library`);
-            Utils.showToast(result.message || `"${result.title}" by ${result.artist} already exists`, 'error', 4000);
+            updateProgress(100, 'Song already in library');
+            Utils.showToast(t('"{title}" by {artist} already exists', { title: result.title, artist: result.artist }), 'error', 4000);
             setTimeout(() => {
                 status.classList.add('hidden');
                 progressFill.style.width = '0%';
@@ -575,7 +576,7 @@ export class AddMusicModal extends Component {
             return;
         }
 
-        updateProgress(100, `✓ Imported: ${result.title || 'song'}`);
+        updateProgress(100, `✓ ${t('Imported: {title}', { title: result.title || t('song') })}`);
         setTimeout(() => {
             this.hide();
             window.app?.loadLibrary();
@@ -608,7 +609,7 @@ export class AddMusicModal extends Component {
 
         const updateProgress = (percent, message) => {
             progressFill.style.width = `${percent}%`;
-            statusText.textContent = message;
+            statusText.textContent = t(message);
         };
 
         updateProgress(2, 'Checking for conflicts...');
@@ -643,8 +644,8 @@ export class AddMusicModal extends Component {
         const result = data.value;
         if (!result) return Logger.error('unreachable');
 
-        const failedNote = result.failed_count > 0 ? ` (${result.failed_count} failed)` : '';
-        updateProgress(100, `✓ Imported: ${result.song_count} songs to "${result.playlist_name}"${failedNote}`);
+        const failedNote = result.failed_count > 0 ? ` ${t('({count} failed)', { count: result.failed_count })}` : '';
+        updateProgress(100, `✓ ${t('Imported: {count} songs to "{name}"', { count: result.song_count, name: result.playlist_name })}${failedNote}`);
         setTimeout(() => {
             this.hide();
             window.app?.loadLibrary();
@@ -662,15 +663,15 @@ export class AddMusicModal extends Component {
 
         return H.of(Modal,
             I.Note('currentColor', a.slot('header-icon')),
-            h.h2(a.slot('header-title'), 'Add Music'),
-            h.p(a.slot('header-subtitle'), a.class('modal-subtitle'), 'Import songs to your library'),
+            h.h2(a.slot('header-title'), t('Add Music')),
+            h.p(a.slot('header-subtitle'), a.class('modal-subtitle'), t('Import songs to your library')),
             h.div(a.slot('body'), a.class('add-music-methods'),
                 h.div(a.class('add-music-method', uploadActive), a.dataMethod('upload'), on.click(() => this.switchMethod('upload')),
                     h.div(a.class('method-icon'),
                         I.Upload()
                     ),
                     h.div(a.class('method-info'),
-                        h.span(a.class('method-title'), 'Upload Files')
+                        h.span(a.class('method-title'), t('Upload Files'))
                     ),
                     h.div(a.class('method-check'),
                         I.Check()
@@ -681,7 +682,7 @@ export class AddMusicModal extends Component {
                         I.Yt()
                     ),
                     h.div(a.class('method-info'),
-                        h.span(a.class('method-title'), 'YouTube Import')
+                        h.span(a.class('method-title'), t('YouTube Import'))
                     ),
                     h.div(a.class('method-check'),
                         I.Check()
@@ -692,7 +693,7 @@ export class AddMusicModal extends Component {
                         I.Spotify()
                     ),
                     h.div(a.class('method-info'),
-                        h.span(a.class('method-title'), 'Spotify Import')
+                        h.span(a.class('method-title'), t('Spotify Import'))
                     ),
                     h.div(a.class('method-check'),
                         I.Check()
@@ -710,11 +711,11 @@ export class AddMusicModal extends Component {
                         h.div(a.class('dropzone-icon-glow'))
                     ),
                     h.div(a.class('dropzone-text-group'),
-                        h.p(a.class('dropzone-title'), 'Drop your audio files here'),
+                        h.p(a.class('dropzone-title'), t('Drop your audio files here')),
                         h.p(a.class('dropzone-subtitle'),
-                            'or ',
-                            h.span(a.class('dropzone-browse'), 'browse'),
-                            ' to choose files'
+                            `${t('or')} `,
+                            h.span(a.class('dropzone-browse'), t('browse')),
+                            ` ${t('to choose files')}`
                         )
                     ),
                     h.div(a.class('dropzone-formats'),
@@ -728,7 +729,7 @@ export class AddMusicModal extends Component {
                 h.div(this._uploadProgress, a.class('upload-progress-modern', 'hidden'), a.id('upload-progress'),
                     h.div(a.class('progress-info'),
                         I.Refresh('currentColor', a.class('progress-icon', 'spinning')),
-                        h.span(this._uploadStatus, a.id('upload-status'), 'Uploading...')
+                        h.span(this._uploadStatus, a.id('upload-status'), t('Uploading...'))
                     ),
                     h.div(a.class('progress-bar-modern'),
                         h.div(this._uploadProgressFill, a.class('progress-fill-modern'), a.id('upload-progress-fill'))
@@ -738,16 +739,16 @@ export class AddMusicModal extends Component {
             h.div(a.slot('body'), a.class('add-music-content', youtubeActive), a.dataMethod('youtube'), a.id('youtube-content'),
                 h.div(a.class('youtube-tabs'),
                     h.div(a.class('youtube-tab', 'youtube-tab-song', 'active'), on.click(() => this.switchYouTubeTab('song')),
-                        h.span(a.class('tab-label'), 'Song')
+                        h.span(a.class('tab-label'), t('Song'))
                     ),
                     h.div(a.class('youtube-tab', 'youtube-tab-playlist'), on.click(() => this.switchYouTubeTab('playlist')),
-                        h.span(a.class('tab-label'), 'Playlist')
+                        h.span(a.class('tab-label'), t('Playlist'))
                     )
                 ),
                 h.label(a.class('bg-import-toggle'),
                     h.span(a.class('bg-import-toggle-text'),
-                        h.span(a.class('bg-import-toggle-title'), 'Process in background'),
-                        h.span(a.class('bg-import-toggle-hint'), 'Queue this import as a job — track it in Settings → Jobs')
+                        h.span(a.class('bg-import-toggle-title'), t('Process in background')),
+                        h.span(a.class('bg-import-toggle-hint'), t('Queue this import as a job — track it in Settings → Jobs'))
                     ),
                     h.span(a.class('toggle-switch'),
                         h.input(this._youtubeBgToggle, a.type('checkbox'), a.id('youtube-bg-toggle'), a.class('bg-import-checkbox')),
@@ -758,11 +759,11 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-input-wrapper'),
                         h.div(a.class('youtube-input-field'),
                             I.Share('currentColor', a.class('input-icon-svg')),
-                            h.input(this._youtubeInput, a.type('text'), a.id('youtube-url-input'), a.placeholder('Paste YouTube or YouTube Music URL...'), on.keypress((ev) => this._onYouTubeKeyPress(ev)))
+                            h.input(this._youtubeInput, a.type('text'), a.id('youtube-url-input'), a.placeholder(t('Paste YouTube or YouTube Music URL...')), on.keypress((ev) => this._onYouTubeKeyPress(ev)))
                         ),
                         h.button(this._youtubeImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('youtube-import-btn'), on.click(() => this.importFromYouTube()),
                             I.Import(),
-                            'Import'
+                            t('Import')
                         )
                     ),
                     h.div(this._youtubeStatus, a.class('youtube-status-modern', 'hidden'), a.id('youtube-status'),
@@ -771,7 +772,7 @@ export class AddMusicModal extends Component {
                                 I.Refresh('currentColor', a.class('spinning'))
                             ),
                             h.div(a.class('status-info'),
-                                h.span(this._youtubeStatusText, a.class('status-title'), a.id('youtube-status-text'), 'Importing from YouTube...'),
+                                h.span(this._youtubeStatusText, a.class('status-title'), a.id('youtube-status-text'), t('Importing from YouTube...')),
                                 h.div(a.class('progress-bar-modern'),
                                     h.div(this._youtubeProgressFill, a.class('progress-fill-modern'), a.id('youtube-progress-fill'))
                                 )
@@ -781,7 +782,7 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-tips'),
                         h.div(a.class('tip-item'),
                             I.Info(),
-                            h.span('Supports YouTube and YouTube Music URLs')
+                            h.span(t('Supports YouTube and YouTube Music URLs'))
                         )
                     )
                 ),
@@ -789,11 +790,11 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-input-wrapper'),
                         h.div(a.class('youtube-input-field'),
                             I.Share('currentColor', a.class('input-icon-svg')),
-                            h.input(this._playlistInput, a.type('text'), a.id('playlist-url-input'), a.placeholder('Paste YouTube Music playlist URL...'), on.keypress((ev) => this._onPlaylistKeyPress(ev)))
+                            h.input(this._playlistInput, a.type('text'), a.id('playlist-url-input'), a.placeholder(t('Paste YouTube Music playlist URL...')), on.keypress((ev) => this._onPlaylistKeyPress(ev)))
                         ),
                         h.button(this._playlistImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('playlist-import-btn'), on.click(() => this.importPlaylistFromYouTube()),
                             I.Import(),
-                            'Import Playlist'
+                            t('Import Playlist')
                         )
                     ),
                     h.div(this._playlistStatus, a.class('youtube-status-modern', 'hidden'), a.id('playlist-status'),
@@ -802,7 +803,7 @@ export class AddMusicModal extends Component {
                                 I.Refresh('currentColor', a.class('spinning'))
                             ),
                             h.div(a.class('status-info'),
-                                h.span(this._playlistStatusText, a.class('status-title'), a.id('playlist-status-text'), 'Importing playlist...'),
+                                h.span(this._playlistStatusText, a.class('status-title'), a.id('playlist-status-text'), t('Importing playlist...')),
                                 h.div(a.class('progress-bar-modern'),
                                     h.div(this._playlistProgressFill, a.class('progress-fill-modern'), a.id('playlist-progress-fill'))
                                 )
@@ -812,7 +813,7 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-tips'),
                         h.div(a.class('tip-item'),
                             I.Info(),
-                            h.span('Creates a new playlist with all songs from the YouTube Music playlist')
+                            h.span(t('Creates a new playlist with all songs from the YouTube Music playlist'))
                         )
                     )
                 ),
@@ -821,16 +822,16 @@ export class AddMusicModal extends Component {
             h.div(a.slot('body'), a.class('add-music-content', spotifyActive), a.dataMethod('spotify'), a.id('spotify-content'),
                 h.div(a.class('youtube-tabs'),
                     h.div(a.class('youtube-tab', 'spotify-tab-song', 'active'), on.click(() => this.switchSpotifyTab('song')),
-                        h.span(a.class('tab-label'), 'Song')
+                        h.span(a.class('tab-label'), t('Song'))
                     ),
                     h.div(a.class('youtube-tab', 'spotify-tab-playlist'), on.click(() => this.switchSpotifyTab('playlist')),
-                        h.span(a.class('tab-label'), 'Playlist')
+                        h.span(a.class('tab-label'), t('Playlist'))
                     )
                 ),
                 h.label(a.class('bg-import-toggle'),
                     h.span(a.class('bg-import-toggle-text'),
-                        h.span(a.class('bg-import-toggle-title'), 'Process in background'),
-                        h.span(a.class('bg-import-toggle-hint'), 'Queue this import as a job — track it in Settings → Jobs')
+                        h.span(a.class('bg-import-toggle-title'), t('Process in background')),
+                        h.span(a.class('bg-import-toggle-hint'), t('Queue this import as a job — track it in Settings → Jobs'))
                     ),
                     h.span(a.class('toggle-switch'),
                         h.input(this._spotifyBgToggle, a.type('checkbox'), a.id('spotify-bg-toggle'), a.class('bg-import-checkbox')),
@@ -841,11 +842,11 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-input-wrapper'),
                         h.div(a.class('youtube-input-field'),
                             I.Share('currentColor', a.class('input-icon-svg')),
-                            h.input(this._spotifySongInput, a.type('text'), a.id('spotify-song-url-input'), a.placeholder('Paste Spotify track URL...'), on.keypress((ev) => this._onSpotifySongKeyPress(ev)))
+                            h.input(this._spotifySongInput, a.type('text'), a.id('spotify-song-url-input'), a.placeholder(t('Paste Spotify track URL...')), on.keypress((ev) => this._onSpotifySongKeyPress(ev)))
                         ),
                         h.button(this._spotifySongImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('spotify-song-import-btn'), on.click(() => this.importFromSpotify()),
                             I.Import(),
-                            'Import'
+                            t('Import')
                         )
                     ),
                     h.div(this._spotifySongStatus, a.class('youtube-status-modern', 'hidden'), a.id('spotify-song-status'),
@@ -854,7 +855,7 @@ export class AddMusicModal extends Component {
                                 I.Refresh('currentColor', a.class('spinning'))
                             ),
                             h.div(a.class('status-info'),
-                                h.span(this._spotifySongStatusText, a.class('status-title'), a.id('spotify-song-status-text'), 'Importing from Spotify...'),
+                                h.span(this._spotifySongStatusText, a.class('status-title'), a.id('spotify-song-status-text'), t('Importing from Spotify...')),
                                 h.div(a.class('progress-bar-modern'),
                                     h.div(this._spotifySongProgressFill, a.class('progress-fill-modern'), a.id('spotify-song-progress-fill'))
                                 )
@@ -864,7 +865,7 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-tips'),
                         h.div(a.class('tip-item'),
                             I.Info(),
-                            h.span('Imports a single song by matching it on YouTube Music')
+                            h.span(t('Imports a single song by matching it on YouTube Music'))
                         )
                     )
                 ),
@@ -872,11 +873,11 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-input-wrapper'),
                         h.div(a.class('youtube-input-field'),
                             I.Share('currentColor', a.class('input-icon-svg')),
-                            h.input(this._spotifyPlaylistInput, a.type('text'), a.id('spotify-playlist-url-input'), a.placeholder('Paste Spotify playlist URL...'), on.keypress((ev) => this._onSpotifyPlaylistKeyPress(ev)))
+                            h.input(this._spotifyPlaylistInput, a.type('text'), a.id('spotify-playlist-url-input'), a.placeholder(t('Paste Spotify playlist URL...')), on.keypress((ev) => this._onSpotifyPlaylistKeyPress(ev)))
                         ),
                         h.button(this._spotifyPlaylistImportBtn, a.class('btn', 'btn-primary', 'youtube-import-btn'), a.id('spotify-playlist-import-btn'), on.click(() => this.importPlaylistFromSpotify()),
                             I.Import(),
-                            'Import Playlist'
+                            t('Import Playlist')
                         )
                     ),
                     h.div(this._spotifyPlaylistStatus, a.class('youtube-status-modern', 'hidden'), a.id('spotify-playlist-status'),
@@ -885,7 +886,7 @@ export class AddMusicModal extends Component {
                                 I.Refresh('currentColor', a.class('spinning'))
                             ),
                             h.div(a.class('status-info'),
-                                h.span(this._spotifyPlaylistStatusText, a.class('status-title'), a.id('spotify-playlist-status-text'), 'Importing playlist...'),
+                                h.span(this._spotifyPlaylistStatusText, a.class('status-title'), a.id('spotify-playlist-status-text'), t('Importing playlist...')),
                                 h.div(a.class('progress-bar-modern'),
                                     h.div(this._spotifyPlaylistProgressFill, a.class('progress-fill-modern'), a.id('spotify-playlist-progress-fill'))
                                 )
@@ -895,7 +896,7 @@ export class AddMusicModal extends Component {
                     h.div(a.class('youtube-tips'),
                         h.div(a.class('tip-item'),
                             I.Info(),
-                            h.span('Creates a new playlist with all songs from the Spotify playlist')
+                            h.span(t('Creates a new playlist with all songs from the Spotify playlist'))
                         )
                     )
                 ),
@@ -908,7 +909,7 @@ export class AddMusicModal extends Component {
         return h.div(a.class('import-rights-notice'),
             h.div(a.class('tip-item'),
                 I.Info(),
-                h.span('Only import music you own or have permission to download. You are responsible for complying with copyright law and the source platform’s terms.')
+                h.span(t('Only import music you own or have permission to download. You are responsible for complying with copyright law and the source platform’s terms.'))
             )
         );
     }

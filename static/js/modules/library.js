@@ -2,6 +2,10 @@
  * Rainy Music Player - Library Module
  * Handles library rendering and song display
  */
+import { t } from '../i18n/index.js';
+
+// Section titles come from the server in English ("Recently Added", ...).
+const sectionTitle = (section, escapeHtml) => escapeHtml(t(section.title || ''));
 
 export const Library = {
     /**
@@ -48,8 +52,8 @@ export const Library = {
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
-            <div class="song-card-horizontal fade-in" role="button" tabindex="0" aria-label="Play ${escapeHtml(song.title)} by ${escapeHtml(song.artist)}" data-index="${globalIndex}" data-id="${song.id}">
-                <button class="song-menu-btn" type="button" aria-label="More actions for ${escapeHtml(song.title)}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+            <div class="song-card-horizontal fade-in" role="button" tabindex="0" aria-label="${escapeHtml(t('Play {title} by {artist}', { title: song.title, artist: song.artist }))}" data-index="${globalIndex}" data-id="${song.id}">
+                <button class="song-menu-btn" type="button" aria-label="${escapeHtml(t('More actions for {title}', { title: song.title }))}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
@@ -73,7 +77,7 @@ export const Library = {
 
         return `
         <div class="library-section" data-section-id="${section.id}">
-            <h2 class="section-heading">${section.title}</h2>
+            <h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
             <div class="horizontal-scroll-container">
                 <div class="horizontal-scroll-content">
                     ${songsHtml}
@@ -99,8 +103,8 @@ export const Library = {
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
-            <div class="song-card fade-in" role="button" tabindex="0" aria-label="Play ${escapeHtml(song.title)} by ${escapeHtml(song.artist)}" data-index="${index}" data-id="${song.id}">
-                <button class="song-menu-btn" type="button" aria-label="More actions for ${escapeHtml(song.title)}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+            <div class="song-card fade-in" role="button" tabindex="0" aria-label="${escapeHtml(t('Play {title} by {artist}', { title: song.title, artist: song.artist }))}" data-index="${index}" data-id="${song.id}">
+                <button class="song-menu-btn" type="button" aria-label="${escapeHtml(t('More actions for {title}', { title: song.title }))}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
@@ -125,19 +129,19 @@ export const Library = {
 
         const sortFilterHtml = section.id === 'all-songs' ? `
             <div class="section-header-row">
-                <h2 class="section-heading">${section.title}</h2>
+                <h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
                 <div class="section-sort">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
                     </svg>
                     <select id="sort-select" class="sort-select">
-                        <option value="default" ${currentSort === 'default' ? 'selected' : ''}>Default Order</option>
-                        <option value="title-asc" ${currentSort === 'title-asc' ? 'selected' : ''}>Title (A-Z)</option>
-                        <option value="title-desc" ${currentSort === 'title-desc' ? 'selected' : ''}>Title (Z-A)</option>
+                        <option value="default" ${currentSort === 'default' ? 'selected' : ''}>${t('Default Order')}</option>
+                        <option value="title-asc" ${currentSort === 'title-asc' ? 'selected' : ''}>${t('Title (A-Z)')}</option>
+                        <option value="title-desc" ${currentSort === 'title-desc' ? 'selected' : ''}>${t('Title (Z-A)')}</option>
                     </select>
                 </div>
             </div>
-        ` : `<h2 class="section-heading">${section.title}</h2>`;
+        ` : `<h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>`;
 
         return `
         <div class="library-section" data-section-id="${section.id}">
@@ -171,7 +175,7 @@ export const Library = {
             const artistLinksHtml = artistNames.map(name => `<span class="song-artist-link" data-artist="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join(', ');
 
             return `
-            <div class="song-row fade-in" role="button" tabindex="0" aria-label="Play ${escapeHtml(song.title)} by ${escapeHtml(song.artist)}" data-index="${index}" data-id="${song.id}">
+            <div class="song-row fade-in" role="button" tabindex="0" aria-label="${escapeHtml(t('Play {title} by {artist}', { title: song.title, artist: song.artist }))}" data-index="${index}" data-id="${song.id}">
                 <span class="song-row-number">${index + 1}</span>
                 <div class="song-row-main">
                     <div class="song-row-artwork">${coverHtml}</div>
@@ -182,7 +186,7 @@ export const Library = {
                 </div>
                 <span class="song-row-album">${escapeHtml(song.album || '')}</span>
                 <span class="song-row-duration">${formatDuration(song.duration)}</span>
-                <button class="song-menu-btn" type="button" aria-label="More actions for ${escapeHtml(song.title)}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                <button class="song-menu-btn" type="button" aria-label="${escapeHtml(t('More actions for {title}', { title: song.title }))}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                     <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                 </button>
             </div>

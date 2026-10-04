@@ -125,6 +125,10 @@ class Database:
         # Deliberately NOT defaulted for anyone, admins included: the admin
         # must flip it on at account creation (or later via the users panel).
         cls._add_column(cursor, 'users', 'full_library', 'TINYINT(1) NOT NULL DEFAULT 0')
+
+        # Migration: UI language (en/ca/es/pl). NULL = follow the browser's
+        # language until the user picks one in Settings.
+        cls._add_column(cursor, 'users', 'language', 'VARCHAR(10) NULL')
         
         # Settings table
         cursor.execute("""

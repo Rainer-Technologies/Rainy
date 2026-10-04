@@ -4,6 +4,7 @@
  * Toggle with ? — close with Escape, backdrop click, or ? again.
  */
 import { Logger } from '../helper/logger.js';
+import { t } from '../i18n/index.js';
 
 const SHORTCUT_GROUPS = [
     {
@@ -70,7 +71,7 @@ const renderKeys = (keys) => {
     return combos.map(combo => {
         const ks = Array.isArray(combo) ? combo : [combo];
         return `<span class="so-keys">${ks.map(k => `<kbd>${k}</kbd>`).join('<span class="so-plus">+</span>')}</span>`;
-    }).join('<span class="so-or">or</span>');
+    }).join(`<span class="so-or">${t('or')}</span>`);
 };
 
 export class ShortcutOverlay {
@@ -91,13 +92,13 @@ export class ShortcutOverlay {
             <div class="so-group">
                 <div class="so-group-title">
                     <span class="so-group-icon">${group.icon}</span>
-                    ${group.title}
+                    ${t(group.title)}
                 </div>
                 <div class="so-group-items">
                     ${group.shortcuts.map(s => `
                         <div class="so-item">
                             ${renderKeys(s.keys)}
-                            <span class="so-action">${s.action}</span>
+                            <span class="so-action">${t(s.action)}</span>
                         </div>
                     `).join('')}
                 </div>
@@ -110,9 +111,9 @@ export class ShortcutOverlay {
                 <div class="so-header">
                     <div class="so-title">
                         <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
-                        Keyboard Shortcuts
+                        ${t('Keyboard Shortcuts')}
                     </div>
-                    <button class="so-close" title="Close (Esc)">
+                    <button class="so-close" title="${t('Close (Esc)')}">
                         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                     </button>
                 </div>
@@ -120,7 +121,7 @@ export class ShortcutOverlay {
                     ${groupsHtml}
                 </div>
                 <div class="so-footer">
-                    Press <kbd>?</kbd> to toggle &middot; <kbd>Esc</kbd> to close
+                    ${t('Press {key} to toggle', { key: '<kbd>?</kbd>' })} &middot; ${t('{key} to close', { key: '<kbd>Esc</kbd>' })}
                 </div>
             </div>
         `;

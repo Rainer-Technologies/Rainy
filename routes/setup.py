@@ -51,8 +51,10 @@ def complete_setup():
         if not os.path.isdir(music_path):
             return jsonify({'error': 'Music path does not exist or is not a directory'}), 400
         
-        # Create admin user
-        user_id = UserModel.create_user(username, email, password, role='sysadmin')
+        # Create admin user, in the language picked on the setup screen
+        language = UserModel.normalize_language(data.get('language'))
+        user_id = UserModel.create_user(username, email, password, role='sysadmin',
+                                        language=language)
         
         # Save music path setting
         from models.settings import SettingsModel
@@ -69,7 +71,8 @@ def complete_setup():
                 'id': user_id,
                 'username': username,
                 'email': email,
-                'role': 'sysadmin'
+                'role': 'sysadmin',
+                'language': language
             }
         })
 

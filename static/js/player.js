@@ -16,6 +16,7 @@ import { Utils } from './modules/utils.js';
 import { pickBpmAwareShuffleIndex } from './modules/bpmShuffle.js';
 import { MediaSessionController } from './modules/mediaSession.js';
 import { SleepTimer } from './modules/sleepTimer.js';
+import { t } from './i18n/index.js';
 
 export class AudioPlayer {
     constructor() {
@@ -908,23 +909,23 @@ export class AudioPlayer {
             switch (this.repeatMode) {
                 case 'none':
                     svg.style.fill = '';
-                    btn.title = 'Repeat Off';
+                    btn.title = t('Repeat Off');
                     btn.setAttribute('aria-pressed', 'false');
-                    btn.setAttribute('aria-label', 'Repeat off');
+                    btn.setAttribute('aria-label', t('Repeat off'));
                     svg.innerHTML = `<path d="${baseLoopPath}" />`;
                     break;
                 case 'all':
                     svg.style.fill = 'var(--accent-primary)';
-                    btn.title = 'Repeat All';
+                    btn.title = t('Repeat All');
                     btn.setAttribute('aria-pressed', 'true');
-                    btn.setAttribute('aria-label', 'Repeat all');
+                    btn.setAttribute('aria-label', t('Repeat all'));
                     svg.innerHTML = `<path d="${baseLoopPath}" /><circle cx="12" cy="12" r="2" />`;
                     break;
                 case 'one':
                     svg.style.fill = 'var(--accent-primary)';
-                    btn.title = 'Repeat One';
+                    btn.title = t('Repeat One');
                     btn.setAttribute('aria-pressed', 'true');
-                    btn.setAttribute('aria-label', 'Repeat one');
+                    btn.setAttribute('aria-label', t('Repeat one'));
                     // Add the "1" inside
                     svg.innerHTML = `<path d="${baseLoopPath}" /><path d="M13 15V9h-1l-2 1v1h1.5v4H13z" />`;
                     break;
@@ -947,26 +948,26 @@ export class AudioPlayer {
             return;
         }
 
-        const t = this.audio.currentTime;
+        const now = this.audio.currentTime;
 
         if (this.abPointA === null) {
             // First click: set point A
-            this.abPointA = t;
+            this.abPointA = now;
             this.abPointB = null;
-            window.showToast?.(`A-B repeat: start set at ${this.formatTime(t)}`, 'info');
+            window.showToast?.(t('A-B repeat: start set at {time}', { time: this.formatTime(now) }), 'info');
         } else if (this.abPointB === null) {
             // Second click: set point B
-            if (t <= this.abPointA + 0.5) {
+            if (now <= this.abPointA + 0.5) {
                 // Too close / before A — treat as resetting A
-                this.abPointA = t;
-                window.showToast?.(`A-B repeat: start moved to ${this.formatTime(t)}`, 'info');
+                this.abPointA = now;
+                window.showToast?.(t('A-B repeat: start moved to {time}', { time: this.formatTime(now) }), 'info');
             } else {
-                this.abPointB = t;
+                this.abPointB = now;
                 // Jump back to A so the loop starts cleanly
                 this.audio.currentTime = this.abPointA;
                 if (this.audio.paused) this.audio.play().catch(() => {});
                 window.showToast?.(
-                    `Looping ${this.formatTime(this.abPointA)} → ${this.formatTime(this.abPointB)}`,
+                    t('Looping {from} → {to}', { from: this.formatTime(this.abPointA), to: this.formatTime(this.abPointB) }),
                     'success'
                 );
             }
@@ -1453,7 +1454,7 @@ export class AudioPlayer {
 
         this.iconPlay.classList.add('hidden');
         this.iconPause.classList.remove('hidden');
-        this.playPauseBtn?.setAttribute('aria-label', 'Pause');
+        this.playPauseBtn?.setAttribute('aria-label', t('Pause'));
         this.playPauseBtn?.setAttribute('aria-pressed', 'true');
         this.nowPlayingArtwork.classList.add('playing');
 
@@ -1486,7 +1487,7 @@ export class AudioPlayer {
         this._listenTracker.sync(this.audio.currentTime || 0);
         this.iconPlay.classList.remove('hidden');
         this.iconPause.classList.add('hidden');
-        this.playPauseBtn?.setAttribute('aria-label', 'Play');
+        this.playPauseBtn?.setAttribute('aria-label', t('Play'));
         this.playPauseBtn?.setAttribute('aria-pressed', 'false');
         this.nowPlayingArtwork.classList.remove('playing');
 
@@ -1754,8 +1755,8 @@ export class AudioPlayer {
     _showLyricsEmpty(message, buttonLabel = 'Retry search') {
         if (!this.fsLyricsContent) return;
         this.fsLyricsContent.innerHTML =
-            `<div class="fs-lyrics-empty">${message}</div>` +
-            `<button class="fs-lyrics-retry" type="button">${buttonLabel}</button>`;
+            `<div class="fs-lyrics-empty">${t(message)}</div>` +
+            `<button class="fs-lyrics-retry" type="button">${t(buttonLabel)}</button>`;
         const btn = this.fsLyricsContent.querySelector('.fs-lyrics-retry');
         if (btn) {
             btn.addEventListener('click', () => {
@@ -1776,7 +1777,7 @@ export class AudioPlayer {
         this._lyricsWordEnds = null;
 
         if (this.fsLyricsContent) {
-            this.fsLyricsContent.innerHTML = '<div class="fs-lyrics-loading">Loading lyrics…</div>';
+            this.fsLyricsContent.innerHTML = `<div class="fs-lyrics-loading">${t('Loading lyrics…')}</div>`;
         }
         if (this.fsLyricsScroll) this.fsLyricsScroll.scrollTop = 0;
 
@@ -2388,7 +2389,7 @@ export class AudioPlayer {
 
             return `
                 <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}" draggable="true">
-                    <div class="fs-queue-drag-handle" title="Drag to reorder">
+                    <div class="fs-queue-drag-handle" title="${t('Drag to reorder')}">
                         <svg viewBox="0 0 24 24" fill="currentColor">
                             <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                         </svg>
@@ -2399,7 +2400,7 @@ export class AudioPlayer {
                         <div class="fs-queue-artist">${window.escapeHtml ? window.escapeHtml(song.artist) : song.artist}</div>
                     </div>
                     <div class="fs-queue-duration">${this.formatTime(song.duration)}</div>
-                    <button class="fs-queue-menu-btn" data-index="${index}" title="More options">
+                    <button class="fs-queue-menu-btn" data-index="${index}" title="${t('More options')}">
                         <svg viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                         </svg>
@@ -2525,37 +2526,37 @@ export class AudioPlayer {
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5v14l11-7z"/>
                 </svg>
-                <span>Play Now</span>
+                <span>${t('Play Now')}</span>
             </div>
             <div class="fs-queue-menu-item" data-action="playnext" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M6 3v18l8.5-6L6 9zm2 4.83l3.5 2.5L8 13.16zM16 6h5v2h-5zm0 4h5v2h-5zm0 4h5v2h-5z"/>
                 </svg>
-                <span>Play Next</span>
+                <span>${t('Play Next')}</span>
             </div>
             <div class="fs-queue-menu-item" data-action="addqueue" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                 </svg>
-                <span>Add to Queue</span>
+                <span>${t('Add to Queue')}</span>
             </div>
             <div class="fs-queue-menu-item ${isLiked ? 'active liked' : ''}" data-action="like" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
                 </svg>
-                <span>${isLiked ? 'Unlike' : 'Like'}</span>
+                <span>${isLiked ? t('Unlike') : t('Like')}</span>
             </div>
             <div class="fs-queue-menu-item ${isDisliked ? 'active disliked' : ''}" data-action="dislike" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
                 </svg>
-                <span>${isDisliked ? 'Undislike' : 'Dislike'}</span>
+                <span>${isDisliked ? t('Undislike') : t('Dislike')}</span>
             </div>
             <div class="fs-queue-menu-item danger" data-action="remove" data-index="${index}">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13H5v-2h14v2z"/>
                 </svg>
-                <span>Remove from Queue</span>
+                <span>${t('Remove from Queue')}</span>
             </div>
         `;
 
@@ -2723,7 +2724,7 @@ export class AudioPlayer {
         this.queueOperations.push({ action: 'add', songId: song.id, position: this.playlist.length - 1 });
         this.savePlaybackState();
         this.renderFullscreenQueue();
-        window.showToast?.(`Added "${song.title}" to queue`, 'success');
+        window.showToast?.(t('Added "{title}" to queue', { title: song.title }), 'success');
         Logger.log('Added song to queue:', song.title);
     }
 
@@ -2743,7 +2744,7 @@ export class AudioPlayer {
         this.queueOperations.push({ action: 'add', songId: song.id, position: insertAt });
         this.savePlaybackState();
         this.renderFullscreenQueue();
-        window.showToast?.(`"${song.title}" will play next`, 'success');
+        window.showToast?.(t('"{title}" will play next', { title: song.title }), 'success');
         Logger.log('Inserted song to play next:', song.title);
     }
 
@@ -2794,19 +2795,19 @@ export class AudioPlayer {
         const activeRemaining = this.sleepTimer.isActive ? this.sleepTimer.remainingMs : 0;
 
         menu.innerHTML = `
-            <div class="sleep-timer-header">Sleep Timer</div>
+            <div class="sleep-timer-header">${t('Sleep Timer')}</div>
             ${this.sleepTimer.isActive ? `
                 <div class="sleep-timer-active">
-                    <span id="sleep-timer-countdown">${SleepTimer.format(activeRemaining)}</span> remaining
-                    <button class="sleep-timer-cancel" id="sleep-timer-cancel">Cancel</button>
+                    ${t('{time} remaining', { time: `<span id="sleep-timer-countdown">${SleepTimer.format(activeRemaining)}</span>` })}
+                    <button class="sleep-timer-cancel" id="sleep-timer-cancel">${t('Cancel')}</button>
                 </div>
             ` : ''}
             <div class="sleep-timer-presets">
-                ${presets.map(m => `<button class="sleep-timer-preset" data-minutes="${m}">${m} min</button>`).join('')}
+                ${presets.map(m => `<button class="sleep-timer-preset" data-minutes="${m}">${t('{count} min', { count: m })}</button>`).join('')}
             </div>
             <div class="sleep-timer-custom">
-                <input type="number" id="sleep-timer-custom-input" min="1" max="180" placeholder="Custom">
-                <button class="sleep-timer-set" id="sleep-timer-custom-set">Set</button>
+                <input type="number" id="sleep-timer-custom-input" min="1" max="180" placeholder="${t('Custom')}">
+                <button class="sleep-timer-set" id="sleep-timer-custom-set">${t('Set')}</button>
             </div>
         `;
 
@@ -2866,7 +2867,7 @@ export class AudioPlayer {
     startSleepTimer(minutes) {
         this.sleepTimer.start(minutes);
         this._updateSleepTimerBtn(true);
-        window.showToast?.(`Sleep timer set for ${minutes} min`, 'success');
+        window.showToast?.(t('Sleep timer set for {count} min', { count: minutes }), 'success');
 
         this.sleepTimer.onTick = (remainingMs) => {
             const countdown = document.getElementById('sleep-timer-countdown');
@@ -2889,10 +2890,12 @@ export class AudioPlayer {
         if (!btn) return;
         if (active) {
             btn.classList.add('active');
-            btn.title = remainingMs ? `Sleep timer: ${SleepTimer.format(remainingMs)}` : 'Sleep timer active';
+            btn.title = remainingMs
+                ? t('Sleep timer: {time}', { time: SleepTimer.format(remainingMs) })
+                : t('Sleep timer active');
         } else {
             btn.classList.remove('active');
-            btn.title = 'Sleep Timer';
+            btn.title = t('Sleep Timer');
         }
     }
 
@@ -2918,18 +2921,18 @@ export class AudioPlayer {
         menu.className = 'speed-menu';
 
         menu.innerHTML = `
-            <div class="speed-menu-header">Playback Speed</div>
+            <div class="speed-menu-header">${t('Playback Speed')}</div>
             <div class="speed-presets">
                 ${AudioPlayer.SPEED_PRESETS.map(s => `
                     <button class="speed-preset${Math.abs(s - current) < 0.01 ? ' active' : ''}" data-speed="${s}">${s}x</button>
                 `).join('')}
             </div>
             <div class="speed-slider-row">
-                <span class="speed-slider-label">Fine</span>
+                <span class="speed-slider-label">${t('Fine')}</span>
                 <input type="range" class="speed-slider" id="speed-slider" min="0.25" max="3" step="0.05" value="${current}">
                 <span class="speed-slider-value" id="speed-slider-value">${current.toFixed(2)}x</span>
             </div>
-            <button class="speed-reset-btn" id="speed-reset-btn">Reset to 1x</button>
+            <button class="speed-reset-btn" id="speed-reset-btn">${t('Reset to 1x')}</button>
         `;
 
         document.body.appendChild(menu);
@@ -3160,12 +3163,12 @@ export class AudioPlayer {
 
         menu.innerHTML = `
             <div class="eq-menu-header">
-                <span>Equalizer</span>
-                <button class="eq-power-btn${this._eqEnabled ? ' on' : ''}" id="eq-power-btn" title="Toggle EQ">⏻</button>
+                <span>${t('Equalizer')}</span>
+                <button class="eq-power-btn${this._eqEnabled ? ' on' : ''}" id="eq-power-btn" title="${t('Toggle EQ')}">⏻</button>
             </div>
             <div class="eq-presets">
                 ${presets.map(name => `
-                    <button class="eq-preset${(this._eqPreset || 'Flat') === name ? ' active' : ''}" data-preset="${name}">${name}</button>
+                    <button class="eq-preset${(this._eqPreset || 'Flat') === name ? ' active' : ''}" data-preset="${name}">${t(name)}</button>
                 `).join('')}
             </div>
             <div class="eq-bands">
@@ -3179,7 +3182,7 @@ export class AudioPlayer {
                     </div>
                 `).join('')}
             </div>
-            <button class="eq-reset-btn" id="eq-reset-btn">Reset to Flat</button>
+            <button class="eq-reset-btn" id="eq-reset-btn">${t('Reset to Flat')}</button>
         `;
 
         document.body.appendChild(menu);
@@ -3292,8 +3295,8 @@ export class AudioPlayer {
         this._saveCrossfadeState();
         window.showToast?.(
             this._crossfadeEnabled
-                ? `Crossfade on (${this._crossfadeDuration}s)`
-                : 'Crossfade off',
+                ? t('Crossfade on ({seconds}s)', { seconds: this._crossfadeDuration })
+                : t('Crossfade off'),
             'info'
         );
     }
@@ -3531,12 +3534,12 @@ export class AudioPlayer {
 
         menu.innerHTML = `
             <div class="crossfade-menu-header">
-                <span>Crossfade</span>
-                <button class="crossfade-power-btn${this._crossfadeEnabled ? ' on' : ''}" id="cf-power-btn" title="Toggle Crossfade">⏻</button>
+                <span>${t('Crossfade')}</span>
+                <button class="crossfade-power-btn${this._crossfadeEnabled ? ' on' : ''}" id="cf-power-btn" title="${t('Toggle Crossfade')}">⏻</button>
             </div>
-            <p class="crossfade-desc">Smoothly blend the end of one song into the start of the next.</p>
+            <p class="crossfade-desc">${t('Smoothly blend the end of one song into the start of the next.')}</p>
             <div class="crossfade-slider-row">
-                <span class="crossfade-slider-label">Duration</span>
+                <span class="crossfade-slider-label">${t('Duration')}</span>
                 <input type="range" class="crossfade-slider" id="cf-duration-slider"
                        min="1" max="12" step="1" value="${this._crossfadeDuration}">
                 <span class="crossfade-slider-value" id="cf-duration-value">${this._crossfadeDuration}s</span>
@@ -4057,7 +4060,7 @@ export class AudioPlayer {
         this._controllerPoll();
         this._controllerPollTimer = setInterval(() => this._controllerPoll(), 1000);
 
-        window.showToast?.(`Controlling ${device.device_name}`, 'success');
+        window.showToast?.(t('Controlling {name}', { name: device.device_name }), 'success');
     }
 
     /** Exit controller mode and restore local player state. */
@@ -4129,8 +4132,8 @@ export class AudioPlayer {
     /** Update the player bar UI to reflect the remote device's state. */
     _mirrorControllerState(device) {
         // Now-playing info (player bar)
-        if (this.nowPlayingTitle) this.nowPlayingTitle.textContent = device.song_title || 'Nothing playing';
-        if (this.nowPlayingArtist) this.nowPlayingArtist.textContent = device.song_artist || (device.song_title ? '' : 'Select a song to play');
+        if (this.nowPlayingTitle) this.nowPlayingTitle.textContent = device.song_title || t('Nothing playing');
+        if (this.nowPlayingArtist) this.nowPlayingArtist.textContent = device.song_artist || (device.song_title ? '' : t('Select a song to play'));
         if (this.nowPlayingArtwork) {
             const img = this.nowPlayingArtwork.querySelector('img');
             if (device.cover_path) {
@@ -4144,8 +4147,8 @@ export class AudioPlayer {
         }
 
         // Fullscreen player info
-        if (this.fsTitle) this.fsTitle.textContent = device.song_title || 'Nothing playing';
-        if (this.fsArtist) this.fsArtist.textContent = device.song_artist || (device.song_title ? '' : 'Select a song to play');
+        if (this.fsTitle) this.fsTitle.textContent = device.song_title || t('Nothing playing');
+        if (this.fsArtist) this.fsArtist.textContent = device.song_artist || (device.song_title ? '' : t('Select a song to play'));
         if (this.fsArtwork) {
             const img = this.fsArtwork.querySelector('img');
             if (device.cover_path) {
@@ -4252,8 +4255,8 @@ export class AudioPlayer {
         banner.className = 'controller-banner';
         banner.innerHTML = `
             <span class="controller-banner-icon">📡</span>
-            <span class="controller-banner-text">Controlling <strong>${deviceName}</strong></span>
-            <button class="controller-banner-stop" title="Stop controlling">Stop</button>
+            <span class="controller-banner-text">${t('Controlling {name}', { name: `<strong>${Utils.escapeHtml(deviceName)}</strong>` })}</span>
+            <button class="controller-banner-stop" title="${t('Stop controlling')}">${t('Stop')}</button>
         `;
         banner.querySelector('.controller-banner-stop').addEventListener('click', () => this._stopControllerMode());
         const playerBar = document.querySelector('.player-bar');

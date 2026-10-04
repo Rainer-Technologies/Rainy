@@ -34,7 +34,9 @@ function harness(view, mode = 'grid') {
         pushState: (_, __, path) => { window.location = new URL(path, window.location); },
         replaceState: (_, __, path) => { window.location = new URL(path, window.location); },
     } };
-    const sandbox = vm.createContext({ window, URL, URLSearchParams, useContext: () => context, document: {
+    // English pass-through for the i18n helper the methods call.
+    const t = (key, params = {}) => key.replace(/\{(\w+)\}/g, (m, name) => params[name] ?? m);
+    const sandbox = vm.createContext({ window, URL, URLSearchParams, t, useContext: () => context, document: {
         getElementById: element, querySelector: element, querySelectorAll: () => [],
     } });
     const app = vm.runInContext(`({${['handleSearch', 'switchToLibraryView', 'navigateTo', 'handleRoute', 'updateStats'].map(n => method(appSource, n)).join(',')}})`, sandbox);

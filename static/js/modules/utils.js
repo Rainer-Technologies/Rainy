@@ -2,6 +2,7 @@
  * Rainy Music Player - Utilities Module
  * Common helper functions used across the application
  */
+import { t } from '../i18n/index.js';
 
 export const Utils = {
     /**
@@ -53,7 +54,8 @@ export const Utils = {
 
     /**
      * Show a toast notification
-     * @param {string} message - Toast message
+     * @param {string} message - Toast message; English source strings (and
+     *   server error messages) are translated here, so callers pass them as-is
      * @param {string} type - 'success' or 'error'
      * @param {number} duration - Duration in ms
      */
@@ -68,7 +70,7 @@ export const Utils = {
             ? '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
             : '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
 
-        toast.innerHTML = `${icon}<span class="toast-message">${this.escapeHtml(message)}</span>`;
+        toast.innerHTML = `${icon}<span class="toast-message">${this.escapeHtml(t(message))}</span>`;
         container.appendChild(toast);
 
         // Auto-dismiss
