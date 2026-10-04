@@ -1,4 +1,6 @@
-<img src="static/icons/icon-512.png" alt="Rainy" width="120" height="120">
+<p align="center">
+  <img src="static/icons/icon-512.png" alt="Rainy" width="120" height="120">
+</p>
 
 # Rainy
 
