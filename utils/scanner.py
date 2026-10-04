@@ -1,6 +1,9 @@
 import os
 import hashlib
+import json
+import subprocess
 from datetime import datetime
+from types import SimpleNamespace
 from mutagen import File as MutagenFile
 from mutagen.mp3 import MP3
 from mutagen.flac import FLAC
@@ -25,6 +28,84 @@ def normalize_artist(raw):
             seen.add(key)
             out.append(name)
     return ', '.join(out) if out else 'Unknown Artist'
+
+
+# Containers mutagen can't read; their tags, duration and cover come from ffprobe.
+MATROSKA_FORMATS = {'.mkv'}
+
+# Matroska tag names -> the easy-tag keys _get_tag looks up.
+_MATROSKA_TAG_ALIASES = {
+    'date_released': 'date',
+    'date_recorded': 'date',
+    'part_number': 'tracknumber',
+    'track': 'tracknumber',
+}
+
+
+def _ffprobe(file_path):
+    """ffprobe's format + streams JSON for a file, or None."""
+    try:
+        out = subprocess.run(
+            ['ffprobe', '-v', 'quiet', '-print_format', 'json',
+             '-show_format', '-show_streams', file_path],
+            capture_output=True, timeout=30, check=True).stdout
+        return json.loads(out)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+class _MatroskaTags(dict):
+    """Easy-tag dict with a mutagen-style `.info.length`."""
+    info = None
+
+
+def _probe_matroska(file_path):
+    """Read a Matroska file's tags and duration via ffprobe.
+
+    Returns a mutagen-like object (a dict of lowercase tag -> [value] with
+    `.info.length`) so _extract_metadata can treat it like an easy-tag file,
+    or None when ffprobe is missing or the file has no audio.
+    """
+    probe = _ffprobe(file_path)
+    if not probe or not any(s.get('codec_type') == 'audio' for s in probe.get('streams', [])):
+        return None
+    fmt = probe.get('format', {})
+    tags = {}
+    for key, value in (fmt.get('tags') or {}).items():
+        key = key.lower()
+        tags.setdefault(_MATROSKA_TAG_ALIASES.get(key, key), [value])
+    audio = _MatroskaTags(tags)
+    try:
+        audio.info = SimpleNamespace(length=float(fmt.get('duration', 0)))
+    except (TypeError, ValueError):
+        audio.info = SimpleNamespace(length=0)
+    return audio
+
+
+def _matroska_cover(file_path):
+    """(image bytes, mime) of a Matroska file's cover attachment, or (None, None).
+
+    ffmpeg exposes image attachments as attached-picture video streams, so the
+    first one is copied out as-is.
+    """
+    probe = _ffprobe(file_path)
+    for stream in (probe or {}).get('streams', []):
+        if not (stream.get('disposition') or {}).get('attached_pic'):
+            continue
+        try:
+            data = subprocess.run(
+                ['ffmpeg', '-v', 'error', '-i', file_path, '-map', f"0:{stream['index']}",
+                 '-c', 'copy', '-f', 'image2pipe', '-'],
+                capture_output=True, timeout=30, check=True).stdout
+        except (OSError, subprocess.SubprocessError):
+            return None, None
+        if not data:
+            return None, None
+        mime = (stream.get('tags') or {}).get('mimetype')
+        if not mime:
+            mime = 'image/png' if stream.get('codec_name') == 'png' else 'image/jpeg'
+        return data, mime
+    return None, None
 
 
 class MusicScanner:
@@ -223,7 +304,10 @@ class MusicScanner:
         }
         
         try:
-            audio = MutagenFile(file_path, easy=True)
+            if os.path.splitext(file_path)[1].lower() in MATROSKA_FORMATS:
+                audio = _probe_matroska(file_path)
+            else:
+                audio = MutagenFile(file_path, easy=True)
             
             if audio is None:
                 return metadata
@@ -272,17 +356,22 @@ class MusicScanner:
     def _extract_cover_art(self, file_path):
         """Extract embedded cover art from an audio file and save it to the covers directory.
         
-        Supports ID3 APIC (MP3), FLAC pictures, MP4 covr atoms, and OGG metadata blocks.
+        Supports ID3 APIC (MP3), FLAC pictures, MP4 covr atoms, OGG metadata blocks,
+        and Matroska cover attachments.
         Returns a relative path like 'covers/<hash>.jpg' or None if no art is found.
         """
-        audio = MutagenFile(file_path)
-        if audio is None:
-            return None
-        
         image_data = None
         mime = 'image/jpeg'
         
         ext = os.path.splitext(file_path)[1].lower()
+        
+        if ext in MATROSKA_FORMATS:
+            audio = None
+            image_data, mime = _matroska_cover(file_path)
+        else:
+            audio = MutagenFile(file_path)
+            if audio is None:
+                return None
         
         if ext == '.mp3' or ext == '.wav':
             # ID3 APIC frames

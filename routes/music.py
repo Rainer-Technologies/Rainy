@@ -362,7 +362,8 @@ def stream_song(song_id):
             '.ogg': 'audio/ogg',
             '.m4a': 'audio/mp4',
             '.aac': 'audio/aac',
-            '.wma': 'audio/x-ms-wma'
+            '.wma': 'audio/x-ms-wma',
+            '.mkv': 'video/x-matroska'
         }
         
         mime_type = mime_types.get(ext, 'audio/mpeg')
@@ -708,7 +709,7 @@ def upload_files():
             return jsonify({'error': 'No files provided'}), 400
         
         # Allowed audio extensions
-        allowed_extensions = {'.mp3', '.flac', '.m4a', '.wav', '.ogg', '.opus', '.aac', '.wma'}
+        allowed_extensions = {'.mp3', '.flac', '.m4a', '.wav', '.ogg', '.opus', '.aac', '.wma', '.mkv'}
         
         uploaded = 0
         errors = []

@@ -138,7 +138,7 @@ MySQL data is stored in the `mysql_data` Docker volume. Music stays in the host 
 
 ## Features
 
-- **Library:** MP3, FLAC, WAV, OGG, M4A, AAC and WMA; tag and cover extraction, metadata editing and duplicate detection.
+- **Library:** MP3, FLAC, WAV, OGG, M4A, AAC, WMA and MKV; tag and cover extraction, metadata editing and duplicate detection.
 - **Playback:** crossfade, equalizer, playback speed, A–B repeat, sleep timer, keyboard shortcuts and media controls.
 - **Discovery:** personalised mixes, radio, mood mixes and listening history, using local audio analysis.
 - **Imports:** YouTube and YouTube Music downloads, public Spotify playlist imports and scheduled playlist syncs.
