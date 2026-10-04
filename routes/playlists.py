@@ -67,10 +67,11 @@ def get_playlist(playlist_id):
 
     # Per-account isolation: a playlist may reference songs the requesting
     # user has no access to (legacy shared playlists, cross-account entries).
-    # Only return the songs the user is actually allowed to see/hear.
+    # Only return the songs the user is actually allowed to see/hear; members
+    # of a shared playlist can hear all of its songs.
     from models.library_access import LibraryAccessModel
     raw_songs = LibraryAccessModel.filter_visible(
-        session.get('user_id'), raw_songs or [])
+        session.get('user_id'), raw_songs or [], playlist_id=playlist_id)
 
     # Transform songs to match expected frontend format (same as SongModel)
     songs = []
@@ -228,7 +229,7 @@ def generate_cover(playlist_id):
         # personal imports).
         from models.library_access import LibraryAccessModel
         songs = LibraryAccessModel.filter_visible(
-            session.get('user_id'), songs or [])
+            session.get('user_id'), songs or [], playlist_id=playlist_id)
         if not songs:
             return jsonify({'error': 'Playlist is empty'}), 400
 
@@ -362,7 +363,7 @@ def export_playlist(playlist_id):
         songs = PlaylistModel.get_playlist_songs(playlist_id)
         from models.library_access import LibraryAccessModel
         songs = LibraryAccessModel.filter_visible(
-            session.get('user_id'), songs or [])
+            session.get('user_id'), songs or [], playlist_id=playlist_id)
         if not songs:
             return jsonify({'error': 'Playlist is empty'}), 400
 

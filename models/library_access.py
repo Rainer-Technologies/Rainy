@@ -12,6 +12,15 @@ A song ROW is global (one file on disk = one row), but each user only
 """
 from .database import Database
 
+# A playlist `p` that is shared (has an accepted collaborator) and that the
+# user (params: user_id, user_id) owns or has accepted an invite to.
+_SHARED_PLAYLIST_MEMBER = """
+    p.id IN (SELECT playlist_id FROM playlist_shares WHERE status = 'accepted')
+    AND (p.owner_user_id = %s OR p.id IN (
+        SELECT playlist_id FROM playlist_shares
+        WHERE user_id = %s AND status = 'accepted'))
+"""
+
 
 class LibraryAccessModel:
     @staticmethod
@@ -115,6 +124,36 @@ class LibraryAccessModel:
                                       fetch_one=True) is not None
 
     @staticmethod
+    def can_play(user_id, song_id):
+        """has_access, plus songs in a shared playlist the user is a member of.
+
+        Shared-playlist access is temporary: it is checked live (no access
+        rows), so it ends when the share is revoked, the user leaves, or the
+        song is removed from the playlist, and the song never lands in the
+        user's library. Use it for read-only surfaces (stream, lyrics, light
+        show); anything that changes, downloads or re-shares a song still
+        needs has_access.
+        """
+        if LibraryAccessModel.has_access(user_id, song_id):
+            return True
+        query = f"""
+            SELECT 1 FROM playlist_entries pe
+            JOIN playlists p ON p.id = pe.playlist_id
+            WHERE pe.track_id = %s AND {_SHARED_PLAYLIST_MEMBER}
+            LIMIT 1
+        """
+        return Database.execute_query(query, (song_id, user_id, user_id),
+                                      fetch_one=True) is not None
+
+    @staticmethod
+    def shares_playlist(user_id, playlist_id):
+        """Whether the playlist is shared and the user is one of its members,
+        which makes all of its songs playable for them (see can_play)."""
+        query = f"SELECT 1 FROM playlists p WHERE p.id = %s AND {_SHARED_PLAYLIST_MEMBER}"
+        return Database.execute_query(query, (playlist_id, user_id, user_id),
+                                      fetch_one=True) is not None
+
+    @staticmethod
     def visible_song_ids(user_id):
         """All song ids the user can see."""
         if LibraryAccessModel.user_full_library(user_id):
@@ -126,13 +165,18 @@ class LibraryAccessModel:
         return {r['song_id'] for r in rows}
 
     @staticmethod
-    def filter_visible(user_id, songs):
+    def filter_visible(user_id, songs, playlist_id=None):
         """Filter an in-memory list of song dicts to the user's visible ids.
 
         Songs carry their id under 'id' or 'song_id'. Used by routes that
         build song lists from raw SQL so every surface honours isolation.
+        Pass playlist_id when the songs are that playlist's entries: members
+        of a shared playlist see all of them (see can_play).
         """
         if not songs:
+            return songs
+        if playlist_id is not None and \
+                LibraryAccessModel.shares_playlist(user_id, playlist_id):
             return songs
         visible = LibraryAccessModel.visible_song_ids(user_id)
         key = 'id' if ('id' in songs[0]) else 'song_id'

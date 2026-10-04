@@ -4,7 +4,8 @@ from models.song import SongModel, ScanHistoryModel
 from models.database import Database
 from utils.scanner import MusicScanner
 from routes.auth import (get_current_user_id, is_sysadmin, require_auth,
-                         require_song_access, require_sysadmin, server_error)
+                         require_song_access, require_song_play_access,
+                         require_sysadmin, server_error)
 import os
 
 music_bp = Blueprint('music', __name__, url_prefix='/api/music')
@@ -338,7 +339,7 @@ def stream_song(song_id):
         # Per-account isolation: 404 (not 403) so clients treat it as
         # "doesn't exist in your library".
         from models.library_access import LibraryAccessModel
-        if not LibraryAccessModel.has_access(get_current_user_id(), song_id):
+        if not LibraryAccessModel.can_play(get_current_user_id(), song_id):
             return jsonify({'error': 'Song not found'}), 404
 
         relative_path = song['file_path']
@@ -454,7 +455,7 @@ def _cast_urls_for_song(song):
 
 @music_bp.route('/cast-url/<int:song_id>', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def cast_url(song_id):
     """Return an absolute, token-authenticated stream URL a Chromecast can
     fetch directly (Cast receivers can't use the browser's session cookie)."""
@@ -479,7 +480,7 @@ def cast_urls():
             sid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        if not LibraryAccessModel.has_access(user_id, sid):
+        if not LibraryAccessModel.can_play(user_id, sid):
             continue
         song = SongModel.get_song_by_id(sid)
         if song:
@@ -489,7 +490,7 @@ def cast_urls():
 
 @music_bp.route('/info/<int:song_id>', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def get_song_info(song_id):
     """Get detailed info for a specific song."""
     try:
@@ -1642,7 +1643,7 @@ def _serialize_enrichment_job(job):
 
 @music_bp.route('/songs/<int:song_id>/metadata', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def get_song_metadata(song_id):
     """Return all enrichment metadata for a song (features, tags, similar artists)."""
     from models.song_metadata import SongMetadataModel
@@ -2080,7 +2081,7 @@ def _serialize_lightshow_job(job):
 
 @music_bp.route('/song/<int:song_id>/lightshow', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def get_lightshow(song_id):
     """Return the song's light show score.
 
@@ -2116,7 +2117,7 @@ def get_lightshow(song_id):
 
 @music_bp.route('/song/<int:song_id>/lightshow/status', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def get_lightshow_status(song_id):
     """Summary of a song's show (no envelopes) + its latest analysis job."""
     try:
@@ -2536,7 +2537,7 @@ def search_lyrics():
 
 @music_bp.route('/song/<int:song_id>/lyrics', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def get_lyrics(song_id):
     """Return cached lyrics for a song (cache-only by default).
 
@@ -2674,7 +2675,7 @@ def apply_lyrics(song_id):
 
 @music_bp.route('/song/<int:song_id>/lyrics-words', methods=['GET'])
 @require_auth
-@require_song_access
+@require_song_play_access
 def get_lyrics_words(song_id):
     """Return a song's aligned word timings.
 
