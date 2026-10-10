@@ -733,6 +733,8 @@ class Database:
                 repeat_mode VARCHAR(16) DEFAULT 'off',
                 queue MEDIUMTEXT NULL,
                 queue_index INT DEFAULT 0,
+                last_cmd_id INT NOT NULL DEFAULT 0,
+                stream_seen DOUBLE NOT NULL DEFAULT 0,
                 last_seen DOUBLE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_user (user_id),
@@ -743,6 +745,11 @@ class Database:
         # Migrate: add queue columns to existing connect_sessions tables.
         if cls._add_column(cursor, 'connect_sessions', 'queue', 'MEDIUMTEXT NULL'):
             cursor.execute("ALTER TABLE connect_sessions ADD COLUMN queue_index INT DEFAULT 0")
+        # Migrate: id of the last remote command the device applied (its ack).
+        cls._add_column(cursor, 'connect_sessions', 'last_cmd_id', 'INT NOT NULL DEFAULT 0')
+        # Migrate: when the device's command stream was last open. Presence
+        # that does not depend on the device's own (throttleable) timers.
+        cls._add_column(cursor, 'connect_sessions', 'stream_seen', 'DOUBLE NOT NULL DEFAULT 0')
 
         # Queue blobs live in their own table (Sep 2026). Keeping the multi-KB
         # `queue` JSON inside connect_sessions made EVERY heartbeat a
@@ -757,11 +764,23 @@ class Database:
                 device_id VARCHAR(64) PRIMARY KEY,
                 user_id INT NOT NULL,
                 qhash CHAR(32) NOT NULL DEFAULT '',
+                client_sig VARCHAR(64) NOT NULL DEFAULT '',
                 queue MEDIUMTEXT NULL,
+                queue_offset INT NOT NULL DEFAULT 0,
+                queue_total INT NOT NULL DEFAULT 0,
                 updated_at DOUBLE NOT NULL,
                 INDEX idx_user (user_id)
             )
         """)
+        # Migrate: the stored queue is a window of the device's real queue
+        # (offset/total), labelled with the client's own signature so a
+        # heartbeat can ask "do you still have the queue I sent?".
+        for column, ddl in (
+            ('client_sig', "VARCHAR(64) NOT NULL DEFAULT ''"),
+            ('queue_offset', 'INT NOT NULL DEFAULT 0'),
+            ('queue_total', 'INT NOT NULL DEFAULT 0'),
+        ):
+            cls._add_column(cursor, 'connect_session_queues', column, ddl)
         cursor.execute("""
             INSERT IGNORE INTO connect_session_queues
                 (device_id, user_id, qhash, queue, updated_at)
@@ -778,11 +797,18 @@ class Database:
                 user_id INT NOT NULL,
                 device_id VARCHAR(64) NOT NULL,
                 command VARCHAR(32) NOT NULL,
-                args TEXT NULL,
+                args MEDIUMTEXT NULL,
+                claim VARCHAR(32) NULL,
                 created_at DOUBLE NOT NULL,
                 INDEX idx_device (user_id, device_id)
             )
         """)
+        # Migrate: `claim` marks rows a poll has taken (no double delivery),
+        # and args outgrew TEXT — a play_queue command carries a whole queue,
+        # which past 64 KB was rejected or silently truncated.
+        cls._add_column(cursor, 'connect_commands', 'claim', 'VARCHAR(32) NULL')
+        if cls._column_type(cursor, 'connect_commands', 'args') == 'text':
+            cursor.execute("ALTER TABLE connect_commands MODIFY COLUMN args MEDIUMTEXT NULL")
 
         # Migration: extend song_tags.source with the local genre classifier.
         # The source enum started as ('lastfm','musicbrainz'); Discogs-EffNet

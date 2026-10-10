@@ -154,7 +154,9 @@ if [ "${RAINY_USE_GUNICORN:-0}" = "1" ] || [ "${1:-}" = "--gunicorn" ]; then
     echo ""
     PORT="${RAINY_HTTP_PORT:-${RAINY_PORT:-6969}}"
     WORKERS="${RAINY_GUNICORN_WORKERS:-2}"
-    THREADS="${RAINY_GUNICORN_THREADS:-4}"
+    # Every Rainy Connect device holds one request open (its command stream),
+    # on top of the audio streams, so a handful per worker is not enough.
+    THREADS="${RAINY_GUNICORN_THREADS:-16}"
     TIMEOUT="${RAINY_GUNICORN_TIMEOUT:-120}"
     exec "$VENV_DIR/bin/gunicorn" --bind "0.0.0.0:${PORT}" --workers "${WORKERS}" --threads "${THREADS}" --timeout "${TIMEOUT}" "app:app" "$@"
 else

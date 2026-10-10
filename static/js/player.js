@@ -9,7 +9,10 @@ import { usePlaylistService } from './services/playlist.js';
 import { useRatingService } from './services/rating.js';
 import { usePlaybackService } from './services/playback.js';
 import { ListenTracker, PlayRecorder } from './services/listenTracker.js';
-import { useConnectService } from './services/connect.js';
+import {
+    CONNECT_MAX_QUEUE, ConnectService, connectLivePosition, connectWindowStart,
+    normalizeRepeat, useConnectService
+} from './services/connect.js';
 import { useMusicService } from './services/music.js';
 import { useContext } from './helper/context.js';
 import { Utils } from './modules/utils.js';
@@ -102,8 +105,7 @@ export class AudioPlayer {
         this._controllerPollTimer = null;
         this._controllerState = null; // last known remote state snapshot
         this._controllerBanner = null; // DOM element
-        this._controllerPollFailures = 0;
-        this._lastControllerCommandMs = 0;
+        this._controllerLocal = null; // local queue state parked while controlling
 
         this.init();
     }
@@ -477,17 +479,28 @@ export class AudioPlayer {
         // BUT: if this is a Connect command (context.type === 'connect'), 
         // we're the target — play locally, don't forward.
         if (this.isControllerMode && context?.type !== 'connect') {
-            const pl = playlist || this.playlist;
-            if (pl && pl.length > 0) {
-                const queue = pl.slice(0, 200).map(s => ({
-                    id: s?.id ?? null,
-                    title: s?.title ?? null,
-                    artist: s?.artist ?? null,
-                    album: s?.album ?? null,
-                    duration: s?.duration ?? 0,
-                    cover_path: s?.cover_path ?? null,
-                })).filter(s => s.id != null);
-                this._controllerCommand('play_queue', { queue, index });
+            if (!playlist) {
+                // A row of the queue on screen, which is the remote's own:
+                // jump there instead of sending its queue back as a new one.
+                const song = this.playlist[index];
+                if (song?.id != null) {
+                    this._controllerCommand('play_song', {
+                        song_id: song.id,
+                        index: (this._controllerState?.queue_offset || 0) + index,
+                    });
+                }
+                return;
+            }
+            // A window around the chosen track — a whole library is megabytes
+            // of JSON for one click.
+            const wanted = playlist[index];
+            const start = connectWindowStart(playlist.length, index);
+            const songs = playlist.slice(start, start + CONNECT_MAX_QUEUE).filter(s => s?.id != null);
+            if (songs.length > 0) {
+                this._controllerCommand('play_queue', {
+                    queue: songs.map(s => this._connectSongSummary(s)),
+                    index: Math.max(0, songs.indexOf(wanted)),
+                });
             }
             return;
         }
@@ -680,7 +693,14 @@ export class AudioPlayer {
     }
 
     togglePlayPause() {
-        if (this.isControllerMode) { this._controllerCommand('play_pause'); return; }
+        if (this.isControllerMode) {
+            // Say which one: a toggle sent on a stale icon does the opposite
+            // of what was clicked.
+            const playing = !!this._controllerState?.is_playing;
+            this._controllerEcho({ is_playing: !playing });
+            this._controllerCommand(playing ? 'pause' : 'play');
+            return;
+        }
         if (this.currentIndex === -1 && this.playlist.length > 0) {
             this.playSong(0);
             return;
@@ -869,7 +889,12 @@ export class AudioPlayer {
     }
 
     toggleShuffle() {
-        if (this.isControllerMode) { this._controllerCommand('shuffle', { enabled: !(this._controllerState?.is_shuffled) }); return; }
+        if (this.isControllerMode) {
+            const enabled = !this._controllerState?.is_shuffled;
+            this._controllerEcho({ is_shuffled: enabled });
+            this._controllerCommand('shuffle', { enabled });
+            return;
+        }
         this.isShuffle = !this.isShuffle;
         if (this.isShuffle) {
             this._ensureTempoMap();
@@ -895,8 +920,9 @@ export class AudioPlayer {
     toggleRepeat() {
         if (this.isControllerMode) {
             const order = ['none', 'all', 'one'];
-            const current = this._controllerState?.repeat_mode || 'none';
+            const current = normalizeRepeat(this._controllerState?.repeat_mode);
             const next = order[(order.indexOf(current) + 1) % order.length];
+            this._controllerEcho({ repeat_mode: next });
             this._controllerCommand('repeat', { mode: next });
             return;
         }
@@ -1461,6 +1487,8 @@ export class AudioPlayer {
         this.playPauseBtn?.setAttribute('aria-label', t('Pause'));
         this.playPauseBtn?.setAttribute('aria-pressed', 'true');
         this.nowPlayingArtwork.classList.add('playing');
+        // Tell the other devices now rather than on the next beat
+        this._connectHeartbeat();
 
         // Sync Media Session playback state
         if (this.mediaSession) this.mediaSession.updatePlaybackState();
@@ -1501,6 +1529,10 @@ export class AudioPlayer {
         // Fullscreen update
         if (this.fsIconPlay) this.fsIconPlay.classList.remove('hidden');
         if (this.fsIconPause) this.fsIconPause.classList.add('hidden');
+
+        // Tell the other devices now rather than on the next beat (not for
+        // the pause the browser fires on its way to the next track)
+        if (!this.audio.ended) this._connectHeartbeat();
     }
 
     handleError(e) {
@@ -1553,7 +1585,11 @@ export class AudioPlayer {
             const rect = bar.getBoundingClientRect();
             const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             const duration = this._controllerState?.duration || 0;
-            if (duration > 0) this._controllerCommand('seek', { position: Math.floor(percent * duration) });
+            if (duration > 0) {
+                const position = Math.floor(percent * duration);
+                this._controllerEcho({ position, state_age: 0 });
+                this._controllerCommand('seek', { position });
+            }
             return;
         }
         if (!this.audio.duration) return;
@@ -2597,6 +2633,7 @@ export class AudioPlayer {
      * @param {number} toIndex - Target index to move to
      */
     moveSongInQueue(fromIndex, toIndex) {
+        if (this._blockedWhileControlling()) return;
         if (fromIndex < 0 || fromIndex >= this.playlist.length) return;
         if (toIndex < 0 || toIndex >= this.playlist.length) return;
         if (fromIndex === toIndex) return;
@@ -2645,6 +2682,7 @@ export class AudioPlayer {
      * @param {number} index - Index of the song to remove
      */
     removeFromQueue(index) {
+        if (this._blockedWhileControlling()) return;
         if (index < 0 || index >= this.playlist.length) return;
         if (this.playlist.length <= 1) {
             // Don't remove the last song
@@ -2695,7 +2733,7 @@ export class AudioPlayer {
      * @param {Object} song - The song object to add
      */
     addToQueue(song) {
-        if (!song) return;
+        if (!song || this._blockedWhileControlling()) return;
         this.playlist.push(song);
         // Newly queued songs join the current shuffle cycle too.
         if (this._shuffleRemaining) {
@@ -2714,7 +2752,7 @@ export class AudioPlayer {
      * @param {Object} song - The song object to insert
      */
     playNextInQueue(song) {
-        if (!song) return;
+        if (!song || this._blockedWhileControlling()) return;
         const insertAt = this.currentIndex + 1;
         this.playlist.splice(insertAt, 0, song);
         // Newly queued songs join the current shuffle cycle too.
@@ -2733,6 +2771,7 @@ export class AudioPlayer {
      * Clear all songs from the queue except the currently playing one.
      */
     clearQueue() {
+        if (this._blockedWhileControlling()) return;
         if (this.currentIndex < 0 || !this.playlist.length) return;
         const current = this.playlist[this.currentIndex];
         this.playlist = [current];
@@ -3579,8 +3618,8 @@ export class AudioPlayer {
     /* ========================================================================
        Rainy Connect — Spotify-Connect-style cross-device control.
 
-       This player registers itself as a Connect device (heartbeat every 5s),
-       polls the server for remote-control commands (every 2s) and applies
+       This player registers itself as a Connect device (heartbeat every 2s),
+       polls the server for remote-control commands (every 1s) and applies
        them to local playback. Other devices (phones, other browsers) show up
        in the Connect modal and can be remote-controlled from here.
        ======================================================================== */
@@ -3590,37 +3629,96 @@ export class AudioPlayer {
      * heartbeat + command-poll loops.
      */
     _initConnect() {
-        try {
-            let deviceId = localStorage.getItem('rainy-connect-device-id');
-            if (!deviceId) {
-                deviceId = this._generateConnectDeviceId();
-                localStorage.setItem('rainy-connect-device-id', deviceId);
-            }
-            this._connectDeviceId = deviceId;
-        } catch (e) {
-            // localStorage unavailable (private mode etc.) — fall back to a
-            // session-scoped id so Connect still works within this tab.
-            this._connectDeviceId = this._generateConnectDeviceId();
-        }
-
+        this._connectDeviceId = this._loadConnectDeviceId();
         this._connectDeviceName = this._deriveConnectDeviceName();
+        // Id of the last remote command applied here, echoed in the heartbeat
+        // so the sender knows our state already reflects it.
+        this._connectLastCmdId = 0;
+        // Signature of the queue window the server confirmed it stored.
+        this._connectQueueSig = null;
+        this._connectNeedQueue = true;
+        // Commands applied but not yet reported to the server as such.
+        this._connectCmdAck = 0;
+        this._connectCmdAcked = 0;
+        // Command stream (server-sent events); polling covers for it while
+        // it is down.
+        this._connectStream = null;
+        this._connectStreamOpen = false;
+        this._connectStreamRetryAt = 0;
 
-        // Announce ourselves immediately, then every 2 seconds
-        this._connectHeartbeat();
+        // A duplicated tab starts with a copy of this tab's sessionStorage,
+        // device id included — ask the other tabs before using it.
+        try {
+            this._connectChannel = new BroadcastChannel('rainy-connect');
+            this._connectChannel.onmessage = (e) => this._onConnectChannelMessage(e.data);
+            this._connectChannel.postMessage({ type: 'hello', id: this._connectDeviceId });
+        } catch (e) { /* no BroadcastChannel: the id stays as it is */ }
+
+        // Announce ourselves (once the id check above had a moment to be
+        // answered), then every 2 seconds
+        this._connectStartTimer = setTimeout(() => this._connectHeartbeat(), 300);
         this._connectHeartbeatTimer = setInterval(() => this._connectHeartbeat(), 2000);
 
-        // Poll for remote-control commands every 1 second
+        // Commands arrive over the stream; while it is down, poll every second
         this._connectPollTimer = setInterval(() => this._connectPollCommands(), 1000);
 
-        // Deregister on page unload so we disappear from other devices'
-        // pickers immediately instead of waiting for the server timeout.
-        window.addEventListener('beforeunload', () => this._connectDeregister());
+        // Deregister when the page goes away so we disappear from other
+        // devices' pickers immediately instead of waiting for the server
+        // timeout. (pagehide also fires where beforeunload does not, e.g. on
+        // mobile browsers; a page restored from the back/forward cache simply
+        // heartbeats again.)
+        window.addEventListener('pagehide', () => this._connectDeregister());
 
         // Reflect remote activity on the player-bar button (pulsing dot)
         window.addEventListener('rainy-connect:remote-active', (e) => {
             const btn = document.getElementById('connect-btn');
             if (btn) btn.classList.toggle('remote-active', !!e.detail?.active);
         });
+    }
+
+    /**
+     * This tab's device id: an id for the browser (localStorage) plus one for
+     * the tab (sessionStorage, so it survives a reload). Sharing one id
+     * between tabs made them overwrite each other's state and steal each
+     * other's commands.
+     * @param {boolean} [freshTab] - ignore the stored tab id and make a new one
+     * @returns {string}
+     */
+    _loadConnectDeviceId(freshTab = false) {
+        let base;
+        let tab;
+        try {
+            base = localStorage.getItem('rainy-connect-device-id');
+            if (!base) {
+                base = this._generateConnectDeviceId();
+                localStorage.setItem('rainy-connect-device-id', base);
+            }
+        } catch (e) {
+            // localStorage unavailable (private mode etc.)
+            base = this._generateConnectDeviceId();
+        }
+        try {
+            tab = freshTab ? null : sessionStorage.getItem('rainy-connect-tab-id');
+            if (!tab) {
+                tab = this._generateConnectDeviceId().slice(0, 6);
+                sessionStorage.setItem('rainy-connect-tab-id', tab);
+            }
+        } catch (e) {
+            tab = this._generateConnectDeviceId().slice(0, 6);
+        }
+        return `${base}-${tab}`;
+    }
+
+    /** Settle who keeps a device id when two tabs turn out to share it. */
+    _onConnectChannelMessage(message) {
+        if (!message || message.id !== this._connectDeviceId) return;
+        if (message.type === 'hello') {
+            // A tab is starting up with our id: it is the newcomer.
+            this._connectChannel.postMessage({ type: 'taken', id: message.id });
+        } else if (message.type === 'taken') {
+            this._connectDeviceId = this._loadConnectDeviceId(true);
+            this._connectNeedQueue = true;
+        }
     }
 
     /** @returns {string} a random 16-char hex id */
@@ -3655,37 +3753,62 @@ export class AudioPlayer {
         return platform ? `${browser} on ${platform}` : browser;
     }
 
+    /** The fields of a song other devices need to list and play it. */
+    _connectSongSummary(song) {
+        return {
+            id: song?.id ?? null,
+            title: song?.title ?? null,
+            artist: song?.artist ?? null,
+            album: song?.album ?? null,
+            duration: song?.duration ?? 0,
+            cover_path: song?.cover_path ?? null,
+        };
+    }
+
+    /** Short, stable label for a string (FNV-1a) — not for security. */
+    _connectHash(text) {
+        let hash = 0x811c9dc5;
+        for (let i = 0; i < text.length; i++) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 0x01000193);
+        }
+        return (hash >>> 0).toString(16);
+    }
+
     /**
      * POST the current playback snapshot to the Connect hub.
      * Only heartbeats while there's a song loaded or playback is active,
      * so an idle tab doesn't clutter other devices' pickers.
      */
     _connectHeartbeat() {
-        if (!this._connectDeviceId) return;
-        // While in controller mode, heartbeat as idle (we're not playing locally)
+        if (!this._connectDeviceId || !window.app?.user) return;
+        // While in controller mode this tab is a remote, not a player
         if (this._controllerTarget) return;
         if (!this.currentSong && !this.isPlaying) return;
         // One beat in flight at a time: without this a slow beat stacks up and
         // every later beat re-uploads the same multi-KB payload, which is what
         // buried the Connect table in duplicate row updates.
-        if (this._connectBeatBusy) return;
+        if (this._connectBeatBusy) {
+            this._connectBeatAgain = true;
+            return;
+        }
+        // This tab is a device now: keep its command stream open.
+        this._connectEnsureStream();
 
         const song = this.currentSong;
 
-        // Serialize the queue as lightweight maps so remotes can display and
-        // tap-to-play any track. Cap at 200 entries to keep payloads sane.
-        const queue = (this.playlist || []).slice(0, 200).map(s => ({
-            id: s?.id ?? null,
-            title: s?.title ?? null,
-            artist: s?.artist ?? null,
-            album: s?.album ?? null,
-            cover_path: s?.cover_path ?? null
-        }));
+        // Remotes get a window of the queue around the current track, so they
+        // can display it and tap-to-play any of it without the payload
+        // growing with the library.
+        const playlist = this.playlist || [];
+        const index = Math.max(0, this.currentIndex);
+        const start = connectWindowStart(playlist.length, index);
+        const queue = playlist.slice(start, start + CONNECT_MAX_QUEUE);
 
         // Upload the queue only when it actually changed — it is by far the
-        // heaviest part of the beat, and the server only needs it on change.
-        const queueSig = queue.map(s => s.id).join(',');
-        const sendQueue = queueSig !== this._connectQueueSig;
+        // heaviest part of the beat — or when the server says it lost it.
+        const queueSig = `${start}:${playlist.length}:${this._connectHash(queue.map(s => s?.id).join(','))}`;
+        const sendQueue = this._connectNeedQueue || queueSig !== this._connectQueueSig;
 
         const payload = {
             device_id: this._connectDeviceId,
@@ -3702,42 +3825,130 @@ export class AudioPlayer {
             volume: Math.round((this.audio ? this.audio.volume : 0.8) * 100),
             is_shuffled: this.isShuffle,
             repeat_mode: this.repeatMode || 'none',
-            queue_index: this.currentIndex
+            queue_index: index,
+            queue_sig: queueSig,
+            last_cmd_id: this._connectLastCmdId
         };
-        if (sendQueue) payload.queue = queue;
+        if (sendQueue) {
+            payload.queue = queue.map(s => this._connectSongSummary(s));
+            payload.queue_offset = start;
+            payload.queue_total = playlist.length;
+        }
+        // Tell the server which commands it can drop (the stream keeps them
+        // until then).
+        const ack = this._connectCmdAck;
+        if (ack > this._connectCmdAcked) payload.cmd_ack = ack;
 
         this._connectBeatBusy = true;
         useConnectService().heartbeat(payload).then((result) => {
-            // Remember the signature only once the server has it, so a failed
-            // beat re-sends the queue on the next try.
-            if (sendQueue && result && !result.error) this._connectQueueSig = queueSig;
+            // Not delivered: the next beat retries, queue and ack included.
+            if (!result || result.error) return;
+            if (ack > this._connectCmdAcked) this._connectCmdAcked = ack;
+            if (sendQueue) this._connectQueueSig = queueSig;
+            this._connectNeedQueue = !!result.value?.need_queue;
         }).catch(() => { /* network blips are fine — next beat retries */ })
-          .finally(() => { this._connectBeatBusy = false; });
+          .finally(() => {
+              this._connectBeatBusy = false;
+              // A beat was asked for while this one was in flight (state
+              // changed since it was built): send the fresh one now.
+              if (this._connectBeatAgain) {
+                  this._connectBeatAgain = false;
+                  this._connectHeartbeat();
+              }
+          });
     }
 
-    /** Fetch queued remote commands and apply them to local playback. */
+    /**
+     * Open the command stream if it isn't. The server pushes commands over
+     * it as they are sent, and counts the open connection as presence —
+     * neither depends on this page's timers, which a background tab only
+     * gets once a minute.
+     */
+    _connectEnsureStream() {
+        if (typeof EventSource === 'undefined' || !this._connectDeviceId) return;
+        const current = this._connectStream;
+        if (current && current.readyState !== EventSource.CLOSED
+            && this._connectStreamDeviceId === this._connectDeviceId) return;
+        if (Date.now() < this._connectStreamRetryAt) return;
+        this._connectCloseStream();
+
+        const source = new EventSource(
+            useConnectService().streamUrl(this._connectDeviceId, this._connectLastCmdId));
+        this._connectStream = source;
+        this._connectStreamDeviceId = this._connectDeviceId;
+        source.onopen = () => { this._connectStreamOpen = true; };
+        source.onerror = () => {
+            // Polling takes over until the stream is back. The browser
+            // reconnects by itself, except after a refusal (signed out, too
+            // many streams, an older server without the endpoint): then try
+            // again in a minute.
+            this._connectStreamOpen = false;
+            if (source.readyState === EventSource.CLOSED && this._connectStream === source) {
+                this._connectStream = null;
+                this._connectStreamRetryAt = Date.now() + 60000;
+            }
+        };
+        source.addEventListener('command', (e) => {
+            let cmd = null;
+            try { cmd = JSON.parse(e.data); } catch (_) { /* not ours to fix */ }
+            if (cmd) this._connectReceive([cmd]);
+        });
+    }
+
+    _connectCloseStream() {
+        this._connectStream?.close();
+        this._connectStream = null;
+        this._connectStreamOpen = false;
+    }
+
+    /** Fallback while the stream is down: fetch queued remote commands. */
     async _connectPollCommands() {
-        if (!this._connectDeviceId || this._connectPollBusy) return;
+        if (!this._connectDeviceId || this._connectPollBusy || !window.app?.user) return;
+        if (this._connectStreamOpen) return;
         this._connectPollBusy = true;
         try {
             const result = await useConnectService().pollCommands(this._connectDeviceId);
             const commands = result?.value?.commands;
-            if (Array.isArray(commands) && commands.length > 0) {
-                for (const cmd of commands) {
-                    try {
-                        await this._connectApplyCommand(cmd);
-                    } catch (e) {
-                        Logger.warn('Connect command failed:', cmd, e);
-                    }
-                }
-                // Reflect the new state to remotes without waiting for the next beat
-                this._connectHeartbeat();
-            }
+            if (Array.isArray(commands) && commands.length > 0) await this._connectReceive(commands);
         } catch (e) {
-            // silent — polling retries every 2s
+            // silent — polling retries every second
         } finally {
             this._connectPollBusy = false;
         }
+    }
+
+    /**
+     * Apply commands from the stream or a poll, in order and one batch at a
+     * time, then report the result.
+     * @param {Array<{ id?: number, command: string, args?: Object }>} commands
+     */
+    _connectReceive(commands) {
+        this._connectApplying = (this._connectApplying || Promise.resolve()).then(async () => {
+            let applied = false;
+            for (const cmd of commands) {
+                const id = Number(cmd?.id) || 0;
+                // Seen already: the stream re-sends what was not
+                // acknowledged yet, and a poll can overlap it.
+                if (id && id <= this._connectLastCmdId) continue;
+                try {
+                    await this._connectApplyCommand(cmd);
+                } catch (e) {
+                    Logger.warn('Connect command failed:', cmd, e);
+                }
+                if (id > this._connectLastCmdId) this._connectLastCmdId = id;
+                applied = true;
+            }
+            if (!applied) return;
+            this._connectCmdAck = this._connectLastCmdId;
+            // Reflect the new state to remotes without waiting for the next
+            // beat. The short delay lets the <audio> element catch up
+            // (play() only flips isPlaying on its 'play' event) — except in
+            // a hidden tab, where a timer could take a minute to fire.
+            clearTimeout(this._connectAckTimer);
+            if (document.hidden) this._connectHeartbeat();
+            else this._connectAckTimer = setTimeout(() => this._connectHeartbeat(), 250);
+        });
+        return this._connectApplying;
     }
 
     /**
@@ -3747,6 +3958,12 @@ export class AudioPlayer {
     async _connectApplyCommand(cmd) {
         if (!cmd || !cmd.command) return;
         const args = cmd.args || {};
+
+        // Being steered makes this tab the player. Leaving controller mode
+        // first also keeps the transport methods below from forwarding the
+        // command on to the device this tab was controlling (two devices
+        // controlling each other would bounce it back and forth forever).
+        if (this.isControllerMode) this._stopControllerMode({ quiet: true });
 
         // Give visible feedback that a remote is steering this player
         this._connectFlashButton();
@@ -3786,40 +4003,28 @@ export class AudioPlayer {
                 if (this.isShuffle !== enabled) this.toggleShuffle();
                 break;
             }
-            case 'repeat': {
-                const mode = String(args.mode ?? '');
-                if (['none', 'all', 'one'].includes(mode) && this.repeatMode !== mode) {
-                    this.setRepeatMode(mode);
+            case 'repeat':
+                if (args.mode != null) this.setRepeatMode(normalizeRepeat(String(args.mode)));
+                break;
+            case 'play_song':
+                if (args.song_id != null) {
+                    await this._connectPlaySongById(args.song_id, 0, args.index);
                 }
                 break;
-            }
-            case 'play_song': {
-                // Receiving a playback command means we're being controlled — exit controller mode
-                if (this.isControllerMode) this._stopControllerMode();
-                if (args.song_id != null) await this._connectPlaySongById(args.song_id);
-                break;
-            }
             case 'transfer':
-                // Receiving side of a hand-off: load the full queue (if provided)
-                // and start at the given index/position.
-                if (this.isControllerMode) this._stopControllerMode();
-                if (Array.isArray(args.queue) && args.queue.length > 0) {
-                    this._connectPlayQueueObjects(args.queue, Number(args.index) || 0, Number(args.position) || 0);
-                } else if (args.song_id != null) {
-                    await this._connectPlaySongById(args.song_id, Number(args.position) || 0);
-                }
-                break;
             case 'play_queue':
-                // Remote sets our entire queue and starts at index.
-                // Receiving this means we're being controlled — exit controller mode
-                if (this.isControllerMode) this._stopControllerMode();
-                // Supports two formats:
-                //   args.queue  — full song objects (preferred, no resolution needed)
+                // Remote sets our entire queue and starts at index (and, for a
+                // hand-off, at a position). Two formats:
+                //   args.queue    — full song objects (preferred, no resolution needed)
                 //   args.song_ids — legacy ID-only format (resolved against library)
                 if (Array.isArray(args.queue) && args.queue.length > 0) {
-                    this._connectPlayQueueObjects(args.queue, Number(args.index) || 0);
+                    this._connectPlayQueueObjects(args.queue, Number(args.index) || 0, Number(args.position) || 0);
                 } else if (Array.isArray(args.song_ids)) {
                     await this._connectPlayQueue(args.song_ids, Number(args.index) || 0);
+                } else if (cmd.command === 'transfer') {
+                    // What older clients send after pulling playback over to
+                    // themselves: it means "stop", not "play this".
+                    if (this.isPlaying) this.togglePlayPause();
                 }
                 break;
             default:
@@ -3858,18 +4063,35 @@ export class AudioPlayer {
     }
 
     /**
-     * Set the local queue from full song objects sent by a remote controller.
-     * No resolution needed — the objects are used directly.
+     * Set the local queue from song objects sent by a remote controller.
+     * They only carry the display fields, so each one is swapped for the
+     * loaded library's full song when it is there.
      * @param {Array<Object>} queueData - Song objects with id, title, artist, etc.
      * @param {number} startIndex
+     * @param {number} [startPosition] - seconds to start at
      */
     _connectPlayQueueObjects(queueData, startIndex = 0, startPosition = 0) {
         if (!Array.isArray(queueData) || queueData.length === 0) return;
-        const idx = Math.max(0, Math.min(startIndex, queueData.length - 1));
-        this.playSong(idx, queueData, { type: 'connect', id: null });
-        if (startPosition > 0 && this.audio) {
-            this.audio.currentTime = startPosition;
-        }
+        const byId = new Map((window.app?.songs || []).map(s => [Number(s.id), s]));
+        const queue = queueData.map(s => byId.get(Number(s?.id)) || s);
+        const idx = Math.max(0, Math.min(startIndex, queue.length - 1));
+        this.playSong(idx, queue, { type: 'connect', id: null });
+        this._connectStartAt(startPosition);
+    }
+
+    /** Start the song that was just loaded at `position` seconds. */
+    _connectStartAt(position) {
+        if (!(position > 0) || !this.audio) return;
+        const src = this.audio.src;
+        // Before metadata this sets the default start position…
+        try { this.audio.currentTime = position; } catch (e) { /* not seekable yet */ }
+        // …which not every browser honours, so check again once it loaded
+        // (unless another song took over in the meantime).
+        this.audio.addEventListener('loadedmetadata', () => {
+            if (this.audio.src === src && Math.abs(this.audio.currentTime - position) > 2) {
+                this.audio.currentTime = position;
+            }
+        }, { once: true });
     }
 
     /**
@@ -3877,15 +4099,20 @@ export class AudioPlayer {
      * falls back to the app's loaded library, then to a server fetch.
      * @param {number|string} songId
      * @param {number} [position] - seconds to start at
+     * @param {number} [index] - where the remote saw the song in our queue
+     *  (the queue can hold the same song twice)
      */
-    async _connectPlaySongById(songId, position = 0) {
+    async _connectPlaySongById(songId, position = 0, index = null) {
         const wantedId = Number(songId);
 
         // 1) Already in the current queue?
-        const queueIndex = this.playlist.findIndex(s => Number(s.id) === wantedId);
+        const hinted = Number.isInteger(Number(index)) && index != null ? Number(index) : -1;
+        const queueIndex = Number(this.playlist[hinted]?.id) === wantedId
+            ? hinted
+            : this.playlist.findIndex(s => Number(s.id) === wantedId);
         if (queueIndex !== -1) {
             this.playSong(queueIndex);
-            if (position > 0) this.audio.currentTime = position;
+            this._connectStartAt(position);
             return;
         }
 
@@ -3895,7 +4122,7 @@ export class AudioPlayer {
         const librarySong = app?.songs?.find(s => Number(s.id) === wantedId);
         if (librarySong) {
             this.playSong(0, [librarySong], { type: 'connect', id: null });
-            if (position > 0) this.audio.currentTime = position;
+            this._connectStartAt(position);
             return;
         }
 
@@ -3908,7 +4135,7 @@ export class AudioPlayer {
             return;
         }
         this.playSong(0, [song], { type: 'connect', id: null });
-        if (position > 0) this.audio.currentTime = position;
+        this._connectStartAt(position);
     }
 
     /**
@@ -3969,7 +4196,11 @@ export class AudioPlayer {
      * and locally persisted playback state (which isn't scoped per user).
      */
     shutdownSession() {
+        this._stopControllerMode({ quiet: true });
         this._connectDeregister();
+        this._connectStreamRetryAt = Infinity; // signed out: stay closed
+        clearTimeout(this._connectStartTimer);
+        clearTimeout(this._connectAckTimer);
         clearInterval(this._connectHeartbeatTimer);
         clearInterval(this._connectPollTimer);
         this._connectHeartbeatTimer = null;
@@ -3986,15 +4217,16 @@ export class AudioPlayer {
     /** Fire-and-forget deregister so we vanish from other devices on unload. */
     _connectDeregister() {
         if (!this._connectDeviceId) return;
+        this._connectCloseStream();
         const url = `/api/connect/device/${encodeURIComponent(this._connectDeviceId)}`;
         try {
-            if (navigator.sendBeacon) {
-                // sendBeacon can't send DELETE — a POST to the same path is the
-                // closest reliable approximation during unload.
-                navigator.sendBeacon(url, new Blob([], { type: 'application/json' }));
-            }
+            // keepalive lets the request outlive the page. (sendBeacon can
+            // only POST, and there is no POST route for this.)
             fetch(url, { method: 'DELETE', keepalive: true }).catch(() => { });
         } catch (e) { /* best effort */ }
+        // If the page lives on (back/forward cache), the next beat has to
+        // bring the queue again.
+        this._connectNeedQueue = true;
     }
 
     /* ========================================================================
@@ -4011,19 +4243,34 @@ export class AudioPlayer {
 
         // Clean up any existing controller mode first
         if (this._controllerTarget) {
-            this._stopControllerMode();
+            this._stopControllerMode({ quiet: true });
         }
 
-        // Stop local audio
-        if (this.audio) {
-            this.audio.pause();
-            this.audio.currentTime = 0;
-        }
+        // Stop local audio (it keeps its place for when we come back) and
+        // persist the local state while the queue in memory is still ours.
+        if (this.audio) this.audio.pause();
+        this.savePlaybackState();
+
+        // From here on the queue panel shows the remote's queue. Park the
+        // local one so leaving controller mode puts it back untouched.
+        this._controllerLocal = {
+            playlist: this.playlist,
+            currentIndex: this.currentIndex,
+            queueModified: this.queueModified,
+            queueOperations: this.queueOperations,
+        };
         this.isPlaying = false;
 
         this._controllerTarget = { device_id: device.device_id, device_name: device.device_name };
         this._controllerState = null;
-        this._controllerPollFailures = 0;
+        this._controllerStateAt = 0;
+        this._controllerQueue = [];
+        this._controllerQueueHash = '';
+        this._controllerCoverSrc = undefined;
+        this._controllerPendingAck = 0;
+        this._controllerPendingAckAt = 0;
+        this._controllerLastOk = Date.now();
+        this._controllerPollBusy = false;
 
         // Show the controller banner
         this._showControllerBanner(device.device_name);
@@ -4035,8 +4282,12 @@ export class AudioPlayer {
         window.showToast?.(t('Controlling {name}', { name: device.device_name }), 'success');
     }
 
-    /** Exit controller mode and restore local player state. */
-    _stopControllerMode() {
+    /**
+     * Exit controller mode and restore local player state.
+     * @param {{ quiet?: boolean }} [options] - `quiet` skips the toast
+     */
+    _stopControllerMode({ quiet = false } = {}) {
+        if (!this._controllerTarget) return;
         this._controllerTarget = null;
         this._controllerState = null;
         if (this._controllerPollTimer) {
@@ -4044,10 +4295,81 @@ export class AudioPlayer {
             this._controllerPollTimer = null;
         }
         this._hideControllerBanner();
+
+        // Put the local queue back where the remote's was mirrored
+        const local = this._controllerLocal;
+        this._controllerLocal = null;
+        if (local) {
+            this.playlist = local.playlist;
+            this.currentIndex = local.currentIndex;
+            this.queueModified = local.queueModified;
+            this.queueOperations = local.queueOperations;
+        }
+        this.isPlaying = !!this.audio && !this.audio.paused;
+
         // Restore player bar to local state
-        if (this.currentSong) this.updateNowPlaying(this.currentSong);
+        this._paintLocalPlayerBar();
+        if (!quiet) window.showToast?.('Back to local playback', 'info');
+        // A player again: show up on the other devices without waiting
+        this._connectNeedQueue = true;
+        this._connectHeartbeat();
+    }
+
+    /** Repaint everything controller mode painted with the remote's state. */
+    _paintLocalPlayerBar() {
+        if (this.currentSong) {
+            this.updateNowPlaying(this.currentSong);
+        } else {
+            if (this.nowPlayingTitle) this.nowPlayingTitle.textContent = t('Nothing playing');
+            if (this.nowPlayingArtist) this.nowPlayingArtist.textContent = t('Select a song to play');
+            if (this.nowPlayingArtwork) this.nowPlayingArtwork.innerHTML = '';
+            if (this.fsTitle) this.fsTitle.textContent = t('Nothing playing');
+            if (this.fsArtist) this.fsArtist.textContent = t('Select a song to play');
+            if (this.fsArtwork) this.fsArtwork.innerHTML = '';
+        }
         this._updatePlayPauseIcon();
-        window.showToast?.('Back to local playback', 'info');
+
+        // Progress + time labels
+        const duration = this.audio?.duration || 0;
+        const position = this.audio?.currentTime || 0;
+        this._paintProgress(position, duration);
+
+        // Volume
+        if (this.audio) this.setVolume(this.audio.volume);
+
+        // Shuffle / repeat
+        this._paintToggleButtons(this.isShuffle, this.repeatMode !== 'none');
+
+        this.renderFullscreenQueue();
+        if (this.lyricsActive && this.currentSong && !this.currentSong.videoId) {
+            this.loadLyrics(this.currentSong.id);
+        }
+    }
+
+    /** Progress bars and time labels, main bar and fullscreen. */
+    _paintProgress(position, duration) {
+        const width = duration > 0 ? `${Math.min(100, (position / duration) * 100)}%` : '0%';
+        if (this.progressFill) this.progressFill.style.width = width;
+        if (this.fsProgressFill) this.fsProgressFill.style.width = width;
+        if (this.currentTimeEl) this.currentTimeEl.textContent = this.formatTime(position);
+        if (this.totalTimeEl) this.totalTimeEl.textContent = this.formatTime(duration);
+        if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(position);
+        if (this.fsTotalTimeEl) this.fsTotalTimeEl.textContent = this.formatTime(duration);
+    }
+
+    /** Highlight of the shuffle and repeat buttons, main bar and fullscreen. */
+    _paintToggleButtons(shuffleOn, repeatOn) {
+        const paint = (btn, on) => {
+            if (!btn) return;
+            const color = on ? 'var(--accent-primary)' : '';
+            btn.style.color = color;
+            const svg = btn.querySelector('svg');
+            if (svg) svg.style.fill = color;
+        };
+        paint(this.shuffleBtn, shuffleOn);
+        paint(this.fsShuffleBtn, shuffleOn);
+        paint(this.repeatBtn, repeatOn);
+        paint(this.fsRepeatBtn, repeatOn);
     }
 
     /** @returns {boolean} true when this player is in controller mode */
@@ -4055,103 +4377,136 @@ export class AudioPlayer {
         return !!this._controllerTarget;
     }
 
+    /**
+     * Queue edits have no remote command yet. Applying them here while the
+     * panel shows the controlled device's queue would only edit the mirror
+     * (and be undone by the next state update).
+     */
+    _blockedWhileControlling() {
+        if (!this.isControllerMode) return false;
+        window.showToast?.("Can't edit the queue of a device you're controlling", 'info');
+        return true;
+    }
+
     /** Send a command to the controlled device. */
     async _controllerCommand(command, args = {}) {
-        if (!this._controllerTarget) return;
-        this._lastControllerCommandMs = Date.now();
-        try {
-            await useConnectService().sendCommand(this._controllerTarget.device_id, command, args);
-        } catch (e) {
-            Logger.warn('Controller command failed:', command, e);
+        const target = this._controllerTarget;
+        if (!target) return;
+        // Hold back state snapshots from the moment the command leaves.
+        this._controllerPendingAckAt = Date.now();
+        const result = await useConnectService().sendCommand(target.device_id, command, args);
+        if (this._controllerTarget !== target) return;
+        if (result.error) {
+            Logger.warn('Controller command failed:', command, result.error);
+            // Nothing to wait for: show the device's real state again.
+            this._controllerPendingAck = 0;
+            window.showToast?.(ConnectService.refused(result)
+                ? 'That device is offline'
+                : "Couldn't reach the device", 'error');
+            return;
         }
+        const id = Number(result.value?.command_id) || 0;
+        if (id > this._controllerPendingAck) {
+            this._controllerPendingAck = id;
+            this._controllerPendingAckAt = Date.now();
+        }
+    }
+
+    /**
+     * Show the expected result of a command right away. The next state the
+     * device reports after applying it replaces this.
+     * @param {Object} changes - fields of the remote state the command sets
+     */
+    _controllerEcho(changes) {
+        if (!this._controllerState) return;
+        Object.assign(this._controllerState, changes);
+        this._controllerStateAt = performance.now();
+        this._mirrorControllerState(this._controllerState);
     }
 
     /** Poll the controlled device's state and mirror it on the player bar. */
     async _controllerPoll() {
-        if (!this._controllerTarget) return;
+        const target = this._controllerTarget;
+        // One poll in flight at a time: overlapping ones could land out of
+        // order and replay an older state.
+        if (!target || this._controllerPollBusy) return;
+        this._controllerPollBusy = true;
         try {
-            const result = await useConnectService().getDevice(this._controllerTarget.device_id);
+            const result = await useConnectService().getDevice(target.device_id, this._controllerQueueHash);
+            if (this._controllerTarget !== target) return; // left or switched meanwhile
             const device = result?.value?.device;
-            if (!device) {
-                // Transient failure — only give up after several consecutive misses
-                this._controllerPollFailures++;
-                if (this._controllerPollFailures >= 5) {
-                    this._stopControllerMode();
+            if (!device || device.online === false) {
+                // Unreachable server, pruned row or a device that stopped
+                // heartbeating: keep the last state on screen and give it
+                // time to come back before giving up. Time-based on purpose —
+                // counting failed polls gave up after five seconds of bad
+                // network.
+                if (Date.now() - this._controllerLastOk > 15000) {
+                    this._stopControllerMode({ quiet: true });
                     window.showToast?.('Controlled device went offline', 'info');
                 }
                 return;
             }
-            this._controllerPollFailures = 0;
-            
-            // Skip stale responses: if we just sent a command, the remote might
-            // not have processed it yet, so this response is outdated.
-            const now = Date.now();
-            if (now - this._lastControllerCommandMs < 1500) {
-                return; // Too soon — wait for the next poll
+            this._controllerLastOk = Date.now();
+
+            // The queue only travels when it changed
+            if (device.queue_unchanged) {
+                device.queue = this._controllerQueue;
+            } else {
+                this._controllerQueue = Array.isArray(device.queue) ? device.queue : [];
+                device.queue = this._controllerQueue;
+                this._controllerQueueHash = device.queue_hash || '';
             }
-            
+
+            // A snapshot taken before the device applied our last command
+            // would undo what the bar already shows. Wait for the device to
+            // acknowledge it — or 5s, for devices on an older client that
+            // never does.
+            if ((Number(device.last_cmd_id) || 0) < this._controllerPendingAck
+                && Date.now() - this._controllerPendingAckAt < 5000) {
+                return;
+            }
+
             this._controllerState = device;
+            this._controllerStateAt = performance.now();
             this._mirrorControllerState(device);
-        } catch (e) {
-            this._controllerPollFailures++;
-            if (this._controllerPollFailures >= 5) {
-                this._stopControllerMode();
-                window.showToast?.('Controlled device went offline', 'info');
-            }
+        } finally {
+            this._controllerPollBusy = false;
         }
     }
 
     /** Update the player bar UI to reflect the remote device's state. */
     _mirrorControllerState(device) {
-        // Now-playing info (player bar)
-        if (this.nowPlayingTitle) this.nowPlayingTitle.textContent = device.song_title || t('Nothing playing');
-        if (this.nowPlayingArtist) this.nowPlayingArtist.textContent = device.song_artist || (device.song_title ? '' : t('Select a song to play'));
-        if (this.nowPlayingArtwork) {
-            const img = this.nowPlayingArtwork.querySelector('img');
-            if (device.cover_path) {
-                const src = `/api/music/cover/${encodeURIComponent(device.cover_path)}`;
-                if (!img || !img.src.startsWith(src)) {
-                    this.nowPlayingArtwork.innerHTML = `<img src="${src}" alt="">`;
-                }
-            } else {
-                this.nowPlayingArtwork.innerHTML = '';
-            }
+        // Now-playing info (player bar + fullscreen player)
+        const title = device.song_title || t('Nothing playing');
+        const artist = device.song_artist || (device.song_title ? '' : t('Select a song to play'));
+        if (this.nowPlayingTitle) this.nowPlayingTitle.textContent = title;
+        if (this.nowPlayingArtist) this.nowPlayingArtist.textContent = artist;
+        if (this.fsTitle) this.fsTitle.textContent = title;
+        if (this.fsArtist) this.fsArtist.textContent = artist;
+
+        // Artwork: only touch the DOM when the cover changes. (Comparing with
+        // img.src never matched — it is absolute — so the image was rebuilt,
+        // and flickered, on every poll.)
+        const coverSrc = device.cover_path
+            ? `/api/music/cover/${encodeURIComponent(device.cover_path)}`
+            : null;
+        if (coverSrc !== this._controllerCoverSrc) {
+            this._controllerCoverSrc = coverSrc;
+            const html = coverSrc ? `<img src="${coverSrc}" alt="">` : '';
+            if (this.nowPlayingArtwork) this.nowPlayingArtwork.innerHTML = html;
+            if (this.fsArtwork) this.fsArtwork.innerHTML = html;
+            if (this.fsBackdrop && coverSrc) this.fsBackdrop.style.backgroundImage = `url(${coverSrc})`;
         }
 
-        // Fullscreen player info
-        if (this.fsTitle) this.fsTitle.textContent = device.song_title || t('Nothing playing');
-        if (this.fsArtist) this.fsArtist.textContent = device.song_artist || (device.song_title ? '' : t('Select a song to play'));
-        if (this.fsArtwork) {
-            const img = this.fsArtwork.querySelector('img');
-            if (device.cover_path) {
-                const src = `/api/music/cover/${encodeURIComponent(device.cover_path)}`;
-                if (!img || !img.src.startsWith(src)) {
-                    this.fsArtwork.innerHTML = `<img src="${src}" alt="">`;
-                }
-            } else {
-                this.fsArtwork.innerHTML = '';
-            }
-        }
-        if (this.fsBackdrop && device.cover_path) {
-            const src = `/api/music/cover/${encodeURIComponent(device.cover_path)}`;
-            this.fsBackdrop.style.backgroundImage = `url(${src})`;
-        }
-
-        // Queue: mirror remote queue into local playlist and re-render
-        const remoteQueue = device.queue;
+        // Queue: mirror the remote queue into the queue panel. (The local
+        // queue is parked in _controllerLocal meanwhile.)
+        const remoteQueue = Array.isArray(device.queue) ? device.queue : [];
         const remoteIndex = device.queue_index ?? 0;
-        if (Array.isArray(remoteQueue) && remoteQueue.length > 0) {
-            // Only update if the queue actually changed (compare by IDs)
-            const newIds = remoteQueue.map(s => s?.id).join(',');
-            const oldIds = (this.playlist || []).map(s => s?.id).join(',');
-            if (newIds !== oldIds) {
-                this.playlist = remoteQueue;
-                this.currentIndex = remoteIndex;
-                this.renderFullscreenQueue();
-            } else if (remoteIndex !== this.currentIndex) {
-                this.currentIndex = remoteIndex;
-                this.renderFullscreenQueue();
-            }
+        if (this.playlist !== remoteQueue || remoteIndex !== this.currentIndex) {
+            this.playlist = remoteQueue;
+            this.currentIndex = remoteIndex;
+            this.renderFullscreenQueue();
         }
 
         // Lyrics: load for the remote song when it changes
@@ -4164,59 +4519,22 @@ export class AudioPlayer {
         this.isPlaying = !!device.is_playing;
         this._updatePlayPauseIcon();
 
-        // Progress bar
-        const duration = device.duration || 0;
-        const position = device.position || 0;
-        if (this.progressFill) {
-            this.progressFill.style.width = duration > 0 ? `${Math.min(100, (position / duration) * 100)}%` : '0%';
-        }
-        if (this.fsProgressFill) {
-            this.fsProgressFill.style.width = duration > 0 ? `${Math.min(100, (position / duration) * 100)}%` : '0%';
-        }
-        // Time labels
-        if (this.currentTimeEl) this.currentTimeEl.textContent = this.formatTime(position);
-        if (this.totalTimeEl) this.totalTimeEl.textContent = this.formatTime(duration);
-        if (this.fsCurrentTimeEl) this.fsCurrentTimeEl.textContent = this.formatTime(position);
-        if (this.fsTotalTimeEl) this.fsTotalTimeEl.textContent = this.formatTime(duration);
+        // Progress bar + time labels
+        this._paintProgress(connectLivePosition(device, this._controllerStateAt), device.duration || 0);
 
-        // Volume
+        // Volume (not while the user is holding the slider)
         const vol = Math.max(0, Math.min(100, device.volume ?? 80));
-        if (this.volumeSlider) {
+        if (this.volumeSlider && document.activeElement !== this.volumeSlider) {
             this.volumeSlider.value = vol;
             this.updateVolumeGradient?.();
         }
-        if (this.fsVolumeSlider) {
+        if (this.fsVolumeSlider && document.activeElement !== this.fsVolumeSlider) {
             this.fsVolumeSlider.value = vol;
             this.updateFsVolumeGradient?.();
         }
 
         // Shuffle / repeat visual state
-        if (this.shuffleBtn) {
-            const color = device.is_shuffled ? 'var(--accent-primary)' : '';
-            this.shuffleBtn.style.color = color;
-            const svg = this.shuffleBtn.querySelector('svg');
-            if (svg) svg.style.fill = color;
-        }
-        if (this.fsShuffleBtn) {
-            const color = device.is_shuffled ? 'var(--accent-primary)' : '';
-            this.fsShuffleBtn.style.color = color;
-            const svg = this.fsShuffleBtn.querySelector('svg');
-            if (svg) svg.style.fill = color;
-        }
-        if (this.repeatBtn) {
-            const mode = device.repeat_mode || 'none';
-            const color = mode !== 'none' ? 'var(--accent-primary)' : '';
-            this.repeatBtn.style.color = color;
-            const svg = this.repeatBtn.querySelector('svg');
-            if (svg) svg.style.fill = color;
-        }
-        if (this.fsRepeatBtn) {
-            const mode = device.repeat_mode || 'none';
-            const color = mode !== 'none' ? 'var(--accent-primary)' : '';
-            this.fsRepeatBtn.style.color = color;
-            const svg = this.fsRepeatBtn.querySelector('svg');
-            if (svg) svg.style.fill = color;
-        }
+        this._paintToggleButtons(!!device.is_shuffled, normalizeRepeat(device.repeat_mode) !== 'none');
     }
 
     /** Show the 'Controlling: X' banner above the player bar. */
@@ -4259,6 +4577,9 @@ export class AudioPlayer {
      * For modified queues, stores only the operations (add/remove) for space efficiency
      */
     savePlaybackState() {
+        // While controlling another device the queue in memory is ITS queue;
+        // saving it would make it this player's resume state.
+        if (this.isControllerMode) return;
         if (this.currentIndex < 0 || !this.playlist.length) return;
 
         const song = this.playlist[this.currentIndex];
