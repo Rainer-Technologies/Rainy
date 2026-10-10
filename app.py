@@ -16,6 +16,7 @@ from routes.smartmix import smartmix_bp
 from routes.connect import connect_bp
 from routes.server import server_bp
 from routes.playlist_syncs import playlist_syncs_bp
+from routes.radio import radio_bp
 
 # Static files are served by the explicit catch-all below so frontend routes
 # such as /albums can fall back to index.html instead of Flask's built-in
@@ -86,6 +87,7 @@ app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
 app.register_blueprint(server_bp)
 app.register_blueprint(playlist_syncs_bp)
+app.register_blueprint(radio_bp)
 
 @app.route('/')
 def serve_index():
@@ -202,6 +204,7 @@ _sync_worker_started = False
 _lightshow_worker_started = False
 _lyrics_worker_started = False
 _ytdlp_worker_started = False
+_radio_worker_started = False
 
 
 @app.before_request
@@ -262,6 +265,15 @@ def _ensure_sync_worker():
         _sync_worker_started = True
         from utils import playlist_sync_worker
         playlist_sync_worker.start_worker()
+
+@app.before_request
+def _ensure_radio_worker():
+    """Start the song radio workers (downloads ahead of playback)."""
+    global _radio_worker_started
+    if not _radio_worker_started:
+        _radio_worker_started = True
+        from utils import radio_worker
+        radio_worker.start_worker()
 
 if __name__ == '__main__':
     init_app()

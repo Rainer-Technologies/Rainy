@@ -55,3 +55,7 @@ class Config:
     LASTFM_API_KEY = os.getenv('LASTFM_API_KEY', '')
 
     SUPPORTED_FORMATS = {'.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac', '.wma', '.mkv'}
+
+    # Folder (inside the music path) for radio downloads nobody has kept yet.
+    # Library scans skip it; see utils/ytradio.py.
+    RADIO_DIR = '.radio'

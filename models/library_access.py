@@ -53,8 +53,8 @@ class LibraryAccessModel:
         %s placeholders precede any later ones.
         """
         if LibraryAccessModel.user_full_library(user_id):
-            fragment = ("JOIN (SELECT id AS song_id FROM songs) la "
-                        "ON la.song_id = s.id")
+            fragment = ("JOIN (SELECT id AS song_id FROM songs "
+                        "WHERE transient = 0) la ON la.song_id = s.id")
             return fragment, ()
         fragment = ("JOIN (SELECT song_id FROM library_access "
                     "WHERE user_id = %s) la ON la.song_id = s.id")
@@ -124,7 +124,8 @@ class LibraryAccessModel:
                 EXISTS (SELECT 1 FROM library_access la
                         WHERE la.user_id = u.id AND la.song_id = %s)
                 OR (u.full_library = 1
-                    AND EXISTS (SELECT 1 FROM songs s WHERE s.id = %s)))
+                    AND EXISTS (SELECT 1 FROM songs s
+                                WHERE s.id = %s AND s.transient = 0)))
         """
         return Database.execute_query(query, (user_id, song_id, song_id),
                                       fetch_one=True) is not None
@@ -139,8 +140,14 @@ class LibraryAccessModel:
         user's library. Use it for read-only surfaces (stream, lyrics, light
         show, download); anything that changes or re-shares a song still
         needs has_access. save_to_library turns it into a permanent row.
+
+        Radio downloads (songs.transient) work the same way through
+        radio_access: playable while the radio that queued them is around,
+        never part of the library until kept (see utils/ytradio.promote).
         """
         if LibraryAccessModel.has_access(user_id, song_id):
+            return True
+        if LibraryAccessModel.has_radio_access(user_id, song_id):
             return True
         query = f"""
             SELECT 1 FROM playlist_entries pe
@@ -150,6 +157,13 @@ class LibraryAccessModel:
         """
         return Database.execute_query(query, (song_id, user_id, user_id),
                                       fetch_one=True) is not None
+
+    @staticmethod
+    def has_radio_access(user_id, song_id):
+        """Whether a radio queued this song for the user (see can_play)."""
+        return Database.execute_query(
+            "SELECT 1 FROM radio_access WHERE user_id = %s AND song_id = %s",
+            (user_id, song_id), fetch_one=True) is not None
 
     @staticmethod
     def save_to_library(user_id, song_id):
@@ -174,7 +188,8 @@ class LibraryAccessModel:
         """All song ids the user can see."""
         if LibraryAccessModel.user_full_library(user_id):
             rows = Database.execute_query(
-                "SELECT id AS song_id FROM songs", fetch_all=True) or []
+                "SELECT id AS song_id FROM songs WHERE transient = 0",
+                fetch_all=True) or []
             return {r['song_id'] for r in rows}
         query = "SELECT song_id FROM library_access WHERE user_id = %s"
         rows = Database.execute_query(query, (user_id,), fetch_all=True) or []

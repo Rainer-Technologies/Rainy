@@ -133,11 +133,19 @@ class MusicScanner:
         self.music_path = music_path
         self.supported_formats = Config.SUPPORTED_FORMATS
     
+    def _skip_radio_dir(self, root, dirs):
+        """Keep os.walk out of the radio download folder: those files are
+        not library songs (yet) and must never be picked up by a scan."""
+        if os.path.normpath(root) == os.path.normpath(self.music_path) \
+                and Config.RADIO_DIR in dirs:
+            dirs.remove(Config.RADIO_DIR)
+
     def scan(self):
         """Scan the music directory and return a list of songs with metadata."""
         songs = []
         
         for root, dirs, files in os.walk(self.music_path):
+            self._skip_radio_dir(root, dirs)
             for filename in files:
                 ext = os.path.splitext(filename)[1].lower()
                 if ext in self.supported_formats:
@@ -191,6 +199,7 @@ class MusicScanner:
             
             # Scan the music directory
             for root, dirs, files in os.walk(self.music_path):
+                self._skip_radio_dir(root, dirs)
                 for filename in files:
                     ext = os.path.splitext(filename)[1].lower()
                     if ext in self.supported_formats:
@@ -291,6 +300,9 @@ class MusicScanner:
             # Remove songs that no longer exist on disk
             if existing_songs:
                 for path in existing_songs:
+                    # Radio downloads live in a folder the walk skips.
+                    if path.startswith(Config.RADIO_DIR + '/'):
+                        continue
                     if path not in found_paths:
                         SongModel.delete_song(path)
                         stats['files_removed'] += 1
@@ -495,8 +507,12 @@ class MusicScanner:
             pass
         return default
     
-    def scan_single_file(self, full_path):
-        """Scan a single file and add it to the database."""
+    def scan_single_file(self, full_path, lightshow=True):
+        """Scan a single file and add it to the database.
+
+        lightshow=False skips the (heavy) light show analysis; radio
+        downloads queue it only once someone keeps the song.
+        """
         from models.song import SongModel
         
         if not os.path.isfile(full_path):
@@ -536,8 +552,9 @@ class MusicScanner:
 
         # Queue the light show analysis so the show is synced from the first
         # play. Best-effort (enqueue_song never raises).
-        from utils import lightshow_worker
-        lightshow_worker.enqueue_song(song_id)
+        if lightshow:
+            from utils import lightshow_worker
+            lightshow_worker.enqueue_song(song_id)
 
         # Same for lyrics: fetch them from LRCLIB and time every word, so
         # freshly imported / downloaded songs come with synced lyrics.

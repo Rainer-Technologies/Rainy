@@ -185,7 +185,13 @@ def add_song(playlist_id):
         from models.library_access import LibraryAccessModel
         if not LibraryAccessModel.has_access(
                 session.get('user_id'), data['song_id']):
-            return jsonify({'error': 'Forbidden'}), 403
+            # A song the radio brought in: liking it or adding it to a
+            # playlist is what keeps it (it joins the library first).
+            from utils import ytradio
+            if not (LibraryAccessModel.has_radio_access(
+                        session.get('user_id'), data['song_id'])
+                    and ytradio.promote(data['song_id'], session.get('user_id'))):
+                return jsonify({'error': 'Forbidden'}), 403
         PlaylistModel.add_song_to_playlist(playlist_id, data['song_id'])
         return jsonify({'success': True})
     except Exception as e:
