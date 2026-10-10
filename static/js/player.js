@@ -383,8 +383,7 @@ export class AudioPlayer {
         this.volumeSlider.addEventListener('input', (e) => this.handleVolumeChange(e));
         this._bindVolumeWheel(this.volumeSlider);
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+        // Keyboard shortcuts live in modules/keyboardShortcuts.js
         document.addEventListener('click', (e) => {
             const target = e.target;
             if (!this.fsContainer || this.fsContainer.classList.contains('hidden')) return;
@@ -1578,36 +1577,6 @@ export class AudioPlayer {
         if (this.fsVolumeSlider) {
             this.fsVolumeSlider.value = e.target.value;
             this.updateFsVolumeGradient();
-        }
-    }
-
-    handleKeyboard(e) {
-        // Don't handle if typing in input
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            return;
-        }
-
-        switch (e.code) {
-            case 'Space':
-                e.preventDefault();
-                this.togglePlayPause();
-                break;
-            case 'ArrowLeft':
-                e.preventDefault();
-                this.audio.currentTime = Math.max(0, this.audio.currentTime - 10);
-                break;
-            case 'ArrowRight':
-                e.preventDefault();
-                this.audio.currentTime = Math.min(this.audio.duration, this.audio.currentTime + 10);
-                break;
-            case 'ArrowUp':
-                e.preventDefault();
-                this.setVolume(this.audio.volume + 0.1);
-                break;
-            case 'ArrowDown':
-                e.preventDefault();
-                this.setVolume(this.audio.volume - 0.1);
-                break;
         }
     }
 
@@ -3074,7 +3043,7 @@ export class AudioPlayer {
             f.type = 'peaking';
             f.frequency.value = freq;
             f.Q.value = 1.4;
-            f.gain.value = this._eqGains[i];
+            f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
             return f;
         });
 
@@ -3095,28 +3064,19 @@ export class AudioPlayer {
      */
     applyEqGains(gains, presetName = null) {
         this._eqGains = gains.slice(0, 10);
-        if (this._eqFilters.length) {
-            this._eqFilters.forEach((f, i) => { f.gain.value = this._eqGains[i]; });
-        }
+        this._eqFilters.forEach((f, i) => {
+            f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
+        });
         if (presetName) this._eqPreset = presetName;
         this._saveEqState();
     }
 
-    /** Toggle the EQ on/off. When off, all gains are set to 0 (flat). */
+    /** Toggle the EQ on/off. Off bypasses the filters but keeps the saved bands. */
     toggleEqEnabled() {
         this._eqEnabled = !this._eqEnabled;
-        if (!this._eqEnabled) {
-            // Flatten
-            this._eqGains = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-            if (this._eqFilters.length) this._eqFilters.forEach(f => { f.gain.value = 0; });
-            this._eqPreset = 'Flat';
-        } else {
-            // Restore saved gains
-            this._loadEqState();
-            if (this._eqFilters.length) {
-                this._eqFilters.forEach((f, i) => { f.gain.value = this._eqGains[i]; });
-            }
-        }
+        this._eqFilters.forEach((f, i) => {
+            f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
+        });
         this._updateEqButtonState();
         this._saveEqState();
     }
@@ -3234,7 +3194,7 @@ export class AudioPlayer {
                 const idx = parseInt(slider.dataset.index);
                 const val = parseInt(slider.value);
                 this._eqGains[idx] = val;
-                if (this._eqFilters[idx]) this._eqFilters[idx].gain.value = val;
+                if (this._eqFilters[idx]) this._eqFilters[idx].gain.value = this._eqEnabled ? val : 0;
                 const vl = menu.querySelector(`#eq-val-${idx}`);
                 if (vl) vl.textContent = `${val > 0 ? '+' : ''}${val}`;
                 // Deselect preset (custom)

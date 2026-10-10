@@ -13,14 +13,19 @@ Two layers, checked in order:
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 
 import numpy as np
 
 from models.database import Database
 
-FPCALC = os.path.join(
+_BUNDLED_FPCALC = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bin', 'fpcalc')
+# bin/fpcalc wins; otherwise a system install (e.g. the Docker image's
+# libchromaprint-tools package) on PATH.
+FPCALC = (_BUNDLED_FPCALC if os.path.isfile(_BUNDLED_FPCALC)
+          else shutil.which('fpcalc') or _BUNDLED_FPCALC)
 FP_THRESHOLD = 0.22
 DURATION_TOLERANCE = 15.0
 

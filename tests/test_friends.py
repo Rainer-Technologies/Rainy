@@ -109,6 +109,19 @@ def test_decline_and_withdraw(app, client_as, friend_users):
     assert ca.get('/api/friends/requests').get_json()['outgoing'] == []
 
 
+def test_decline_cannot_remove_accepted_friendship(app, client_as, friend_users):
+    user_a, user_b = friend_users
+    ca, cb = client_as(user_a), client_as(user_b)
+
+    ca.post('/api/friends/requests', json={'email': 'friendb@test.local'})
+    rid = cb.get('/api/friends/requests').get_json()['incoming'][0]['id']
+    assert cb.post(f'/api/friends/requests/{rid}/accept').status_code == 200
+
+    assert cb.post(f'/api/friends/requests/{rid}/decline').status_code == 404
+    assert ca.post(f'/api/friends/requests/{rid}/decline').status_code == 404
+    assert len(ca.get('/api/friends').get_json()['friends']) == 1
+
+
 def test_friend_request_validation(app, client_as, friend_users):
     user_a, _ = friend_users
     ca = client_as(user_a)

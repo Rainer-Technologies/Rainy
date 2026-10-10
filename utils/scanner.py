@@ -424,8 +424,8 @@ class MusicScanner:
                     else:
                         mime = 'image/jpeg'
         
-        elif ext == '.ogg':
-            # OGG metadata_block_picture (base64-encoded)
+        elif ext in ('.ogg', '.opus'):
+            # OGG/Opus metadata_block_picture (base64-encoded)
             if hasattr(audio, 'tags') and audio.tags:
                 import base64 as b64
                 pictures = audio.tags.get('metadata_block_picture')
