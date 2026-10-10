@@ -30,6 +30,8 @@ export class SongContextMenu extends Component {
         /** @type {Ref<HTMLDivElement>} */
         this._publishSongItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
+        this._publishDivider = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
         this._findMetadataItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._saveToLibraryItem = useRef(null);
@@ -336,12 +338,8 @@ export class SongContextMenu extends Component {
         this._insertCurrentSongAtPosition(player.currentIndex + 1);
     }
 
-    /**
-     * Start an endless radio built around the current song.
-     * @param {'mix'|'discover'} mode library songs with new ones woven in,
-     *  or only songs that aren't in the library
-     */
-    startRadioFromCurrentSong(mode) {
+    /** Start an endless radio of similar music built around the current song. */
+    startRadioFromCurrentSong() {
         this.hide();
 
         /** @type {SongModel?} */
@@ -351,7 +349,7 @@ export class SongContextMenu extends Component {
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
         const song = app?.songs?.find(s => s.id == currentSong.id) ?? currentSong;
-        window.player?.radio.start(song, mode);
+        window.player?.radio.start(song);
         app?.showToast?.(t('Starting radio from "{title}"', { title: song.title }), 'success');
     }
 
@@ -416,6 +414,10 @@ export class SongContextMenu extends Component {
             const app = useContext().get('app');
             const isAdmin = app?.user?.role === 'sysadmin';
             this._publishSongItem.value.style.display = isAdmin ? 'block' : 'none';
+            // Its divider goes with it, or two would sit back to back.
+            if (this._publishDivider.value) {
+                this._publishDivider.value.style.display = isAdmin ? '' : 'none';
+            }
         }
         // "Add to Your Library" only for songs heard through a shared playlist.
         if (this._saveToLibraryItem.value) {
@@ -470,13 +472,9 @@ export class SongContextMenu extends Component {
                         h.span(t('Add to Queue')),
                     ),
                     h.div(a.class('dropdown-divider')),
-                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong('mix')),
+                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong()),
                         I.Radio(),
                         h.span(t('Start Radio')),
-                    ),
-                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong('discover')),
-                        I.Magnifier(),
-                        h.span(t('Discover Similar')),
                     ),
                 )
             ),
@@ -498,16 +496,16 @@ export class SongContextMenu extends Component {
                     ),
                 )
             ),
-            h.div(a.class('context-menu-divider')),
-            H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
-                I.Bin(),
-                h.span(t('Remove from Playlist')),
-            ),
+            h.div(this._publishDivider, a.class('context-menu-divider')),
             H.of(ContextMenuItem, this._publishSongItem, on.click(() => this.publishCurrentSong()),
                 I.Plus(),
                 h.span(t('Publish to Everyone')),
             ),
             h.div(a.class('context-menu-divider')),
+            H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
+                I.Bin(),
+                h.span(t('Remove from Playlist')),
+            ),
             H.of(ContextMenuItem, this._removeSongItem, a.danger(), on.click(() => this.deleteCurrentSong()),
                 I.Bin(),
                 h.span(t('Remove Song')),

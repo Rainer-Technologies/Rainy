@@ -116,10 +116,10 @@ def radio(app):
 
 @pytest.fixture
 def fake_youtube(monkeypatch, radio):
-    """A fixed YouTube Music radio for the seed; no local sound-alikes."""
+    """A fixed YouTube Music radio for the seed."""
     pool = [
         _track('newvideo001', 'Brand New One', 'New Artist A'),
-        _track('ownedvideo1', 'Owned Song', 'Owned Artist'),     # already in the library
+        _track('ownedvideo1', 'Owned Song', 'Owned Artist'),     # the listener owns this one
         _track('livevideo01', 'Something (Live)', 'New Artist B'),
         _track('newvideo002', 'Brand New Two', 'New Artist C'),
         _track('newvideo003', 'Brand New Three', 'New Artist D'),
@@ -177,48 +177,60 @@ def test_start_rejects_a_seed_the_user_cannot_play(radio, fake_youtube):
     assert res.status_code == 200 and res.get_json()['queue'] == []
 
 
-def test_discover_returns_only_new_songs(radio, fake_youtube):
-    res = radio['client'](radio['alice']).post(
-        '/api/radio/start', json={'song_id': radio['seed'], 'mode': 'discover'})
+def test_radio_follows_youtube_music_and_plays_owned_songs_from_the_library(radio, fake_youtube):
+    res = radio['client'](radio['alice']).post('/api/radio/start', json={'song_id': radio['seed']})
     queue = res.get_json()['queue']
-    assert [t['videoId'] for t in queue] == ['newvideo001', 'newvideo002', 'newvideo003']
-    assert all(t['radio'] and 'id' not in t for t in queue)
-
-
-def test_mix_weaves_library_songs_with_new_ones(radio, fake_youtube):
-    res = radio['client'](radio['alice']).post(
-        '/api/radio/start', json={'song_id': radio['seed'], 'mode': 'mix'})
-    queue = res.get_json()['queue']
-    assert queue[0]['id'] == radio['owned'] and queue[0]['in_library'] is True
-    assert [t.get('videoId') for t in queue[1:]] == ['newvideo001', 'newvideo002', 'newvideo003']
+    # Radio order kept; the live take of something the listener doesn't own is dropped.
+    assert [t.get('videoId') or t['id'] for t in queue] == [
+        'newvideo001', radio['owned'], 'newvideo002', 'newvideo003']
+    owned = queue[1]
+    assert owned['in_library'] is True and 'videoId' not in owned
+    assert all(t['radio'] and 'id' not in t for t in queue if t.get('videoId'))
 
 
 def test_more_excludes_what_is_already_queued(radio, fake_youtube):
     res = radio['client'](radio['alice']).post('/api/radio/more', json={
-        'song_id': radio['seed'], 'mode': 'discover',
+        'song_id': radio['seed'],
         'exclude_video_ids': ['newvideo001', 'not a video id'],
         'exclude_song_ids': [radio['owned']]})
     assert [t['videoId'] for t in res.get_json()['queue']] == ['newvideo002', 'newvideo003']
 
 
-def test_mix_survives_youtube_music_failing(radio, fake_youtube, monkeypatch):
+def test_disliked_songs_never_come_back(radio, fake_youtube):
+    from models.song_rating import SongRatingModel
+    SongRatingModel.set_rating(radio['alice'], radio['owned'], 'dislike')
+    res = radio['client'](radio['alice']).post('/api/radio/start', json={'song_id': radio['seed']})
+    assert [t.get('videoId') for t in res.get_json()['queue']] == [
+        'newvideo001', 'newvideo002', 'newvideo003']
+
+
+def test_radio_falls_back_to_similar_library_songs_when_youtube_music_fails(
+        radio, fake_youtube, monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError('YouTube Music is down')
     monkeypatch.setattr(ytradio, 'fetch_radio', boom)
-    res = radio['client'](radio['alice']).post(
-        '/api/radio/start', json={'song_id': radio['seed'], 'mode': 'mix'})
+    res = radio['client'](radio['alice']).post('/api/radio/start', json={'song_id': radio['seed']})
     assert [t['id'] for t in res.get_json()['queue']] == [radio['owned']]
 
 
 def test_an_already_downloaded_track_comes_back_as_a_song(radio, fake_youtube):
     alice = radio['alice']
     sid = radio['transient']('newvideo002', 'Brand New Two', 'New Artist C')
-    res = radio['client'](alice).post(
-        '/api/radio/start', json={'song_id': radio['seed'], 'mode': 'discover'})
+    res = radio['client'](alice).post('/api/radio/start', json={'song_id': radio['seed']})
     queue = res.get_json()['queue']
     ready = next(t for t in queue if t.get('id') == sid)
     assert ready['in_library'] is False and 'videoId' not in ready
     assert LibraryAccessModel.can_play(alice, sid)
+
+
+def test_a_downloaded_track_already_queued_is_not_offered_again(radio, fake_youtube):
+    # The client knows a downloaded track by its song id only.
+    alice = radio['alice']
+    sid = radio['transient']('newvideo002', 'Brand New Two', 'New Artist C')
+    res = radio['client'](alice).post('/api/radio/more', json={
+        'song_id': radio['seed'], 'exclude_song_ids': [sid, radio['owned']],
+        'exclude_video_ids': ['newvideo001']})
+    assert [t.get('videoId') or t['id'] for t in res.get_json()['queue']] == ['newvideo003']
 
 
 def test_prefetch_queues_then_hands_over_the_song(radio):

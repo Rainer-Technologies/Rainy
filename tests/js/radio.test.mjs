@@ -58,11 +58,24 @@ const SEED = { id: 1, title: 'Seed', artist: 'Seed Artist', in_library: true };
 
 test('the seed plays at once and the first batch is queued behind it', async () => {
     const h = harness({ queue: [pending('aaaaaaaaaa1'), pending('aaaaaaaaaa2')] });
-    await h.radio.start(SEED, 'discover');
+    await h.radio.start(SEED);
     h.stop();
     assert.equal(h.player.currentIndex, 0);
-    assert.deepEqual(h.player.playbackContext, { type: 'radio', id: 1, mode: 'discover', endless: true });
+    assert.deepEqual(h.player.playbackContext, { type: 'radio', id: 1, endless: true });
     assert.deepEqual(h.player.playlist.map(s => s.id ?? s.videoId), [1, 'aaaaaaaaaa1', 'aaaaaaaaaa2']);
+});
+
+test('starting a radio asks for the first batch only', async () => {
+    const h = harness({ queue: [pending('aaaaaaaaaa1'), pending('aaaaaaaaaa2')] });
+    // Like the real player: every song change asks the radio to top up.
+    const playSong = h.player.playSong.bind(h.player);
+    h.player.playSong = (...args) => { playSong(...args); h.radio.extend(); };
+    await h.radio.start(SEED);
+    await h.settle();
+    h.stop();
+    assert.deepEqual(h.calls.filter(c => !c.url.endsWith('/prefetch')).map(c => c.url),
+        ['/api/radio/start']);
+    assert.equal(h.player.playlist.length, 3);
 });
 
 test('upcoming tracks become real songs when their download lands', async () => {
@@ -71,7 +84,7 @@ test('upcoming tracks become real songs when their download lands', async () => 
         prefetch: () => ({ aaaaaaaaaa1: { status: 'ready', song: downloaded(50, 'One') },
                            aaaaaaaaaa2: { status: 'queued' } }),
     });
-    await h.radio.start(SEED, 'discover');
+    await h.radio.start(SEED);
     await h.settle();
     h.stop();
     const [, first, second] = h.player.playlist;
@@ -88,7 +101,7 @@ test('a track reached before its download is fetched and adopted while it plays'
         prefetch: () => (ready ? { aaaaaaaaaa1: { status: 'ready', song: downloaded(50, 'One') } }
                                : { aaaaaaaaaa1: { status: 'queued' } }),
     });
-    await h.radio.start(SEED, 'discover');
+    await h.radio.start(SEED);
     await h.settle();
     h.stop();
 
@@ -114,7 +127,7 @@ test('keeping a track that is still downloading saves it once it lands', async (
         prefetch: () => (ready ? { aaaaaaaaaa1: { status: 'ready', song: downloaded(50, 'One') } }
                                : { aaaaaaaaaa1: { status: 'queued' } }),
     });
-    await h.radio.start(SEED, 'discover');
+    await h.radio.start(SEED);
     await h.settle();
     h.stop();
     h.player.playSong(1);
@@ -137,7 +150,7 @@ test('a failed download cannot be kept and says so', async () => {
         queue: [pending('aaaaaaaaaa1')],
         prefetch: () => ({ aaaaaaaaaa1: { status: 'failed' } }),
     });
-    await h.radio.start(SEED, 'discover');
+    await h.radio.start(SEED);
     await h.settle();
     h.stop();
     h.player.playSong(1);
@@ -146,7 +159,7 @@ test('a failed download cannot be kept and says so', async () => {
 
     // Asked for before the failure was known: the request is dropped loudly.
     const h2 = harness({ queue: [pending('bbbbbbbbbb1')], prefetch: () => ({ bbbbbbbbbb1: { status: 'queued' } }) });
-    await h2.radio.start(SEED, 'discover');
+    await h2.radio.start(SEED);
     await h2.settle();
     h2.stop();
     h2.player.playSong(1);
@@ -166,7 +179,7 @@ test('the queue is topped up when it runs low, excluding what is queued', async 
             ? [pending('cccccccccc3')]
             : [pending('aaaaaaaaaa1'), downloaded(60, 'Local')]),
     });
-    await h.radio.start(SEED, 'mix');
+    await h.radio.start(SEED);
     h.stop();
     await h.radio.extend();
     h.stop();
@@ -178,7 +191,7 @@ test('the queue is topped up when it runs low, excluding what is queued', async 
 
 test('answers for a radio the listener left are ignored', async () => {
     const h = harness({ queue: [pending('aaaaaaaaaa1')] });
-    const starting = h.radio.start(SEED, 'mix');
+    const starting = h.radio.start(SEED);
     h.player.playSong(0, [{ id: 9, title: 'Something else' }], { type: 'library', id: null });
     await starting;
     h.stop();

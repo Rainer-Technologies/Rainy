@@ -12,7 +12,6 @@ from routes.auth import get_current_user_id, require_auth, server_error
 radio_bp = Blueprint('radio', __name__, url_prefix='/api/radio')
 
 _VIDEO_ID = re.compile(r'^[A-Za-z0-9_-]{11}$')
-_MODES = ('mix', 'discover')
 MAX_PREFETCH = 5
 
 
@@ -31,7 +30,6 @@ def _queue(deep):
     seed_id = data.get('song_id')
     if not isinstance(seed_id, int) or isinstance(seed_id, bool):
         return jsonify({'error': 'song_id is required'}), 400
-    mode = data.get('mode') if data.get('mode') in _MODES else 'mix'
     try:
         limit = max(1, min(int(data.get('limit') or 12), 30))
     except (TypeError, ValueError):
@@ -39,13 +37,13 @@ def _queue(deep):
     skipped = [s for s in (data.get('skipped_artists') or []) if isinstance(s, str)][-50:]
     try:
         queue = ytradio.build_queue(
-            get_current_user_id(), seed_id, mode=mode,
+            get_current_user_id(), seed_id,
             exclude_song_ids=_ints(data.get('exclude_song_ids')),
             exclude_video_ids=_video_ids(data.get('exclude_video_ids')),
             skipped_artists=skipped, limit=limit, deep=deep)
     except Exception:
         return server_error()
-    return jsonify({'queue': queue, 'mode': mode})
+    return jsonify({'queue': queue})
 
 
 @radio_bp.route('/start', methods=['POST'])

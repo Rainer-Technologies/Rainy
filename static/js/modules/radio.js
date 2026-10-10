@@ -1,10 +1,10 @@
 /**
  * Song radio.
  *
- * "Start radio" on a song plays an endless queue built around it
- * (/api/radio): either library songs that sound like it with new
- * discoveries woven in ('mix'), or only songs the listener doesn't have
- * ('discover').
+ * "Start radio" on a song plays an endless queue of similar music built
+ * around it (/api/radio). It follows YouTube Music's radio for that song:
+ * tracks the listener already owns play from their library, the rest are
+ * new discoveries.
  *
  * New songs arrive as pending tracks ({ videoId, radio: true }). The few
  * coming up next are downloaded ahead of playback (/api/radio/prefetch)
@@ -38,31 +38,37 @@ export class SongRadio {
 
     /**
      * @param {{id: number, title?: string, artist?: string}} song the seed
-     * @param {'mix'|'discover'} mode
      */
-    async start(song, mode = 'mix') {
+    async start(song) {
         if (!song || song.id == null) return;
         const player = this.player;
-        const ctx = { type: 'radio', id: song.id, mode, endless: true };
+        const ctx = { type: 'radio', id: song.id, endless: true };
 
         if (player.isControllerMode) {
             // The remote device plays what it is sent: hand it the seed plus
-            // the library part of the first batch (it can't fetch new songs).
-            const items = await this._request('start', { song_id: song.id, mode, limit: BATCH });
+            // the songs of the first batch that are already on disk (it can't
+            // fetch new ones).
+            const items = await this._request('start', { song_id: song.id, limit: BATCH });
             player.playSong(0, [song, ...items.filter(s => s.id != null)], ctx);
             return;
         }
 
         const queue = [song];
         const session = {
-            ctx, queue, seedId: song.id, mode,
+            ctx, queue, seedId: song.id,
             videos: new Set(), skipped: [], failed: new Set(), keep: new Set(),
             pending: null, exhausted: false,
         };
         this._session = session;
+        // The first batch counts as a top-up in flight: starting the seed
+        // makes the player ask to extend the (one-song) queue right away,
+        // and that must wait for this instead of also asking for more.
+        const first = this._request('start', { song_id: song.id, limit: BATCH });
+        session.pending = first.then(() => {});
         player.playSong(0, queue, ctx);   // the seed plays while the queue fills
 
-        const items = await this._request('start', { song_id: song.id, mode, limit: BATCH });
+        const items = await first;
+        session.pending = null;
         if (!this._alive(session)) return;
         if (!items.length) {
             this.hooks.onEmpty?.();
@@ -88,7 +94,6 @@ export class SongRadio {
         session.pending = (async () => {
             const items = await this._request('more', {
                 song_id: session.seedId,
-                mode: session.mode,
                 limit: BATCH,
                 exclude_song_ids: session.queue.map(s => s?.id).filter(Number.isInteger),
                 exclude_video_ids: [...session.videos],

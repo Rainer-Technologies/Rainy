@@ -9,9 +9,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utils import ytradio
-from utils.ytradio import (core_title, expansion_pool, filter_candidates, interleave,
-                           match_score, match_song, norm, parse_length, rerank,
-                           song_key, versions)
+from utils.ytradio import (core_title, expansion_pool, filter_candidates, match_score,
+                           match_song, norm, parse_length, rerank, song_key, versions)
 
 ATV = 'MUSIC_VIDEO_TYPE_ATV'
 
@@ -99,7 +98,7 @@ def test_match_survives_a_failing_search():
 
 # ── Filtering ───────────────────────────────────────────────────────────
 
-def test_filter_drops_library_versions_uploads_and_odd_lengths():
+def test_filter_keeps_owned_songs_as_library_songs_and_vets_new_ones():
     tracks = [
         _track('keep0000001', 'Nueva', 'Artista A'),
         _track('owned000002', 'Tengo Esta', 'Artista B'),              # same video in library
@@ -113,12 +112,39 @@ def test_filter_drops_library_versions_uploads_and_odd_lengths():
     ]
     out = filter_candidates(
         tracks, seed_title='Semilla',
-        library_videos={'owned000002'},
-        library_keys={song_key('La Graciosa', 'Quevedo')},
+        library_by_video={'owned000002': 12},
+        library_by_key={song_key('La Graciosa', 'Quevedo'): 34},
         exclude_videos={'excl0000007'},
         blocked_keys={song_key('No Me Gusta', 'Artista F')})
-    assert [t['videoId'] for t in out] == ['keep0000001']
-    assert out[0]['pos'] == 0
+    assert [(t['videoId'], t.get('song_id')) for t in out] == [
+        ('keep0000001', None), ('owned000002', 12), ('other000003', 34)]
+    assert [t['pos'] for t in out] == [0, 1, 2]
+
+
+def test_filter_uses_the_library_copy_whatever_the_radio_version_is():
+    # The radio suggests a live take / a user upload of a song the listener
+    # owns: their own copy plays instead of the track being thrown away.
+    tracks = [
+        _track('live0000001', 'Mía (Live)', 'Artista A'),
+        _track('ugc00000002', 'Subida', 'Canal', kind='MUSIC_VIDEO_TYPE_UGC'),
+    ]
+    out = filter_candidates(
+        tracks, seed_title='Semilla',
+        library_by_video={'ugc00000002': 8},
+        library_by_key={song_key('Mía', 'Artista A'): 7})
+    assert [t['song_id'] for t in out] == [7, 8]
+
+
+def test_filter_skips_owned_songs_already_queued_or_repeated():
+    tracks = [
+        _track('owned000001', 'Una', 'Artista A'),
+        _track('other000002', 'Una (Remastered)', 'Artista A'),   # same library song again
+        _track('owned000003', 'Dos', 'Artista B'),
+    ]
+    out = filter_candidates(
+        tracks, library_by_video={'owned000001': 1, 'owned000003': 2},
+        library_by_key={song_key('Una', 'Artista A'): 1}, exclude_songs={2})
+    assert [t['song_id'] for t in out] == [1]
 
 
 def test_filter_keeps_versions_the_seed_also_is():
@@ -159,18 +185,7 @@ def test_rerank_pushes_skipped_artists_down():
     assert out[-1]['artist'] == 'Artist 0'
 
 
-# ── Weaving ─────────────────────────────────────────────────────────────
-
-def test_interleave_two_local_then_one_new():
-    local = [f'L{i}' for i in range(8)]
-    new = [f'N{i}' for i in range(4)]
-    assert interleave(local, new, 9) == ['L0', 'L1', 'N0', 'L2', 'L3', 'N1', 'L4', 'L5', 'N2']
-
-
-def test_interleave_fills_from_the_other_side_when_one_runs_out():
-    assert interleave(['L0'], ['N0', 'N1', 'N2'], 4) == ['L0', 'N0', 'N1', 'N2']
-    assert interleave(['L0', 'L1', 'L2'], [], 5) == ['L0', 'L1', 'L2']
-
+# ── Widening ────────────────────────────────────────────────────────────
 
 def test_expansion_needs_two_neighbours_to_agree():
     a = [_track('shared00001', 'Shared', 'X'), _track('onlyA000002', 'Only A', 'Y'),
