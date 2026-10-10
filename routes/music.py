@@ -375,6 +375,7 @@ def stream_song(song_id):
             '.flac': 'audio/flac',
             '.wav': 'audio/wav',
             '.ogg': 'audio/ogg',
+            '.opus': 'audio/ogg',
             '.m4a': 'audio/mp4',
             '.aac': 'audio/aac',
             '.wma': 'audio/x-ms-wma',
@@ -440,6 +441,19 @@ def _cast_base_url():
     the sender SDK) the media must come from the HTTP listener."""
     from config import Config
     host = request.host.split(':')[0]
+    if host in ('localhost', '127.0.0.1', '[') or host.endswith('.localhost'):
+        # A loopback address means nothing to the Chromecast: use the
+        # server's LAN address (the interface used to reach the internet).
+        import socket
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                s.connect(('8.8.8.8', 80))
+                host = s.getsockname()[0]
+            finally:
+                s.close()
+        except OSError:
+            pass
     return f'http://{host}:{Config.HTTP_PORT}/'
 
 
@@ -707,6 +721,24 @@ def serve_cover(cover_path):
         return server_error()
 
 
+def _upload_matches_file(upload, path):
+    """True when an uploaded file's bytes are identical to the file at path."""
+    import hashlib
+    try:
+        h = hashlib.sha256()
+        for chunk in iter(lambda: upload.stream.read(1 << 20), b''):
+            h.update(chunk)
+        upload.stream.seek(0)
+        from utils import dedupe
+        return h.hexdigest() == dedupe.sha256_of(path)
+    except Exception:
+        try:
+            upload.stream.seek(0)
+        except Exception:
+            pass
+        return False
+
+
 @music_bp.route('/upload', methods=['POST'])
 @require_auth
 def upload_files():
@@ -739,11 +771,12 @@ def upload_files():
                     
                     # Dedupe: if this exact file already exists on the system,
                     # just enable it on the uploading account instead of
-                    # storing a second copy.
+                    # storing a second copy. Same name but different bytes is
+                    # a different file: keep both under a suffixed name.
                     if os.path.exists(save_path):
                         rel = os.path.relpath(save_path, music_path).replace('\\', '/')
                         existing_song = SongModel.get_song_by_path(rel)
-                        if existing_song:
+                        if existing_song and _upload_matches_file(file, save_path):
                             from models.library_access import LibraryAccessModel
                             try:
                                 LibraryAccessModel.on_scan_added([existing_song['id']])
@@ -751,7 +784,6 @@ def upload_files():
                                 pass
                             uploaded += 1
                             continue
-                        # Unknown leftover file: keep the old suffix behavior
                         base, ext = os.path.splitext(safe_filename)
                         counter = 1
                         while os.path.exists(save_path):

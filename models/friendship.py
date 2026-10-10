@@ -132,9 +132,10 @@ class FriendshipModel:
 
     @staticmethod
     def decline(request_id, user_id):
-        """Withdraw/decline a request involving user_id (either direction)."""
+        """Withdraw/decline a pending request involving user_id (either
+        direction). Accepted friendships are removed via remove_friend."""
         Database.execute_query(
-            "DELETE FROM friendships WHERE id = %s "
+            "DELETE FROM friendships WHERE id = %s AND status = 'pending' "
             "AND (user_id = %s OR friend_id = %s)",
             (request_id, user_id, user_id))
 

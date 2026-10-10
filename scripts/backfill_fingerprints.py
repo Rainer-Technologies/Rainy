@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sys
 import subprocess
 
@@ -20,6 +21,8 @@ from models.database import Database  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FPCALC = os.path.join(ROOT, 'bin', 'fpcalc')
+if not os.path.isfile(FPCALC):
+    FPCALC = shutil.which('fpcalc') or FPCALC
 CHUNK = 25
 
 

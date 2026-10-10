@@ -119,7 +119,7 @@ def decline_request(request_id):
     try:
         user_id = session['user_id']
         row = FriendshipModel.find_request(request_id, user_id)
-        if not row:
+        if not row or row['status'] != 'pending':
             return jsonify({'error': 'Request not found'}), 404
         FriendshipModel.decline(request_id, user_id)
         return jsonify({'success': True})

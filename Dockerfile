@@ -7,8 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # ffmpeg is required by yt-dlp for downloading and processing audio.
+# fpcalc (Chromaprint) powers acoustic-fingerprint duplicate detection.
 RUN apt-get update -qq >/dev/null \
-    && apt-get install --no-install-recommends -y -qq ffmpeg >/dev/null \
+    && apt-get install --no-install-recommends -y -qq ffmpeg libchromaprint-tools >/dev/null \
     && rm -rf /var/lib/apt/lists/*
 
 # Deno: the JavaScript runtime yt-dlp uses to solve YouTube's player

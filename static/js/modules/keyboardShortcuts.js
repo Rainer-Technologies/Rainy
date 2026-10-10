@@ -46,6 +46,10 @@ export class KeyboardShortcuts {
         // Don't hijack keys while typing in a field
         if (this._isTyping()) return;
 
+        // Leave browser/OS shortcuts (Cmd/Ctrl+F, Cmd+L, ...) alone. Alt is
+        // allowed: AltGr (Ctrl+Alt) and Mac Option type characters like º and [.
+        if (e.metaKey || (e.ctrlKey && !e.altKey)) return;
+
         const p = this.player;
         switch (e.key) {
             case ' ':
@@ -62,11 +66,11 @@ export class KeyboardShortcuts {
                 break;
             case 'ArrowUp':
                 e.preventDefault();
-                if (p.audio) { p.audio.volume = Math.min(1, p.audio.volume + 0.05); this._syncVolumeUI(); }
+                if (p.audio) p.setVolume(p.audio.volume + 0.05);
                 break;
             case 'ArrowDown':
                 e.preventDefault();
-                if (p.audio) { p.audio.volume = Math.max(0, p.audio.volume - 0.05); this._syncVolumeUI(); }
+                if (p.audio) p.setVolume(p.audio.volume - 0.05);
                 break;
             case 'm':
             case 'M':
