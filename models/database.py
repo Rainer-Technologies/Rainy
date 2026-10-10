@@ -870,6 +870,64 @@ class Database:
             )
         """)
 
+        # Song radio (YouTube Music discovery, see utils/ytradio.py).
+        #   youtube_id         — the song's YouTube Music video, known from the
+        #                        import or matched in the background.
+        #   youtube_matched_at — when matching last ran (set even on a miss so
+        #                        an unmatched song isn't retried in a loop).
+        #   transient          — a radio download nobody has kept yet: a real
+        #                        song row with NO library_access, so it is in
+        #                        nobody's library. Playable through
+        #                        radio_access; deleted again unless kept.
+        cls._add_column(cursor, 'songs', 'youtube_id', 'VARCHAR(16) NULL')
+        cls._add_column(cursor, 'songs', 'youtube_matched_at', 'TIMESTAMP NULL')
+        cls._add_column(cursor, 'songs', 'transient', 'TINYINT(1) NOT NULL DEFAULT 0')
+
+        # Who may play which transient song (granted when a radio queues it).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS radio_access (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                song_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_radio_user_song (user_id, song_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Radio download queue, one row per YouTube Music track. Same
+        # claim-token scheme as lightshow_jobs.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS radio_tracks (
+                video_id VARCHAR(16) PRIMARY KEY,
+                song_id INT NULL,
+                status ENUM('queued', 'running', 'ready', 'failed') NOT NULL DEFAULT 'queued',
+                title VARCHAR(255) NULL,
+                artist VARCHAR(255) NULL,
+                album VARCHAR(255) NULL,
+                duration INT DEFAULT 0,
+                cover_url VARCHAR(768) NULL,
+                claim_token VARCHAR(36) NULL,
+                attempts INT NOT NULL DEFAULT 0,
+                error_message TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_radio_status (status)
+            )
+        """)
+
+        # Cached YouTube Music radios (JSON track lists), keyed by seed video.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS yt_radio_cache (
+                video_id VARCHAR(16) PRIMARY KEY,
+                tracks MEDIUMTEXT NOT NULL,
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

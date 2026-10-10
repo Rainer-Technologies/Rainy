@@ -86,7 +86,13 @@ def save_song_to_library(song_id):
     library, so it stays after the share ends."""
     try:
         from models.library_access import LibraryAccessModel
-        LibraryAccessModel.save_to_library(get_current_user_id(), song_id)
+        user_id = get_current_user_id()
+        if LibraryAccessModel.has_radio_access(user_id, song_id):
+            # A radio download: keeping it moves it into the library.
+            from utils import ytradio
+            if ytradio.promote(song_id, user_id):
+                return jsonify({'success': True})
+        LibraryAccessModel.save_to_library(user_id, song_id)
         return jsonify({'success': True})
     except Exception:
         return server_error()
@@ -1904,7 +1910,7 @@ def discover_search():
         # Build a normalized title+artist -> song id lookup from the library so
         # the client can mark tracks that are already downloaded.
         lib_rows = Database.execute_query(
-            "SELECT id, title, artist FROM songs", fetch_all=True)
+            "SELECT id, title, artist FROM songs WHERE transient = 0", fetch_all=True)
         lib_index = {}
         for row in lib_rows:
             key = _norm(row.get('title')) + '||' + _norm(row.get('artist'))

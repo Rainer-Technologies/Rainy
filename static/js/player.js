@@ -19,6 +19,7 @@ import { Utils } from './modules/utils.js';
 import { pickBpmAwareShuffleIndex } from './modules/bpmShuffle.js';
 import { MediaSessionController } from './modules/mediaSession.js';
 import { SleepTimer } from './modules/sleepTimer.js';
+import { SongRadio } from './modules/radio.js';
 import { t } from './i18n/index.js';
 
 export class AudioPlayer {
@@ -122,6 +123,7 @@ export class AudioPlayer {
         this.mediaSession = new MediaSessionController(this);
         // Sleep timer with fade-out
         this.sleepTimer = new SleepTimer(this);
+        this.radio = new SongRadio(this);
         // Real listening-time tracker + persistent, retrying outbox for the
         // play history (see services/listenTracker.js)
         this._playRecorder = new PlayRecorder({
@@ -176,6 +178,7 @@ export class AudioPlayer {
         this.nowPlayingContainer = document.querySelector('.now-playing');
         this.likeBtn = document.getElementById('like-btn');
         this.dislikeBtn = document.getElementById('dislike-btn');
+        this.keepBtn = document.getElementById('keep-btn');
 
         // Fullscreen Player
         this.fsContainer = document.getElementById('fullscreen-player');
@@ -207,6 +210,7 @@ export class AudioPlayer {
         this.fsVolumeSlider = document.getElementById('fs-volume-slider');
         this.fsLikeBtn = document.getElementById('fs-like-btn');
         this.fsDislikeBtn = document.getElementById('fs-dislike-btn');
+        this.fsKeepBtn = document.getElementById('fs-keep-btn');
         this.fsLightShowBtn = document.getElementById('fs-lightshow-btn');
         this.fsLightShowCanvas = document.getElementById('fs-lightshow-canvas');
         this.fsLyricsContainer = document.getElementById('fs-lyrics-container');
@@ -281,6 +285,7 @@ export class AudioPlayer {
         if (this.crossfadeBtn) this.crossfadeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showCrossfadeMenu(this.crossfadeBtn); });
         if (this.likeBtn) this.likeBtn.addEventListener('click', () => this.toggleLike());
         if (this.dislikeBtn) this.dislikeBtn.addEventListener('click', () => this.toggleDislike());
+        if (this.keepBtn) this.keepBtn.addEventListener('click', () => this.keepCurrentSong());
 
         // Sleep timer button
         const sleepBtn = document.getElementById('sleep-timer-btn');
@@ -373,6 +378,7 @@ export class AudioPlayer {
         if (this.fsVolumeSlider) this._bindVolumeWheel(this.fsVolumeSlider);
         if (this.fsLikeBtn) this.fsLikeBtn.addEventListener('click', () => this.toggleLike());
         if (this.fsDislikeBtn) this.fsDislikeBtn.addEventListener('click', () => this.toggleDislike());
+        if (this.fsKeepBtn) this.fsKeepBtn.addEventListener('click', () => this.keepCurrentSong());
         if (this.fsLightShowBtn) this.fsLightShowBtn.addEventListener('click', () => this.toggleLightShow());
         if (this.fsTabQueue) this.fsTabQueue.addEventListener('click', () => {
             if (this.lyricsActive) this.toggleLyrics();
@@ -551,11 +557,7 @@ export class AudioPlayer {
         // Clear any A-B section loop from the previous song
         this.clearAbRepeat();
 
-        // Update audio source - API now uses database ID; preview/discover
-        // songs use the YouTube preview proxy instead.
-        const streamUrl = song.videoId
-            ? `/api/music/discover/preview/${song.videoId}`
-            : `/api/music/stream/${song.id}`;
+        const streamUrl = this._streamUrl(song);
         // Revoke any blob URL from a previous crossfade before replacing src
         if (this._activeBlobUrl) {
             URL.revokeObjectURL(this._activeBlobUrl);
@@ -581,6 +583,17 @@ export class AudioPlayer {
         this.audio.play().catch(err => {
             Logger.error('Playback error:', err);
         });
+    }
+
+    /**
+     * Where a queue entry's audio comes from: library songs stream by
+     * database id; entries without one (previews, radio tracks still
+     * downloading) go through the YouTube preview proxy.
+     */
+    _streamUrl(song) {
+        return song.id == null && song.videoId
+            ? `/api/music/discover/preview/${encodeURIComponent(song.videoId)}`
+            : `/api/music/stream/${song.id}`;
     }
 
     updateNowPlaying(song) {
@@ -742,6 +755,7 @@ export class AudioPlayer {
      */
     _maybeExtendMix() {
         const ctx = this.playbackContext;
+        if (ctx?.type === 'radio') return this.radio.extend();
         if (!ctx || ctx.type !== 'smartmix' || !ctx.endless) return Promise.resolve();
         if (this._extendPromise) return this._extendPromise;
         if (this.playlist.length - this.currentIndex > 4) return Promise.resolve();
@@ -777,6 +791,8 @@ export class AudioPlayer {
     async playNext() {
         if (this.isControllerMode) { this._controllerCommand('next'); return; }
         if (!this.playlist.length) return;
+        // A song left early steers the radio away from its artist.
+        if (!this.audio.ended) this.radio.noteSkip(this.currentSong, this.audio.currentTime || 0);
         await this._maybeExtendMix();
 
         if (this.isShuffle) {
@@ -1185,11 +1201,60 @@ export class AudioPlayer {
         this.dislikeBtn?.setAttribute('aria-pressed', String(!!isDisliked));
         this.fsLikeBtn?.setAttribute('aria-pressed', String(!!isLiked));
         this.fsDislikeBtn?.setAttribute('aria-pressed', String(!!isDisliked));
+        this.updateKeepButtons();
+    }
+
+    /**
+     * "Add to Your Library" shows only while a radio song that isn't in
+     * the library plays (a new song the radio brought in).
+     */
+    updateKeepButtons() {
+        const song = this.currentSong;
+        const show = !!song && song.radio === true && (song.id == null || song.in_library === false);
+        this.keepBtn?.classList.toggle('hidden', !show);
+        this.fsKeepBtn?.classList.toggle('hidden', !show);
+    }
+
+    /** Keep the radio song that is playing: it joins the user's library. */
+    async keepCurrentSong() {
+        const song = this.getCurrentSong();
+        if (!song || this._keeping) return;
+        if (song.id == null) {
+            window.showToast?.(t('This song is still downloading. Try again in a moment.'), 'info');
+            return;
+        }
+        this._keeping = true;
+        try {
+            const res = await useMusicService().saveToLibrary(song.id);
+            if (res.error) {
+                Logger.error('Could not keep radio song:', res.error);
+                window.showToast?.(res.error.error || res.error.message || t('Failed to add to Your Library'), 'error');
+                return;
+            }
+            this.markInLibrary(song.id);
+            window.showToast?.(t('Added to Your Library'), 'success');
+            window.app?.libraryWatcher?.check();
+        } finally {
+            this._keeping = false;
+        }
+    }
+
+    /** A queued song became part of the library (kept, liked, added to a playlist). */
+    markInLibrary(songId) {
+        for (const s of this.playlist) {
+            if (s && s.id === songId && s.in_library === false) s.in_library = true;
+        }
+        this.updateKeepButtons();
     }
 
     async toggleLike() {
         const song = this.getCurrentSong();
         if (!song) return;
+        if (song.id == null) {
+            // A radio track still downloading: nothing to like yet.
+            window.showToast?.(t('This song is still downloading. Try again in a moment.'), 'info');
+            return;
+        }
         await this.ensureLikedDataInitialized();
         if (!this.likedPlaylistId) return;
 
@@ -1257,6 +1322,11 @@ export class AudioPlayer {
                     Logger.log('Rating set successfully');
                 }
                 window.showToast?.(isDisliked ? 'Added to Liked Music and removed dislike' : 'Added to Liked Music', 'success');
+                // Liking a radio song keeps it: the server moved it into the library.
+                if (song.in_library === false) {
+                    this.markInLibrary(songId);
+                    window.app?.libraryWatcher?.check();
+                }
             }
             
             if (window.app) window.app.loadPlaylists?.();
@@ -1380,6 +1450,11 @@ export class AudioPlayer {
                     Logger.error('Failed to sync rating:', ratingRes.error);
                 }
                 window.showToast?.(isDisliked ? 'Added to Liked Music and removed dislike' : 'Added to Liked Music', 'success');
+                // Liking a radio song keeps it: the server moved it into the library.
+                if (song.in_library === false) {
+                    this.markInLibrary(songId);
+                    window.app?.libraryWatcher?.check();
+                }
             }
             
             if (window.app) window.app.loadPlaylists?.();
@@ -3365,13 +3440,13 @@ export class AudioPlayer {
         const cf = this.crossfadeAudio;
         const targetVolume = this.audio.volume;
 
-        cf.src = `/api/music/stream/${nextSong.id}`;
+        cf.src = this._streamUrl(nextSong);
         cf.volume = 0;
         cf.playbackRate = this.audio.playbackRate || 1;
 
         // Prefetch the full song as a blob so the primary can swap
         // instantly from memory instead of a fresh HTTP request.
-        fetch(`/api/music/stream/${nextSong.id}`)
+        fetch(this._streamUrl(nextSong))
             .then(r => r.blob())
             .then(blob => {
                 if (this._crossfading) {
@@ -3423,6 +3498,7 @@ export class AudioPlayer {
         // Point the primary at the next song — use the prefetched blob if
         // available (instant load from memory), otherwise fall back to URL.
         this.currentIndex = nextIndex;
+        this._maybeExtendMix();  // endless mixes / radio keep topping up
         // The crossfaded song actually started — count it in the shuffle
         // cycle (the pick in _checkCrossfade was only a peek, so a cancelled
         // crossfade never loses a song from the cycle).
@@ -3441,7 +3517,7 @@ export class AudioPlayer {
             URL.revokeObjectURL(this._activeBlobUrl);
         }
         this._activeBlobUrl = blobUrl;
-        this.audio.src = blobUrl || `/api/music/stream/${nextSong.id}`;
+        this.audio.src = blobUrl || this._streamUrl(nextSong);
 
         const onLoaded = () => {
             this.audio.removeEventListener('loadedmetadata', onLoaded);

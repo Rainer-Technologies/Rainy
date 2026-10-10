@@ -4,6 +4,9 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# No background YouTube Music lookups from the radio worker during tests.
+os.environ.setdefault('RAINY_RADIO_BACKGROUND', '0')
+
 import pytest
 from app import app as flask_app
 

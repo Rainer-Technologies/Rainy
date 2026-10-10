@@ -54,6 +54,19 @@ def _grant_import(owner_user_id, song_id):
               f"song={song_id}): {e}")
 
 
+def _remember_video(song_id, video_id):
+    """Note which YouTube video a song came from (seeds its radio later)."""
+    if not video_id:
+        return
+    try:
+        from models.database import Database
+        Database.execute_query(
+            "UPDATE songs SET youtube_id = %s, youtube_matched_at = NOW() "
+            "WHERE id = %s AND youtube_id IS NULL", (video_id, song_id))
+    except Exception as e:  # noqa: BLE001
+        print(f"[import-jobs] could not store video id for song {song_id}: {e}")
+
+
 def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None,
                         owner_user_id=None):
     """Import a single song from a YouTube / YouTube Music URL."""
@@ -109,6 +122,7 @@ def import_youtube_song(url, music_path, on_progress=None, conflict_mode=None,
                                f'(matched by {kind}, {score:.0%} similar)',
                 }
             _grant_import(owner_user_id, metadata['id'])
+            _remember_video(metadata['id'], downloader._extract_video_id(url))
         if result.get('cover_path') and metadata:
             SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
 
@@ -313,6 +327,7 @@ def import_spotify_song(url, music_path, on_progress=None, conflict_mode=None,
                                f'(matched by {kind}, {score:.0%} similar)',
                 }
             _grant_import(owner_user_id, metadata['id'])
+            _remember_video(metadata['id'], video_id)
         if result.get('cover_path') and metadata:
             SongModel.update_song_metadata(metadata['path'], {'cover_path': result['cover_path']})
 

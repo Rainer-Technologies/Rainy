@@ -126,6 +126,7 @@ export class SongContextMenu extends Component {
         for (const s of app?.songs || []) {
             if (String(s.id) === String(song.id)) s.in_library = true;
         }
+        window.player?.markInLibrary(Number(song.id));
         app?.showToast?.(t('Added to Your Library'), 'success');
         app?.libraryWatcher?.check();
     }
@@ -335,6 +336,25 @@ export class SongContextMenu extends Component {
         this._insertCurrentSongAtPosition(player.currentIndex + 1);
     }
 
+    /**
+     * Start an endless radio built around the current song.
+     * @param {'mix'|'discover'} mode library songs with new ones woven in,
+     *  or only songs that aren't in the library
+     */
+    startRadioFromCurrentSong(mode) {
+        this.hide();
+
+        /** @type {SongModel?} */
+        const currentSong = this.get('current-song');
+        if(!currentSong) return;
+
+        /** @type {import('../app.js').RainyApp} */
+        const app = useContext().get('app');
+        const song = app?.songs?.find(s => s.id == currentSong.id) ?? currentSong;
+        window.player?.radio.start(song, mode);
+        app?.showToast?.(t('Starting radio from "{title}"', { title: song.title }), 'success');
+    }
+
     findMetadataForCurrentSong() {
         this.hide();
 
@@ -448,6 +468,15 @@ export class SongContextMenu extends Component {
                     H.of(ContextMenuItem, on.click(() => this.addCurrentSongToQueue()),
                         I.ListWithPlay(),
                         h.span(t('Add to Queue')),
+                    ),
+                    h.div(a.class('dropdown-divider')),
+                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong('mix')),
+                        I.Radio(),
+                        h.span(t('Start Radio')),
+                    ),
+                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong('discover')),
+                        I.Magnifier(),
+                        h.span(t('Discover Similar')),
                     ),
                 )
             ),

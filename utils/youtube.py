@@ -68,6 +68,39 @@ class YouTubeDownloader:
             'no_warnings': True,
         }
 
+    def download_radio_track(self, video_id, dest_dir):
+        """Download one track for the song radio into dest_dir.
+
+        Speed matters here (the radio fetches a few songs ahead of
+        playback), so it takes YouTube's native AAC stream as-is instead of
+        transcoding to mp3: about 2s per song. Tags and cover are embedded
+        like a normal import, so the file stands on its own if kept.
+
+        Returns {'success', 'file_path'} or {'success': False, 'error'}.
+        """
+        os.makedirs(dest_dir, exist_ok=True)
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'postprocessors': [
+                # A no-op copy for m4a; converts the rare track without one.
+                {'key': 'FFmpegExtractAudio', 'preferredcodec': 'm4a'},
+                {'key': 'FFmpegMetadata', 'add_metadata': True},
+                {'key': 'EmbedThumbnail', 'already_have_thumbnail': False},
+            ],
+            'outtmpl': os.path.join(dest_dir, f"{video_id}.%(ext)s"),
+            'writethumbnail': True,
+            'quiet': True,
+            'no_warnings': True,
+        }
+        url = f"https://music.youtube.com/watch?v={video_id}"
+        ok, err = self._retry_ydl(ydl_opts, [url], label="radio download")
+        if not ok:
+            return {'success': False, 'error': err or 'Download failed'}
+        file_path = os.path.join(dest_dir, f"{video_id}.m4a")
+        if not os.path.isfile(file_path):
+            return {'success': False, 'error': 'Downloaded file not found'}
+        return {'success': True, 'file_path': file_path}
+
     def _retry_extract_info(self, url, ydl_opts=None, label="info extraction"):
         """Extract video/playlist info with retries (and update-on-failure).
 

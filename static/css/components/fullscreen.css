@@ -1774,6 +1774,33 @@
     margin-bottom: var(--spacing-xl);
 }
 
+/* "Add to Your Library" for a radio song (modern mode; the player bar has
+   its own in standard mode). Sits in the gap under the artist name. */
+.fs-keep-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: calc(-1 * var(--spacing-md));
+    padding: 8px 16px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.fs-keep-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.fs-keep-btn.hidden,
+#fullscreen-player.mode-standard .fs-keep-btn {
+    display: none;
+}
+
 /* Lyrics Panel (shares the left column with the queue) */
 #fs-lyrics-container {
     display: none;
