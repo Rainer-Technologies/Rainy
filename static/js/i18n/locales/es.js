@@ -32,7 +32,6 @@ export default {
     "More options": "Más opciones",
     "Play Now": "Reproducir ahora",
     "Start Radio": "Iniciar radio",
-    "Discover Similar": "Descubrir parecidas",
     "Starting radio from \"{title}\"": "Iniciando radio a partir de «{title}»",
     "No similar songs found for this radio": "No se han encontrado canciones parecidas para esta radio",
     "This song is still downloading. Try again in a moment.": "Esta canción aún se está descargando. Inténtalo de nuevo en un momento.",

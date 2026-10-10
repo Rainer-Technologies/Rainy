@@ -336,12 +336,8 @@ export class SongContextMenu extends Component {
         this._insertCurrentSongAtPosition(player.currentIndex + 1);
     }
 
-    /**
-     * Start an endless radio built around the current song.
-     * @param {'mix'|'discover'} mode library songs with new ones woven in,
-     *  or only songs that aren't in the library
-     */
-    startRadioFromCurrentSong(mode) {
+    /** Start an endless radio of similar music built around the current song. */
+    startRadioFromCurrentSong() {
         this.hide();
 
         /** @type {SongModel?} */
@@ -351,7 +347,7 @@ export class SongContextMenu extends Component {
         /** @type {import('../app.js').RainyApp} */
         const app = useContext().get('app');
         const song = app?.songs?.find(s => s.id == currentSong.id) ?? currentSong;
-        window.player?.radio.start(song, mode);
+        window.player?.radio.start(song);
         app?.showToast?.(t('Starting radio from "{title}"', { title: song.title }), 'success');
     }
 
@@ -470,13 +466,9 @@ export class SongContextMenu extends Component {
                         h.span(t('Add to Queue')),
                     ),
                     h.div(a.class('dropdown-divider')),
-                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong('mix')),
+                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong()),
                         I.Radio(),
                         h.span(t('Start Radio')),
-                    ),
-                    H.of(ContextMenuItem, on.click(() => this.startRadioFromCurrentSong('discover')),
-                        I.Magnifier(),
-                        h.span(t('Discover Similar')),
                     ),
                 )
             ),

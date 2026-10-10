@@ -1,20 +1,24 @@
 """Song radio: YouTube Music discovery on top of the local library.
 
-"Start radio" on a song builds an endless queue of similar music that mixes
-what is already in the library with songs it does not have yet:
+"Start radio" on a song builds an endless queue of similar music, most of
+it songs the listener does not have yet:
 
-  - Candidates come from YouTube Music's own radio for the seed song
+  - The queue follows YouTube Music's own radio for the seed song
     (ytmusicapi, no login). The *deep* radio of the seed (~150 tracks) is the
     pool for the whole session: re-seeding on whatever plays last drifts off
     within ten songs, staying anchored to the seed does not.
-  - They are re-ranked for the listener by co-occurrence: a candidate that
-    also shows up in the radios of other songs they own moves up. Measured on
-    a real library this is what predicts "songs you would add"; plain artist
+  - It is re-ranked for the listener by co-occurrence: a track that also
+    shows up in the radios of other songs they own moves up. Measured on a
+    real library this is what predicts "songs you would add"; plain artist
     affinity adds nothing on top.
+  - A radio track the listener already owns plays from their library; it is
+    never downloaded again.
   - New songs are downloaded a few tracks ahead (utils/radio_worker.py) as
     *transient* songs: real `songs` rows without library access, playable
     through `radio_access`, kept only if the listener likes them or adds
     them somewhere (promote), deleted again otherwise (cleanup).
+  - If YouTube Music gives nothing (it is an unofficial API), the radio
+    falls back to library songs that sound like the seed.
 
 The text/matching/ranking helpers are pure functions; everything that
 touches YouTube Music or the database is below them.
@@ -38,8 +42,7 @@ DEEP_LIMIT = 150              # the session pool, ~4s
 RADIO_CACHE_DAYS = 7
 MIN_SECONDS, MAX_SECONDS = 60, 600
 ARTIST_CAP = 2                # per batch
-MIX_PATTERN = ('local', 'local', 'new')
-LOCAL_MIN, LOCAL_MAX = 10, 60  # library songs a radio draws on (a quarter of it)
+LOCAL_MIN, LOCAL_MAX = 10, 60  # library songs the offline fallback draws on (a quarter of it)
 COOC_SONGS = 600              # library songs feeding the co-occurrence counts
 COOC_RADIO_SIZE = 50
 TRANSIENT_TTL_HOURS = 24
@@ -175,30 +178,42 @@ def match_song(song, search=None):
 
 # ----------------------------------------------------------------- ranking
 
-def filter_candidates(tracks, seed_title='', library_videos=(), library_keys=(),
-                      exclude_videos=(), blocked_keys=()):
-    """Radio tracks worth queueing as *new* songs, original order kept.
+def filter_candidates(tracks, seed_title='', library_by_video=None, library_by_key=None,
+                      exclude_videos=(), exclude_songs=(), blocked_keys=()):
+    """Radio tracks worth queueing, original order kept.
 
-    Drops user uploads / music videos, odd lengths, versions the seed is not
-    (live, remix, sped up…), songs already in the library and blocked ones.
+    A track the listener already owns (same video, or same title + artist)
+    is kept as that library song: it carries its 'song_id' and will play
+    from disk. Anything else is a *new* song, and those are held to a
+    stricter bar: no user uploads / music videos, no odd lengths, no
+    versions the seed is not (live, remix, sped up…). Blocked (disliked)
+    and already queued songs are dropped either way.
     Each kept track gets its position in the radio as 'pos'.
     """
     seed_versions = versions(seed_title)
-    library_videos, library_keys = set(library_videos), set(library_keys)
-    exclude_videos, blocked_keys = set(exclude_videos), set(blocked_keys)
-    seen_keys, out = set(), []
+    library_by_video, library_by_key = library_by_video or {}, library_by_key or {}
+    exclude_videos, exclude_songs = set(exclude_videos), set(exclude_songs)
+    blocked_keys = set(blocked_keys)
+    seen_keys, seen_songs, out = set(), set(), []
     for pos, t in enumerate(tracks):
         vid = t.get('videoId')
-        if not vid or vid in exclude_videos or vid in library_videos:
+        if not vid or vid in exclude_videos:
+            continue
+        key = song_key(t.get('title'), t.get('artist'))
+        if key in blocked_keys or key in seen_keys:
+            continue
+        song_id = library_by_video.get(vid) or library_by_key.get(key)
+        if song_id is not None:
+            if song_id not in exclude_songs and song_id not in seen_songs:
+                seen_songs.add(song_id)
+                seen_keys.add(key)
+                out.append({**t, 'pos': pos, 'song_id': song_id})
             continue
         if t.get('type') != _ATV:
             continue
         if not MIN_SECONDS <= (t.get('duration') or 0) <= MAX_SECONDS:
             continue
         if versions(t.get('title')) - seed_versions:
-            continue
-        key = song_key(t.get('title'), t.get('artist'))
-        if key in library_keys or key in blocked_keys or key in seen_keys:
             continue
         seen_keys.add(key)
         out.append({**t, 'pos': pos})
@@ -235,19 +250,6 @@ def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
         per_artist[first] += 1
         chosen.append(t)
     return chosen
-
-
-def interleave(local, new, limit, pattern=MIX_PATTERN):
-    """Weave local and new items following `pattern`; when one side runs
-    out the other fills in."""
-    pools = {'local': list(local), 'new': list(new)}
-    out, i = [], 0
-    while len(out) < limit and (pools['local'] or pools['new']):
-        want = pattern[i % len(pattern)]
-        i += 1
-        pool = pools[want] or pools['new' if want == 'local' else 'local']
-        out.append(pool.pop(0))
-    return out
 
 
 def expansion_pool(neighbour_radios, known_videos, min_votes=2):
@@ -479,15 +481,14 @@ def track_payload(track):
 
 # ------------------------------------------------------------ queue build
 
-def build_queue(user_id, seed_id, mode='mix', exclude_song_ids=(), exclude_video_ids=(),
+def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
                 skipped_artists=(), limit=12, deep=True):
     """The next `limit` items of a radio session.
 
-    mode 'mix'      — library songs that sound like the seed, with a new
-                      discovery woven in every third track.
-    mode 'discover' — only songs the listener does not have.
-    Stateless: the client says what it already queued (exclude_*).
-    Returns player items: library songs (song_payload) and new tracks
+    Follows YouTube Music's radio for the seed, re-ranked for the listener.
+    Tracks they own come back as their library song, the rest as new tracks
+    to download. Stateless: the client says what it already queued
+    (exclude_*). Returns player items: songs (song_payload) and new tracks
     (track_payload).
     """
     from models.library_access import LibraryAccessModel
@@ -501,12 +502,11 @@ def build_queue(user_id, seed_id, mode='mix', exclude_song_ids=(), exclude_video
 
     library = _library_rows(user_id)
     visible = {r['id'] for r in library}
+    by_id = {r['id']: r for r in library}
     disliked = set(SongRatingModel.get_disliked_song_ids(user_id))
     exclude_songs = set(exclude_song_ids) | disliked | {seed_id}
 
-    # ---- new songs from YouTube Music
-    new = []
-    want_new = limit if mode == 'discover' else math.ceil(limit / len(MIX_PATTERN)) + 1
+    picked = []
     try:
         seed_video = ensure_video_id(seed)
         if seed_video:
@@ -515,59 +515,77 @@ def build_queue(user_id, seed_id, mode='mix', exclude_song_ids=(), exclude_video
             own_weight, own_videos = per_seed.get(seed_video, (0.0, set()))
             cooc = {v: c - (own_weight if v in own_videos else 0.0) for v, c in counts.items()}
 
-            by_id = {r['id']: r for r in library}
+            by_key = {}
+            for r in library:
+                by_key.setdefault(song_key(r['title'], r['artist']), r['id'])
+            # A track downloaded earlier is queued as its song, so the client
+            # reports it by song id: don't offer its video again.
+            queued_videos = _videos_of_downloaded(pool, exclude_songs)
             filters = dict(
                 seed_title=seed['title'],
-                library_videos={r['youtube_id'] for r in library if r.get('youtube_id')},
-                library_keys={song_key(r['title'], r['artist']) for r in library},
-                exclude_videos=set(exclude_video_ids) | {seed_video},
+                library_by_video={r['youtube_id']: r['id'] for r in library if r.get('youtube_id')},
+                library_by_key=by_key,
+                exclude_videos=set(exclude_video_ids) | queued_videos | {seed_video},
+                exclude_songs=exclude_songs,
                 blocked_keys={song_key(by_id[i]['title'], by_id[i]['artist'])
                               for i in disliked if i in by_id},
             )
             candidates = filter_candidates(pool, **filters)
-            if deep and len(candidates) < want_new:
+            if deep and len(candidates) < limit:
                 # The seed's own radio is used up: widen with what its
                 # closest neighbours agree on.
                 neighbours = [fetch_radio(t['videoId']) for t in pool[:5]]
                 extra = expansion_pool(neighbours, {t['videoId'] for t in pool} | {seed_video})
-                more = filter_candidates(extra, **filters)
-                have = {song_key(t['title'], t['artist']) for t in candidates}
-                for t in more:
-                    if song_key(t['title'], t['artist']) not in have:
-                        candidates.append({**t, 'pos': len(pool) + t['pos']})
-            new = rerank(candidates, cooc, skipped_artists, limit=want_new)
+                filters['exclude_videos'] |= _videos_of_downloaded(extra, exclude_songs)
+                have_keys = {song_key(t['title'], t['artist']) for t in candidates}
+                have_songs = {t['song_id'] for t in candidates if t.get('song_id')}
+                for t in filter_candidates(extra, **filters):
+                    if song_key(t['title'], t['artist']) in have_keys or t.get('song_id') in have_songs:
+                        continue
+                    candidates.append({**t, 'pos': len(pool) + t['pos']})
+            picked = rerank(candidates, cooc, skipped_artists, limit=limit)
     except Exception as e:  # noqa: BLE001
         # YouTube Music is an unofficial API: a radio must survive it failing.
         print(f"[radio] YouTube Music radio failed for song {seed_id}: {e}")
 
-    new_items = _resolve_downloaded(user_id, new, visible)
+    if picked:
+        return _resolve(user_id, picked, visible)
 
-    if mode == 'discover':
-        return new_items[:limit]
-
-    local_ids = [i for i in _local_similar(user_id, seed_id, visible) if i not in exclude_songs]
-    need = limit
-    rows = _songs_by_ids(local_ids[:need])
-    local_items = [song_payload(rows[i]) for i in local_ids[:need] if i in rows]
-    return interleave(local_items, new_items, limit)
+    # Nothing from YouTube Music (down, no match for the seed, or its radio
+    # is used up): keep going with library songs that sound like the seed.
+    local_ids = [i for i in _local_similar(user_id, seed_id, visible)
+                 if i not in exclude_songs][:limit]
+    rows = _songs_by_ids(local_ids)
+    return [song_payload(rows[i]) for i in local_ids if i in rows]
 
 
-def _resolve_downloaded(user_id, tracks, visible):
-    """Swap tracks that are already on disk for their song (and let the
-    listener play it); the rest stay as pending tracks."""
-    if not tracks:
-        return []
-    known = RadioTrackModel.get_many([t['videoId'] for t in tracks])
+def _videos_of_downloaded(tracks, song_ids):
+    """Videos among `tracks` whose download is one of `song_ids`."""
+    if not song_ids:
+        return set()
+    known = RadioTrackModel.get_many([t['videoId'] for t in tracks if t.get('videoId')])
+    return {v for v, r in known.items() if r['status'] == 'ready' and r.get('song_id') in song_ids}
+
+
+def _resolve(user_id, tracks, visible):
+    """Radio tracks as player items, order kept: the listener's own songs
+    and tracks already on disk as songs (granting play access to those),
+    the rest as pending tracks to download."""
+    owned = {t['videoId']: t['song_id'] for t in tracks if t.get('song_id')}
+    known = RadioTrackModel.get_many([t['videoId'] for t in tracks if not t.get('song_id')])
     ready = {v: r['song_id'] for v, r in known.items()
              if r['status'] == 'ready' and r.get('song_id')}
-    rows = _songs_by_ids(list(set(ready.values())))
+    rows = _songs_by_ids(list(set(owned.values()) | set(ready.values())))
     items = []
     for t in tracks:
-        row = rows.get(ready.get(t['videoId']))
-        if row:
+        vid = t['videoId']
+        if vid in owned and owned[vid] in rows:
+            items.append(song_payload(rows[owned[vid]]))
+        elif ready.get(vid) in rows:
+            row = rows[ready[vid]]
             RadioAccessModel.grant(user_id, row['id'])
             items.append(song_payload(row, in_library=row['id'] in visible))
-        else:
+        elif vid not in owned:
             items.append(track_payload(t))
     return items
 
