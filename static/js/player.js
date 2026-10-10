@@ -123,7 +123,13 @@ export class AudioPlayer {
         this.mediaSession = new MediaSessionController(this);
         // Sleep timer with fade-out
         this.sleepTimer = new SleepTimer(this);
-        this.radio = new SongRadio(this);
+        this.radio = new SongRadio(this, {
+            onEmpty: () => window.showToast?.(t('No similar songs found for this radio'), 'info'),
+            onKeepFailed: () => {
+                window.showToast?.(t('This song could not be downloaded'), 'error');
+                this.updateKeepButtons();
+            },
+        });
         // Real listening-time tracker + persistent, retrying outbox for the
         // play history (see services/listenTracker.js)
         this._playRecorder = new PlayRecorder({
@@ -1210,7 +1216,8 @@ export class AudioPlayer {
      */
     updateKeepButtons() {
         const song = this.currentSong;
-        const show = !!song && song.radio === true && (song.id == null || song.in_library === false);
+        const show = !!song && song.radio === true && !song.keepRequested
+            && (song.id == null || song.in_library === false);
         this.keepBtn?.classList.toggle('hidden', !show);
         this.fsKeepBtn?.classList.toggle('hidden', !show);
     }
@@ -1218,16 +1225,31 @@ export class AudioPlayer {
     /** Keep the radio song that is playing: it joins the user's library. */
     async keepCurrentSong() {
         const song = this.getCurrentSong();
-        if (!song || this._keeping) return;
-        if (song.id == null) {
+        if (!song) return;
+        if (song.id != null) return this.keepSong(song);
+
+        // Still playing from the preview stream: keep it once it has landed.
+        const state = this.radio.keepWhenReady(song);
+        if (state === 'queued') {
+            window.showToast?.(t('It will be added to your library when the download finishes'), 'info');
+        } else if (state === 'failed') {
+            window.showToast?.(t('This song could not be downloaded'), 'error');
+        } else {
             window.showToast?.(t('This song is still downloading. Try again in a moment.'), 'info');
-            return;
         }
+        this.updateKeepButtons();
+    }
+
+    /** Add a radio song (already downloaded) to the user's library. */
+    async keepSong(song) {
+        if (!song || song.id == null || this._keeping) return;
         this._keeping = true;
         try {
             const res = await useMusicService().saveToLibrary(song.id);
             if (res.error) {
                 Logger.error('Could not keep radio song:', res.error);
+                song.keepRequested = false;
+                this.updateKeepButtons();
                 window.showToast?.(res.error.error || res.error.message || t('Failed to add to Your Library'), 'error');
                 return;
             }
@@ -1237,6 +1259,23 @@ export class AudioPlayer {
         } finally {
             this._keeping = false;
         }
+    }
+
+    /**
+     * A radio track that was queued (or already playing from the preview
+     * stream) finished downloading: its queue entry becomes the real song.
+     * The audio that is playing is left alone; only what the entry *is*
+     * changes, so likes, lyrics and history start working for it.
+     */
+    adoptDownloadedSong(index, song) {
+        const entry = this.playlist[index];
+        if (!entry) return;
+        delete entry.videoId;
+        delete entry.cover_url;
+        Object.assign(entry, song, { radio: true });
+        if (index !== this.currentIndex) return;
+        this.updateNowPlaying(entry);
+        if (this.lyricsActive) this.loadLyrics(entry.id);
     }
 
     /** A queued song became part of the library (kept, liked, added to a playlist). */

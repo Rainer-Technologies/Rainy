@@ -36,6 +36,8 @@ export default {
     "Starting radio from \"{title}\"": "S'inicia la ràdio a partir de «{title}»",
     "No similar songs found for this radio": "No s'han trobat cançons semblants per a aquesta ràdio",
     "This song is still downloading. Try again in a moment.": "Aquesta cançó encara s'està baixant. Torna-ho a provar d'aquí a un moment.",
+    "It will be added to your library when the download finishes": "S'afegirà a la teva biblioteca quan acabi la baixada",
+    "This song could not be downloaded": "No s'ha pogut baixar aquesta cançó",
     "Play Next": "Reprodueix a continuació",
     "Add to Queue": "Afegeix a la cua",
     "Unlike": "Treu el M'agrada",

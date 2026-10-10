@@ -36,6 +36,8 @@ export default {
     "Starting radio from \"{title}\"": "Uruchamianie radia na podstawie „{title}”",
     "No similar songs found for this radio": "Nie znaleziono podobnych utworów dla tego radia",
     "This song is still downloading. Try again in a moment.": "Ten utwór jest jeszcze pobierany. Spróbuj ponownie za chwilę.",
+    "It will be added to your library when the download finishes": "Zostanie dodany do Twojej biblioteki po zakończeniu pobierania",
+    "This song could not be downloaded": "Nie udało się pobrać tego utworu",
     "Play Next": "Odtwórz jako następny",
     "Add to Queue": "Dodaj do kolejki",
     "Unlike": "Cofnij „Lubię to”",
