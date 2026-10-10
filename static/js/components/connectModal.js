@@ -1,8 +1,8 @@
 import { Logger } from "../helper/logger.js";
 import { useCastService } from "../services/cast.js";
-import { useConnectService } from "../services/connect.js";
+import { ConnectService, connectLivePosition, normalizeRepeat, useConnectService } from "../services/connect.js";
 import { I } from "./icon.js";
-import { a, Component, H, h, on, Ref, useRef } from "./index.js";
+import { a, Component, H, h, on, p, Ref, useRef } from "./index.js";
 import { Modal } from "./modal.js";
 import { t } from "../i18n/index.js";
 
@@ -11,8 +11,8 @@ import { t } from "../i18n/index.js";
  *
  * Lists every active Connect device (excluding this player), lets the user
  * pick one as a remote-control target, and drives it via the Connect command
- * API. "Play here" hands playback back to this player by sending a
- * `transfer` command to the remote device.
+ * API. "Play here" pulls playback over to this player: it starts the remote's
+ * queue here at the same position and pauses the remote.
  */
 export class ConnectModal extends Component {
     static componentName = 'rainy-connect-modal';
@@ -61,6 +61,16 @@ export class ConnectModal extends Component {
         this._devices = [];
         /** @type {import('../services/connect.js').ConnectDeviceModel | null} */
         this._remote = null;
+        this._remoteAt = 0;          // performance.now() when _remote was taken
+        this._remoteQueue = [];      // the remote's queue, re-fetched only when it changes
+        this._remoteQueueHash = '';
+        this._refreshBusy = false;
+        // A snapshot taken before the remote applied our last command would
+        // undo the optimistic echo: it is ignored until the remote
+        // acknowledges the command (or, for older clients that never do, a
+        // few seconds passed).
+        this._pendingAck = 0;
+        this._pendingAckAt = 0;
 
         this.set('remote-id', null, { silent: true });
 
@@ -79,6 +89,9 @@ export class ConnectModal extends Component {
                 // Force a full repaint when switching targets.
                 this._lastCoverSrc = null;
                 this._lastQueueSignature = '';
+                this._remoteQueue = [];
+                this._remoteQueueHash = '';
+                this._pendingAck = 0;
             }
             if (newValue) this._showRemotePanel();
             else this._hideRemotePanel();
@@ -128,8 +141,8 @@ export class ConnectModal extends Component {
 
     _startTimers() {
         this._stopTimers();
-        // Refresh the device list / remote state every 5s while open
-        this._refreshTimer = setInterval(() => this._refresh(), 5000);
+        // Refresh the device list / remote state every 2s while open
+        this._refreshTimer = setInterval(() => this._refresh(), 2000);
         // Smooth seek-bar extrapolation between refreshes
         this._tickTimer = setInterval(() => this._tick(), 1000);
     }
@@ -140,40 +153,76 @@ export class ConnectModal extends Component {
     }
 
     async _refresh() {
-        const ownId = window.player?._connectDeviceId;
-        const result = await useConnectService().listDevices(ownId);
-        if (!result.error) {
-            this._devices = result.value?.devices ?? [];
-        }
-        // On error keep the last known device list, but always (re)render so
-        // "This Device" is present even before the first successful fetch.
-
-        const remoteId = this.get('remote-id');
-        if (remoteId === '__cast__') {
-            // The Chromecast is the active target — refresh from Cast state.
-            const cast = useCastService();
-            if (!cast.state.connected) {
-                this._castTarget = false;
-                this.set('remote-id', null);
-                this._remote = null;
-            } else {
-                this._castTarget = true;
-                this._remote = this._castSnapshot();
+        // One refresh at a time: overlapping ones could land out of order.
+        if (this._refreshBusy) return;
+        this._refreshBusy = true;
+        try {
+            const ownId = window.player?._connectDeviceId;
+            // Queues stay out of the listing; only the selected device's is
+            // fetched (and only when it changed).
+            const result = await useConnectService().listDevices(ownId, { queues: false, offline: true });
+            if (!result.error) {
+                this._devices = result.value?.devices ?? [];
             }
-        } else if (remoteId) {
-            const still = this._devices.find(d => d.device_id === remoteId);
-            if (!still) {
-                // Remote vanished — fall back to local control
+            // On error keep the last known device list, but always (re)render so
+            // "This Device" is present even before the first successful fetch.
+
+            const remoteId = this.get('remote-id');
+            if (remoteId === '__cast__') {
+                // The Chromecast is the active target — refresh from Cast state.
+                const cast = useCastService();
+                if (!cast.state.connected) {
+                    this._castTarget = false;
+                    this.set('remote-id', null);
+                    this._remote = null;
+                } else {
+                    this._castTarget = true;
+                    this._setRemote(this._castSnapshot());
+                }
+            } else if (remoteId) {
+                await this._refreshRemote(remoteId);
+            }
+
+            this._renderDeviceList();
+            if (this.get('remote-id')) this._updateRemotePanel();
+        } finally {
+            this._refreshBusy = false;
+        }
+    }
+
+    /** Bring the selected Connect device's snapshot up to date. */
+    async _refreshRemote(remoteId) {
+        const result = await useConnectService().getDevice(remoteId, this._remoteQueueHash);
+        if (this.get('remote-id') !== remoteId) return; // switched meanwhile
+        const device = result.value?.device;
+        if (!device) {
+            // A request that did not get through keeps what is on screen;
+            // only the server saying "no such device" drops the selection.
+            if (ConnectService.refused(result)) {
                 this.set('remote-id', null);
                 this._remote = null;
                 window.showToast?.('That device went offline', 'info');
-            } else {
-                this._remote = still;
             }
+            return;
         }
+        if (device.queue_unchanged) {
+            device.queue = this._remoteQueue;
+        } else {
+            this._remoteQueue = Array.isArray(device.queue) ? device.queue : [];
+            device.queue = this._remoteQueue;
+            this._remoteQueueHash = device.queue_hash || '';
+        }
+        if ((Number(device.last_cmd_id) || 0) < this._pendingAck
+            && Date.now() - this._pendingAckAt < 5000) {
+            return;
+        }
+        this._setRemote(device);
+    }
 
-        this._renderDeviceList();
-        if (this.get('remote-id')) this._updateRemotePanel();
+    /** @param {import('../services/connect.js').ConnectDeviceModel | null} device */
+    _setRemote(device) {
+        this._remote = device;
+        this._remoteAt = performance.now();
     }
 
     /** Extrapolate the remote seek bar between refreshes while playing. */
@@ -181,19 +230,7 @@ export class ConnectModal extends Component {
         const remote = this._remote;
         if (!remote || this._seekDragging || this.get('remote-id') !== remote.device_id) return;
         if (!remote.is_playing || !remote.duration) return;
-
-        const lastSeen = this._normalizeLastSeen(remote.last_seen);
-        const elapsed = (Date.now() / 1000) - lastSeen;
-        const position = Math.min(remote.duration, (remote.position || 0) + Math.max(0, elapsed));
-        this._paintRemoteSeek(position, remote.duration);
-    }
-
-    /** Server may report last_seen as epoch seconds or ms — normalize to seconds. */
-    _normalizeLastSeen(lastSeen) {
-        const now = Date.now() / 1000;
-        if (!lastSeen) return now;
-        // Heuristic: values far beyond "now in seconds" are milliseconds
-        return lastSeen > now * 2 ? lastSeen / 1000 : lastSeen;
+        this._paintRemoteSeek(connectLivePosition(remote, this._remoteAt), remote.duration);
     }
 
     /* ------------------------------------------------------------------ */
@@ -329,30 +366,36 @@ export class ConnectModal extends Component {
     _renderDeviceRow(device) {
         const selected = this.get('remote-id') === device.device_id;
         const hasSong = !!device.song_title;
+        // Known but quiet (app suspended, tab asleep): listed so it is clear
+        // why it can't be controlled, instead of silently missing.
+        const offline = device.online === false;
 
-        const status = hasSong
+        const song = hasSong
             ? `${device.song_title} — ${device.song_artist || 'Unknown Artist'}`
             : t('Idle');
+        const status = offline ? `${t('Offline')} · ${song}` : song;
 
         const row = h.button(a.type('button'),
-            a.class('connect-device', selected ? 'selected' : ''),
-            on.click(() => this._selectRemote(device)),
+            a.class('connect-device', selected ? 'selected' : '', offline ? 'offline' : ''),
+            on.click(() => offline
+                ? window.showToast?.('That device is offline', 'info')
+                : this._selectRemote(device)),
             h.div(a.class('connect-device-icon'),
                 this._deviceIcon(device.device_type),
-                this._renderEqBars(device.is_playing)
+                this._renderEqBars(device.is_playing && !offline)
             ),
             h.div(a.class('connect-device-info'),
                 h.div(a.class('connect-device-name'), device.device_name || t('Unknown Device')),
-                h.div(a.class('connect-device-song', hasSong ? '' : 'idle'), status)
+                h.div(a.class('connect-device-song', hasSong && !offline ? '' : 'idle'), status)
             ),
             h.div(a.class('connect-device-state'),
                 selected
                     ? h.span(a.class('connect-playing-label'), t('Controlling'))
-                    : I.ArrowHeadRight('currentColor', a.class('connect-chevron'))
+                    : offline ? null : I.ArrowHeadRight('currentColor', a.class('connect-chevron'))
             )
         );
 
-        if (hasSong) {
+        if (hasSong && !offline) {
             row.append(this._renderMiniProgress(device.position || 0, device.duration || 0));
         }
         return row;
@@ -410,7 +453,7 @@ export class ConnectModal extends Component {
         const cast = useCastService();
         if (cast.state.connected) {
             this._castTarget = true;
-            this._remote = this._castSnapshot();
+            this._setRemote(this._castSnapshot());
             this.set('remote-id', '__cast__');
             this._renderDeviceList();
             this._updateRemotePanel();
@@ -423,10 +466,14 @@ export class ConnectModal extends Component {
 
     /** @param {import('../services/connect.js').ConnectDeviceModel} device */
     _selectRemote(device) {
-        this._remote = device;
         this.set('remote-id', device.device_id);
+        this._setRemote(device);
         this._renderDeviceList();
         this._updateRemotePanel();
+        // The listing carries no queue — fetch this device's now.
+        this._refreshRemote(device.device_id).then(() => {
+            if (this.get('remote-id') === device.device_id) this._updateRemotePanel();
+        });
     }
 
     /* ------------------------------------------------------------------ */
@@ -475,8 +522,10 @@ export class ConnectModal extends Component {
         // Play/pause button
         this._paintRemotePlayBtn(remote.is_playing);
 
-        // Seek bar + time
-        this._paintRemoteSeek(remote.position || 0, remote.duration || 0);
+        // Seek bar + time (not while the user is dragging it)
+        if (!this._seekDragging) {
+            this._paintRemoteSeek(connectLivePosition(remote, this._remoteAt), remote.duration || 0);
+        }
 
         // Volume (don't fight the user while they're dragging)
         const volumeSlider = this._remoteVolume.value;
@@ -490,10 +539,9 @@ export class ConnectModal extends Component {
         this._remoteShuffleBtn.value?.classList.toggle('active', !!remote.is_shuffled);
         this._paintRepeatBtn(remote.repeat_mode);
 
-        // Transfer button — only makes sense while this player has a song
-        const song = window.player?.currentSong;
+        // "Play here" — only makes sense while the remote has a song to hand over
         if (this._transferBtn.value) {
-            this._transferBtn.value.classList.toggle('hidden', !song);
+            this._transferBtn.value.classList.toggle('hidden', remote.song_id == null);
         }
 
         // Remote queue (tap-to-play) + Take Control availability
@@ -523,7 +571,7 @@ export class ConnectModal extends Component {
     _paintRepeatBtn(mode) {
         const btn = this._remoteRepeatBtn.value;
         if (!btn) return;
-        const normalized = this._normalizeRepeat(mode);
+        const normalized = normalizeRepeat(mode);
         btn.classList.toggle('active', normalized !== 'none');
         btn.title = normalized === 'all' ? t('Repeat All') : normalized === 'one' ? t('Repeat One') : t('Repeat Off');
         btn.innerHTML = '';
@@ -536,12 +584,6 @@ export class ConnectModal extends Component {
             const one = h.span(a.class('connect-repeat-one'), '1');
             btn.append(one);
         }
-    }
-
-    /** Server may report 'off' or 'none' — normalize to player modes. */
-    _normalizeRepeat(mode) {
-        if (mode === 'all' || mode === 'one') return mode;
-        return 'none';
     }
 
     /* ------------------------------------------------------------------ */
@@ -569,31 +611,36 @@ export class ConnectModal extends Component {
 
         if (this._remoteQueueLabel.value) {
             this._remoteQueueLabel.value.textContent =
-                t('Queue ({count} songs)', { count: queue.length });
+                t('Queue ({count} songs)', { count: Number(remote.queue_total) || queue.length });
         }
 
         const currentIndex = Number(remote.queue_index) || 0;
         // Skip the (expensive) DOM rebuild when the queue is unchanged, so
         // frequent Cast state ticks don't thrash the list.
-        const signature = `${queue.length}:${currentIndex}:${queue.map(s => s?.id).join(',')}`;
+        const offset = Number(remote.queue_offset) || 0;
+        const signature = `${offset}:${queue.length}:${currentIndex}:${queue.map(s => s?.id).join(',')}`;
         if (signature === this._lastQueueSignature) return;
         this._lastQueueSignature = signature;
 
         Array.from(list.children).forEach(el => el.remove());
         queue.forEach((song, index) => {
-            list.append(this._renderQueueRow(song, index, index === currentIndex));
+            list.append(this._renderQueueRow(song, offset + index, index === currentIndex));
         });
 
         // Take Control is always available when a remote is selected
         this._takeControlBtn.value?.classList.remove('hidden');
     }
 
-    /** One tappable row in the remote queue. */
+    /**
+     * One tappable row in the remote queue.
+     * @param {number} index - position in the remote's real queue (what we
+     *  hold is a window of it)
+     */
     _renderQueueRow(song, index, isCurrent) {
         return h.button(a.type('button'),
             a.class('connect-queue-item', isCurrent ? 'current' : ''),
             a.title(isCurrent ? t('Playing on remote') : t('Play "{title}" on remote', { title: song?.title || t('Unknown') })),
-            on.click(() => this._playQueueSong(song)),
+            on.click(() => this._playQueueSong(song, index)),
             h.span(a.class('connect-queue-index'),
                 isCurrent
                     ? this._renderEqBars(true)
@@ -608,9 +655,10 @@ export class ConnectModal extends Component {
     }
 
     /** Tap-to-play: tell the remote to jump to this song. */
-    _playQueueSong(song) {
+    _playQueueSong(song, index) {
         if (song?.id == null) return;
-        this._command('play_song', { song_id: song.id });
+        // The index tells apart a song that is queued twice.
+        this._command('play_song', { song_id: song.id, index });
     }
 
     _formatTime(seconds) {
@@ -652,7 +700,7 @@ export class ConnectModal extends Component {
         }
 
         if (this._castTarget && connected) {
-            this._remote = this._castSnapshot();
+            this._setRemote(this._castSnapshot());
             this._updateRemotePanel();
         }
     }
@@ -668,7 +716,7 @@ export class ConnectModal extends Component {
 
         this._castTarget = true;
         this._pendingCast = false;
-        this._remote = this._castSnapshot();
+        this._setRemote(this._castSnapshot());
         this.set('remote-id', '__cast__');
         this._renderDeviceList();
         this._updateRemotePanel();
@@ -704,6 +752,8 @@ export class ConnectModal extends Component {
             repeat_mode: 'none',
             queue,
             queue_index: Math.max(0, player?.currentIndex || 0),
+            queue_offset: 0,
+            state_age: 0,
             last_seen: Date.now() / 1000,
         };
     }
@@ -716,7 +766,7 @@ export class ConnectModal extends Component {
             case 'play': cast.play(); break;
             case 'pause': cast.pause(); break;
             case 'seek': cast.seek(Number(args.position) || 0); break;
-            case 'volume': cast.setVolume(Number(args.volume) ?? 100); break;
+            case 'volume': cast.setVolume(this._volumeArg(args, 100)); break;
             case 'shuffle': cast.setShuffle(!!args.enabled); break;
             case 'repeat': cast.setRepeat(args.mode || 'none'); break;
             case 'next': cast.next(); break;
@@ -729,10 +779,16 @@ export class ConnectModal extends Component {
             if (command === 'play') this._remote.is_playing = true;
             if (command === 'pause') this._remote.is_playing = false;
             if (command === 'seek') this._remote.position = Number(args.position) || 0;
-            if (command === 'volume') this._remote.volume = Number(args.volume) ?? this._remote.volume;
-            this._remote.last_seen = Date.now() / 1000;
+            if (command === 'volume') this._remote.volume = this._volumeArg(args, this._remote.volume);
+            this._remoteAt = performance.now();
             this._updateRemotePanel();
         }
+    }
+
+    /** `args.volume` as a number, or `fallback` when it isn't one. */
+    _volumeArg(args, fallback) {
+        const volume = Number(args?.volume);
+        return Number.isFinite(volume) ? volume : fallback;
     }
 
     /** Jump the Chromecast queue to a specific song. */
@@ -759,30 +815,54 @@ export class ConnectModal extends Component {
             return;
         }
 
+        // Hold back state snapshots from the moment the command leaves.
+        this._pendingAckAt = Date.now();
         const result = await useConnectService().sendCommand(deviceId, command, args);
+        if (this.get('remote-id') !== deviceId) return;
         if (result.error) {
             Logger.warn('Connect command failed:', command, result.error);
-            window.showToast?.('Device did not respond', 'error');
+            this._pendingAck = 0;
+            window.showToast?.(ConnectService.refused(result)
+                ? 'That device is offline'
+                : 'Device did not respond', 'error');
             return;
+        }
+        const commandId = Number(result.value?.command_id) || 0;
+        if (commandId > this._pendingAck) {
+            this._pendingAck = commandId;
+            this._pendingAckAt = Date.now();
         }
         // Optimistic local echo so the UI feels instant
         if (this._remote) {
             switch (command) {
-                case 'play_pause': this._remote.is_playing = !this._remote.is_playing; break;
                 case 'play': this._remote.is_playing = true; break;
                 case 'pause': this._remote.is_playing = false; break;
-                case 'seek': this._remote.position = Number(args.position) || 0; break;
-                case 'volume': this._remote.volume = Number(args.volume) ?? this._remote.volume; break;
+                case 'seek':
+                    this._remote.position = Number(args.position) || 0;
+                    this._remote.state_age = 0;
+                    break;
+                case 'volume': this._remote.volume = this._volumeArg(args, this._remote.volume); break;
                 case 'shuffle': this._remote.is_shuffled = !!args.enabled; break;
                 case 'repeat': this._remote.repeat_mode = args.mode; break;
             }
-            this._remote.last_seen = Date.now() / 1000;
+            this._remoteAt = performance.now();
             this._updateRemotePanel();
         }
+        // The remote picks commands up within a second: look again shortly
+        // after instead of waiting for the next periodic refresh.
+        setTimeout(() => {
+            if (this.get('remote-id') !== deviceId || !this._refreshTimer) return;
+            this._refreshRemote(deviceId).then(() => {
+                if (this.get('remote-id') === deviceId) this._updateRemotePanel();
+            });
+        }, 1300);
     }
 
     _toggleRemotePlay() {
-        this._command('play_pause');
+        // Say which one: a toggle sent on a stale icon does the opposite of
+        // what was clicked. (The Chromecast toggles locally, in sync.)
+        if (this._castTarget) return this._command('play_pause');
+        this._command(this._remote?.is_playing ? 'pause' : 'play');
     }
 
     _remoteSeekFromEvent(e) {
@@ -812,15 +892,14 @@ export class ConnectModal extends Component {
 
     _cycleRemoteRepeat() {
         const order = ['none', 'all', 'one'];
-        const current = this._normalizeRepeat(this._remote?.repeat_mode);
+        const current = normalizeRepeat(this._remote?.repeat_mode);
         const next = order[(order.indexOf(current) + 1) % order.length];
         this._command('repeat', { mode: next });
     }
 
     /**
-     * Hand playback from the remote device to this player: tell the remote
-     * to transfer (it stops and reports the song), then start it locally at
-     * the same position.
+     * Pull playback from the remote device to this player: start its queue
+     * here at the same track and position, then pause it there.
      */
     async _transferHere() {
         if (this._transferBusy) return;
@@ -849,34 +928,32 @@ export class ConnectModal extends Component {
                 return;
             }
 
-            const position = Number(remote.position) || Math.floor(player.audio?.currentTime || 0);
-
-            // Build the full queue from the remote's reported queue
+            // Where the remote is by now, not where it was when it last
+            // reported.
+            const position = connectLivePosition(remote, this._remoteAt);
             const remoteQueue = Array.isArray(remote.queue) ? remote.queue : [];
             const remoteIndex = Number(remote.queue_index) || 0;
+            if (remote.song_id == null) {
+                window.showToast?.('Nothing to transfer', 'info');
+                return;
+            }
 
-            if (remoteQueue.length > 0) {
-                // Send full queue + index + position to the remote (so it can stop cleanly)
-                await useConnectService().sendCommand(remote.device_id, 'transfer', {
-                    song_id: remote.song_id ?? null,
-                    position,
-                });
+            // Taking over makes this tab the player, not a remote.
+            if (player.isControllerMode) player._stopControllerMode({ quiet: true });
 
-                // Play the full queue here at the same index and position
+            // Start here first, at the remote's track and position — its
+            // whole queue when the stated index really is the current track,
+            // otherwise just the song.
+            if (Number(remoteQueue[remoteIndex]?.id) === Number(remote.song_id)) {
                 player._connectPlayQueueObjects(remoteQueue, remoteIndex, position);
             } else {
-                // Fallback: single song transfer
-                const songId = remote.song_id ?? player.currentSong?.id;
-                if (songId == null) {
-                    window.showToast?.('Nothing to transfer', 'info');
-                    return;
-                }
-                await useConnectService().sendCommand(remote.device_id, 'transfer', {
-                    song_id: songId,
-                    position,
-                });
-                await player._connectPlaySongById(songId, position);
+                await player._connectPlaySongById(remote.song_id, position);
             }
+
+            // …then stop it there. `pause` is understood by every client
+            // version (older ones started playing again on `transfer`).
+            const paused = await useConnectService().sendCommand(remote.device_id, 'pause');
+            if (paused.error) Logger.warn('Connect: could not pause the remote after transfer', paused.error);
 
             // Back to local control
             this._selectLocal();
@@ -925,6 +1002,9 @@ export class ConnectModal extends Component {
 
     render() {
         const root = this.root = H.of(Modal,
+            // Closing with the modal's own X never went through hide() here,
+            // so the device list kept being polled forever.
+            p.onHide(() => this._stopTimers()),
             I.Cast('currentColor', a.slot('header-icon')),
             h.h2(a.slot('header-title'), 'Rainy Connect'),
             h.p(a.slot('header-subtitle'), t('Play and control music on your devices')),

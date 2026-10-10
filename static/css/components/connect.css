@@ -123,6 +123,12 @@
     fill: var(--accent-primary);
 }
 
+/* Known but not reachable right now (app suspended, tab asleep) */
+.connect-device.offline {
+    opacity: 0.5;
+    cursor: default;
+}
+
 /* Blocked (insecure origin / unsupported browser) — informational only */
 .connect-device-cast.disabled {
     cursor: not-allowed;

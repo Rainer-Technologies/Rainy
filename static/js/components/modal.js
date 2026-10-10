@@ -17,7 +17,12 @@ export class Modal extends Component {
     }
 
     hide() {
+        if(this.get('hidden')) return;
         this.set('hidden', true);
+        // Lets the owner stop work that only matters while the modal is open
+        // (pass p.onHide), whichever way it was closed.
+        const onHide = this.get('on-hide');
+        if(typeof onHide === 'function') onHide.call(this);
     }
 
     hasActions() {
