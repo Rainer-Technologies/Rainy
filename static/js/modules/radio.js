@@ -8,12 +8,12 @@
  *
  * New songs arrive as pending tracks ({ videoId, radio: true }). The few
  * coming up next are downloaded ahead of playback (/api/radio/prefetch)
- * and swapped for the real song once ready, which is when likes, lyrics
+ * and turned into the real song once ready, which is when likes, lyrics
  * and history start working for them. A track reached before its download
- * lands still plays, through the YouTube preview stream.
+ * lands still plays, through the YouTube preview stream, and becomes the
+ * real song mid-play as soon as the download finishes.
  */
 import { Logger } from '../helper/logger.js';
-import { t } from '../i18n/index.js';
 
 const BATCH = 12;
 const LOW_WATER = 4;     // top the queue up when this few songs remain
@@ -22,9 +22,15 @@ const POLL_MS = 2000;
 const SKIP_SECONDS = 30; // leaving a song sooner than this counts as a skip
 
 export class SongRadio {
-    /** @param {import('../player.js').AudioPlayer} player */
-    constructor(player) {
+    /**
+     * @param {import('../player.js').AudioPlayer} player
+     * @param {{onEmpty?: () => void, onKeepFailed?: (song: object) => void}} [hooks]
+     *  onEmpty: a radio found nothing to play; onKeepFailed: a song the
+     *  listener asked to keep could not be downloaded.
+     */
+    constructor(player, hooks = {}) {
         this.player = player;
+        this.hooks = hooks;
         this._session = null;
         this._pollTimer = null;
         this._polling = false;
@@ -50,7 +56,7 @@ export class SongRadio {
         const queue = [song];
         const session = {
             ctx, queue, seedId: song.id, mode,
-            videos: new Set(), skipped: [], failed: new Set(),
+            videos: new Set(), skipped: [], failed: new Set(), keep: new Set(),
             pending: null, exhausted: false,
         };
         this._session = session;
@@ -59,7 +65,7 @@ export class SongRadio {
         const items = await this._request('start', { song_id: song.id, mode, limit: BATCH });
         if (!this._alive(session)) return;
         if (!items.length) {
-            window.showToast?.(t('No similar songs found for this radio'), 'info');
+            this.hooks.onEmpty?.();
             return;
         }
         this._append(session, items);
@@ -107,6 +113,21 @@ export class SongRadio {
         if (session.skipped.length > 20) session.skipped.shift();
     }
 
+    /**
+     * Keep a track that is still downloading: it is saved to the library
+     * the moment its download lands.
+     * @returns {'queued'|'failed'|null} null when it isn't one of this radio's tracks
+     */
+    keepWhenReady(song) {
+        const session = this._session;
+        if (!this._alive(session) || !song?.videoId || song.id != null) return null;
+        if (session.failed.has(song.videoId)) return 'failed';
+        session.keep.add(song.videoId);
+        song.keepRequested = true;
+        this._poll();
+        return 'queued';
+    }
+
     _alive(session) {
         return !!session && this._session === session
             && this.player.playlist === session.queue
@@ -150,12 +171,14 @@ export class SongRadio {
         if (player.fsQueueList) player.renderFullscreenQueue();
     }
 
-    /** Pending tracks coming up next, in play order. */
+    /** Pending tracks to download: the one playing now (it started before
+     *  its download landed) and the next few in play order. */
     _upcoming(session) {
-        return session.queue
-            .slice(this.player.currentIndex + 1)
-            .filter(s => s?.radio && s.videoId && s.id == null && !session.failed.has(s.videoId))
-            .slice(0, AHEAD);
+        const pending = s => s?.radio && s.videoId && s.id == null && !session.failed.has(s.videoId);
+        const index = this.player.currentIndex;
+        const next = session.queue.slice(index + 1).filter(pending).slice(0, AHEAD);
+        const current = session.queue[index];
+        return pending(current) ? [current, ...next] : next;
     }
 
     /** Ask for the upcoming downloads; repeats while any are pending. */
@@ -184,7 +207,7 @@ export class SongRadio {
 
         let swapped = false;
         for (const [videoId, state] of Object.entries(states)) {
-            if (state.status === 'failed') { session.failed.add(videoId); continue; }
+            if (state.status === 'failed') { this._fail(session, videoId); continue; }
             if (state.status !== 'ready' || !state.song) continue;
             swapped = this._swap(session, videoId, state.song) || swapped;
         }
@@ -194,25 +217,40 @@ export class SongRadio {
         }
     }
 
-    /** Replace a pending track with its downloaded song (never the one
-     *  playing right now: that would cut its audio). */
+    /** A download gave up: the track stays playable through the preview
+     *  stream, but it can't be kept. */
+    _fail(session, videoId) {
+        session.failed.add(videoId);
+        if (!session.keep.delete(videoId)) return;
+        const song = session.queue.find(s => s?.videoId === videoId && s.id == null);
+        if (!song) return;
+        song.keepRequested = false;
+        this.hooks.onKeepFailed?.(song);
+    }
+
+    /** Turn a pending track into its downloaded song. The queue entry is
+     *  updated in place, so the one playing right now keeps playing (from
+     *  the preview stream) while it gains its id, cover and library actions. */
     _swap(session, videoId, song) {
         const player = this.player;
         const index = session.queue.findIndex(s => s?.videoId === videoId && s.id == null);
-        if (index < 0 || index === player.currentIndex) return false;
+        if (index < 0) return false;
+        const entry = session.queue[index];
+        const oldKey = player._songKey(entry, index);
         const duplicate = session.queue.some(s => s?.id === song.id);
-        const oldKey = player._songKey(session.queue[index], index);
-        if (duplicate) {
+        if (duplicate && index !== player.currentIndex) {
             // Already queued as a library song: drop the pending copy.
             session.queue.splice(index, 1);
             if (index < player.currentIndex) player.currentIndex -= 1;
             player._shuffleRemaining?.delete(oldKey);
+            session.keep.delete(videoId);
             return true;
         }
-        session.queue[index] = { ...song, radio: true };
+        player.adoptDownloadedSong(index, song);
         if (player._shuffleRemaining?.delete(oldKey)) {
-            player._shuffleRemaining.add(player._songKey(session.queue[index], index));
+            player._shuffleRemaining.add(player._songKey(entry, index));
         }
+        if (session.keep.delete(videoId)) player.keepSong(entry);
         return true;
     }
 }
