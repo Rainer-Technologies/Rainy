@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request
 
 from config import Config
 from routes.auth import require_auth, require_sysadmin
+from utils.about import about_info
 
 server_bp = Blueprint('server', __name__, url_prefix='/api/server')
 
@@ -29,6 +30,13 @@ def chromecast_info():
         'chrome_flag_url': 'chrome://flags/#unsafely-treat-insecure-origin-as-secure',
         'edge_flag_url': 'edge://flags/#unsafely-treat-insecure-origin-as-secure',
     })
+
+
+@server_bp.route('/about', methods=['GET'])
+@require_auth
+def about():
+    """Rainy's version and the third-party software it runs on."""
+    return jsonify(about_info())
 
 
 @server_bp.route('/lan-ip', methods=['GET'])

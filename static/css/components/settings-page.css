@@ -1477,3 +1477,27 @@
         width: 120px;
     }
 }
+
+/* About */
+.about-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.about-links a,
+.settings-group-description a,
+.about-components a.settings-row-label {
+    color: var(--accent-primary);
+    text-decoration: none;
+}
+
+.about-links a:hover,
+.settings-group-description a:hover,
+.about-components a.settings-row-label:hover {
+    text-decoration: underline;
+}

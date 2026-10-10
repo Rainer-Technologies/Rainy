@@ -979,6 +979,12 @@
                     </svg>
                     <span data-i18n>Chromecast Setup</span>
                 </a>
+                <a href="/settings/about" class="settings-nav-item" data-section="about" id="settings-nav-about">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+                    </svg>
+                    <span data-i18n>About</span>
+                </a>
 
                 <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category" data-i18n>Server
                     Settings</div>
@@ -1926,6 +1932,44 @@
                                 </form>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Section: About -->
+                <div class="settings-section" id="settings-section-about">
+                    <div class="settings-group">
+                        <div class="settings-group-title" data-i18n>About Rainy</div>
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Version</div>
+                                    <div class="settings-row-hint" data-i18n>Rainy server and web player</div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <code class="https-url" id="about-version">…</code>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Made by</div>
+                                    <div class="settings-row-hint" id="about-license"></div>
+                                </div>
+                                <div class="settings-row-control about-links">
+                                    <span id="about-author">Rainer Technologies</span>
+                                    <a id="about-website" href="https://getrainy.com" target="_blank" rel="noopener">getrainy.com</a>
+                                    <a id="about-source" href="https://github.com/Rainer-Technologies/Rainy" target="_blank" rel="noopener" data-i18n>Source code</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <div class="settings-group-title" data-i18n>Open-source software</div>
+                        <div class="settings-group-description">
+                            <span data-i18n>Rainy is built on these projects. Each one keeps its own license.</span>
+                            <a id="about-notices" href="https://github.com/Rainer-Technologies/Rainy/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener" data-i18n>Full third-party notices</a>
+                        </div>
+                        <div class="settings-card about-components" id="about-components"></div>
                     </div>
                 </div>
 

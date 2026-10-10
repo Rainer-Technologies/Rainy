@@ -25,6 +25,10 @@ Anyone who distributes a bundle that includes these components (such as a prebui
 
 Flask (BSD-3-Clause), flask-cors (MIT), cryptography (Apache-2.0 or BSD-3-Clause), Gunicorn (MIT), python-dotenv (BSD-3-Clause), bcrypt (Apache-2.0), Pillow (MIT-CMU), librosa (ISC), NumPy (BSD-3-Clause and others), ytmusicapi (MIT), requests (Apache-2.0), yt-dlp (Unlicense), faster-whisper (MIT), stable-ts (MIT), ONNX Runtime (MIT) and PyTorch (BSD-3-Clause plus bundled component licenses, optional).
 
+## Fonts
+
+The web player loads [Inter](https://rsms.me/inter/) (SIL Open Font License 1.1) from Google Fonts; it is not bundled with Rainy.
+
 ## Services
 
 YouTube, YouTube Music, Spotify, Last.fm and MusicBrainz are third-party services with their own terms of use. Rainy is not affiliated with or endorsed by any of them. See the disclaimer in the [README](README.md#-license-and-disclaimer).

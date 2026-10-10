@@ -17,6 +17,7 @@ import { useLyricsService } from "./services/lyrics.js";
 import { useMusicService } from "./services/music.js";
 import { usePlaylistService } from './services/playlist.js';
 import { useScanService } from './services/scan.js';
+import { useServerService } from "./services/server.js";
 import { useSetupService } from "./services/setup.js";
 import { useUsersService } from './services/users.js';
 import * as AppView from "./view/app.js";
@@ -33,6 +34,7 @@ const SETTINGS_SECTION_TITLES = {
     server: 'Maintenance',
     users: 'Users',
     chromecast: 'Chromecast Setup',
+    about: 'About',
 };
 
 // Server Settings sections only a sysadmin may open.
@@ -4250,6 +4252,60 @@ export class RainyApp {
         if (sectionName === 'chromecast') {
             this._loadChromecastInfo();
         }
+
+        if (sectionName === 'about') {
+            this._loadAbout();
+        }
+    }
+
+    async _loadAbout() {
+        if (this._aboutLoaded) return;
+        const res = await useServerService().about();
+        const about = res.value;
+        if (!about) return;
+        this._aboutLoaded = true;
+
+        const versionEl = document.getElementById('about-version');
+        if (versionEl) versionEl.textContent = `v${about.version}`;
+        const authorEl = document.getElementById('about-author');
+        if (authorEl) authorEl.textContent = about.author;
+        const licenseEl = document.getElementById('about-license');
+        if (licenseEl) licenseEl.textContent = t('Released under the {license} License', { license: about.license });
+        const links = { 'about-website': about.website, 'about-source': about.source, 'about-notices': about.notices_url };
+        for (const [id, url] of Object.entries(links)) {
+            const link = document.getElementById(id);
+            if (link && url) link.href = url;
+        }
+
+        const list = document.getElementById('about-components');
+        if (!list) return;
+        list.replaceChildren(...about.components.map((component) => {
+            const row = document.createElement('div');
+            row.className = 'settings-row';
+
+            const info = document.createElement('div');
+            info.className = 'settings-row-info';
+            const name = document.createElement('a');
+            name.className = 'settings-row-label';
+            name.href = component.url;
+            name.target = '_blank';
+            name.rel = 'noopener';
+            name.textContent = component.name;
+            const license = document.createElement('div');
+            license.className = 'settings-row-hint';
+            license.textContent = component.license;
+            info.append(name, license);
+            row.append(info);
+
+            // Optional pieces that aren't installed here have no version.
+            if (component.version) {
+                const version = document.createElement('code');
+                version.className = 'https-url';
+                version.textContent = component.version;
+                row.append(version);
+            }
+            return row;
+        }));
     }
 
     async _loadChromecastInfo() {
