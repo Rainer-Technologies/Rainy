@@ -30,6 +30,8 @@ export class SongContextMenu extends Component {
         /** @type {Ref<HTMLDivElement>} */
         this._publishSongItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
+        this._publishDivider = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
         this._findMetadataItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._saveToLibraryItem = useRef(null);
@@ -412,6 +414,10 @@ export class SongContextMenu extends Component {
             const app = useContext().get('app');
             const isAdmin = app?.user?.role === 'sysadmin';
             this._publishSongItem.value.style.display = isAdmin ? 'block' : 'none';
+            // Its divider goes with it, or two would sit back to back.
+            if (this._publishDivider.value) {
+                this._publishDivider.value.style.display = isAdmin ? '' : 'none';
+            }
         }
         // "Add to Your Library" only for songs heard through a shared playlist.
         if (this._saveToLibraryItem.value) {
@@ -490,16 +496,16 @@ export class SongContextMenu extends Component {
                     ),
                 )
             ),
-            h.div(a.class('context-menu-divider')),
-            H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
-                I.Bin(),
-                h.span(t('Remove from Playlist')),
-            ),
+            h.div(this._publishDivider, a.class('context-menu-divider')),
             H.of(ContextMenuItem, this._publishSongItem, on.click(() => this.publishCurrentSong()),
                 I.Plus(),
                 h.span(t('Publish to Everyone')),
             ),
             h.div(a.class('context-menu-divider')),
+            H.of(ContextMenuItem, this._removeFromPlaylist, a.danger(), on.click(() => this.removeCurrentSongFromPlaylist()),
+                I.Bin(),
+                h.span(t('Remove from Playlist')),
+            ),
             H.of(ContextMenuItem, this._removeSongItem, a.danger(), on.click(() => this.deleteCurrentSong()),
                 I.Bin(),
                 h.span(t('Remove Song')),
