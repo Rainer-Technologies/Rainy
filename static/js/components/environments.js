@@ -3,7 +3,7 @@ import {
     ENVIRONMENTS, DEFAULT_ENVIRONMENT, environmentIds, environmentText, onEnvironmentsChange, unsupportedReason,
 } from "../lightshow/environments/index.js";
 import { useEnvironmentsService } from "../services/environments.js";
-import { a, Component, h, on, useRef } from "./index.js";
+import { a, Component, h, on, s, useRef } from "./index.js";
 
 const FEATURE_NAMES = { webgl: 'WebGL', webgl2: 'WebGL 2', webgpu: 'WebGPU' };
 
@@ -23,14 +23,20 @@ function unsupportedText(id) {
     return t('Needs {feature}, which this device does not have', { feature: FEATURE_NAMES[reason] || reason });
 }
 
+/** What stands in for an environment's picture when its package has none. */
+const plateIcon = () => s.svg(a.viewBox('0 0 24 24'), a.fill('none'), a.stroke('currentColor'), a['stroke-width']('1.5'),
+    a['stroke-linejoin']('round'), a['aria-hidden']('true'),
+    s.path(a.d('M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z')),
+    s.path(a.d('M3.5 7 12 11.5 20.5 7M12 11.5v10')));
+
 const formatSize = (bytes) => (bytes >= 1024 * 1024
     ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 /**
- * Settings → Light Show: which environment the show runs in. One option per
- * environment on the server; picking one saves the `lightshow_environment`
- * preference, which the show follows live.
+ * Settings → Light Show: which environment the show runs in. One card per
+ * environment on the server, with the picture its package brought; picking
+ * one saves the `lightshow_environment` preference, which the show follows live.
  */
 export class EnvironmentPicker extends Component {
     static componentName = 'rainy-environment-picker';
@@ -52,18 +58,41 @@ export class EnvironmentPicker extends Component {
         if (window.app && window.app.savePreferences) window.app.savePreferences({ lightshow_environment: id });
     }
 
+    /** An environment's picture: the preview its package brought, or a plain plate when it has none. */
+    _picture(def) {
+        if (!def.preview) return h.div(a.class('settings-env-picture', 'is-blank'), plateIcon());
+        const img = h.img(a.src(def.preview), a.alt(''), a.loading('lazy'), a.decoding('async'));
+        const picture = h.div(a.class('settings-env-picture'), img);
+        // A picture that does not load leaves the plate, not a broken image.
+        img.addEventListener('error', () => {
+            img.remove();
+            picture.classList.add('is-blank');
+            picture.append(plateIcon());
+        }, { once: true });
+        return picture;
+    }
+
     _option(id) {
         const def = ENVIRONMENTS[id];
         const { name, description } = texts(id);
         const problem = unsupportedText(id);
         const credit = [def.version && `v${def.version}`, def.author].filter(Boolean).join(' · ');
-        return h.div(a.class('settings-radio-item', problem ? 'is-unavailable' : ''), a['data-value'](id),
+        return h.div(a.class('settings-env-card', problem ? 'is-unavailable' : ''), a['data-value'](id),
+            a.role('radio'), a.tabindex(problem ? '-1' : '0'), a['aria-checked']('false'),
             on.click(() => this._pick(id)),
-            h.div(a.class('settings-radio-circle')),
-            def.preview ? h.img(a.class('settings-env-preview'), a.src(def.preview), a.alt(''), a.loading('lazy')) : null,
-            h.div(a.class('settings-radio-content'),
-                h.div(a.class('settings-radio-title'), name, def.dev ? h.span(a.class('settings-env-tag'), t('Development')) : null),
-                description ? h.div(a.class('settings-radio-description'), description) : null,
+            on.keydown((e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                this._pick(id);
+            }),
+            this._picture(def),
+            h.div(a.class('settings-env-body'),
+                h.div(a.class('settings-env-name'),
+                    h.span(name),
+                    def.dev ? h.span(a.class('settings-env-tag'), t('Development')) : null,
+                    h.span(a.class('settings-env-check'), a['aria-hidden']('true')),
+                ),
+                description ? h.div(a.class('settings-env-description'), description) : null,
                 credit ? h.div(a.class('settings-env-credit'), credit) : null,
                 problem ? h.div(a.class('settings-env-problem'), problem) : null,
             ),
@@ -82,11 +111,15 @@ export class EnvironmentPicker extends Component {
         if (!group) return;
         // A preference for an environment that is no longer installed shows as the default it falls back to.
         const value = ENVIRONMENTS[this.get('value')] ? this.get('value') : DEFAULT_ENVIRONMENT;
-        for (const item of group.children) item.classList.toggle('selected', item.dataset.value === value);
+        for (const item of group.children) {
+            const on = item.dataset.value === value;
+            item.classList.toggle('selected', on);
+            item.setAttribute('aria-checked', String(on));
+        }
     }
 
     render() {
-        const root = h.div(this._group, a.class('settings-radio-group'));
+        const root = h.div(this._group, a.class('settings-env-grid'), a.role('radiogroup'));
         queueMicrotask(() => this._fill());
         return root;
     }
@@ -95,7 +128,7 @@ export class EnvironmentPicker extends Component {
 customElements.define(EnvironmentPicker.componentName, EnvironmentPicker);
 
 /**
- * Settings → Server (administrators): the environment packages installed on
+ * Settings → Light Show (administrators): the environment packages installed on
  * this server. Install one from a .zip, switch one off, remove one.
  */
 export class EnvironmentManager extends Component {
@@ -164,6 +197,7 @@ export class EnvironmentManager extends Component {
             item.dev ? t('Development folder') : '',
         ].filter(Boolean).join(' · ');
         return h.div(a.class('settings-row', 'settings-env-row', item.enabled ? '' : 'is-off'),
+            item.preview ? h.img(a.class('settings-env-thumb'), a.src(item.preview), a.alt(''), a.loading('lazy')) : null,
             h.div(a.class('settings-row-info'),
                 h.div(a.class('settings-row-label'), item.name),
                 h.div(a.class('settings-row-hint'), details),

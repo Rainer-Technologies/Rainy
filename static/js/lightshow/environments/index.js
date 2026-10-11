@@ -61,6 +61,7 @@ const BUILTIN = {
         id: 'classic',
         name: 'Classic',
         description: 'The concert rig: lasers, beams and strobes over the album art (default)',
+        preview: '/js/lightshow/environments/classic/preview.jpg',
         layout: 'stage',
         builtin: true,
         requires: [],

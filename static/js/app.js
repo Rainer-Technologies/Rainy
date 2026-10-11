@@ -30,6 +30,7 @@ import "./components/environments.js";
 const SETTINGS_SECTION_TITLES = {
     appearance: 'Appearance',
     player: 'Player',
+    lightshow: 'Light Show',
     account: 'Account',
     syncs: 'Playlist Sync',
     jobs: 'Jobs',
@@ -4102,9 +4103,7 @@ export class RainyApp {
             fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect,
             lightshow_intensity: currentLightshowIntensity,
         };
-        // The environments are whatever the server has installed right now.
         document.getElementById('settings-environment-picker')?.set('value', currentLightshowEnvironment);
-        useEnvironmentsService().refresh();
         document.querySelectorAll('.settings-radio-group').forEach(group => {
             const pref = group.dataset.pref;
             const current = radioValues[pref];
@@ -4247,7 +4246,13 @@ export class RainyApp {
         if (sectionName === 'server') {
             this.loadScanStatus();
             this.loadYtdlpStatus();
-            document.getElementById('settings-environment-manager')?.refresh();
+        }
+
+        // What is installed may have changed since the page was opened.
+        if (sectionName === 'lightshow') {
+            const manager = document.getElementById('settings-environment-manager');
+            if (this.user?.role === 'sysadmin') manager?.refresh();
+            else useEnvironmentsService().refresh();
         }
 
         if (sectionName === 'syncs') {
@@ -4377,7 +4382,7 @@ export class RainyApp {
                 } else {
                     const desc = labelEl.parentElement?.querySelector(':scope > .settings-group-description');
                     const options = target.classList.contains('settings-card')
-                        ? [...target.querySelectorAll('.settings-radio-item')]
+                        ? [...target.querySelectorAll('.settings-radio-item, .settings-env-card')]
                             .filter(r => r.closest('.settings-card') === target)
                         : [];
                     body = [textOf(desc), ...options.map(textOf)].join(' ');

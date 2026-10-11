@@ -9,6 +9,7 @@
     "license": "MIT",
     "entry": "index.js",
     "styles": ["style.css"],
+    "preview": "preview.jpg",
     "layout": "stage",
     "i18n": {
         "es": { "description": "Un entorno de ejemplo: anillos al compás, un espectro y la línea que se canta" },

@@ -2,7 +2,7 @@
 
 An environment is a kind of light show: one way of staging a song in the fullscreen player. Rainy analyses every song on the server (beats, bars, sections, drums, drops, silences, key, genre) and keeps a clock locked to the audio. An environment receives all of that every frame and decides what it looks like, lyrics included.
 
-**Classic** is built in. Anything else is a **package**: a zip an administrator installs on a server, after which every user of that server can pick it in Settings → Light Show or with the cube button in the show.
+**Classic** is built in. Anything else is a **package**: a zip an administrator installs on a server, after which every user of that server can pick it, by its picture, in Settings → Light Show, or with the cube button in the show.
 
 Two packages live in this repository:
 
@@ -18,7 +18,7 @@ my-environment.zip
   rainy-environment.json    the manifest
   index.js                  an ES module; its default export is the environment class
   style.css                 optional
-  preview.jpg               optional, shown in the picker (16:9)
+  preview.jpg               the picture people pick it by (16:9)
   …                         your own modules, libraries, shaders, images, fonts
 ```
 
@@ -55,7 +55,7 @@ The manifest sits at the root of the zip, or inside a single top-level folder (w
 | `entry` | required | The module to load, a `.js` or `.mjs` file of the package. |
 | `description`, `author`, `license`, `homepage` | | Shown in Settings. |
 | `styles` | | Stylesheets loaded while the environment is on stage, and removed when it leaves. |
-| `preview` | | An image for the picker. |
+| `preview` | recommended | The picture of the environment in Settings, where people choose by it: a 16:9 image, 960 × 540 is plenty. A frame of the show itself works best. Without one the environment gets a blank plate. |
 | `layout` | | `stage` (default) or `immersive`, see [Layout](#layout). |
 | `requires` | | Any of `webgl`, `webgl2`, `webgpu`. On a device without one of them the environment cannot be picked. |
 | `i18n` | | `name` and `description` per language code. |
@@ -260,6 +260,6 @@ python scripts/pack_environment.py packages/example-pulse
 
 writes `dist/example-pulse-1.0.0.zip`, after checking the folder exactly as the server checks an upload. Hidden files and the folder's `tests/` are left out, and the same files always give the same zip.
 
-Then, as an administrator: Settings → Server → Light Show Environments → *Install package (.zip)*. From there a package can be switched off or removed. Uploading a package with the same id updates it: you get the new version at once, everyone else the next time they open Rainy.
+Then, as an administrator: Settings → Light Show → Installed Environments → *Install package (.zip)*. From there a package can be switched off or removed. Uploading a package with the same id updates it: you get the new version at once, everyone else the next time they open Rainy.
 
 Installed packages are kept in the database, so they survive a rebuilt container; the unpacked copy they are served from is rebuilt whenever it is missing.

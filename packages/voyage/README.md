@@ -12,7 +12,7 @@ travels inside the package (`vendor/three/`, MIT, unmodified).
 
 ## Install
 
-Pack it and upload the zip in Rainy under Settings → Server → Light Show
+Pack it and upload the zip in Rainy under Settings → Light Show → Installed
 Environments (administrators only):
 
 ```bash

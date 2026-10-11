@@ -35,6 +35,8 @@ def main():
         fh.write(data)
     print(f"{path}  {len(data) / 1024:.0f} KB  sha256:{package_digest(data)[:16]}")
     print(f"{manifest['name']} {manifest['version']} (id {manifest['id']}, API {manifest['api']}, layout {manifest['layout']})")
+    if not manifest.get('preview'):
+        print('Note: no "preview" picture. Add one (16:9) so people can tell the environment apart when they pick it.')
 
 
 if __name__ == '__main__':
