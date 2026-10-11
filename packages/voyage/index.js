@@ -17,7 +17,7 @@
  *
  * Skins (skins.js) restyle all of it per genre profile.
  */
-import { clamp, lerp } from '../../palette.js';
+import { clamp, lerp } from '@rainy/lightshow';
 import { THREE, createGlobals, setLinear, blankTexture, rowsTexture } from './glsl.js';
 import {
     FAR, GATE, LABEL_HEAT, PAL_COLS, speedFor, bakeEnvelopes, bakePalettes, sectionPalettes,
@@ -43,9 +43,7 @@ const TIERS = [
 const ROAD_W = 6.5;
 const TITLE_AT = 2.6;        // seconds into the song at which the camera flies through its title
 
-export class VoyageEnvironment {
-    static id = 'voyage';
-
+export default class VoyageEnvironment {
     constructor() {
         this.ctx = null;
         this.canvas = null;

@@ -10,8 +10,7 @@
  * Space: camera at the origin looking down -Z, the road along Z, Y up.
  * A beam is { o: origin, d: direction (unit), len, w: width, c: colour, a: alpha }.
  */
-import { TAU, clamp, lerp, smooth } from '../../palette.js';
-import { altBeat } from '../../motion.js';
+import { TAU, clamp, lerp, smooth, altBeat } from '@rainy/lightshow';
 import { THREE, GLSL_COMMON, setLinear } from './glsl.js';
 
 export const MAX_BEAMS = 72;

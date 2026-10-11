@@ -1,12 +1,12 @@
-// The Voyage environment's world model (static/js/lightshow/environments/voyage/world.js):
+// The Voyage environment's world model (world.js):
 // a score turned into terrain rows, colours, gates and portals. No WebGL.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Score } from '../../static/js/lightshow/score.js';
+import { Score } from '../../../static/js/lightshow/score.js';
 import {
     speedFor, rowsFor, poolEnvelope, smoothRows, bakeEnvelopes, sectionPalettes, bakePalettes, buildGates,
     gateWindow, buildPortals, lastEvent, lastHits, GATE, PAL_COLS, ROWS_MAX,
-} from '../../static/js/lightshow/environments/voyage/world.js';
+} from '../world.js';
 
 const b64 = (bytes) => Buffer.from(bytes).toString('base64');
 

@@ -5,7 +5,7 @@
  * (see palette.js) and are converted once here; the composite pass (post.js)
  * tone-maps and encodes for the screen.
  */
-import * as THREE from '../../../vendor/three/three.module.min.js';
+import * as THREE from './vendor/three/three.module.min.js';
 
 export { THREE };
 

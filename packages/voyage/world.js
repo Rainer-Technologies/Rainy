@@ -11,8 +11,7 @@
  * no three.js): the envelopes as texture rows (the terrain), the palette of
  * every moment (its colours), the beats as gates and the sections as portals.
  */
-import { clamp, paletteFor } from '../../palette.js';
-import { floorIndex } from '../../score.js';
+import { clamp, paletteFor, floorIndex } from '@rainy/lightshow';
 
 export const FAR = 420;             // how far ahead the world is drawn (units)
 export const BEHIND = 24;           // and how far behind the camera

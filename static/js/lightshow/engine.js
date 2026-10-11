@@ -20,7 +20,7 @@
  * engine follows it live, so Settings and the HUD button only have to save it.
  */
 import { Logger } from '../helper/logger.js';
-import { t } from '../i18n/index.js';
+import { getLanguage, t } from '../i18n/index.js';
 import { useLightshowService } from '../services/lightshow.js';
 import { PlaybackClock } from './clock.js';
 import { Score } from './score.js';
@@ -28,7 +28,8 @@ import { ScoreSource, LiveSource } from './sources.js';
 import { Conductor } from './conductor.js';
 import { LyricsTimeline } from './lyricsTimeline.js';
 import {
-    ENVIRONMENTS, ENVIRONMENT_IDS, DEFAULT_ENVIRONMENT, normalizeEnvironment, resolveEnvironment,
+    ENVIRONMENTS, DEFAULT_ENVIRONMENT, environmentIds, environmentText, environmentsLoaded, normalizeEnvironment,
+    onEnvironmentsChange, resolveEnvironment,
 } from './environments/index.js';
 import { EnvironmentStage } from './environments/host.js';
 import { clamp, lerp, hexToHue } from './palette.js';
@@ -46,6 +47,7 @@ const SLOW_HINT_KEY = 'rainy-ls-slow-hint';
 const ENV_FADE_MS = 600;     // an environment fades out this long before it is unmounted
 const ENV_LOAD_MS = 10000;   // an environment that has not loaded and mounted by then is given up on
 const ENV_MAX_ERRORS = 3;    // frames in a row an environment may throw before it is taken off stage
+const ENV_LIST_WAIT = 2;     // seconds the show waits for the list of installed environments before starting without it
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
 const ENV_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg>';
 const QUEUE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3 6h13v2H3zm0 5h13v2H3zm0 5h9v2H3zm14-3v6l5-3z"/></svg>';
@@ -113,6 +115,14 @@ export class LightShowEngine {
         // switched on they stay on for the songs that follow in that queue.
         this.stageLyrics = false;
         this._onLoadStart = () => this._onTrackChange();
+        // A package that was updated or reinstalled gets another chance on this device.
+        onEnvironmentsChange((ids) => {
+            for (const id of ids) this._envFailed.delete(id);
+            // The one on stage was removed or switched off on the server: say why the show changes.
+            if (this.active && this.env && ids.includes(this.envId) && !ENVIRONMENTS[this.envId]) {
+                window.showToast?.(t('{name} is no longer installed on this server. Back to Classic.', { name: this._stage.def.name }), 'info');
+            }
+        });
     }
 
     // ------------------------------------------------------------------ API
@@ -129,12 +139,12 @@ export class LightShowEngine {
         this._getPrefs(true);
         this.clock.reset();
         this._lastTs = 0;
+        this._startedAt = performance.now() / 1000;
         this.container.classList.add('lightshow-on');
         this._ensureHud();
         this._renderHud(true);
         // An unanswered low-power offer comes back with the show.
         if (this._lpPending && this._lpPrompt) this._lpPrompt.classList.add('show');
-        this._useEnvironment(this._prefs.environment);
         this._startLoop();
     }
 
@@ -323,12 +333,13 @@ export class LightShowEngine {
      */
     async _useEnvironment(wanted) {
         const id = resolveEnvironment(wanted, this._envFailed);
-        if (id === this._envWanted) return;
-        this._envWanted = id;
-        const token = ++this._envToken;   // whatever was on its way is no longer wanted
-        if (this.env && this.envId === id) return;
-        this._flushRetired();
         const def = ENVIRONMENTS[id];
+        if (id === this._envWanted && def === this._envDef) return;
+        this._envWanted = id;
+        this._envDef = def;
+        const token = ++this._envToken;   // whatever was on its way is no longer wanted
+        if (this.env && this.envId === id && this._stage.def === def) return;
+        this._flushRetired();
         let env = null, stage = null;
         const giveUp = () => {
             if (env) {
@@ -367,10 +378,11 @@ export class LightShowEngine {
         this._stage = stage;
         this._envErrors = 0;
         this.container.dataset.lsEnv = id;
+        // The old one gives the layout back before the new one takes its own.
+        if (old) this._retire(old);
         stage.enter();
         this._tell('setTrack', this.track);
         this._tell('setScore', this.score);
-        if (old) this._retire(old);
         this._hudAxisAt = 0;
         this._renderHud(true);
     }
@@ -381,12 +393,12 @@ export class LightShowEngine {
         Logger.error(`LightShow: the "${id}" environment failed.`, err);
         this._envFailed.add(id);
         if (id !== DEFAULT_ENVIRONMENT) {
-            const name = ENVIRONMENTS[id] ? ENVIRONMENTS[id].name : id;
-            window.showToast?.(t('{name} is not available on this device. Back to Classic.', { name }), 'info');
+            window.showToast?.(t('{name} is not available on this device. Back to Classic.', { name: this._envName(id) }), 'info');
         }
         // It never made it on stage: keep what is there.
         if (this.env && this.envId !== id) {
             this._envWanted = this.envId;
+            this._envDef = this._stage.def;
             return;
         }
         if (this.env) this._unmount({ env: this.env, stage: this._stage });
@@ -394,6 +406,7 @@ export class LightShowEngine {
         this.envId = '';
         this._stage = null;
         this._envWanted = '';
+        this._envDef = null;
         if (id !== DEFAULT_ENVIRONMENT && this.active) this._useEnvironment(DEFAULT_ENVIRONMENT);
     }
 
@@ -424,6 +437,7 @@ export class LightShowEngine {
     _dropEnvironment() {
         this._envToken++;
         this._envWanted = '';
+        this._envDef = null;
         this._flushRetired();
         const old = this.env ? { env: this.env, stage: this._stage } : null;
         this.env = null;
@@ -483,8 +497,11 @@ export class LightShowEngine {
         this._lastTs = now;
 
         const prefs = this._getPrefs();
+        // The first environment waits a moment for the server's list, so a show does not open on the wrong one.
+        if (!this.env && !environmentsLoaded() && now - this._startedAt < ENV_LIST_WAIT) return;
         const wantedEnv = resolveEnvironment(prefs.environment, this._envFailed);
-        if (wantedEnv !== this._envWanted) this._useEnvironment(wantedEnv);
+        // (Also when the package on stage was replaced by another version.)
+        if (wantedEnv !== this._envWanted || ENVIRONMENTS[wantedEnv] !== this._envDef) this._useEnvironment(wantedEnv);
         if (!this.env) return;   // still on its way
 
         if (prefs.lowPower !== this._lowPower) {
@@ -617,7 +634,14 @@ export class LightShowEngine {
 
     /** Environments this device can run (and that have not failed here). */
     _usableEnvironments() {
-        return ENVIRONMENT_IDS.filter((id) => resolveEnvironment(id, this._envFailed) === id);
+        return environmentIds().filter((id) => resolveEnvironment(id, this._envFailed) === id);
+    }
+
+    /** An environment's name as shown to the user. */
+    _envName(id) {
+        const def = ENVIRONMENTS[id];
+        if (!def) return id;
+        return def.builtin ? t(def.name) : environmentText(id, 'name', getLanguage());
     }
 
     /** The HUD's environment button: on to the next one, and remember it. */
@@ -627,7 +651,7 @@ export class LightShowEngine {
         const id = usable[(usable.indexOf(this._envWanted) + 1) % usable.length];
         if (window.app && window.app.savePreferences) window.app.savePreferences({ lightshow_environment: id });
         this._prefsAt = -1;   // picked up on the next frame
-        window.showToast?.(t('Environment: {name}', { name: t(ENVIRONMENTS[id].name) }), 'info');
+        window.showToast?.(t('Environment: {name}', { name: this._envName(id) }), 'info');
         this._renderHud(true);
     }
 
@@ -661,7 +685,7 @@ export class LightShowEngine {
         env.hidden = this._usableEnvironments().length < 2;
         if (this.envId && env.dataset.env !== this.envId) {
             env.dataset.env = this.envId;
-            env.title = t('Environment: {name}', { name: t(ENVIRONMENTS[this.envId].name) });
+            env.title = t('Environment: {name}', { name: this._envName(this.envId) });
         }
         // An immersive environment folds the queue away: this button brings it back over the show.
         const queue = hud.querySelector('.ls-hud-queue');

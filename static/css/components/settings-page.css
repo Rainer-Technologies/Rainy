@@ -1501,3 +1501,65 @@
 .about-components a.settings-row-label:hover {
     text-decoration: underline;
 }
+
+/* ---------------------------------------------------------------------
+   Light show environments: the picker (Light Show) and the packages
+   installed on the server (Server Settings).
+   --------------------------------------------------------------------- */
+.settings-env-preview {
+    width: 96px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    background: var(--bg-primary);
+}
+
+.settings-env-credit,
+.settings-env-problem {
+    margin-top: var(--spacing-xs);
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.settings-env-problem {
+    color: var(--warning, #d9a441);
+}
+
+.settings-env-tag {
+    margin-left: var(--spacing-sm);
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    vertical-align: middle;
+}
+
+.settings-radio-item.is-unavailable {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.settings-env-manager {
+    margin-top: var(--spacing-sm);
+}
+
+.settings-env-row.is-off .settings-row-info {
+    opacity: 0.55;
+}
+
+.settings-env-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.settings-env-empty {
+    padding: var(--spacing-sm) 0;
+}
+
+.settings-env-install {
+    margin-top: var(--spacing-md);
+}

@@ -1283,26 +1283,9 @@
                             <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Light Show Environment</div>
                             <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>An environment
                                 is a kind of show. They all follow the same analysis of the song, and each one stages it its
-                                own way, lyrics included. You can also switch from the cube button in the show.</div>
-                            <div class="settings-radio-group settings-radio-group--horizontal"
-                                data-pref="lightshow_environment">
-                                <div class="settings-radio-item selected" data-value="classic">
-                                    <div class="settings-radio-circle"></div>
-                                    <div class="settings-radio-content">
-                                        <div class="settings-radio-title" data-i18n>Classic</div>
-                                        <div class="settings-radio-description" data-i18n>The concert rig: lasers, beams and
-                                            strobes over the album art (default)</div>
-                                    </div>
-                                </div>
-                                <div class="settings-radio-item" data-value="voyage">
-                                    <div class="settings-radio-circle"></div>
-                                    <div class="settings-radio-content">
-                                        <div class="settings-radio-title">Voyage</div>
-                                        <div class="settings-radio-description" data-i18n>Fly through the song in 3D: the land
-                                            ahead is the music that is about to play</div>
-                                    </div>
-                                </div>
-                            </div>
+                                own way, lyrics included. You can also switch from the cube button in the show. An administrator
+                                can install more environments on the server.</div>
+                            <rainy-environment-picker id="settings-environment-picker"></rainy-environment-picker>
                         </div>
 
                         <div class="settings-card">
@@ -1854,6 +1837,19 @@
                                     <div class="stat" data-i18n><span id="scrape-descriptions-failed">0</span> not found</div>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Light Show Environments</div>
+                                    <div class="settings-row-hint" data-i18n>Environments are kinds of light show that everyone on
+                                        this server can pick. Besides the built-in Classic, you can install more as packages. A
+                                        package runs code in the browser of every user, so only install ones from authors you
+                                        trust.</div>
+                                </div>
+                            </div>
+                            <rainy-environment-manager id="settings-environment-manager"></rainy-environment-manager>
                         </div>
 
                         <div class="settings-card">

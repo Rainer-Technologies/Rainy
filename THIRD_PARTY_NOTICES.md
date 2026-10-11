@@ -1,12 +1,14 @@
 # Third-party notices
 
-Rainy's own source code is released under the [MIT License](LICENSE). Apart from the one library listed under [Bundled with Rainy](#bundled-with-rainy), Rainy does not vendor or redistribute the components below: they are installed from PyPI or the OS package manager, or downloaded at runtime. They keep their own licenses, which apply when you install or redistribute them, for example in a Docker image.
+Rainy's own source code is released under the [MIT License](LICENSE). Apart from the one library listed under [In this repository](#in-this-repository), Rainy does not vendor or redistribute the components below: they are installed from PyPI or the OS package manager, or downloaded at runtime. They keep their own licenses, which apply when you install or redistribute them, for example in a Docker image.
 
-## Bundled with Rainy
+## In this repository
 
 | Component | License | How Rainy uses it |
 | --- | --- | --- |
-| [three.js](https://threejs.org/) 0.185.1 | MIT | Renders the Voyage light show environment. The two official minified builds from the npm package (`three.module.min.js`, `three.core.min.js`) are in `static/js/vendor/three/`, unmodified, next to their license. The web player only loads them when that environment is picked. |
+| [three.js](https://threejs.org/) 0.185.1 | MIT | Renders Voyage, a light show environment kept in `packages/voyage` as an installable package. The two official minified builds from the npm package (`three.module.min.js`, `three.core.min.js`) are in `packages/voyage/vendor/three/`, unmodified, next to their license, and travel inside that package's zip. Rainy itself does not load them: a server only has them once an administrator installs Voyage. |
+
+Light show environment packages that an administrator installs on a server are third-party code with their own licenses; see [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md).
 
 ## Copyleft dependencies worth knowing about
 

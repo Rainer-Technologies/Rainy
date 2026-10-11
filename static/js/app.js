@@ -11,6 +11,7 @@ import { Utils } from './modules/utils.js';
 import { browserLanguage, fillLanguageSelect, getLanguage, setLanguage, t } from './i18n/index.js';
 import { useAuthService } from "./services/auth.js";
 import { useEnrichmentService } from "./services/enrichment.js";
+import { useEnvironmentsService } from "./services/environments.js";
 import { useImportJobsService } from "./services/importJobs.js";
 import { useLightshowService } from "./services/lightshow.js";
 import { useLyricsService } from "./services/lyrics.js";
@@ -23,6 +24,7 @@ import { useUsersService } from './services/users.js';
 import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
+import "./components/environments.js";
 
 // Section id -> page title. Also used to label settings search results.
 const SETTINGS_SECTION_TITLES = {
@@ -151,6 +153,8 @@ export class RainyApp {
         this.applyThemeFromPreferences();
         this.applyPlayerBarPreferences();
         this.applyRoleVisibility();
+        // Which light show environments this server has installed.
+        useEnvironmentsService().refresh();
 
         Router.navigate(new View('app', user), this);
     }
@@ -4096,8 +4100,11 @@ export class RainyApp {
         // Set radio button groups to their saved values
         const radioValues = {
             fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect,
-            lightshow_intensity: currentLightshowIntensity, lightshow_environment: currentLightshowEnvironment,
+            lightshow_intensity: currentLightshowIntensity,
         };
+        // The environments are whatever the server has installed right now.
+        document.getElementById('settings-environment-picker')?.set('value', currentLightshowEnvironment);
+        useEnvironmentsService().refresh();
         document.querySelectorAll('.settings-radio-group').forEach(group => {
             const pref = group.dataset.pref;
             const current = radioValues[pref];
@@ -4240,6 +4247,7 @@ export class RainyApp {
         if (sectionName === 'server') {
             this.loadScanStatus();
             this.loadYtdlpStatus();
+            document.getElementById('settings-environment-manager')?.refresh();
         }
 
         if (sectionName === 'syncs') {

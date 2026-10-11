@@ -7,8 +7,10 @@ import { join } from 'node:path';
 import { Conductor, MIN_FLASH_GAP } from '../../static/js/lightshow/conductor.js';
 import { LyricsTimeline, buildLines, pickTransition, tokenize, LEAD, REST_AFTER } from '../../static/js/lightshow/lyricsTimeline.js';
 import {
-    ENVIRONMENTS, DEFAULT_ENVIRONMENT, normalizeEnvironment, resolveEnvironment, nextEnvironment,
+    ENVIRONMENTS, DEFAULT_ENVIRONMENT, environmentIds, environmentText, environmentsLoaded, normalizeEnvironment,
+    onEnvironmentsChange, resolveEnvironment, nextEnvironment, setInstalled, unsupportedReason,
 } from '../../static/js/lightshow/environments/index.js';
+import * as sdk from '../../static/js/lightshow/sdk.js';
 
 /** A musical frame like the sources produce, with overrides. */
 function frame(over = {}) {
@@ -170,20 +172,93 @@ test('lyrics: transitions are deterministic and never repeat back to back', () =
 
 // ---------------------------------------------------------- environments
 
+/** An installed environment as `GET /api/environments` lists it. */
+function installed(id, over = {}) {
+    const base = `/environments/${id}/${over.rev || 'abc123'}/`;
+    return {
+        id, name: id[0].toUpperCase() + id.slice(1), version: '1.0.0', api: sdk.API_VERSION, description: `The ${id} show`,
+        author: 'Someone', layout: 'stage', requires: [], i18n: {}, base, entry: `${base}index.js`, styles: [], preview: null,
+        enabled: true, dev: false, ...over,
+    };
+}
+
 test('environments: unknown or unusable ids fall back to the default', () => {
+    setInstalled([]);
     assert.equal(DEFAULT_ENVIRONMENT, 'classic');
-    assert.ok(ENVIRONMENTS.classic.supported());
+    assert.equal(unsupportedReason('classic'), '');
+    assert.deepEqual(environmentIds(), ['classic']);
     assert.equal(normalizeEnvironment('nope'), 'classic');
     assert.equal(normalizeEnvironment(undefined), 'classic');
     assert.equal(normalizeEnvironment('constructor'), 'classic');
     assert.equal(resolveEnvironment('classic'), 'classic');
-    for (const id of Object.keys(ENVIRONMENTS)) {
-        assert.equal(resolveEnvironment(id, new Set([id])), 'classic', `${id} failed on this device`);
-        assert.ok(nextEnvironment(id) in ENVIRONMENTS);
-    }
+    assert.equal(resolveEnvironment('classic', new Set(['classic'])), 'classic');
+    assert.equal(nextEnvironment('classic'), 'classic');
 });
 
-test('the service worker shell lists every light show module and the vendored library', () => {
+test('environments: the registry follows what the server has installed', () => {
+    const seen = [];
+    const stop = onEnvironmentsChange((ids) => seen.push(ids));
+    assert.deepEqual(setInstalled([installed('zeta'), installed('alpha', { layout: 'immersive' })]).sort(), ['alpha', 'zeta']);
+    assert.ok(environmentsLoaded());
+    // The built-in one first, then by name.
+    assert.deepEqual(environmentIds(), ['classic', 'alpha', 'zeta']);
+    assert.equal(ENVIRONMENTS.alpha.layout, 'immersive');
+    assert.equal(ENVIRONMENTS.alpha.baseUrl, '/environments/alpha/abc123/');
+    assert.equal(normalizeEnvironment('alpha'), 'alpha');
+    assert.equal(resolveEnvironment('alpha'), 'alpha');
+    assert.equal(resolveEnvironment('alpha', new Set(['alpha'])), 'classic', 'it failed on this device');
+    assert.equal(nextEnvironment('classic'), 'alpha');
+    assert.equal(nextEnvironment('zeta'), 'classic');
+
+    // The same files again: nothing changed, and the entry is the very same object.
+    const alpha = ENVIRONMENTS.alpha;
+    assert.deepEqual(setInstalled([installed('zeta'), installed('alpha', { layout: 'immersive' })]), []);
+    assert.equal(ENVIRONMENTS.alpha, alpha);
+    // A new version is served from a new address: a new entry.
+    assert.deepEqual(setInstalled([installed('zeta'), installed('alpha', { rev: 'def456' })]), ['alpha']);
+    assert.notEqual(ENVIRONMENTS.alpha, alpha);
+    // Removed or switched off on the server: gone, and a preference for it falls back.
+    assert.deepEqual(setInstalled([installed('alpha', { rev: 'def456' }), installed('zeta', { enabled: false })]), ['zeta']);
+    assert.equal(normalizeEnvironment('zeta'), 'classic');
+    stop();
+    setInstalled([]);
+    assert.deepEqual(seen.map((ids) => ids.join()), ['alpha,zeta', 'alpha', 'zeta']);
+    assert.deepEqual(environmentIds(), ['classic']);
+});
+
+test('environments: a package cannot take the place of a built-in one, or run on a device that lacks what it needs', () => {
+    setInstalled([
+        installed('classic', { name: 'Impostor' }),
+        installed('future', { api: sdk.API_VERSION + 1 }),
+        installed('gl', { requires: ['webgl2'] }),
+        installed('local', { i18n: { es: { name: 'Local', description: 'El espectáculo local' } } }),
+    ]);
+    assert.equal(ENVIRONMENTS.classic.name, 'Classic');
+    assert.ok(ENVIRONMENTS.classic.builtin);
+    assert.equal(unsupportedReason('future'), 'api');
+    assert.equal(resolveEnvironment('future'), 'classic');
+    // (No document here, so no WebGL.)
+    assert.equal(unsupportedReason('gl'), 'webgl2');
+    assert.equal(resolveEnvironment('gl'), 'classic');
+    assert.equal(unsupportedReason('nope'), 'missing');
+    assert.equal(environmentText('local', 'description', 'es'), 'El espectáculo local');
+    assert.equal(environmentText('local', 'description', 'es-MX'), 'El espectáculo local');
+    assert.equal(environmentText('local', 'description', 'pl'), 'The local show');
+    setInstalled([]);
+});
+
+test('sdk: the names a package may import are a contract', () => {
+    // Adding to this list is fine. Removing or renaming anything breaks installed packages:
+    // that takes a new API_VERSION.
+    assert.equal(sdk.API_VERSION, 1);
+    assert.deepEqual(Object.keys(sdk).sort(), [
+        'API_VERSION', 'HELD', 'HOLD_MAX', 'LEAD', 'MIN_FLASH_GAP', 'PHRASE_BARS', 'REST_AFTER', 'TAU',
+        'altBeat', 'clamp', 'floorIndex', 'hash', 'hsl', 'lerp', 'mixHue', 'mixRgb', 'paletteFor', 'pickTransition',
+        'rgba', 'smooth', 'stepEase', 'toWhite',
+    ].sort());
+});
+
+test('the service worker shell lists every light show module', () => {
     const root = new URL('../../static/', import.meta.url).pathname;
     const sw = readFileSync(join(root, 'sw.js'), 'utf8');
     const listed = new Set([...sw.matchAll(/'(\/js\/[^']+\.js)'/g)].map((m) => m[1]));
@@ -191,8 +266,9 @@ test('the service worker shell lists every light show module and the vendored li
         const rel = `${dir}/${name}`;
         return statSync(join(root, rel)).isDirectory() ? walk(rel) : name.endsWith('.js') ? [`/${rel}`] : [];
     });
-    const missing = [...walk('js/lightshow'), ...walk('js/vendor')].filter((f) => !listed.has(f));
+    const missing = walk('js/lightshow').filter((f) => !listed.has(f));
     assert.deepEqual(missing, []);
+    // (Environment packages are not part of the shell: they are cached as they are loaded.)
     const stale = [...listed].filter((f) => /^\/js\/(lightshow|vendor)\//.test(f)).filter((f) => {
         try { statSync(join(root, f)); return false; } catch (e) { return true; }
     });

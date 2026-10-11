@@ -29,8 +29,7 @@
  * and the pool of light on the road), `onset` and `cue` to make the rig
  * answer the words, like the classic stage does.
  */
-import { clamp, lerp, smooth } from '../../palette.js';
-import { HELD, pickTransition } from '../../lyricsTimeline.js';
+import { clamp, lerp, smooth, HELD, pickTransition } from '@rainy/lightshow';
 import { THREE, GLSL_COMMON } from './glsl.js';
 
 const DIST = 26;             // how far ahead of the camera the line hangs (units)
@@ -417,7 +416,7 @@ export class TextLine {
 export class VoyageLyrics {
     /**
      * @param {object} globals  shared uniforms
-     * @param {import('../../lyricsTimeline.js').LyricsTimeline} timeline
+     * @param {object} timeline  the shared LyricsTimeline (ctx.lyrics)
      * @param {string} family   CSS font-family to set the words in
      */
     constructor(globals, timeline, family) {

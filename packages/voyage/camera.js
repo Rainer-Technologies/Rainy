@@ -11,8 +11,7 @@
  * near the origin (the world scrolls), so a pose is an offset from "on the
  * road, here and now".
  */
-import { TAU, clamp, lerp, smooth } from '../../palette.js';
-import { altBeat } from '../../motion.js';
+import { TAU, clamp, lerp, smooth, altBeat } from '@rainy/lightshow';
 
 const pose = (x, y, z, lx, ly, lz, roll, fov) => ({ x, y, z, lx, ly, lz, roll, fov });
 

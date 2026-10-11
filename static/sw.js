@@ -1,7 +1,7 @@
 /**
  * Rainy Service Worker â€” PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v45';
+const CACHE_NAME = 'rainy-v46';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
@@ -34,6 +34,7 @@ const SHELL_ASSETS = [
   '/js/components/addMusicModal.js',
   '/js/components/connectModal.js',
   '/js/components/contextMenu.js',
+  '/js/components/environments.js',
   '/js/components/icon.js',
   '/js/components/index.js',
   '/js/components/lyricsModal.js',
@@ -63,19 +64,6 @@ const SHELL_ASSETS = [
   '/js/lightshow/environments/classic/scenes.js',
   '/js/lightshow/environments/host.js',
   '/js/lightshow/environments/index.js',
-  '/js/lightshow/environments/voyage/beams.js',
-  '/js/lightshow/environments/voyage/camera.js',
-  '/js/lightshow/environments/voyage/gates.js',
-  '/js/lightshow/environments/voyage/glsl.js',
-  '/js/lightshow/environments/voyage/index.js',
-  '/js/lightshow/environments/voyage/lyrics.js',
-  '/js/lightshow/environments/voyage/particles.js',
-  '/js/lightshow/environments/voyage/post.js',
-  '/js/lightshow/environments/voyage/skins.js',
-  '/js/lightshow/environments/voyage/sky.js',
-  '/js/lightshow/environments/voyage/sun.js',
-  '/js/lightshow/environments/voyage/terrain.js',
-  '/js/lightshow/environments/voyage/world.js',
   '/js/lightshow/lyricsTimeline.js',
   '/js/lightshow/motion.js',
   '/js/lightshow/palette.js',
@@ -101,6 +89,7 @@ const SHELL_ASSETS = [
   '/js/services/cast.js',
   '/js/services/connect.js',
   '/js/services/enrichment.js',
+  '/js/services/environments.js',
   '/js/services/friends.js',
   '/js/services/importJobs.js',
   '/js/services/index.js',
@@ -117,8 +106,6 @@ const SHELL_ASSETS = [
   '/js/services/setup.js',
   '/js/services/users.js',
   '/js/setup.js',
-  '/js/vendor/three/three.core.min.js',
-  '/js/vendor/three/three.module.min.js',
   '/js/view/app.js',
   '/js/view/login.js',
   '/js/view/setup.js',

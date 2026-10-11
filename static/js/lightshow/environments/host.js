@@ -55,6 +55,7 @@ export class EnvironmentStage {
         this._safe = { top: 0, right: 0, bottom: 0, left: 0 };
         this._safeAt = -1;
         this._gone = false;
+        this._left = false;
         this._wake = () => {
             this._idleAt = performance.now() / 1000 + IDLE_AFTER;
             this.container.classList.remove('ls-idle');
@@ -140,6 +141,9 @@ export class EnvironmentStage {
     }
 
     _leaveLayout() {
+        // Once: by the time it is disposed of, the layout may be the next environment's.
+        if (this._left) return;
+        this._left = true;
         for (const type of WAKE_EVENTS) window.removeEventListener(type, this._wake);
         this.container.classList.remove(`ls-env-${this.def.id}`);
         if (this.layout === 'immersive') this.container.classList.remove(...LAYOUT_CLASSES);
