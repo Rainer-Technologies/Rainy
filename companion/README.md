@@ -1,74 +1,76 @@
 # Rainy Presence
 
-Companion de escritorio (Windows) que muestra en tu perfil de Discord lo que suena en Rainy. Lee el estado de reproducción de Rainy Connect (el mismo que usa el control entre dispositivos) y lo publica en la app de Discord de escritorio abierta en este PC.
+Windows companion app that shows what is playing in your Rainy account on your Discord profile. It reads the playback state from Rainy Connect (the same data used for cross-device control) and publishes it as an activity in the Discord desktop app running on this PC.
 
-## Requisitos
+**Windows only for now.** macOS and Linux are not supported yet.
 
-- Windows 10/11 con la app de Discord de escritorio abierta.
-- Go 1.26+ para compilar.
+## Requirements
 
-## Estado: etapa 2 (publicación en Discord)
+- Windows 10 or 11, with the Discord desktop app open.
+- Go 1.26+ to build from source.
 
-El companion lee cada 3 s qué dispositivo de tu cuenta está reproduciendo (Rainy Connect) y lo publica en Discord. Para que aparezca algo hace falta:
+## Status: stage 2 (publishing to Discord)
 
-- La app de escritorio de Discord abierta en este PC.
-- Una canción sonando en Rainy desde algún dispositivo de tu cuenta (web o móvil).
+Every 3 seconds the companion checks which device in your account is playing (Rainy Connect) and publishes it to Discord. For something to show up you need:
 
-Si pausas o cierras la reproducción, la actividad desaparece. Si Discord rechaza la URL de la portada, se publica con el logo.
+- The Discord desktop app open on this PC.
+- A track playing in Rainy on one of your devices (web or mobile).
 
-## Primer arranque
+Pausing or stopping playback removes the activity. If Discord rejects the cover URL, the activity is published with the Rainy logo instead.
 
-Al arrancar sin servidor ni sesión se abre la configuración en dos pasos:
+## First run
 
-1. **Servidor**: escribes la dirección y pulsas **Siguiente**. Se comprueba que es un servidor Rainy antes de seguir.
-2. **Cuenta**: aparecen el email y la contraseña. **Entrar** hace el login y valida la sesión. **Atrás** vuelve al paso 1.
+If there is no server or session saved, the setup window opens in two steps:
 
-El login usa el email, porque es lo que pide el endpoint de Rainy.
+1. **Server**: enter the address and click **Next**. The app checks that it is a Rainy server before continuing.
+2. **Account**: enter your email and password, then click **Sign in**. **Back** returns to step 1.
 
-- La contraseña no se guarda. La sesión se guarda cifrada con DPAPI (tu cuenta de Windows) en `%APPDATA%\RainyPresence\config.json`.
-- Servidor local: `192.168.1.10:5000` (se usa `http://`, y el programa avisa en el log).
-- Servidor con dominio: `tu-dominio.com` (se usa `https://`).
+Sign-in uses your email, because that is what the Rainy login endpoint expects.
 
-Se puede preseleccionar un servidor con `-server`, por ejemplo `go run . -server 192.168.1.10:5000`.
+- The password is not saved. The session is stored encrypted with DPAPI (your Windows account) in `%APPDATA%\RainyPresence\config.json`.
+- Local server: `192.168.1.10:5000` (uses `http://`; the app logs a warning).
+- Server with a domain: `your-domain.com` (uses `https://`).
 
-## Uso diario
+You can preselect a server with `-server`, for example `go run . -server 192.168.1.10:5000`.
 
-Compila sin consola para que no aparezca una ventana negra:
+## Daily use
+
+Build without a console window:
 
 ```bash
 go build -ldflags "-H windowsgui" -o rainy-presence.exe .
 ```
 
-El icono de la bandeja muestra el estado. Su menú tiene:
+The tray icon shows the current status. Its menu has:
 
-- Estado actual (lo que suena o por qué no publica).
-- **Pausar / reanudar publicación**.
-- **Configurar…**: cambiar servidor o cuenta.
-- **Salir**: quita la actividad de Discord antes de cerrar.
+- Current status (what is playing, or why nothing is published).
+- **Pause / resume publishing**.
+- **Settings…**: change server or account.
+- **Quit**: removes the Discord activity before closing.
 
-El registro se escribe en `%APPDATA%\RainyPresence\presence.log`.
+The log is written to `%APPDATA%\RainyPresence\presence.log`.
 
-## Pruebas
+## Tests
 
 ```bash
 go test ./...
-RAINY_LIVE=1 go test -run TestLiveITunesCover ./...   # consulta real a iTunes
+RAINY_LIVE=1 go test -run TestLiveITunesCover ./...   # live iTunes lookup
 ```
 
-## Estructura
+## Layout
 
-- `main.go`: arranque, log y normalización de la URL del servidor.
-- `ui.go`: bandeja, menú y ventana de configuración (walk).
-- `app.go`: bucle que lee Connect y publica en Discord.
-- `connect_client.go`: login y lectura de dispositivos.
-- `discord_ipc.go`: named pipe de Discord (solo Windows).
-- `presence.go`: qué dispositivo suena, antirrebote y tolerancia de seek.
-- `cover.go`: portada pública vía iTunes.
-- `config.go`, `secret_windows.go`: configuración y cifrado DPAPI.
-- `app.manifest`, `rsrc_windows_amd64.syso`: manifiesto de Windows e icono del `.exe`, necesarios para la interfaz. Se regeneran con `rsrc -manifest app.manifest -ico assets/icon.ico -o rsrc_windows_amd64.syso`.
+- `main.go`: startup, logging and server URL normalization.
+- `ui.go`: tray icon, menu and setup window (walk).
+- `app.go`: loop that reads Connect and publishes to Discord.
+- `connect_client.go`: login and device listing.
+- `discord_ipc.go`: Discord named pipe (Windows only).
+- `presence.go`: which device is playing, rate limiting and seek tolerance.
+- `cover.go`: public cover lookup via iTunes.
+- `config.go`, `secret_windows.go`: configuration and DPAPI encryption.
+- `app.manifest`, `rsrc_windows_amd64.syso`: Windows manifest and `.exe` icon, required by the UI. Regenerate with `rsrc -manifest app.manifest -ico assets/icon.ico -o rsrc_windows_amd64.syso`.
 
-## Limitaciones conocidas
+## Known limitations
 
-- Solo Windows (IPC por named pipe).
-- Si la sesión caduca, se abre la configuración de nuevo desde el menú.
-- Publica el dispositivo que suena más recientemente, sea web o móvil.
+- Windows only (IPC over a named pipe).
+- If the session expires, open **Settings…** from the tray menu to sign in again.
+- Publishes the device that started playing most recently, web or mobile.

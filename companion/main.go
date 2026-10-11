@@ -16,7 +16,7 @@ import (
 var version = "dev"
 
 func main() {
-	serverFlag := flag.String("server", "", "URL del servidor Rainy, p. ej. 192.168.1.10:5000 o tu-dominio.com")
+	serverFlag := flag.String("server", "", "Rainy server URL, e.g. 192.168.1.10:5000 or your-domain.com")
 	flag.Parse()
 
 	closeLog := setupLog()
@@ -28,7 +28,7 @@ func main() {
 		a.cfg.Server = normalizeServer(*serverFlag)
 	}
 	if token, err := a.cfg.sessionToken(); err != nil {
-		log.Printf("la sesión guardada no se puede descifrar (%v): hay que volver a entrar", err)
+		log.Printf("the saved session cannot be decrypted (%v): sign in again", err)
 	} else if token != "" && a.cfg.Server != "" {
 		a.client = NewConnectClient(a.cfg.Server, token)
 	}
@@ -51,7 +51,7 @@ func main() {
 		}
 	}()
 
-	// El bucle de mensajes corre hasta "Salir".
+	// El bucle de mensajes corre hasta "Quit".
 	a.mw.Run()
 	a.onExit()
 }
@@ -95,5 +95,5 @@ func warnIfPlainHTTP(base string) {
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return
 	}
-	log.Printf("AVISO: %s usa http://; la contraseña viaja sin cifrar en el primer login", base)
+	log.Printf("WARNING: %s uses http://; the password is sent unencrypted on the first sign-in", base)
 }

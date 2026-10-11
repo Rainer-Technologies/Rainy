@@ -54,16 +54,16 @@ func (a *app) tick() {
 
 	client := a.currentClient()
 	if client == nil {
-		a.setStatus("Sin sesión: abre Configurar…")
+		a.setStatus("No session: open Settings…")
 		return
 	}
 	devs, err := client.Devices()
 	if errors.Is(err, ErrUnauthorized) {
-		a.setStatus("Sesión caducada: abre Configurar…")
+		a.setStatus("Session expired: open Settings…")
 		return
 	}
 	if err != nil {
-		a.setStatus("Sin conexión con Rainy")
+		a.setStatus("Cannot reach Rainy")
 		log.Printf("Connect: %v", err)
 		return
 	}
@@ -84,7 +84,7 @@ func (a *app) tick() {
 	if a.discord == nil {
 		d, err := openDiscord()
 		if err != nil {
-			a.setStatus("Discord no está abierto")
+			a.setStatus("Discord is not running")
 			return
 		}
 		a.discord = d
@@ -93,21 +93,21 @@ func (a *app) tick() {
 	err = a.discord.SetActivity(activityFor(want))
 	if err != nil && want != nil && want.Cover != "" {
 		// Por si Discord no acepta la URL de la portada: se reintenta con el logo.
-		log.Printf("Discord no aceptó la portada (%v): se publica con el logo", err)
+		log.Printf("Discord rejected the cover (%v): publishing with the logo", err)
 		a.coverBroken = true
 		want.Cover = ""
 		err = a.discord.SetActivity(activityFor(want))
 	}
 	if err != nil {
 		log.Printf("Discord: %v", err)
-		a.setStatus("Discord rechazó la actualización; reintentando")
+		a.setStatus("Discord rejected the update; retrying")
 		a.discord.Close()
 		a.discord = nil
 		return
 	}
 
 	a.snd.mark(want, now)
-	log.Printf("publicado: %v", describe(want))
+	log.Printf("published: %v", describe(want))
 	a.setStatus(describe(want))
 }
 
@@ -128,7 +128,7 @@ func (a *app) onExit() {
 // setStatus actualiza el texto de la bandeja desde cualquier hilo.
 func (a *app) setStatus(text string) {
 	if a.paused.Load() {
-		text = "En pausa"
+		text = "Paused"
 	}
 	a.mw.Synchronize(func() {
 		if a.statusAction != nil {
@@ -143,7 +143,7 @@ func (a *app) setStatus(text string) {
 // describe: texto corto para la bandeja y el log.
 func describe(p *Presence) string {
 	if p == nil {
-		return "Nada suena"
+		return "Nothing playing"
 	}
 	return p.Title + " — " + p.Artist
 }
@@ -161,7 +161,7 @@ func activityFor(p *Presence) *discordActivity {
 func toActivity(p *Presence) *discordActivity {
 	title := fit(p.Title)
 	if title == "" {
-		title = "Título desconocido"
+		title = "Unknown title"
 	}
 	act := &discordActivity{
 		Type:    2, // Listening, como en móvil
