@@ -13,10 +13,10 @@ import (
 const userAgent = "RainyPresence/0.1"
 
 // ErrUnauthorized: la sesión caducó o se revocó en el servidor; hay que volver a entrar.
-var ErrUnauthorized = errors.New("sesión caducada")
+var ErrUnauthorized = errors.New("session expired")
 
 // ErrNotRainy: el servidor responde, pero no como Rainy.
-var ErrNotRainy = errors.New("ese servidor no parece Rainy")
+var ErrNotRainy = errors.New("that server does not look like Rainy")
 
 // Device es un elemento de GET /api/connect/devices (models/connect.py _serialize).
 type Device struct {
@@ -74,7 +74,7 @@ func (c *ConnectClient) CheckServer() error {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("no hay respuesta en %s: %w", c.base, err)
+		return fmt.Errorf("no response from %s: %w", c.base, err)
 	}
 	defer resp.Body.Close()
 
@@ -88,7 +88,7 @@ func (c *ConnectClient) CheckServer() error {
 	if resp.StatusCode == http.StatusNotFound || body.Authenticated == nil {
 		return ErrNotRainy
 	}
-	return fmt.Errorf("servidor respondió HTTP %d", resp.StatusCode)
+	return fmt.Errorf("server responded with HTTP %d", resp.StatusCode)
 }
 
 // Login devuelve la cookie de sesión y el nombre de usuario. La contraseña no se guarda.
@@ -103,18 +103,18 @@ func (c *ConnectClient) Login(email, password string) (token, username string, e
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", "", fmt.Errorf("no hay respuesta en %s: %w", c.base, err)
+		return "", "", fmt.Errorf("no response from %s: %w", c.base, err)
 	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized:
-		return "", "", errors.New("email o contraseña incorrectos")
+		return "", "", errors.New("wrong email or password")
 	case http.StatusTooManyRequests:
-		return "", "", errors.New("demasiados intentos fallidos; espera un rato")
+		return "", "", errors.New("too many failed attempts; wait a while")
 	case http.StatusBadRequest:
-		return "", "", errors.New("el servidor rechazó los datos")
+		return "", "", errors.New("the server rejected the data")
 	default:
 		return "", "", fmt.Errorf("login: HTTP %d", resp.StatusCode)
 	}
@@ -125,14 +125,14 @@ func (c *ConnectClient) Login(email, password string) (token, username string, e
 		} `json:"user"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", "", fmt.Errorf("respuesta de login inesperada: %w", err)
+		return "", "", fmt.Errorf("unexpected login response: %w", err)
 	}
 	for _, ck := range resp.Cookies() {
 		if ck.Name == "session" {
 			return ck.Value, out.User.Username, nil
 		}
 	}
-	return "", "", errors.New("el servidor no devolvió cookie de sesión")
+	return "", "", errors.New("the server did not return a session cookie")
 }
 
 // Me valida la sesión actual y devuelve el nombre de usuario.
@@ -143,7 +143,7 @@ func (c *ConnectClient) Me() (string, error) {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("no hay respuesta en %s: %w", c.base, err)
+		return "", fmt.Errorf("no response from %s: %w", c.base, err)
 	}
 	defer resp.Body.Close()
 

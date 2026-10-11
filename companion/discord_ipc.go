@@ -37,7 +37,7 @@ func openDiscord() (*discordIPC, error) {
 		}
 		return d, nil
 	}
-	return nil, errors.New("discord de escritorio no está abierto")
+	return nil, errors.New("Discord desktop is not running")
 }
 
 func (d *discordIPC) Close() {
@@ -79,7 +79,7 @@ func (d *discordIPC) SetActivity(a *discordActivity) error {
 		}
 		return nil
 	}
-	return errors.New("discord: sin respuesta a SET_ACTIVITY")
+	return errors.New("discord: no response to SET_ACTIVITY")
 }
 
 func (d *discordIPC) send(op uint32, payload any) error {

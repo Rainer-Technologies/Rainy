@@ -17,8 +17,8 @@ import (
 var trayIconData []byte
 
 const (
-	hintServer  = "Ejemplos: 192.168.1.10:5000 · rainy.midominio.com"
-	hintAccount = "La contraseña no se guarda; la sesión se cifra con tu cuenta de Windows."
+	hintServer  = "Examples: 192.168.1.10:5000 · rainy.example.com"
+	hintAccount = "The password is not saved; the session is encrypted with your Windows account."
 )
 
 // createWindow crea la ventana principal oculta: walk necesita una para su bucle de mensajes.
@@ -60,24 +60,24 @@ func (a *app) setupTray() error {
 	menu := ni.ContextMenu().Actions()
 
 	a.statusAction = walk.NewAction()
-	_ = a.statusAction.SetText("Sin configurar")
+	_ = a.statusAction.SetText("Not configured")
 	_ = a.statusAction.SetEnabled(false)
 	_ = menu.Add(a.statusAction)
 	_ = menu.Add(walk.NewSeparatorAction())
 
 	a.pauseAction = walk.NewAction()
-	_ = a.pauseAction.SetText("Pausar publicación")
+	_ = a.pauseAction.SetText("Pause publishing")
 	a.pauseAction.Triggered().Attach(a.togglePause)
 	_ = menu.Add(a.pauseAction)
 
 	configure := walk.NewAction()
-	_ = configure.SetText("Configurar…")
+	_ = configure.SetText("Settings…")
 	configure.Triggered().Attach(a.openSetup)
 	_ = menu.Add(configure)
 
 	_ = menu.Add(walk.NewSeparatorAction())
 	quit := walk.NewAction()
-	_ = quit.SetText("Salir")
+	_ = quit.SetText("Quit")
 	quit.Triggered().Attach(func() { a.mw.Close() })
 	_ = menu.Add(quit)
 
@@ -88,9 +88,9 @@ func (a *app) togglePause() {
 	paused := !a.paused.Load()
 	a.paused.Store(paused)
 	if paused {
-		_ = a.pauseAction.SetText("Reanudar publicación")
+		_ = a.pauseAction.SetText("Resume publishing")
 	} else {
-		_ = a.pauseAction.SetText("Pausar publicación")
+		_ = a.pauseAction.SetText("Pause publishing")
 	}
 }
 
@@ -121,7 +121,7 @@ func (a *app) openSetup() {
 
 	decl := Dialog{
 		AssignTo:      &dlg,
-		Title:         appName + " Presence — configuración",
+		Title:         appName + " Presence — settings",
 		MinSize:       Size{Width: 460, Height: 230},
 		Layout:        VBox{},
 		DefaultButton: &nextBtn,
@@ -132,7 +132,7 @@ func (a *app) openSetup() {
 				AssignTo: &serverPage,
 				Layout:   VBox{},
 				Children: []Widget{
-					Label{Text: "Paso 1 de 2 · Dirección del servidor Rainy:"},
+					Label{Text: "Step 1 of 2 · Rainy server address:"},
 					LineEdit{AssignTo: &serverLE, Text: server},
 					VSpacer{},
 					Composite{
@@ -141,15 +141,15 @@ func (a *app) openSetup() {
 							HSpacer{},
 							PushButton{
 								AssignTo: &nextBtn,
-								Text:     "Siguiente",
+								Text:     "Next",
 								OnClicked: func() {
 									srv := normalizeServer(serverLE.Text())
 									if srv == "" {
-										_ = msg.SetText("Escribe la dirección del servidor.")
+										_ = msg.SetText("Enter the server address.")
 										return
 									}
 									nextBtn.SetEnabled(false)
-									_ = msg.SetText("Comprobando el servidor…")
+									_ = msg.SetText("Checking the server…")
 									go func() {
 										err := NewConnectClient(srv, "").CheckServer()
 										a.mw.Synchronize(func() {
@@ -159,7 +159,7 @@ func (a *app) openSetup() {
 												return
 											}
 											chosen = srv
-											_ = serverLabel.SetText("Paso 2 de 2 · Servidor: " + srv)
+											_ = serverLabel.SetText("Step 2 of 2 · Server: " + srv)
 											serverPage.SetVisible(false)
 											accountPage.SetVisible(true)
 											_ = dlg.SetDefaultButton(loginBtn)
@@ -179,17 +179,17 @@ func (a *app) openSetup() {
 				Visible:  false,
 				Layout:   VBox{},
 				Children: []Widget{
-					Label{AssignTo: &serverLabel, Text: "Paso 2 de 2"},
+					Label{AssignTo: &serverLabel, Text: "Step 2 of 2"},
 					Label{Text: "Email:"},
 					LineEdit{AssignTo: &emailLE},
-					Label{Text: "Contraseña:"},
+					Label{Text: "Password:"},
 					LineEdit{AssignTo: &passLE, PasswordMode: true},
 					Composite{
 						Layout: HBox{},
 						Children: []Widget{
 							PushButton{
 								AssignTo: &backBtn,
-								Text:     "Atrás",
+								Text:     "Back",
 								OnClicked: func() {
 									accountPage.SetVisible(false)
 									serverPage.SetVisible(true)
@@ -201,12 +201,12 @@ func (a *app) openSetup() {
 							HSpacer{},
 							PushButton{
 								AssignTo: &loginBtn,
-								Text:     "Entrar",
+								Text:     "Sign in",
 								OnClicked: func() {
 									email := strings.TrimSpace(emailLE.Text())
 									password := passLE.Text()
 									if email == "" || password == "" {
-										_ = msg.SetText("Escribe el email y la contraseña.")
+										_ = msg.SetText("Enter your email and password.")
 										return
 									}
 									loginBtn.SetEnabled(false)
@@ -231,7 +231,7 @@ func (a *app) openSetup() {
 					HSpacer{},
 					PushButton{
 						AssignTo:  &cancelBtn,
-						Text:      "Cancelar",
+						Text:      "Cancel",
 						OnClicked: func() { dlg.Cancel() },
 					},
 				},
@@ -242,7 +242,7 @@ func (a *app) openSetup() {
 	// Creamos la ventana sin dueño (si tuviera dueño, walk la centra respecto a la
 	// ventana oculta y la muestra detrás), y la colocamos en el centro de la pantalla.
 	if err := decl.Create(nil); err != nil {
-		log.Printf("no se pudo abrir la configuración: %v", err)
+		log.Printf("could not open settings: %v", err)
 		return
 	}
 	// Show dimensiona la ventana según su contenido y conserva la posición; por eso
@@ -279,27 +279,27 @@ func (a *app) login(srv, email, password string, msg *walk.TextLabel, done func(
 	}
 
 	client := NewConnectClient(srv, "")
-	say("Entrando…")
+	say("Signing in…")
 	token, username, err := client.Login(email, password)
 	if err != nil {
 		fail(err)
 		return
 	}
 
-	say("Validando la sesión…")
+	say("Validating the session…")
 	client.cookie = token
 	if _, err := client.Me(); err != nil {
-		fail(fmt.Errorf("el login funcionó, pero la sesión no se valida: %w", err))
+		fail(fmt.Errorf("sign-in worked, but the session could not be validated: %w", err))
 		return
 	}
 
 	a.mw.Synchronize(func() {
 		if err := a.adopt(client, token, srv); err != nil {
-			_ = msg.SetText("No se pudo guardar la sesión: " + err.Error())
+			_ = msg.SetText("Could not save the session: " + err.Error())
 			done(false)
 			return
 		}
-		a.setStatus("Conectado como " + username)
+		a.setStatus("Connected as " + username)
 		done(true)
 	})
 }
