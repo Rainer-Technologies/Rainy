@@ -327,6 +327,10 @@ export class AudioPlayer {
         if (this.fsArtwork) {
             this.fsArtwork.addEventListener('click', () => this.toggleFullscreen());
         }
+        // Right-click on the cover opens the song's "three dots" menu
+        for (const artwork of [this.nowPlayingArtwork, this.fsArtwork]) {
+            artwork?.addEventListener('contextmenu', (e) => this.showCurrentSongMenu(e));
+        }
 
         // Fullscreen Controls Events
         if (this.fsPlayPauseBtn) this.fsPlayPauseBtn.addEventListener('click', () => this.togglePlayPause());
@@ -1761,6 +1765,38 @@ export class AudioPlayer {
             return this.playlist[this.currentIndex];
         }
         return null;
+    }
+
+    /**
+     * Open the library song menu (the "three dots" one) for the song that is
+     * playing, anchored where the cover was right-clicked.
+     * @param {MouseEvent} e
+     */
+    showCurrentSongMenu(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.isControllerMode) return;
+
+        const song = this.getCurrentSong();
+        // Radio/preview tracks have no library row until their download lands
+        if (!song || song.id == null) return;
+
+        /** @type {import('./components/songContextMenu.js').SongContextMenu} */
+        const menu = document.querySelector('rainy-song-context-menu');
+        if (!menu) return;
+
+        const full = window.app?.librarySongs?.find(s => String(s.id) === String(song.id)) ?? song;
+        menu.setCurrentSong({
+            id: full.id,
+            title: full.title,
+            artist: full.artist,
+            album: full.album || '',
+            duration: Number(full.duration) || 0,
+            cover_path: full.cover_path || null,
+            genre: full.genre || null,
+            in_library: song.in_library,
+        });
+        menu.show({ x: e.clientX, y: e.clientY });
     }
 
     toggleFullscreen() {
