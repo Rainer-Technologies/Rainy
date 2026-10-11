@@ -452,7 +452,7 @@ export class VoyageEnvironment {
         // ---- Lyrics, and the rig answering them ----
         const ly = this.lyrics;
         ly.show(S.lyricsOn);
-        ly.update(S, cam, { bottom: this._measureBottom(S.now) });
+        ly.update(S, cam, { bottom: this._measureBottom(S.now), still: this._still });
         if (S.now > this._idleAt) this.container.classList.add('ls-idle');
         sunU.uFill.value = ly.interlude > 0.05 ? ly.progress : 0;
         const extra = this._extra;
@@ -506,23 +506,24 @@ export class VoyageEnvironment {
         if (!want) return;
         if (!this._title) {
             const words = (text) => text.trim().split(/\s+/).filter(Boolean).map((w) => ({ text: w, s: 0, e: 0 }));
-            const lines = [new TextLine(this.globals, words(track.title), { family: this.family, maxEm: 12, plain: true })];
-            if (track.artist) lines.push(new TextLine(this.globals, words(track.artist), { family: this.family, maxEm: 22, weight: 600, plain: true }));
+            const lines = [new TextLine(this.globals, words(track.title), { family: this.family, maxEm: 12, plain: true, caps: true, poster: true })];
+            if (track.artist) lines.push(new TextLine(this.globals, words(track.artist), { family: this.family, maxEm: 22, weight: 600, plain: true, layers: 3 }));
             for (const line of lines) this.scene.add(line.mesh);
             this._title = { key, lines };
         }
         const ahead = (TITLE_AT - t) * U;
-        const alpha = clamp((FAR * 0.55 - ahead) / 60, 0, 1) * clamp((ahead - 3) / 12, 0, 1);
+        // (It gives way to the lyrics when the voice comes in over it.)
+        const alpha = clamp((FAR * 0.55 - ahead) / 60, 0, 1) * clamp((ahead - 3) / 12, 0, 1) * (1 - clamp(this.lyrics.busy, 0, 1));
         const [title, artist] = this._title.lines;
         const unit = Math.min(26 / title.w, 7 / title.h);
         title.place(0, 11, -ahead, unit);
         title.uniforms.uAlpha.value = alpha;
-        setLinear(title.uniforms.uTint.value, P.a);
+        title.tint(setLinear(this._colA, P.a), setLinear(this._colB, P.b));
         if (artist) {
             const au = Math.min(22 / artist.w, 2.6 / artist.h);
             artist.place(0, 11 - (title.h * unit) / 2 - 2, -ahead, au);
             artist.uniforms.uAlpha.value = alpha * 0.8;
-            setLinear(artist.uniforms.uTint.value, P.b);
+            artist.tint(this._colB, this._colA);
         }
     }
 

@@ -1,26 +1,29 @@
 /**
- * Voyage lyrics — the words, flying with you.
+ * Voyage lyrics — the words, built in the air ahead of you.
  *
  * This is the Voyage staging of the shared LyricsTimeline (what is sung
- * when). The line being sung hangs in the air ahead of the camera, over the
- * road, as real geometry in the world: it is drawn in HDR, so the bloom
- * turns it into neon. The next line waits further down the road as a ghost
- * and flies up when its time comes.
+ * when). A line is set like a poster: capitals, broken into rows that are
+ * each scaled to the same width, so a short row is a big one. The block
+ * hangs ahead of the camera as solid letters with depth, turning slowly as
+ * the line goes by, and it is drawn in HDR, so the bloom makes neon of
+ * whatever is lit.
  *
- *  - A line is one texture (its words set in the app's own font, outline in
- *    one channel, fill in the other) and one quad per word.
- *  - The fill is computed in the shader from media time: a white-hot front
- *    runs across the word as it is sung and cools into the palette behind it.
- *  - Lines hand over with the same transitions the timeline picks for every
- *    environment, staged for this one: `slam` bursts toward the camera, `fall`
- *    is left behind on the road, `sweep` is carried off sideways, `collapse` is
- *    pulled into the sun, `flicker` dies like a neon tube, `lift` rises away.
- *  - Nothing shares a place on screen: the line being sung, the one waiting
- *    under it and the backing vocals over it are laid out as they look from
- *    the camera, and a line that leaves clears its spot before the next one
- *    lands on it.
- *  - Backing vocals float beside the line; an instrumental break clears the
- *    stage (the sun fills up instead) and three dots count the voice back in.
+ *  - A word that has not been sung is an unlit sign: a dark body with a bright
+ *    rim. Sung, it is struck: it punches out, a ring leaves it, a white-hot
+ *    front runs across it and cools into the palette, and its depth lights up
+ *    behind it.
+ *  - Every line arrives word by word, and no two the same way running: standing
+ *    up off the road, out of the distance, from the side, down from the sky or
+ *    turning on its own axis.
+ *  - Lines hand over with the transitions the timeline picks for every
+ *    environment, staged for this one: `lift` is thrown up, `slam` flies through
+ *    the camera, `fall` tumbles to the road, `sweep` is carried off sideways,
+ *    `collapse` is pulled into the sun and `flicker` dies like a neon tube. The
+ *    next line comes in from the other side, after the spot is clear.
+ *  - Nothing shares a place on screen: one line at a time, the backing vocals
+ *    in their own rows over it, and a line never leaves through them.
+ *  - An instrumental break clears the stage (the sun fills up instead) and
+ *    three dots count the voice back in.
  *
  * The environment reads `focus` (the word being sung, for the follow beams
  * and the pool of light on the road), `onset` and `cue` to make the rig
@@ -31,58 +34,125 @@ import { HELD, pickTransition } from '../../lyricsTimeline.js';
 import { THREE, GLSL_COMMON } from './glsl.js';
 
 const DIST = 26;             // how far ahead of the camera the line hangs (units)
-const GHOST_BACK = 30;       // and how much further the waiting line is
-const OUT = 0.3;             // seconds an outgoing line takes to leave
-const ENTER_AFTER = 0.14;    // the next line waits this long for it to clear the spot
-const ENTER = 0.28;          // then takes this long to fly up
+const OUT = 0.26;            // seconds an outgoing line takes to leave
+const ENTER_AFTER = 0.16;    // the next line waits this long for it to clear the spot
+const ENTER = 0.36;          // then takes this long to arrive, first word first
 const AD_TAIL = 0.9;         // ad-libs linger this long after their last word
-const FONT_PX = 96;
-const MODES = { lift: 0, slam: 1, fall: 2, sweep: 3, collapse: 4, flicker: 5 };
+const FONT_PX = 112;         // one em in the atlas, and the unit the shader animates in
+const LAYERS = 8;            // slices of depth behind each letter
+const OUT_MODES = { lift: 0, slam: 1, fall: 2, sweep: 3, collapse: 4, flicker: 5 };
+const IN = { rise: 0, depth: 1, sides: 2, drop: 3, flip: 4, right: 5 };
+// Each exit is answered from the other side, so the two never cross.
+const FOLLOW = { lift: IN.rise, slam: IN.depth, fall: IN.drop, sweep: IN.right, collapse: IN.flip, flicker: IN.sides };
+const OPENERS = [IN.rise, IN.sides, IN.depth, IN.flip, IN.drop];
+// These leave through the rows the backing vocals use.
+const THROUGH_ADLIBS = { lift: true, slam: true, collapse: true };
 
 const VERT = /* glsl */`
 ${GLSL_COMMON}
-attribute vec4 aRect;     // centre x, centre y, width, height (texture px, y up)
+attribute vec4 aRect;     // centre x, centre y, width, height (block px, y up)
 attribute vec4 aUv;       // u0, v0, u1, v1
-attribute vec4 aWord;     // start, end, index, 1 if held
-uniform float uOut, uMode, uDir, uCount, uPx, uH;
+attribute vec4 aWord;     // start, end, place in the line 0..1, 1 if held
+attribute vec3 aSlab;     // layer (0 the face, 1.. the depth behind it, -1 the ring), row direction, seed
+uniform float uIn, uInMode, uOut, uOutMode, uDir, uEm, uW, uH, uPlain;
 varying vec2 vUv, vLocal;
 varying vec4 vWord;
-varying float vFade;
+varying float vFade, vLayer;
+
+vec3 turn(vec3 p, float ax, float ay, float az) {
+    float c = cos(ax), s = sin(ax);
+    p.yz = vec2(c * p.y - s * p.z, s * p.y + c * p.z);
+    c = cos(ay); s = sin(ay);
+    p.xz = vec2(c * p.x + s * p.z, -s * p.x + c * p.z);
+    c = cos(az); s = sin(az);
+    p.xy = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+    return p;
+}
+
 void main() {
     vec2 q = position.xy;
-    vec3 p = vec3(aRect.xy + q * aRect.zw, 0.0);
-    // A held note swells while it is sung.
-    float held = aWord.w * smoothstep(aWord.x, aWord.x + 0.25, uT) * (1.0 - smoothstep(aWord.y, aWord.y + 0.3, uT));
-    p.xy = aRect.xy + (p.xy - aRect.xy) * (1.0 + 0.04 * held);
+    float layer = aSlab.x, k = aWord.z;
+    vec3 c = vec3(aRect.xy, 0.0);        // where the word stands
+    float span = max(aRect.z, aRect.w);
+    float scale = 1.0, fade = 1.0, ax = 0.0, ay = 0.0, az = 0.0;
 
-    // Leaving: word by word, a little apart, and out of the way at once (the
-    // next line lands on this spot a moment later). The next line waits right
-    // below, so a line never leaves downwards: up, sideways, or away.
-    float k = aWord.z / max(1.0, uCount - 1.0);
-    // Swept sideways, the words at the leading end go first, so none runs into the next.
-    float order = (uMode > 2.5 && uMode < 3.5 && uDir > 0.0) ? 1.0 - k : k;
-    float o = clamp(uOut * 1.3 - order * 0.3, 0.0, 1.0);
-    float e = 1.0 - (1.0 - o) * (1.0 - o);
-    vFade = (1.0 - o) * (1.0 - o);
-    if (uMode < 0.5) {                 // lift: up and away
-        p.y += e * 7.0 * uPx;
-    } else if (uMode < 1.5) {          // slam: bursts toward you, growing up from its own baseline
-        float base = -0.5 * uH;
-        p.x *= 1.0 + e * 0.18;
-        p.y = base + (p.y - base) * (1.0 + e * 0.9);
-    } else if (uMode < 2.5) {          // fall: dropped behind, left on the road as the camera flies on
-        p.z -= e * 55.0 * uPx;
-        p.y += e * 1.5 * uPx;
-        p.x += (k - 0.5) * e * 3.0 * uPx;
-    } else if (uMode < 3.5) {          // sweep: carried off sideways
-        p.x += uDir * e * 24.0 * uPx;
-    } else if (uMode < 4.5) {          // collapse: pulled into the sun
-        p.xy = mix(p.xy, vec2(0.0, 7.0 * uPx), e);
-        p.z -= e * 70.0 * uPx;
-    } else {                           // flicker: a dying neon tube
-        float on = step(0.4, fract(sin(aWord.z * 91.7 + floor(uNow * 22.0) * 7.3) * 43758.5453));
-        vFade = o <= 0.0 ? 1.0 : (1.0 - smoothstep(0.0, 0.55, o)) * on;
+    // Sung: it punches out and settles; a held note keeps swelling. What a
+    // word grows by is a set fraction of an em, less than the gap to its neighbours.
+    float age = uT - aWord.x;
+    float live = step(0.0, age) * (1.0 - uPlain);
+    float punch = live * exp(-age / 0.12);
+    float held = aWord.w * live * (1.0 - smoothstep(aWord.y, aWord.y + 0.3, uT));
+    float grow = 0.09 * punch + 0.03 * held * (0.6 + 0.4 * sin(uNow * 9.0));
+    if (layer < -0.5) {
+        // The ring it throws off as it is struck.
+        float r = clamp(age / 0.4, 0.0, 1.0);
+        grow += 0.15 * (1.0 - (1.0 - r) * (1.0 - r));
+        fade *= live * (1.0 - r) * (1.0 - r);
     }
+    scale += 2.0 * grow * uEm / span;
+
+    // Arriving, word by word.
+    float order = k;
+    float side = uInMode > 4.5 ? 1.0 : aSlab.y;
+    if (uInMode > 1.5 && uInMode < 2.5 && side < 0.0) order = 1.0 - k;   // the leading end first
+    float x = uInMode > 0.5 && uInMode < 1.5 ? uIn : clamp((uIn - order * 0.5) / 0.5, 0.0, 1.0);
+    float r = pow(1.0 - x, 3.0);
+    fade *= smoothstep(0.0, 0.45, x);
+    if (uInMode < 0.5) {                 // rise: stands up off the road
+        c.y -= r * 1.3 * uEm;
+        ax = r * 1.2;
+    } else if (uInMode < 1.5) {          // depth: out of the distance
+        c.z -= r * 16.0 * uEm;
+    } else if (uInMode < 2.5 || uInMode > 4.5) {   // sides / right: swung in from the side
+        c.x += side * r * 3.5 * uEm;
+        ay = -side * r * 1.1;
+    } else if (uInMode < 3.5) {          // drop: down from the sky, as one block (a row never falls through the one above)
+        c.y += pow(1.0 - uIn, 3.0) * 1.5 * uEm;
+        ax = -r * 1.1;
+    } else {                             // flip: turning on its own axis
+        ay = r * 1.5708;
+    }
+
+    // Leaving: word by word, and out of the way at once (the next line lands
+    // on this spot a moment later).
+    float first = (uOutMode > 2.5 && uOutMode < 3.5 && uDir > 0.0) ? 1.0 - k : k;
+    float o = clamp(uOut * 1.35 - first * 0.35, 0.0, 1.0);
+    float e = 1.0 - (1.0 - o) * (1.0 - o);
+    float gone = (1.0 - o) * (1.0 - o);
+    float clearY = uH + uEm, wob = aSlab.z - 0.5;
+    if (uOutMode < 0.5) {                // lift: thrown up and back
+        c.y += e * clearY;
+        c.z -= e * 5.0 * uEm;
+        ax = e * 0.9;
+    } else if (uOutMode < 1.5) {         // slam: through the camera
+        c.xy *= 1.0 + e * 1.1;
+        scale *= 1.0 + e * 1.1;
+        gone *= 1.0 - o;
+    } else if (uOutMode < 2.5) {         // fall: tumbling to the road
+        c.y -= e * clearY;
+        ax = -e * 1.2;
+        az = e * wob * 0.9;
+    } else if (uOutMode < 3.5) {         // sweep: carried off sideways
+        c.x += uDir * e * (uW * 0.6 + 5.0 * uEm);
+        ay = uDir * e * 1.0;
+    } else if (uOutMode < 4.5) {         // collapse: pulled into the sun
+        c.xy = mix(c.xy, vec2(0.0, 0.5 * uH + 2.0 * uEm), e);
+        c.z -= e * 22.0 * uEm;
+        scale *= 1.0 - 0.8 * e;
+        gone *= 1.0 - o;
+    } else {                             // flicker: a dying neon tube
+        float on = step(0.4, fract(sin(aSlab.z * 91.7 + floor(uNow * 22.0) * 7.3) * 43758.5453));
+        gone = o <= 0.0 ? 1.0 : (1.0 - smoothstep(0.0, 0.55, o)) * on;
+    }
+
+    // The depth is drawn back, down and a little to one side, so it shows even head-on.
+    float back = max(layer, 0.0);
+    vec3 p = vec3(q * aRect.zw * scale, layer < -0.5 ? 0.02 * uEm : 0.0);
+    p += vec3(-0.012, -0.02, -0.04) * uEm * back * scale;
+    p = turn(p, ax, ay, az) + c;
+
+    vFade = fade * gone;
+    vLayer = layer;
     vUv = mix(aUv.xy, aUv.zw, q + 0.5);
     vLocal = q + 0.5;
     vWord = aWord;
@@ -92,11 +162,11 @@ void main() {
 const FRAG = /* glsl */`
 ${GLSL_COMMON}
 uniform sampler2D uAtlas;
-uniform float uAlpha, uGhost, uPlain;
-uniform vec3 uTint;
+uniform float uAlpha, uPlain, uLayers;
+uniform vec3 uTint, uTintB;
 varying vec2 vUv, vLocal;
 varying vec4 vWord;
-varying float vFade;
+varying float vFade, vLayer;
 void main() {
     vec4 tx = texture2D(uAtlas, vUv);
     float outline = tx.r, fill = tx.g;
@@ -107,17 +177,29 @@ void main() {
     float front = (uT - s) / dur * 1.12;
     float lit = mix(smoothstep(front + 0.03, front - 0.03, x), 1.0, uPlain);
     float age = max(uT - (s + x * dur / 1.12), 0.0);
-    float hot = lit * exp(-age / 0.32) * (1.0 - uPlain);
+    float hot = lit * exp(-age / 0.3) * (1.0 - uPlain);
     float edge = exp(-pow((x - front) / 0.05, 2.0)) * step(s, uT) * step(uT, vWord.y + 0.06) * (1.0 - uPlain);
-    float cue = smoothstep(0.7, 0.0, s - uT) * step(uT, s);       // about to be sung
-    float kick = 1.0 + 0.3 * uKick;
+    float cue = smoothstep(0.6, 0.0, s - uT) * step(uT, s);       // about to be sung
+    float k = uAlpha * vFade * mix(1.0, uDim, 0.85);
 
-    vec3 rest = mix(vec3(1.0), uTint, 0.25);
-    vec3 col = rest * fill * lit * (0.9 + 2.8 * hot) * kick      // struck white-hot, cooling into the palette
-             + uPalW * fill * edge * 2.4
-             + vec3(1.0) * outline * (1.0 - lit) * (0.55 + 0.6 * cue);    // not sung yet: a hollow outline
-    float a = max(fill * lit, outline * (1.0 - lit) * (0.7 + 0.3 * cue));
-    float k = uAlpha * vFade * mix(1.0, uDim, 0.85) * mix(1.0, 0.42, uGhost);
+    vec3 col;
+    float a;
+    if (vLayer > 0.5) {
+        // The depth behind the face: dark until the word is sung, then glowing, deeper in colour the further back.
+        float d = vLayer / uLayers;
+        vec3 glow = mix(uTint, uTintB, d) * mix(1.25, 0.2, d) * (1.0 + 1.6 * hot);
+        col = mix(uTint * 0.03, glow, lit) * fill;
+        a = fill * mix(0.9, 1.0, lit);
+    } else if (vLayer < -0.5) {
+        col = mix(vec3(1.0), uTint, 0.35) * outline * 1.5;
+        a = 0.0;
+    } else {
+        vec3 face = mix(uTint, vec3(1.0), 0.66 + 0.26 * vLocal.y);
+        vec3 on = face * (1.0 + 2.6 * hot) * (1.0 + 0.25 * uKick) * fill + uPalW * fill * edge * 2.2;
+        vec3 off = uTint * 0.05 * fill + vec3(1.0) * outline * (0.5 + 0.8 * cue);    // an unlit sign: dark body, bright rim
+        col = mix(off, on, lit);
+        a = mix(max(fill * 0.9, outline), fill, lit);
+    }
     gl_FragColor = vec4(col * k, a * k);
 }`;
 
@@ -126,7 +208,7 @@ const SCRIM_FRAG = /* glsl */`
 uniform float uAlpha;
 varying vec2 vP;
 void main() {
-    gl_FragColor = vec4(0.0, 0.0, 0.0, uAlpha * exp(-dot(vP, vP) * 2.6));
+    gl_FragColor = vec4(0.0, 0.0, 0.0, uAlpha * smoothstep(1.0, 0.25, length(vP)));
 }`;
 
 const DOT_VERT = /* glsl */`
@@ -150,80 +232,100 @@ void main() {
 }`;
 
 /**
- * Set words in type on a canvas: outline in red, fill in green, wrapped into
- * balanced rows.
- * @returns {{ canvas, w, h, items: Array<{x,y,w,h,u0,v0,u1,v1}> }} word boxes in px, origin at the block's centre, y up
+ * Set words in type. Each word is drawn once into an atlas (outline in red,
+ * fill in green); the block they make is laid out apart from it: rows broken
+ * evenly and, for a poster, each scaled up to the width of the widest.
+ * @returns {{ canvas, w, h, items: Array<{x,y,w,h,u0,v0,u1,v1,row}> }} word boxes in block px, origin at the block's centre, y up
  */
-function typeset(texts, { family, italic, maxEm, weight = 800 }) {
-    let px = FONT_PX;
+function typeset(texts, { family, italic, maxEm, weight = 800, caps = false, poster = false }) {
+    const px = FONT_PX;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    const font = () => `${italic ? 'italic ' : ''}${weight} ${px}px ${family}`;
-    ctx.font = font();
-    let widths = texts.map((t) => ctx.measureText(t).width);
-    const space = () => px * 0.3;
-    const total = widths.reduce((a, b) => a + b, 0) + space() * (texts.length - 1);
-    const rows = Math.max(1, Math.min(3, Math.ceil(total / (maxEm * px))));
+    const setFont = () => {
+        ctx.font = `${italic ? 'italic ' : ''}${weight} ${px}px ${family}`;
+        if (caps && 'letterSpacing' in ctx) ctx.letterSpacing = `${(px * 0.02).toFixed(1)}px`;
+    };
+    setFont();
+    if (caps) texts = texts.map((t) => t.toLocaleUpperCase());
+    const widths = texts.map((t) => ctx.measureText(t).width);
+    const space = px * 0.3;
+    const total = widths.reduce((a, b) => a + b, 0) + space * (texts.length - 1);
+    const count = Math.max(1, Math.min(4, Math.ceil(total / (maxEm * px))));
     // Greedy fill toward an even split, so rows are balanced instead of one long and one stub.
-    const target = total / rows;
-    const lines = [[]];
+    const target = total / count;
+    const rows = [[]];
     let acc = 0;
     texts.forEach((t, i) => {
         const w = widths[i];
-        const row = lines[lines.length - 1];
-        if (row.length && lines.length < rows && acc + w / 2 > target) {
-            lines.push([i]);
-            acc = w + space();
+        const row = rows[rows.length - 1];
+        if (row.length && rows.length < count && acc + w / 2 > target) {
+            rows.push([i]);
+            acc = w + space;
         } else {
             row.push(i);
-            acc += w + space();
+            acc += w + space;
         }
     });
-    const rowWidth = (row) => row.reduce((a, i) => a + widths[i], 0) + space() * (row.length - 1);
-    let blockW = Math.max(...lines.map(rowWidth));
-    // Keep the texture a sane size: shrink the type for a very long line.
-    const fit = Math.min(1, 1900 / (blockW + px));
-    if (fit < 1) {
-        px = Math.floor(px * fit);
-        ctx.font = font();
-        widths = texts.map((t) => ctx.measureText(t).width);
-        blockW = Math.max(...lines.map(rowWidth));
-    }
-    const pad = Math.round(px * 0.3), lh = Math.round(px * 1.16);
-    canvas.width = Math.ceil(blockW + pad * 2);
-    canvas.height = lines.length * lh + pad * 2;
-    ctx.font = font();
+    const rowWidth = (row) => row.reduce((a, i) => a + widths[i], 0) + space * (row.length - 1);
+    const widest = Math.max(...rows.map(rowWidth));
+    const scales = rows.map((row) => (poster ? Math.min(1.7, widest / rowWidth(row)) : 1));
+    const lh = px * (caps ? 1.04 : 1.16);
+
+    // The atlas: one cell per word, on shelves.
+    const edge = px * 0.12;         // a word's cell reaches this far into the gaps around it
+    const cellH = Math.ceil(px * 1.32);
+    let ax = 0, ay = 0, aw = 2;
+    const cells = widths.map((w) => {
+        const cw = Math.ceil(w + edge * 2);
+        if (ax > 0 && ax + cw > 2048) {
+            ax = 0;
+            ay += cellH + 2;
+        }
+        const cell = { x: ax, y: ay, w: cw };
+        ax += cw + 2;
+        aw = Math.max(aw, ax);
+        return cell;
+    });
+    canvas.width = aw;
+    canvas.height = ay + cellH;
+    setFont();
     ctx.textBaseline = 'alphabetic';
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(1.5, px * 0.045);
     ctx.globalCompositeOperation = 'lighter';
-    const items = [];
-    const edge = px * 0.12;     // a word's box reaches this far into the gaps around it
-    lines.forEach((row, r) => {
-        let x = pad + (blockW - rowWidth(row)) / 2;
-        const top = pad + r * lh;
-        const base = top + px * 0.86;
-        for (const i of row) {
-            ctx.strokeStyle = '#f00';
-            ctx.strokeText(texts[i], x, base);
-            ctx.fillStyle = '#0f0';
-            ctx.fillText(texts[i], x, base);
-            const x0 = x - edge, x1 = x + widths[i] + edge;
-            items[i] = {
-                x: (x0 + x1) / 2 - canvas.width / 2,
-                y: canvas.height / 2 - (top + lh / 2),
-                w: x1 - x0,
-                h: lh,
-                u0: x0 / canvas.width, u1: x1 / canvas.width,
-                v0: 1 - (top + lh) / canvas.height, v1: 1 - top / canvas.height,
-            };
-            x += widths[i] + space();
-        }
+    cells.forEach((cell, i) => {
+        const base = cell.y + px * 1.02;
+        ctx.strokeStyle = '#f00';
+        ctx.strokeText(texts[i], cell.x + edge, base);
+        ctx.fillStyle = '#0f0';
+        ctx.fillText(texts[i], cell.x + edge, base);
     });
-    return { canvas, w: canvas.width, h: canvas.height, items };
+
+    const items = [];
+    const h = rows.reduce((a, row, r) => a + lh * scales[r], 0);
+    let top = h / 2;
+    rows.forEach((row, r) => {
+        const s = scales[r];
+        let x = -(rowWidth(row) * s) / 2;
+        for (const i of row) {
+            const cell = cells[i];
+            items[i] = {
+                x: x + (widths[i] * s) / 2,
+                y: top - (lh * s) / 2,
+                w: cell.w * s,
+                h: cellH * s,
+                u0: cell.x / canvas.width, u1: (cell.x + cell.w) / canvas.width,
+                v0: 1 - (cell.y + cellH) / canvas.height, v1: 1 - cell.y / canvas.height,
+                row: r,
+            };
+            x += (widths[i] + space) * s;
+        }
+        top -= lh * s;
+    });
+    return { canvas, w: widest + edge * 2, h, items };
 }
 
-/** A line of timed words as one mesh. */
+/** A line of timed words as one mesh: every word a stack of quads, back to front. */
 export class TextLine {
     constructor(globals, words, style) {
         const set = typeset(words.map((w) => w.text), style);
@@ -237,33 +339,48 @@ export class TextLine {
         tex.anisotropy = 4;
 
         const n = words.length;
+        const layers = style.layers ?? LAYERS;
+        // Back of the depth first, the face over it, and the ring a struck word throws off last.
+        const stack = [];
+        for (let l = layers; l >= 0; l--) stack.push(l);
+        if (!style.plain) stack.push(-1);
+        const total = n * stack.length;
         const quad = new THREE.PlaneGeometry(1, 1);
         const geo = this.geometry = new THREE.InstancedBufferGeometry();
         geo.index = quad.index;
         geo.setAttribute('position', quad.getAttribute('position'));
-        const rect = new Float32Array(n * 4), uv = new Float32Array(n * 4), word = new Float32Array(n * 4);
-        set.items.forEach((it, i) => {
-            rect.set([it.x, it.y, it.w, it.h], i * 4);
-            uv.set([it.u0, it.v0, it.u1, it.v1], i * 4);
-            word.set([words[i].s, words[i].e, i, this.words[i].held ? 1 : 0], i * 4);
-        });
+        const rect = new Float32Array(total * 4), uv = new Float32Array(total * 4), word = new Float32Array(total * 4), slab = new Float32Array(total * 3);
+        let at = 0;
+        for (const layer of stack) {
+            set.items.forEach((it, i) => {
+                rect.set([it.x, it.y, it.w, it.h], at * 4);
+                uv.set([it.u0, it.v0, it.u1, it.v1], at * 4);
+                word.set([words[i].s, words[i].e, n > 1 ? i / (n - 1) : 0, this.words[i].held ? 1 : 0], at * 4);
+                slab.set([layer, it.row % 2 ? -1 : 1, (i * 0.618034) % 1], at * 3);
+                at++;
+            });
+        }
         geo.setAttribute('aRect', new THREE.InstancedBufferAttribute(rect, 4));
         geo.setAttribute('aUv', new THREE.InstancedBufferAttribute(uv, 4));
         geo.setAttribute('aWord', new THREE.InstancedBufferAttribute(word, 4));
-        geo.instanceCount = n;
+        geo.setAttribute('aSlab', new THREE.InstancedBufferAttribute(slab, 3));
+        geo.instanceCount = total;
 
         this.uniforms = {
             ...globals,
             uAtlas: { value: tex },
             uAlpha: { value: 1 },
-            uGhost: { value: 0 },
             uPlain: { value: style.plain ? 1 : 0 },
             uTint: { value: new THREE.Vector3(1, 1, 1) },
+            uTintB: { value: new THREE.Vector3(1, 1, 1) },
+            uLayers: { value: Math.max(1, layers) },
+            uIn: { value: 1 },
+            uInMode: { value: 0 },
             uOut: { value: 0 },
-            uMode: { value: 0 },
+            uOutMode: { value: 0 },
             uDir: { value: 1 },
-            uCount: { value: n },
-            uPx: { value: 1 },
+            uEm: { value: FONT_PX },
+            uW: { value: set.w },
             uH: { value: set.h },
         };
         this.material = new THREE.ShaderMaterial({
@@ -276,11 +393,17 @@ export class TextLine {
         this.mesh.renderOrder = 80;
     }
 
-    /** Size the line: `unit` world units per texture px. */
-    place(x, y, z, unit) {
+    /** Size and stand the line: `unit` world units per block px, turned by `yaw` and `pitch`. */
+    place(x, y, z, unit, yaw = 0, pitch = 0) {
         this.mesh.position.set(x, y, z);
+        this.mesh.rotation.set(pitch, yaw, 0);
         this.mesh.scale.setScalar(unit);
-        this.uniforms.uPx.value = 1 / unit;
+    }
+
+    /** Both colours of the line: the face's, and the one its depth runs to. */
+    tint(a, b) {
+        this.uniforms.uTint.value.copy(a);
+        this.uniforms.uTintB.value.copy(b || a);
     }
 
     dispose() {
@@ -312,6 +435,7 @@ export class VoyageLyrics {
         this.focus = null;           // { x, y, z, strength, flip, held } world position of the word being sung
         this.onset = null;           // a word started this frame { x, y, z, hit, held }
         this.cue = null;             // { type } a line handed over, or a break started
+        this.busy = 0;               // 0..1, how much of the stage the words hold right now
         this._it = 0;
         this._interOn = false;
         this._words = 0;
@@ -376,20 +500,28 @@ export class VoyageLyrics {
     }
 
     _make(i, maxEm) {
-        const line = new TextLine(this.globals, this.timeline.lines[i].words, { family: this.family, maxEm });
+        const line = new TextLine(this.globals, this.timeline.lines[i].words, { family: this.family, maxEm, caps: true, poster: true });
+        line.mesh.visible = false;
         this.frame.add(line.mesh);
         return { i, line };
+    }
+
+    /** A backing vocal is on stage at t. */
+    _adlibLive(t) {
+        for (const a of this.timeline.adlibs) if (t >= a.s - 0.3 && t <= a.e + AD_TAIL) return true;
+        return false;
     }
 
     /**
      * Per-frame update.
      * @param {object} S                 show state
      * @param {THREE.PerspectiveCamera} camera
-     * @param {{ bottom: number }} view  fraction of the screen's height covered at the bottom (player bar)
+     * @param {{ bottom: number, still: boolean }} view  fraction of the screen's height covered at the bottom
+     *                                   (the song's card); `still` for reduced motion
      */
     update(S, camera, view) {
         const { F, t, dt } = S;
-        const P = S.palette;
+        const G = this.globals;
         this.onset = null;
         this.cue = null;
         this.sync();
@@ -397,6 +529,7 @@ export class VoyageLyrics {
         if (this.alpha < 0.01 || !this.ready) {
             this.frame.visible = false;
             this.focus = null;
+            this.busy = 0;
             if (!this.visible && (this._cur || this._next || this._old)) this._reset();
             return;
         }
@@ -414,25 +547,35 @@ export class VoyageLyrics {
         this.frame.updateMatrixWorld(true);
         const hh = DIST * Math.tan((cam.fov * Math.PI) / 360);      // half the frame's height at this distance
         const hw = hh * cam.aspect;
-        const maxEm = clamp(cam.aspect * 10.5, 6.5, 17);
+        const maxEm = clamp(cam.aspect * 5.6, 4.5, 11);
 
         // ---- Line changes ----
         const idx = tl.lineIndex(t);
         if (idx !== this.idx) {
             const forward = idx === this.idx + 1;
+            const busy = this._adlibLive(t);
             if (this._old) this._old.line.dispose();
             this._old = null;
+            let tr = '';
             // (A ♪ line was never on screen, so it has nothing to take off it.)
             if (this._cur && forward && !tl.lines[this._cur.i].blank) {
-                const tr = idx >= 0 ? (this._lastTr = pickTransition(F, idx, this._lastTr)) : 'lift';
-                this._old = { ...this._cur, tr, at: tl.lines[idx].on, dir: idx & 1 ? -1 : 1, top: this._top };
+                tr = idx >= 0 ? (this._lastTr = pickTransition(F, idx, this._lastTr)) : 'lift';
+                if (busy && THROUGH_ADLIBS[tr]) tr = 'sweep';
+                // Swept, a line goes off to the left: the next one comes in from the right.
+                this._old = { ...this._cur, tr, at: tl.lines[idx].on, top: this._top };
                 this.cue = { type: tr };
             } else if (this._cur) this._cur.line.dispose();
             const promoted = forward && this._next && this._next.i === idx;
             if (this._next && !promoted) this._next.line.dispose();
             this._cur = idx >= 0 ? (promoted ? this._next : this._make(idx, maxEm)) : null;
-            // It lets the line that is leaving clear the spot first.
-            if (this._cur) this._cur.wait = this._old ? ENTER_AFTER : 0;
+            if (this._cur) {
+                // It lets the line that is leaving clear the spot first, and comes in from the other side.
+                this._cur.wait = this._old ? ENTER_AFTER : 0;
+                let mode = tr ? FOLLOW[tr] : OPENERS[idx % OPENERS.length];
+                if (busy && mode === IN.drop) mode = IN.rise;
+                this._cur.mode = mode;
+            }
+            // The line after is set in type ahead of time, off stage.
             this._next = idx + 1 < tl.lines.length ? this._make(idx + 1, maxEm) : null;
             this.idx = idx;
             this._lastWord = -1;
@@ -452,25 +595,17 @@ export class VoyageLyrics {
         this._interOn = want === 1;
         this.progress = br && Number.isFinite(br.b) ? clamp((t - br.a) / Math.max(0.1, br.b - br.a - beat * 5), 0, 1) : 0;
 
-        // ---- Place the lines ----
-        // Laid out as they look from the camera: the waiting line is further
-        // away, so it looks smaller and nearer the centre than where it hangs.
+        // ---- Place the line ----
+        // One block, between the song's card and the rows kept for the backing vocals.
         const present = this.alpha * (1 - 0.92 * this._it);
-        const far = DIST / (DIST + GHOST_BACK);                // how much smaller the waiting line looks
-        const floor = (-1 + 2 * view.bottom) * hh + 0.03 * hh; // the lowest the words may reach: just above the chrome
-        const pad = 0.045 * hh;                              // air between lines
-        const fit = (rec) => Math.min(0.026 * (hh / 14), (hw * 2 * 0.84) / rec.line.w, (hh * 2 * 0.34) / rec.line.h);
-        const cur = this._cur, waiting = this._next;
+        const floor = (-1 + 2 * view.bottom) * hh + 0.06 * hh;   // the lowest the words may reach
+        const ceil = 0.6 * hh;                                   // and the highest
+        const cy = lerp(floor, ceil, 0.46);
+        const fit = (rec) => Math.min((0.2 * hh) / FONT_PX, (hw * 2 * 0.74) / rec.line.w, ((ceil - floor) * 0.9) / rec.line.h);
+        const cur = this._cur;
         const shown = !!cur && !line.blank;
-        const curUnit = cur ? fit(cur) : 0;
-        const curH = shown ? cur.line.h * curUnit : 0;
-        const waitUnit = waiting ? fit(waiting) : 0;
-        const waitH = waiting && !tl.lines[waiting.i].blank ? waiting.line.h * waitUnit * far : 0;   // as it looks from here
-        // The line sits low, over the road, but always leaves room under it for the one waiting.
-        let cy = lerp(-1 + 2 * view.bottom, 0, 0.3) * hh;
-        cy = Math.min(Math.max(cy, floor + waitH + pad + curH / 2), 0.6 * hh - curH / 2);
-        const waitY = cy - curH / 2 - pad - waitH / 2;         // where the waiting line looks to be
-        const room = waitY - waitH / 2 >= floor - 0.01 * hh;
+        const unit = cur ? fit(cur) : 0;
+        const curH = shown ? cur.line.h * unit : 0;
         this._top = cy + curH / 2;
         // Backing vocals sit over whatever is tallest on stage, the line still leaving included.
         const adTop = Math.max(this._top, this._old ? this._old.top : -1e3);
@@ -478,35 +613,25 @@ export class VoyageLyrics {
 
         let enter = 1;
         if (cur) {
-            // It flies up from where it was waiting.
-            enter = smooth(clamp((t - tl.lines[cur.i].on - cur.wait) / ENTER, 0, 1));
-            if (cur.fromY === undefined) {
-                cur.fromY = (cy - curH / 2 - pad - (cur.line.h * curUnit * far) / 2) / far;
-                cur.fromUnit = curUnit;
-            }
-            cur.line.place(0, lerp(cur.fromY, cy, enter), lerp(-GHOST_BACK, 0, enter), lerp(cur.fromUnit, curUnit, enter));
+            const L = tl.lines[cur.i];
+            enter = clamp((t - L.on - cur.wait) / ENTER, 0, 1);
+            // The block turns slowly past square as the line is sung, each line the other way.
+            const through = clamp((t - L.on) / Math.max(1, L.end - L.on + 0.6), 0, 1);
+            const dir = cur.i & 1 ? -1 : 1;
+            const yaw = view.still ? 0 : dir * lerp(0.15, -0.07, smooth(through));
+            cur.line.mesh.visible = shown;
+            cur.line.place(0, cy, 0, unit, yaw, view.still ? 0 : -0.04);
+            cur.line.mesh.updateMatrixWorld(true);
             const u = cur.line.uniforms;
-            u.uGhost.value = 1 - enter;
+            u.uIn.value = enter;
+            u.uInMode.value = cur.mode;
+            u.uOut.value = 0;
             u.uAlpha.value = present * (resting ? 0.55 : 1) * (shown ? 1 : 0);
-            u.uOut.value = 0;
-            u.uTint.value.copy(this.globals.uPalA.value);
-            this.scrim.position.set(0, cy, -0.5);
-            this.scrim.scale.set(cur.line.w * curUnit * 1.5, Math.max(curH, 0.01) * 2.2, 1);
-            this.scrimU.uAlpha.value = 0.55 * u.uAlpha.value * enter;
+            cur.line.tint(G.uPalA.value, G.uPalB.value);
+            this.scrim.position.set(0, cy, -0.6);
+            this.scrim.scale.set(cur.line.w * unit * 1.7, Math.max(curH, 0.01) * 2.3, 1);
+            this.scrimU.uAlpha.value = 0.72 * u.uAlpha.value * enter;
         } else this.scrimU.uAlpha.value = 0;
-        if (waiting) {
-            // Hung further down the road so that, from here, it sits right under the line.
-            waiting.fromY = waitY / far;
-            waiting.fromUnit = waitUnit;
-            waiting.line.place(0, waiting.fromY, -GHOST_BACK, waitUnit);
-            const u = waiting.line.uniforms;
-            u.uGhost.value = 1;
-            // It only shows once the line above it has landed (that line took off
-            // from this very spot), and never squeezed in.
-            u.uAlpha.value = waitH > 0 && room ? present * clamp((enter - 0.8) / 0.2, 0, 1) : 0;
-            u.uOut.value = 0;
-            u.uTint.value.copy(this.globals.uPalA.value);
-        }
         if (this._old) {
             // The line that just ended leaves from where it was.
             const rec = this._old;
@@ -517,9 +642,8 @@ export class VoyageLyrics {
             } else {
                 const u = rec.line.uniforms;
                 u.uOut.value = o;
-                u.uMode.value = MODES[rec.tr] ?? 0;
-                u.uDir.value = rec.dir;
-                u.uGhost.value = 0;
+                u.uOutMode.value = OUT_MODES[rec.tr] ?? 0;
+                u.uDir.value = -1;
                 u.uAlpha.value = present;
             }
         }
@@ -540,9 +664,8 @@ export class VoyageLyrics {
             else if (active + 1 < ws.length) { k = active + 1; strength = 0.7; }
             if (k < 0) k = 0;
             const w = ws[k];
-            const unit = cur.line.mesh.scale.x;
-            const pos = this._v.set(w.x * unit, cur.line.mesh.position.y + w.y * unit, cur.line.mesh.position.z).applyMatrix4(this.frame.matrixWorld);
-            const s = strength * present * enter * (resting ? 0.4 : 1);
+            const pos = this._v.set(w.x, w.y, 0).applyMatrix4(cur.line.mesh.matrixWorld);
+            const s = strength * present * smooth(enter) * (resting ? 0.4 : 1);
             if (!this._focus) this._focus = { x: pos.x, y: pos.y, z: pos.z };
             const f = this._focus, glide = F.jumped ? 1 : 1 - Math.exp(-dt * 13);
             f.x = lerp(f.x, pos.x, glide);
@@ -566,19 +689,20 @@ export class VoyageLyrics {
             d.uniforms.uAlpha.value = this.alpha;
         });
 
-        this._updateAdlibs(t, hw, hh, present);
+        this.busy = Math.max(shown ? cur.line.uniforms.uAlpha.value : 0, this._updateAdlibs(t, hw, hh, present));
     }
 
-    /** Backing vocals: over the line while they are sung (left and right, a row each), then drifting away. */
+    /** Backing vocals: over the line while they are sung (left and right, a row each), then drifting away. Returns how visible they are. */
     _updateAdlibs(t, hw, hh, present) {
         const list = this.timeline.adlibs;
+        const G = this.globals;
+        let shown = 0;
         for (let i = 0; i < list.length; i++) {
             const a = list[i];
             const live = t >= a.s - 0.2 && t <= a.e + AD_TAIL;
             let rec = this._adlibs.get(i);
             if (live && !rec) {
-                rec = new TextLine(this.globals, a.words, { family: this.family, maxEm: 9, italic: true, weight: 700 });
-                rec.uniforms.uTint.value = this.globals.uPalB.value;
+                rec = new TextLine(this.globals, a.words, { family: this.family, maxEm: 9, italic: true, weight: 700, layers: 3 });
                 this.frame.add(rec.mesh);
                 this._adlibs.set(i, rec);
             } else if (!live && rec) {
@@ -588,16 +712,20 @@ export class VoyageLyrics {
             }
             if (!rec) continue;
             // Each stays on its own half of the screen and its own row above the line.
-            const unit = Math.min(0.013 * (hh / 14), (hw * 0.72) / rec.w);
+            const unit = Math.min((0.085 * hh) / FONT_PX, (hw * 0.72) / rec.w);
             const h = rec.h * unit;
             const side = a.k % 2 ? -1 : 1;
             const row = (a.k >> 1) % 2;
             const gone = clamp((t - a.e) / AD_TAIL, 0, 1);
-            const y = Math.min(this._adTop + 0.06 * hh + h / 2 + row * h * 1.1, 0.8 * hh) + gone * 0.05 * hh;
-            rec.place(side * hw * 0.5, y, -2 * gone, unit);
-            rec.uniforms.uAlpha.value = present * clamp((t - a.s + 0.2) / 0.2, 0, 1) * (1 - gone);
-            rec.uniforms.uGhost.value = 0.15;
+            const y = Math.min(this._adTop + 0.05 * hh + h / 2 + row * h * 1.1, 0.84 * hh) + gone * 0.05 * hh;
+            rec.place(side * hw * 0.5, y, -2 * gone, unit, -side * 0.12);
+            rec.tint(G.uPalB.value, G.uPalC.value);
+            rec.uniforms.uIn.value = clamp((t - a.s + 0.2) / 0.3, 0, 1);
+            rec.uniforms.uInMode.value = IN.rise;
+            rec.uniforms.uAlpha.value = present * 0.85 * (1 - gone);
+            shown = Math.max(shown, rec.uniforms.uAlpha.value);
         }
+        return shown;
     }
 
     dispose() {
