@@ -41,7 +41,9 @@ export function normalizeRepeat(mode) {
  */
 export function connectLivePosition(device, receivedAt) {
     let position = Number(device?.position) || 0;
-    if (device?.is_playing) {
+    // A stalled player (loading, buffering) reports playing with a position
+    // that stands still.
+    if (device?.is_playing && !device.is_buffering) {
         position += Number(device.state_age) || 0;
         if (receivedAt != null) position += Math.max(0, performance.now() - receivedAt) / 1000;
     }

@@ -750,6 +750,9 @@ class Database:
         # Migrate: when the device's command stream was last open. Presence
         # that does not depend on the device's own (throttleable) timers.
         cls._add_column(cursor, 'connect_sessions', 'stream_seen', 'DOUBLE NOT NULL DEFAULT 0')
+        # Migrate: playing but stalled (loading, buffering), so the position
+        # is not advancing and controllers must not extrapolate it.
+        cls._add_column(cursor, 'connect_sessions', 'is_buffering', 'TINYINT NOT NULL DEFAULT 0')
 
         # Queue blobs live in their own table (Sep 2026). Keeping the multi-KB
         # `queue` JSON inside connect_sessions made EVERY heartbeat a

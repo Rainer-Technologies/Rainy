@@ -2506,6 +2506,17 @@ export class AudioPlayer {
     }
 
     updateFullscreenView() {
+        // While controlling another device the fullscreen player shows that
+        // device's song, not the local one parked underneath. Painting the
+        // local cover here left it up until the remote's cover changed.
+        if (this._controllerTarget) {
+            if (this._controllerState) {
+                this._controllerCoverSrc = undefined;
+                this._mirrorControllerState(this._controllerState);
+            }
+            this.renderFullscreenQueue();
+            return;
+        }
         if (!this.currentSong) return;
 
         const song = this.currentSong;
@@ -3970,9 +3981,13 @@ export class AudioPlayer {
             song_artist: song?.artist ?? null,
             song_album: song?.album ?? null,
             cover_path: song?.cover_path ?? null,
-            position: this.audio ? Math.floor(this.audio.currentTime || 0) : 0,
-            duration: (this.audio && this.audio.duration) ? Math.floor(this.audio.duration) : (song?.duration || 0),
+            // To the millisecond: whole seconds left the other device's bar
+            // up to a second behind.
+            position: this.audio ? Math.round((this.audio.currentTime || 0) * 1000) / 1000 : 0,
+            duration: (this.audio && Number.isFinite(this.audio.duration) && this.audio.duration > 0)
+                ? Math.round(this.audio.duration * 1000) / 1000 : (song?.duration || 0),
             is_playing: this.isPlaying,
+            is_buffering: !!this.isBuffering,
             volume: Math.round((this.audio ? this.audio.volume : 0.8) * 100),
             is_shuffled: this.isShuffle,
             repeat_mode: this.repeatMode || 'none',
@@ -4429,6 +4444,9 @@ export class AudioPlayer {
         // Immediately fetch remote state, then poll every 1s
         this._controllerPoll();
         this._controllerPollTimer = setInterval(() => this._controllerPoll(), 1000);
+        // The remote's state arrives once a second; keep the bar moving in
+        // between instead of stepping (and trailing) with the polls.
+        this._controllerTickTimer = setInterval(() => this._controllerTick(), 200);
 
         window.showToast?.(t('Controlling {name}', { name: device.device_name }), 'success');
     }
@@ -4444,6 +4462,10 @@ export class AudioPlayer {
         if (this._controllerPollTimer) {
             clearInterval(this._controllerPollTimer);
             this._controllerPollTimer = null;
+        }
+        if (this._controllerTickTimer) {
+            clearInterval(this._controllerTickTimer);
+            this._controllerTickTimer = null;
         }
         this._hideControllerBanner();
 
@@ -4477,6 +4499,7 @@ export class AudioPlayer {
             if (this.fsTitle) this.fsTitle.textContent = t('Nothing playing');
             if (this.fsArtist) this.fsArtist.textContent = t('Select a song to play');
             if (this.fsArtwork) this.fsArtwork.innerHTML = '';
+            if (this.fsBackdrop) this.fsBackdrop.style.backgroundImage = 'none';
         }
         this._updatePlayPauseIcon();
 
@@ -4570,9 +4593,20 @@ export class AudioPlayer {
      */
     _controllerEcho(changes) {
         if (!this._controllerState) return;
+        // Bank the time that passed since the snapshot before restarting its
+        // clock, or the bar jumps back by that much.
+        this._controllerState.position = connectLivePosition(this._controllerState, this._controllerStateAt);
+        this._controllerState.state_age = 0;
         Object.assign(this._controllerState, changes);
         this._controllerStateAt = performance.now();
         this._mirrorControllerState(this._controllerState);
+    }
+
+    /** Advance the progress bar between polls of the controlled device. */
+    _controllerTick() {
+        const device = this._controllerState;
+        if (!device || !device.is_playing || this.isDraggingProgress) return;
+        this._paintProgress(connectLivePosition(device, this._controllerStateAt), device.duration || 0);
     }
 
     /** Poll the controlled device's state and mirror it on the player bar. */
@@ -4647,7 +4681,7 @@ export class AudioPlayer {
             const html = coverSrc ? `<img src="${coverSrc}" alt="">` : '';
             if (this.nowPlayingArtwork) this.nowPlayingArtwork.innerHTML = html;
             if (this.fsArtwork) this.fsArtwork.innerHTML = html;
-            if (this.fsBackdrop && coverSrc) this.fsBackdrop.style.backgroundImage = `url(${coverSrc})`;
+            if (this.fsBackdrop) this.fsBackdrop.style.backgroundImage = coverSrc ? `url(${coverSrc})` : 'none';
         }
 
         // Queue: mirror the remote queue into the queue panel. (The local
