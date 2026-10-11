@@ -64,7 +64,8 @@ def analyze_file(file_path):
         return None
 
     try:
-        y, sr = librosa.load(file_path, sr=44100, mono=True)
+        from utils.audio_load import load_audio
+        y, sr = load_audio(file_path, 44100)
         if y is None or len(y) == 0:
             return None
 

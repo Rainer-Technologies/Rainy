@@ -668,8 +668,13 @@ def _move_into_library(song, music_path):
             rel = new_rel
     Database.execute_query(
         "UPDATE songs SET transient = 0, file_path = %s WHERE id = %s", (rel, song['id']))
-    from utils import lightshow_worker
+    from models.lyrics_job import LyricsJobModel
+    from utils import lightshow_worker, lyrics_worker
     lightshow_worker.enqueue_song(song['id'])
+    # A kept song gets a second chance at lyrics: a lookup that found
+    # nothing is dropped so the job searches again.
+    LyricsJobModel.forget_missing(song['id'])
+    lyrics_worker.enqueue_song(song['id'])
 
 
 def promote(song_id, user_id, music_path=None):

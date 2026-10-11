@@ -117,8 +117,8 @@ def classify_file(path, top_n=_TOP_GENRES):
     """
     try:
         _load()
-        import librosa
-        audio, _sr = librosa.load(path, sr=SAMPLE_RATE, mono=True)
+        from utils.audio_load import load_audio
+        audio, _sr = load_audio(path, SAMPLE_RATE)
     except Exception as e:  # noqa: BLE001
         print(f"[genre-classifier] load failed for {os.path.basename(path)}: {e}")
         return []

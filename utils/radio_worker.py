@@ -45,7 +45,7 @@ def _register(track, file_path, music_path):
     from utils.scanner import MusicScanner
 
     video_id = track['video_id']
-    metadata = MusicScanner(music_path).scan_single_file(file_path, lightshow=False)
+    metadata = MusicScanner(music_path).scan_single_file(file_path, analysis=False)
     if not metadata or not metadata.get('id'):
         raise RuntimeError('Could not read the downloaded file')
     song_id = metadata['id']
@@ -69,7 +69,25 @@ def _register(track, file_path, music_path):
         })
 
     dup = dedupe.finalize_new_song(file_path, song_id, duration=metadata.get('duration'))
-    return dup[0] if dup else song_id
+    if dup:
+        return dup[0]
+    _queue_analysis(song_id)
+    return song_id
+
+
+def _queue_analysis(song_id):
+    """Enrichment and lyrics for a new radio song, now that it carries the
+    title and artist to look them up with. The (heavy) light show analysis
+    waits until someone plays or keeps the song."""
+    try:
+        from models.enrichment_job import EnrichmentJobModel
+        from utils import enrichment_worker
+        EnrichmentJobModel.enqueue_song(song_id)
+        enrichment_worker.notify()
+    except Exception as e:  # noqa: BLE001
+        print(f"[radio-worker] failed to queue enrichment for song {song_id}: {e}")
+    from utils import lyrics_worker
+    lyrics_worker.enqueue_song(song_id)
 
 
 def _download(track, music_path):

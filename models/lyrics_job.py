@@ -157,6 +157,12 @@ class LyricsJobModel:
         )
 
     @staticmethod
+    def forget_missing(song_id):
+        """Drop a lookup that found nothing, so the next job searches again."""
+        Database.execute_query(
+            "DELETE FROM song_lyrics WHERE song_id = %s AND found = 0", (song_id,))
+
+    @staticmethod
     def save_lyrics(song_id, synced, plain):
         """Store a lookup result (found=0 when LRCLIB had nothing) and drop any
         word timings that belonged to the previous lyrics."""

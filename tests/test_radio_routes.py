@@ -93,6 +93,7 @@ def radio(app):
     owned = song('/radio/owned.mp3', 'Owned Song', 'Owned Artist', owner=alice)
 
     yield {'alice': alice, 'seed': seed, 'owned': owned, 'user': user, 'song': song,
+           'track_song': songs.append,
            'transient': transient, 'client': client, 'playlist': playlist,
            'music_path': music_path}
 
@@ -103,7 +104,8 @@ def radio(app):
             "SELECT file_path FROM songs WHERE id = %s", (sid,), fetch_one=True)
         if row:
             files.append(os.path.join(music_path, row['file_path'].lstrip('/')))
-        Database.execute_query("DELETE FROM lightshow_jobs WHERE song_id = %s", (sid,))
+        for table in ('enrichment_jobs', 'lightshow_jobs', 'lyrics_jobs'):
+            Database.execute_query(f"DELETE FROM {table} WHERE song_id = %s", (sid,))
         Database.execute_query("DELETE FROM songs WHERE id = %s", (sid,))
     Database.execute_query("DELETE FROM radio_tracks")
     Database.execute_query("DELETE FROM yt_radio_cache")
@@ -325,6 +327,65 @@ def test_kept_names_do_not_overwrite_existing_files(radio):
             assert f.read() == b'existing'
     finally:
         os.remove(taken)
+
+
+def test_keeping_a_song_queues_light_show_and_retries_missing_lyrics(radio):
+    from models.lyrics_job import LyricsJobModel
+    alice = radio['alice']
+    sid = radio['transient']('keepvideo05', 'No Lyrics Yet', 'Artist', for_user=alice)
+    LyricsJobModel.save_lyrics(sid, None, None)      # an earlier lookup found nothing
+
+    assert ytradio.promote(sid, alice)
+
+    assert LyricsJobModel.get_lyrics(sid) is None     # so the job searches again
+    for table in ('lightshow_jobs', 'lyrics_jobs'):
+        assert Database.execute_query(
+            f"SELECT 1 FROM {table} WHERE song_id = %s", (sid,), fetch_one=True), table
+
+
+def test_keeping_a_song_leaves_found_lyrics_alone(radio):
+    from models.lyrics_job import LyricsJobModel
+    alice = radio['alice']
+    sid = radio['transient']('keepvideo06', 'Has Lyrics', 'Artist', for_user=alice)
+    LyricsJobModel.save_lyrics(sid, None, 'la la la')
+
+    assert ytradio.promote(sid, alice)
+    assert LyricsJobModel.get_lyrics(sid)['plain'] == 'la la la'
+
+
+def test_a_downloaded_track_is_analysed_under_its_youtube_music_name(radio, monkeypatch):
+    """Lyrics and enrichment are looked up by title/artist, so they are
+    queued only once the song carries the names YouTube Music lists."""
+    from models.enrichment_job import EnrichmentJobModel
+    from utils import dedupe, enrichment_worker, lyrics_worker
+    path = os.path.join(radio['music_path'], Config.RADIO_DIR, 'regvideo001.m4a')
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as f:
+        f.write(b'\x00' * 2048)
+
+    seen = []
+
+    def names(kind):
+        def record(song_id, force=False):
+            row = Database.execute_query(
+                "SELECT title, artist FROM songs WHERE id = %s", (song_id,), fetch_one=True)
+            seen.append((kind, row['title'], row['artist']))
+        return record
+
+    monkeypatch.setattr(MusicScanner, '_extract_metadata', lambda self, p, name: {
+        'title': 'Tagged Title', 'artist': 'Writer A, Writer B', 'duration': 200})
+    monkeypatch.setattr(ytradio, 'track_info', lambda vid: {
+        'title': 'Real Title', 'artist': 'Real Artist', 'album': 'Real Album'})
+    monkeypatch.setattr(dedupe, 'finalize_new_song', lambda *a, **k: None)
+    monkeypatch.setattr(EnrichmentJobModel, 'enqueue_song', staticmethod(names('enrichment')))
+    monkeypatch.setattr(enrichment_worker, 'notify', lambda: None)
+    monkeypatch.setattr(lyrics_worker, 'enqueue_song', names('lyrics'))
+
+    sid = radio_worker._register({'video_id': 'regvideo001'}, path, radio['music_path'])
+    radio['track_song'](sid)
+
+    assert seen == [('enrichment', 'Real Title', 'Real Artist'),
+                    ('lyrics', 'Real Title', 'Real Artist')]
 
 
 # ── Cleanup ─────────────────────────────────────────────────────────────

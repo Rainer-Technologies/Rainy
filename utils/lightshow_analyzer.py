@@ -499,7 +499,8 @@ def analyze_file(file_path, tags=None):
     """
     import librosa
 
-    y, _ = librosa.load(file_path, sr=SR, mono=True)
+    from utils.audio_load import load_audio
+    y, _ = load_audio(file_path, SR)
     if y is None or y.size < SR * 5:
         return None
     duration = y.size / SR
