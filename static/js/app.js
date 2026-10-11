@@ -4232,7 +4232,7 @@ export class RainyApp {
         const settingsContent = document.querySelector('.settings-content');
         if (settingsContent) {
             settingsContent.classList.toggle('settings-content-wide',
-                sectionName === 'users' || sectionName === 'player');
+                sectionName === 'users' || sectionName === 'player' || sectionName === 'lightshow');
         }
 
         if (sectionName === 'jobs') {

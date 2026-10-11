@@ -377,9 +377,9 @@
 }
 
 /* Keep text-heavy / form sections at a readable measure, but let the
-   Player section (which uses side-by-side option cards) expand to fill
+   Player and Light Show sections (side-by-side option cards) expand to fill
    the available width. */
-.settings-section:not(#settings-section-player) {
+.settings-section:not(#settings-section-player):not(#settings-section-lightshow) {
     max-width: 800px;
 }
 
@@ -395,6 +395,23 @@
 
 @media (max-width: 700px) {
     .settings-radio-group.settings-radio-group--horizontal {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Four options: all in a row, or two and two, never three and a stray one. */
+.settings-radio-group.settings-radio-group--quad {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1150px) {
+    .settings-radio-group.settings-radio-group--quad {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .settings-radio-group.settings-radio-group--quad {
         grid-template-columns: 1fr;
     }
 }
@@ -991,7 +1008,8 @@
     flex-shrink: 0;
 }
 
-/* Player settings: 2-column card grid so the wide layout is filled */
+/* Cards side by side, so a wide section is filled instead of stretched */
+.settings-card-grid,
 .player-settings-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -999,11 +1017,19 @@
     align-items: start;
 }
 
-.player-settings-grid > .settings-card {
-    margin-bottom: 0;
+.settings-card-grid,
+.player-settings-grid {
+    margin-bottom: var(--spacing-md);
 }
 
-@media (max-width: 900px) {
+.settings-card-grid > .settings-card,
+.player-settings-grid > .settings-card {
+    margin-bottom: 0;
+    height: 100%;
+}
+
+@media (max-width: 1100px) {
+    .settings-card-grid,
     .player-settings-grid {
         grid-template-columns: 1fr;
     }
@@ -1082,7 +1108,7 @@
         padding: var(--spacing-lg);
     }
 
-    .settings-section:not(#settings-section-player) {
+    .settings-section:not(#settings-section-player):not(#settings-section-lightshow) {
         max-width: none;
     }
 
@@ -1508,7 +1534,7 @@
    --------------------------------------------------------------------- */
 .settings-env-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: var(--spacing-md);
 }
 
