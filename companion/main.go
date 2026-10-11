@@ -12,12 +12,16 @@ import (
 	"time"
 )
 
+// version la fija el build de release con -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	serverFlag := flag.String("server", "", "URL del servidor Rainy, p. ej. 192.168.1.10:5000 o tu-dominio.com")
 	flag.Parse()
 
 	closeLog := setupLog()
 	defer closeLog()
+	log.Printf("Rainy Presence %s", version)
 
 	a := &app{cfg: loadConfig(), covers: newCoverCache()}
 	if *serverFlag != "" {
