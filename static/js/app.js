@@ -4057,6 +4057,7 @@ export class RainyApp {
         let currentFsMode = 'standard'; // default for new/no-pref accounts — keep in sync with player.js toggleFullscreen
         let currentLyricsEffect = 'word';
         let currentLightshowIntensity = 'auto';
+        let currentLightshowEnvironment = 'classic';
         let lightshowReduceFlashing = false;
         let lightshowLyrics = true;
         let lightshowOffset = 0;
@@ -4076,6 +4077,7 @@ export class RainyApp {
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
                 if (prefs.lyrics_effect) currentLyricsEffect = prefs.lyrics_effect;
                 if (prefs.lightshow_intensity) currentLightshowIntensity = prefs.lightshow_intensity;
+                if (prefs.lightshow_environment) currentLightshowEnvironment = prefs.lightshow_environment;
                 if (typeof prefs.lightshow_reduce_flashing !== 'undefined') lightshowReduceFlashing = !!prefs.lightshow_reduce_flashing;
                 if (typeof prefs.lightshow_lyrics !== 'undefined') lightshowLyrics = !!prefs.lightshow_lyrics;
                 if (typeof prefs.lightshow_offset_ms !== 'undefined') lightshowOffset = Number(prefs.lightshow_offset_ms) || 0;
@@ -4092,7 +4094,10 @@ export class RainyApp {
         if (colorValue) colorValue.textContent = currentColor;
 
         // Set radio button groups to their saved values
-        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect, lightshow_intensity: currentLightshowIntensity };
+        const radioValues = {
+            fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect,
+            lightshow_intensity: currentLightshowIntensity, lightshow_environment: currentLightshowEnvironment,
+        };
         document.querySelectorAll('.settings-radio-group').forEach(group => {
             const pref = group.dataset.pref;
             const current = radioValues[pref];

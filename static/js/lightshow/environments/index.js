@@ -29,12 +29,36 @@
 
 export const DEFAULT_ENVIRONMENT = 'classic';
 
+let webgl2 = null;
+
+/** Whether this device can run a WebGL 2 environment (checked once). */
+function hasWebGL2() {
+    if (webgl2 !== null) return webgl2;
+    webgl2 = false;
+    if (typeof document === 'undefined') return webgl2;
+    try {
+        const gl = document.createElement('canvas').getContext('webgl2');
+        if (gl) {
+            webgl2 = true;
+            const lose = gl.getExtension('WEBGL_lose_context');
+            if (lose) lose.loseContext();
+        }
+    } catch (e) { /* no WebGL here */ }
+    return webgl2;
+}
+
 export const ENVIRONMENTS = {
     classic: {
         id: 'classic',
         name: 'Classic',
         supported: () => true,
         load: () => import('./classic/index.js').then((m) => m.ClassicEnvironment),
+    },
+    voyage: {
+        id: 'voyage',
+        name: 'Voyage',
+        supported: hasWebGL2,
+        load: () => import('./voyage/index.js').then((m) => m.VoyageEnvironment),
     },
 };
 

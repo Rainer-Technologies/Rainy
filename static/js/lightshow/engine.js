@@ -15,6 +15,9 @@
  * Public API (used by player.js / songSettingsModal.js):
  *   start(audioEl) · stop() · resume() · loadScript(songId, force) · clearScript(songId)
  *   setTrack(track) · resetStageLyrics()
+ *
+ * Which environment runs is the `lightshow_environment` preference: the
+ * engine follows it live, so Settings and the HUD button only have to save it.
  */
 import { Logger } from '../helper/logger.js';
 import { t } from '../i18n/index.js';
@@ -24,7 +27,9 @@ import { Score } from './score.js';
 import { ScoreSource, LiveSource } from './sources.js';
 import { Conductor } from './conductor.js';
 import { LyricsTimeline } from './lyricsTimeline.js';
-import { ENVIRONMENTS, DEFAULT_ENVIRONMENT, normalizeEnvironment, resolveEnvironment } from './environments/index.js';
+import {
+    ENVIRONMENTS, ENVIRONMENT_IDS, DEFAULT_ENVIRONMENT, normalizeEnvironment, resolveEnvironment,
+} from './environments/index.js';
 import { clamp, lerp, hexToHue } from './palette.js';
 // The default environment ships with the engine, so the show starts without a round trip.
 import './environments/classic/index.js';
@@ -39,6 +44,9 @@ const SLOW_HINT_AFTER = 10;  // seconds at the lowest auto quality, still slow, 
 const SLOW_HINT_KEY = 'rainy-ls-slow-hint';
 const ENV_FADE_MS = 600;     // an environment fades out this long before it is unmounted
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
+const ENV_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg>';
+const HUD_BTN = 26;          // px, a HUD button
+const HUD_GAP = 4;
 const GENRE_NAMES ={ edm: 'EDM', pop: 'Pop', rock: 'Rock', hiphop: 'Hip-hop', latin: 'Latin', chill: 'Chill', orchestral: 'Orchestral' };
 
 export class LightShowEngine {
@@ -295,7 +303,8 @@ export class LightShowEngine {
         const id = resolveEnvironment(wanted, this._envFailed);
         if (id === this._envWanted) return;
         this._envWanted = id;
-        const token = ++this._envToken;
+        const token = ++this._envToken;   // whatever was on its way is no longer wanted
+        if (this.env && this.envId === id) return;
         this._flushRetired();
         let env = null;
         try {
@@ -335,6 +344,9 @@ export class LightShowEngine {
     _environmentFailed(id, err) {
         Logger.error(`LightShow: the "${id}" environment failed.`, err);
         this._envFailed.add(id);
+        if (id !== DEFAULT_ENVIRONMENT) {
+            window.showToast?.(t('{name} is not available on this device. Back to Classic.', { name: ENVIRONMENTS[id].name }), 'info');
+        }
         // It never made it on stage: keep what is there.
         if (this.env && this.envId !== id) {
             this._envWanted = this.envId;
@@ -478,7 +490,7 @@ export class LightShowEngine {
         } catch (e) {
             Logger.error('LightShow render error:', e);
         }
-        this._syncHudStage(prefs);
+        this._syncHud(prefs);
     }
 
     /**
@@ -533,14 +545,37 @@ export class LightShowEngine {
         const el = document.createElement('div');
         el.className = 'ls-hud';
         el.innerHTML = '<span class="ls-hud-side ls-hud-l"><b></b><small>BPM</small></span>'
-            + `<button type="button" class="ls-hud-lyrics" title="${t('Lyrics on stage')}" aria-pressed="false">${MIC_ICON}</button>`
+            + '<span class="ls-hud-mid">'
+            + `<button type="button" class="ls-hud-btn ls-hud-env" hidden>${ENV_ICON}</button>`
+            + `<button type="button" class="ls-hud-btn ls-hud-lyrics" title="${t('Lyrics on stage')}" aria-pressed="false">${MIC_ICON}</button>`
+            + '</span>'
             + '<span class="ls-hud-side ls-hud-r"><span class="ls-hud-meta"></span></span>';
         el.querySelector('.ls-hud-lyrics').addEventListener('click', (e) => {
             e.stopPropagation();
             this._toggleStageLyrics();
         });
+        el.querySelector('.ls-hud-env').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._nextEnvironment();
+        });
         this.container.appendChild(el);
         this._hud = el;
+    }
+
+    /** Environments this device can run (and that have not failed here). */
+    _usableEnvironments() {
+        return ENVIRONMENT_IDS.filter((id) => resolveEnvironment(id, this._envFailed) === id);
+    }
+
+    /** The HUD's environment button: on to the next one, and remember it. */
+    _nextEnvironment() {
+        const usable = this._usableEnvironments();
+        if (usable.length < 2) return;
+        const id = usable[(usable.indexOf(this._envWanted) + 1) % usable.length];
+        if (window.app && window.app.savePreferences) window.app.savePreferences({ lightshow_environment: id });
+        this._prefsAt = -1;   // picked up on the next frame
+        window.showToast?.(t('Environment: {name}', { name: t(ENVIRONMENTS[id].name) }), 'info');
+        this._renderHud(true);
     }
 
     _toggleStageLyrics() {
@@ -556,8 +591,9 @@ export class LightShowEngine {
         });
     }
 
-    _syncHudStage(prefs) {
-        const btn = this._hud && this._hud.querySelector('.ls-hud-lyrics');
+    _syncHud(prefs) {
+        const hud = this._hud;
+        const btn = hud && hud.querySelector('.ls-hud-lyrics');
         if (!btn) return;
         // The settings toggle decides whether stage lyrics are offered at all.
         btn.hidden = !prefs.stageLyrics;
@@ -566,6 +602,20 @@ export class LightShowEngine {
         if (btn.getAttribute('aria-pressed') !== pressed) btn.setAttribute('aria-pressed', pressed);
         const missing = on && !this.lyrics.ready;
         btn.classList.toggle('missing', missing);
+
+        // The environment button is only there when there is a choice.
+        const env = hud.querySelector('.ls-hud-env');
+        env.hidden = this._usableEnvironments().length < 2;
+        if (this.envId && env.dataset.env !== this.envId) {
+            env.dataset.env = this.envId;
+            env.title = t('Environment: {name}', { name: t(ENVIRONMENTS[this.envId].name) });
+        }
+        // Compact, the HUD is just its buttons.
+        const n = (btn.hidden ? 0 : 1) + (env.hidden ? 0 : 1);
+        if (n !== this._hudButtons) {
+            this._hudButtons = n;
+            hud.style.setProperty('--ls-hud-mid', `${Math.max(0, n * HUD_BTN + (n - 1) * HUD_GAP)}px`);
+        }
     }
 
     _setStatus(status, force = false) {

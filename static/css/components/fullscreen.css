@@ -223,6 +223,23 @@
     opacity: 0;
 }
 
+/* The Voyage environment draws on its own (WebGL) canvas, over the backdrop. */
+.ls-voyage-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+.ls-voyage-canvas.on {
+    opacity: 1;
+}
+
 /* Light show on: the stage is always dark, whatever the app theme — the
    lights are additive and need black to read. The backdrop's opacity and
    scale are driven per frame by the engine (sub-bass pump, blackouts). */
@@ -234,9 +251,9 @@
     transition: background-image 0.5s ease, opacity 0.08s linear;
 }
 
-/* Stage readout: tempo | mic | genre. The mic button is the centre column, so
-   it always sits on the stage's centre line (the cover's axis) whatever the
-   readout says. No chrome — just type over a soft scrim. */
+/* Stage readout: tempo | buttons | genre. The buttons are the centre column,
+   so they always sit on the stage's centre line (the cover's axis) whatever
+   the readout says. No chrome — just type over a soft scrim. */
 .ls-hud {
     position: absolute;
     left: 50%;
@@ -326,9 +343,9 @@
     color: rgba(255, 255, 255, 0.6);
 }
 
-/* Compact: only the mic remains, still dead centre */
+/* Compact: only the buttons remain, still dead centre */
 .ls-hud.compact {
-    width: 26px;
+    width: var(--ls-hud-mid, 26px);
     column-gap: 0;
     opacity: 0.7;
 }
@@ -337,8 +354,13 @@
     opacity: 0;
 }
 
-/* Stage-lyrics toggle (the readout itself ignores clicks) */
-.ls-hud-lyrics {
+.ls-hud-mid {
+    display: flex;
+    gap: 4px;
+}
+
+/* Buttons: environment, stage lyrics (the readout itself ignores clicks) */
+.ls-hud-btn {
     pointer-events: auto;
     flex: none;
     display: flex;
@@ -354,11 +376,11 @@
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.ls-hud-lyrics[hidden] {
+.ls-hud-btn[hidden] {
     display: none;
 }
 
-.ls-hud-lyrics:hover {
+.ls-hud-btn:hover {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
 }
