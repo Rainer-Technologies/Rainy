@@ -507,11 +507,12 @@ class MusicScanner:
             pass
         return default
     
-    def scan_single_file(self, full_path, lightshow=True):
+    def scan_single_file(self, full_path, analysis=True):
         """Scan a single file and add it to the database.
 
-        lightshow=False skips the (heavy) light show analysis; radio
-        downloads queue it only once someone keeps the song.
+        analysis=False queues no background jobs (enrichment, light show,
+        lyrics); radio downloads queue their own once the song has its
+        final title and artist.
         """
         from models.song import SongModel
         
@@ -539,6 +540,8 @@ class MusicScanner:
         # Add to database and get the song ID
         song_id = SongModel.add_song(metadata)
         metadata['id'] = song_id
+        if not analysis:
+            return metadata
 
         # Queue background metadata enrichment (audio analysis + free external
         # tags). Best-effort — never let enrichment break a scan/import.
@@ -552,9 +555,8 @@ class MusicScanner:
 
         # Queue the light show analysis so the show is synced from the first
         # play. Best-effort (enqueue_song never raises).
-        if lightshow:
-            from utils import lightshow_worker
-            lightshow_worker.enqueue_song(song_id)
+        from utils import lightshow_worker
+        lightshow_worker.enqueue_song(song_id)
 
         # Same for lyrics: fetch them from LRCLIB and time every word, so
         # freshly imported / downloaded songs come with synced lyrics.
