@@ -48,6 +48,8 @@ const ENV_FADE_MS = 600;     // an environment fades out this long before it is 
 const ENV_LOAD_MS = 10000;   // an environment that has not loaded and mounted by then is given up on
 const ENV_MAX_ERRORS = 3;    // frames in a row an environment may throw before it is taken off stage
 const ENV_LIST_WAIT = 2;     // seconds the show waits for the list of installed environments before starting without it
+const STYLE_VARS_EVERY = 0.1; // seconds between updates of the palette's CSS variables
+const PALETTE_KEYS = ['a', 'b', 'c', 'w', 'deep'];
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
 const ENV_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg>';
 const QUEUE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3 6h13v2H3zm0 5h13v2H3zm0 5h9v2H3zm14-3v6l5-3z"/></svg>';
@@ -154,6 +156,7 @@ export class LightShowEngine {
         this._raf = null;
         this._clearPoll();
         this._dropEnvironment();
+        this._clearStyleVars();
         if (this.container) this.container.classList.remove('lightshow-on', 'ls-lowpower');
         this._lowPower = false;
         if (this._hud) this._hud.classList.remove('show', 'compact');
@@ -544,6 +547,8 @@ export class LightShowEngine {
         S.lyrics = lyrics;
         S.lyricsOn = !!(wantLyrics && lyrics.ready && lyrics.songId === this.songId);
 
+        this._syncStyleVars(S, now);
+
         // ---- Environment ----
         try {
             env.update(S);
@@ -556,6 +561,28 @@ export class LightShowEngine {
             if (this.envId !== DEFAULT_ENVIRONMENT && ++this._envErrors >= ENV_MAX_ERRORS) this._environmentFailed(this.envId, e);
         }
         this._syncHud(prefs);
+    }
+
+    /**
+     * The show's palette as CSS variables on the player (`--ls-a`, `--ls-b`,
+     * `--ls-c`, `--ls-w`, `--ls-deep`, each "r g b"), so an environment's
+     * stylesheet can colour the player with the music: `rgb(var(--ls-a) / 0.6)`.
+     * A palette only moves at section changes, so this rarely touches the page.
+     */
+    _syncStyleVars(S, now) {
+        if (now - (this._varsAt || 0) < STYLE_VARS_EVERY) return;
+        this._varsAt = now;
+        const values = PALETTE_KEYS.map((k) => S.palette[k].map((v) => Math.round(clamp(v, 0, 255))).join(' '));
+        const key = values.join('|');
+        if (key === this._varsKey) return;
+        this._varsKey = key;
+        PALETTE_KEYS.forEach((k, i) => this.container.style.setProperty(`--ls-${k}`, values[i]));
+    }
+
+    _clearStyleVars() {
+        this._varsKey = '';
+        this._varsAt = 0;
+        if (this.container) for (const k of PALETTE_KEYS) this.container.style.removeProperty(`--ls-${k}`);
     }
 
     /**

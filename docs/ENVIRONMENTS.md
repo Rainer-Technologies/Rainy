@@ -220,13 +220,77 @@ With a score, `F.scripted` is `true` and everything is exact and known ahead. Wh
 - **`stage`**: the player as it is, with its artwork, controls and queue, and the show behind it.
 - **`immersive`**: the show is the whole picture. The queue folds away (a HUD button brings it back over the show), the song and its controls become one small card at the bottom, and all of it dims while the pointer rests.
 
-While you are on stage the player has the class `ls-env-<id>`, so your stylesheet can restyle the show's screen:
+## Styling the player
+
+An environment changes what the player looks like with CSS, not with JavaScript. List your stylesheets under `"styles"` in the manifest: Rainy loads them when the environment goes on stage and removes them when it leaves, so nothing you write outlives your show.
+
+While you are on stage, the fullscreen player has the class `ls-env-<id>`. Start every rule with it:
 
 ```css
-#fullscreen-player.ls-env-my-environment .fs-brand { display: none; }
+/* The progress bar and the glow around the artwork take the colours of the song. */
+#fullscreen-player.ls-env-my-environment .fs-progress-fill {
+    background-color: rgb(var(--ls-a));
+}
+
+#fullscreen-player.ls-env-my-environment .fs-artwork-container {
+    box-shadow: 0 0 70px rgb(var(--ls-b) / 0.55);
+}
 ```
 
-Keep to the fullscreen player while the show is on. The rest of Rainy is not yours to change.
+### State
+
+Classes on `#fullscreen-player` that say what is going on:
+
+| Class | |
+| --- | --- |
+| `lightshow-on` | The show is running. |
+| `ls-env-<id>` | That environment is on stage. |
+| `ls-immersive` | The layout is immersive. |
+| `ls-idle` | Immersive only: the pointer is resting and the player is dimmed. |
+| `ls-queue-peek` | Immersive only: the user opened the queue over the show. |
+| `ls-lowpower` | Low Performance Mode is on. Drop your filters and shadows. |
+| `mode-modern`, `mode-standard` | Which fullscreen player the user chose. Modern has its own controls. Standard keeps the app's player bar at the bottom, so `.fs-player-controls` and the volume button are hidden. |
+| `layout-swapped` | The artwork is on the left and the queue on the right, which is the default. Without it they are the other way round. |
+
+### Parts
+
+| Selector | |
+| --- | --- |
+| `.fs-backdrop` | The blurred album art behind everything. |
+| `.ls-env-root` | Your layer. |
+| `.fs-brand` | The Rainy mark, top left. |
+| `#fs-volume-btn`, `#fs-lightshow-btn`, `#fs-close-btn` | The buttons at the top. |
+| `.ls-hud`, `.ls-hud-btn` | The show's bar (tempo, genre) and its buttons, yours included. |
+| `.fs-content` | The box that holds the song and the queue. |
+| `.fs-current-info` | The song: artwork, title, artist and controls. In an immersive layout this is the card. |
+| `.fs-artwork-container` | The album art. |
+| `.fs-title`, `.fs-artist` | |
+| `.fs-player-controls` | The progress bar and the buttons. |
+| `.fs-progress-container`, `.fs-progress-bar`, `.fs-progress-fill`, `.fs-time` | |
+| `.fs-buttons`, `.fs-control-btn`, `.fs-control-btn.play-pause` | |
+| `.fs-queue-container` | The panel with the queue and the lyrics. |
+
+Anything not in this table is internal and may change without notice.
+
+### Variables
+
+The palette of the song is on the player as CSS variables, each holding `r g b`, so stylesheets can follow the music. They glide from one section's colours to the next.
+
+| Variable | |
+| --- | --- |
+| `--ls-a`, `--ls-b`, `--ls-c` | Primary, secondary and tertiary colour of the section. |
+| `--ls-w` | Tinted white. |
+| `--ls-deep` | The dark ambience colour. |
+
+Use them as `rgb(var(--ls-a))` or, with transparency, `rgb(var(--ls-a) / 0.5)`.
+
+Rainy's own theme is there too: `--accent-primary`, `--text-primary`, `--text-secondary`, `--text-tertiary`, `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--bg-elevated`, `--border-subtle`, `--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-full`, `--spacing-xs` to `--spacing-xl` and `--font-family`.
+
+### Limits
+
+- Keep to the fullscreen player. The rest of Rainy is not yours to change, and your rules should not match anything outside `#fullscreen-player.ls-env-<id>`.
+- Leave people a way out: do not hide or cover `#fs-close-btn` or `#fs-lightshow-btn`, and keep the playback controls usable.
+- For anything that moves with the beat, draw it in your layer. CSS gets the palette, not the kick drum.
 
 ## Rules of the house
 

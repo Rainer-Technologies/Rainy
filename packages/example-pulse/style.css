@@ -24,3 +24,18 @@
     color: #fff;
     font-weight: inherit;
 }
+
+/* Restyling the player: while Pulse is on stage the fullscreen player has the class
+   ls-env-example-pulse, and --ls-a, --ls-b… hold the song's palette as "r g b". */
+#fullscreen-player.ls-env-example-pulse .fs-progress-fill {
+    background-color: rgb(var(--ls-a, 255 255 255));
+}
+
+#fullscreen-player.ls-env-example-pulse .fs-artwork-container {
+    box-shadow: 0 0 70px rgb(var(--ls-b, 0 0 0) / 0.55);
+    transition: box-shadow 0.6s ease;
+}
+
+#fullscreen-player.ls-env-example-pulse .fs-control-btn.play-pause {
+    background-color: rgb(var(--ls-w, 255 255 255));
+}

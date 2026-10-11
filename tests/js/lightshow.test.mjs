@@ -258,6 +258,30 @@ test('sdk: the names a package may import are a contract', () => {
     ].sort());
 });
 
+test('styling hooks: the parts of the player a package may restyle are still there', () => {
+    // docs/ENVIRONMENTS.md promises these to environment stylesheets. Renaming one breaks installed
+    // packages: keep the old name working, or wait for a new API_VERSION.
+    const root = new URL('../../static/', import.meta.url).pathname;
+    const html = readFileSync(join(root, 'index.html'), 'utf8');
+    const player = html.slice(html.indexOf('<div id="fullscreen-player"'));
+    for (const id of ['fullscreen-player', 'fs-volume-btn', 'fs-lightshow-btn', 'fs-close-btn']) {
+        assert.ok(html.includes(`id="${id}"`), `#${id}`);
+    }
+    for (const name of [
+        'fs-backdrop', 'fs-brand', 'fs-content', 'fs-queue-container', 'fs-current-info', 'fs-artwork-container',
+        'fs-title', 'fs-artist', 'fs-player-controls', 'fs-progress-container', 'fs-progress-bar', 'fs-progress-fill',
+        'fs-time', 'fs-buttons', 'fs-control-btn', 'play-pause',
+    ]) {
+        assert.match(player, new RegExp(`class="[^"]*\\b${name}\\b`), `.${name}`);
+    }
+    // The show's own parts and the palette variables are made by the engine and the host.
+    const engine = readFileSync(join(root, 'js/lightshow/engine.js'), 'utf8');
+    const host = readFileSync(join(root, 'js/lightshow/environments/host.js'), 'utf8');
+    for (const name of ['ls-hud', 'ls-hud-btn', 'lightshow-on', 'ls-lowpower']) assert.ok(engine.includes(name), name);
+    for (const name of ['ls-env-root', 'ls-env-', 'ls-immersive', 'ls-idle', 'ls-queue-peek']) assert.ok(host.includes(name), name);
+    assert.ok(engine.includes('--ls-${k}') && engine.includes("['a', 'b', 'c', 'w', 'deep']"), 'palette variables');
+});
+
 test('the service worker shell lists every light show module', () => {
     const root = new URL('../../static/', import.meta.url).pathname;
     const sw = readFileSync(join(root, 'sw.js'), 'utf8');
