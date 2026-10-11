@@ -11,24 +11,14 @@
  * Angles: 0 = pointing up, π = pointing down, positive = clockwise.
  *
  * The director picks a scene per section (label × genre profile), rotates
- * alternates every 8-bar phrase, and crossfades between looks.
+ * alternates every 8-bar phrase (the conductor counts the phrases), and
+ * crossfades between looks.
  */
-import { TAU, clamp, lerp, smooth, paletteFor } from './palette.js';
+import { TAU, clamp, lerp, smooth } from '../../palette.js';
+import { altBeat, hash } from '../../motion.js';
 
 const PI = Math.PI;
 export const N_PIX = 24;
-
-/** Snap-and-hold motion: move during the first ~45% of each beat, then hold. */
-const stepEase = (b) => {
-    const i = Math.floor(b);
-    return i + smooth(Math.min(1, (b - i) * 2.2));
-};
-/** ±1 alternating on every beat, with an eased swing between. */
-const altBeat = (b) => Math.cos(PI * stepEase(b));
-const hash = (n) => {
-    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-    return x - Math.floor(x);
-};
 
 function cells(fn) {
     const a = new Float32Array(N_PIX);
@@ -367,8 +357,6 @@ function pickScene(genre, label, phrase, I) {
 
 // ---------------------------------------------------------------- director
 
-const PHRASE_BARS = 8;
-
 export class Director {
     constructor() {
         this.reset();
@@ -380,38 +368,20 @@ export class Director {
         this.prev = null;
         this.mixStart = 0;
         this.mixDur = 0;
-        this.paletteKey = '';
-        this.paletteTarget = null;
-        this.snapPalette = false;
-        this._secIdx = -1;
-        this._phrase = 0;
     }
 
     /**
      * Decide the scene(s) for this frame.
+     * @param {{ I: number, lasers: boolean, phrase: number }} opts
      * @returns {{ a: object, b: object|null, mix: number }} looks + crossfade
      */
-    update(F, P, opts, accentHue) {
+    update(F, P, opts) {
         const sec = F.section || { label: 'verse', idx: 0 };
         const genre = (F.profile && F.profile.genre) || 'pop';
-        let phrase = Math.floor(F.sectionBar / PHRASE_BARS);
-        // Don't start a new phrase in the last two bars of a section — the
-        // section change right after would make it a one-bar blip.
-        if (sec.idx === this._secIdx && phrase !== this._phrase && F.nextIn < (F.period || 0.5) * 8) phrase = this._phrase;
-        this._secIdx = sec.idx;
-        this._phrase = phrase;
+        const phrase = opts.phrase;
         const name = pickScene(genre, sec.label, phrase, opts.I);
         const variant = sec.idx + phrase;
         const key = `${name}:${sec.idx}:${phrase}`;
-
-        const palKey = `${sec.idx}:${phrase & 1}`;
-        if (palKey !== this.paletteKey) {
-            this.paletteKey = palKey;
-            this.paletteTarget = paletteFor({
-                accentHue, key: sec.key, mode: sec.mode, label: sec.label, genre, swap: (phrase & 1) === 1,
-            });
-            this.snapPalette = sec.label === 'drop' && F.sectionBar === 0;
-        }
 
         if (key !== this.key) {
             const sectionChanged = !this.cur || this.key.split(':')[1] !== String(sec.idx);

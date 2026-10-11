@@ -6,7 +6,7 @@
  * are added with 'lighter', so the (dimmed) album-art backdrop glows through
  * the darkness between beams.
  */
-import { TAU, clamp, lerp, rgba, toWhite, mixRgb } from './palette.js';
+import { TAU, clamp, lerp, rgba, toWhite, mixRgb } from '../../palette.js';
 import { N_PIX } from './scenes.js';
 
 const HAZE_MAX = 90;

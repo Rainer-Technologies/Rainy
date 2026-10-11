@@ -1,19 +1,20 @@
 /**
- * Rainy Light Show — choreographed concert lighting for the fullscreen player.
+ * Rainy Light Show — a choreographed show for the fullscreen player.
  *
- * Per frame:
+ * The engine is the part every environment shares. Per frame:
  *  1. PlaybackClock  — smooth media time from <audio>.currentTime (+ user offset).
  *  2. Source         — ScoreSource (server-analysed song: exact beats, bars,
  *                      sections, hits, drops/silences ahead) or LiveSource
  *                      (real-time guessing while the analysis is pending).
- *  3. Director       — scene per section × genre profile, 8-bar phrase
- *                      variations, crossfades, key-derived palettes.
- *  4. Renderer       — lasers, beams, washes, LED bars, haze, sparks, rings,
- *                      blinders and (photosensitivity-limited) strobes.
- *  5. StageLyrics    — optional kinetic, word-synced lyrics with follow spots.
+ *  3. Conductor      — intensity, hit pulses, 8-bar phrases, key-derived
+ *                      palettes, master dimmer and the flash limiter.
+ *  4. Environment    — the kind of show on stage (see environments/index.js).
+ *                      It stages that state its own way, lyrics included
+ *                      (LyricsTimeline says what is sung when).
  *
  * Public API (used by player.js / songSettingsModal.js):
  *   start(audioEl) · stop() · resume() · loadScript(songId, force) · clearScript(songId)
+ *   setTrack(track) · resetStageLyrics()
  */
 import { Logger } from '../helper/logger.js';
 import { t } from '../i18n/index.js';
@@ -21,14 +22,14 @@ import { useLightshowService } from '../services/lightshow.js';
 import { PlaybackClock } from './clock.js';
 import { Score } from './score.js';
 import { ScoreSource, LiveSource } from './sources.js';
-import { Director } from './scenes.js';
-import { Renderer } from './fixtures.js';
-import { StageLyrics } from './lyrics.js';
-import { clamp, lerp, hexToHue, paletteFor, blendPalette, mixRgb } from './palette.js';
+import { Conductor } from './conductor.js';
+import { LyricsTimeline } from './lyricsTimeline.js';
+import { ENVIRONMENTS, DEFAULT_ENVIRONMENT, normalizeEnvironment, resolveEnvironment } from './environments/index.js';
+import { clamp, lerp, hexToHue } from './palette.js';
+// The default environment ships with the engine, so the show starts without a round trip.
+import './environments/classic/index.js';
 
 const POLL_MS = 8000;
-const MIN_FLASH_GAP = 1 / 3;          // ≤ 3 flashes per second (WCAG 2.3.1)
-const INTENSITY = { chill: 0.3, balanced: 0.65, hype: 1 };
 const QUALITY_SCALE = [1, 0.75, 0.5];
 // Low performance mode: fixed render scale (ignores DPR) and a 30 fps cap.
 const LOW_SCALE = 0.6;
@@ -36,14 +37,14 @@ const LOW_FRAME_MS = 1000 / 30 - 2;
 const LOW_POWER_KEY = 'rainy-ls-lowpower';
 const SLOW_HINT_AFTER = 10;  // seconds at the lowest auto quality, still slow, before suggesting low power
 const SLOW_HINT_KEY = 'rainy-ls-slow-hint';
+const ENV_FADE_MS = 600;     // an environment fades out this long before it is unmounted
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
-const HUD_SETTLE = 0.7;      // seconds to wait for the stage layout before the HUD moves to the cover
 const GENRE_NAMES ={ edm: 'EDM', pop: 'Pop', rock: 'Rock', hiphop: 'Hip-hop', latin: 'Latin', chill: 'Chill', orchestral: 'Orchestral' };
 
 export class LightShowEngine {
     /**
      * @param {object} opts
-     * @param {HTMLCanvasElement} opts.canvas
+     * @param {HTMLCanvasElement} opts.canvas   2D canvas of the classic environment
      * @param {HTMLElement} opts.backdrop   album-art backdrop (pumped with the sub bass)
      * @param {HTMLElement} opts.container  fullscreen container (visibility + layout mode)
      * @param {() => boolean} opts.isPlaying
@@ -53,7 +54,6 @@ export class LightShowEngine {
         this.backdrop = backdrop;
         this.container = container;
         this.isPlaying = isPlaying || (() => false);
-        this.renderer = canvas ? new Renderer(canvas) : null;
 
         this.active = false;
         this._raf = null;
@@ -61,28 +61,26 @@ export class LightShowEngine {
         this.audioEl = null;
 
         this.clock = new PlaybackClock();
-        this.director = new Director();
+        this.conductor = new Conductor();
+        this.lyrics = new LyricsTimeline();
         this.live = null;
         this.score = null;
         this.scoreSrc = null;
         this.songId = 0;
+        this.track = null;           // { id, title, artist, cover } of the song on stage
         this.status = 'idle';        // idle | loading | synced | analysing | live
         this._loadToken = 0;
         this._pollTimer = null;
 
-        this.pulse = { k: 0, s: 0, h: 0 };
-        this.flashAmt = 0;
-        this.flashColor = [255, 255, 255];
-        this._lastFlashAt = -1;
-        this.blinderAmt = 0;
-        this.burstAmt = 0;
-        this.dim = 1;
-        this._lastSub = -1;
+        this.env = null;             // environment on stage
+        this.envId = '';
+        this._envWanted = '';        // environment on stage or on its way
+        this._envToken = 0;
+        this._envFailed = new Set(); // environments that broke on this device this session
+        this._retired = null;        // previous environment, fading out
+        this._retireTimer = null;
 
-        this.accentHue = 350;
-        this.palette = paletteFor({ accentHue: this.accentHue, label: 'intro', genre: 'pop' });
-
-        this._prefs = { disableLasers: false, showBgBlur: false, reduceFlashing: false, intensity: 'auto', offset: 0, lowPower: false };
+        this._prefs = { disableLasers: false, showBgBlur: false, reduceFlashing: false, intensity: 'auto', offset: 0, lowPower: false, environment: DEFAULT_ENVIRONMENT };
         this._prefsAt = -1;
 
         this._quality = 0;
@@ -91,26 +89,22 @@ export class LightShowEngine {
         this._lowPower = false;
         this._lastFrameAt = 0;
         this._slowFor = 0;
-        this._backdropKey = '';
 
         this._hud = null;
         this._lpPrompt = null;
         this._lpPending = false;
         this._lpTimer = null;
         this._hudTimer = null;
-        this.stage = container ? new StageLyrics(container) : null;
-        this._stageOn = false;
         // Stage lyrics are opt-in per queue: off for every new queue, and once
         // switched on they stay on for the songs that follow in that queue.
         this.stageLyrics = false;
-        this._lastSprayAt = 0;
         this._onLoadStart = () => this._onTrackChange();
     }
 
     // ------------------------------------------------------------------ API
 
     start(audioEl) {
-        if (!this.renderer) return;
+        if (!this.canvas || !this.container) return;
         if (this.audioEl !== audioEl) {
             if (this.audioEl) this.audioEl.removeEventListener('loadstart', this._onLoadStart);
             this.audioEl = audioEl;
@@ -121,11 +115,12 @@ export class LightShowEngine {
         this._getPrefs(true);
         this.clock.reset();
         this._lastTs = 0;
-        if (this.container) this.container.classList.add('lightshow-on');
+        this.container.classList.add('lightshow-on');
         this._ensureHud();
         this._renderHud(true);
         // An unanswered low-power offer comes back with the show.
         if (this._lpPending && this._lpPrompt) this._lpPrompt.classList.add('show');
+        this._useEnvironment(this._prefs.environment);
         this._startLoop();
     }
 
@@ -134,21 +129,18 @@ export class LightShowEngine {
         if (this._raf) cancelAnimationFrame(this._raf);
         this._raf = null;
         this._clearPoll();
-        if (this.renderer) this.renderer.clear();
-        if (this.canvas) this.canvas.style.filter = 'none';
+        this._dropEnvironment();
         if (this.container) this.container.classList.remove('lightshow-on', 'ls-lowpower');
         this._lowPower = false;
-        this._backdropKey = '';
         if (this._hud) this._hud.classList.remove('show', 'compact');
         if (this._lpPrompt) this._lpPrompt.classList.remove('show');
-        this._setStage(false);
     }
 
     /** A new queue started: stage lyrics go back to off until picked again. */
     resetStageLyrics() {
         if (!this.stageLyrics) return;
         this.stageLyrics = false;
-        this._setStage(false);
+        if (this.env) this.env.dropLyrics();
         this._renderHud(true);
     }
 
@@ -162,6 +154,15 @@ export class LightShowEngine {
     }
 
     /**
+     * The song on stage, for environments that show it (cover, title).
+     * @param {{ id?: number, title?: string, artist?: string, cover?: string|null }|null} track
+     */
+    setTrack(track) {
+        this.track = track || null;
+        if (this.env) this.env.setTrack(this.track);
+    }
+
+    /**
      * Load the song's score. Without one the server queues the analysis;
      * the live fallback runs and we poll until the score is ready.
      * @param {number} songId
@@ -170,10 +171,7 @@ export class LightShowEngine {
     async loadScript(songId, force = false) {
         if (!songId) return;
         if (!force && this.songId === songId && (this.score || this.status === 'loading' || this._pollTimer)) return;
-        if (this.songId !== songId) {
-            this.score = null;
-            this.scoreSrc = null;
-        }
+        if (this.songId !== songId) this._setScore(null);
         this.songId = songId;
         this._clearPoll();
         const token = ++this._loadToken;
@@ -184,15 +182,12 @@ export class LightShowEngine {
             const body = res && !res.error ? res.value : null;
             const score = body && body.success ? Score.from(body.lightshow) : null;
             if (score) {
-                this.score = score;
-                this.scoreSrc = new ScoreSource(score);
-                this.director.reset();
+                this._setScore(score);
                 this._setStatus('synced', true);
                 Logger.log(`LightShow: score loaded (${Math.round(score.tempo)} BPM, ${score.sections.length} sections, ${score.profile.genre}).`);
                 return;
             }
-            this.score = null;
-            this.scoreSrc = null;
+            this._setScore(null);
             const pending = !!(body && body.pending);
             this._setStatus(pending ? 'analysing' : 'live');
             if (pending) this._schedulePoll(songId, token);
@@ -207,13 +202,20 @@ export class LightShowEngine {
         if (songId && this.songId !== songId) return;
         this._clearPoll();
         this._loadToken++;
-        this.score = null;
-        this.scoreSrc = null;
+        this._setScore(null);
         this.songId = 0;
         this._setStatus('live');
     }
 
     // ------------------------------------------------------------ internals
+
+    _setScore(score) {
+        if (score === this.score) return;
+        this.score = score;
+        this.scoreSrc = score ? new ScoreSource(score) : null;
+        if (score) this.conductor.reset();
+        if (this.env) this.env.setScore(score);
+    }
 
     _schedulePoll(songId, token) {
         this._clearPoll();
@@ -231,21 +233,15 @@ export class LightShowEngine {
 
     _onTrackChange() {
         this.clock.reset();
-        this.director.reset();
-        this.flashAmt = 0;
-        this.blinderAmt = 0;
-        this.burstAmt = 0;
+        this.conductor.onTrackChange();
         if (this.live) this.live.onTrackChange(performance.now() / 1000);
-        if (this.renderer) {
-            this.renderer.sparks.length = 0;
-            this.renderer.rings.length = 0;
-        }
+        if (this.env) this.env.onTrackChange();
     }
 
     _readAccent() {
         try {
             const v = getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim();
-            if (/^#[0-9a-fA-F]{6}$/.test(v)) this.accentHue = hexToHue(v);
+            if (/^#[0-9a-fA-F]{6}$/.test(v)) this.conductor.accentHue = hexToHue(v);
         } catch (e) { /* keep previous */ }
     }
 
@@ -267,6 +263,7 @@ export class LightShowEngine {
             offset: clamp(Number(p.lightshow_offset_ms) || 0, -500, 500) / 1000,
             stageLyrics: p.lightshow_lyrics !== false,
             lowPower: readLowPower(),
+            environment: normalizeEnvironment(p.lightshow_environment),
         };
         return this._prefs;
     }
@@ -288,6 +285,101 @@ export class LightShowEngine {
         return this.live;
     }
 
+    // --------------------------------------------------------- environments
+
+    /**
+     * Put an environment on stage (the default one when this device cannot
+     * run it). The one it replaces fades out and is unmounted afterwards.
+     */
+    async _useEnvironment(wanted) {
+        const id = resolveEnvironment(wanted, this._envFailed);
+        if (id === this._envWanted) return;
+        this._envWanted = id;
+        const token = ++this._envToken;
+        this._flushRetired();
+        let env = null;
+        try {
+            const Env = await ENVIRONMENTS[id].load();
+            if (token !== this._envToken) return;
+            env = new Env();
+            await env.mount({
+                container: this.container,
+                canvas: this.canvas,
+                backdrop: this.backdrop,
+                lyrics: this.lyrics,
+                onFatal: (e) => this._environmentFailed(id, e),
+            });
+            if (token !== this._envToken) {
+                env.unmount();
+                return;
+            }
+        } catch (e) {
+            if (env) {
+                try { env.unmount(); } catch (err) { /* already broken */ }
+            }
+            if (token === this._envToken) this._environmentFailed(id, e);
+            return;
+        }
+        const old = this.env;
+        this.env = env;
+        this.envId = id;
+        this.container.dataset.lsEnv = id;
+        env.setTrack(this.track);
+        env.setScore(this.score);
+        if (old) this._retire(old);
+        this._hudAxisAt = 0;
+        this._renderHud(true);
+    }
+
+    /** An environment could not start, or died on stage: fall back to the default. */
+    _environmentFailed(id, err) {
+        Logger.error(`LightShow: the "${id}" environment failed.`, err);
+        this._envFailed.add(id);
+        // It never made it on stage: keep what is there.
+        if (this.env && this.envId !== id) {
+            this._envWanted = this.envId;
+            return;
+        }
+        if (this.env) {
+            const dead = this.env;
+            this.env = null;
+            this.envId = '';
+            try { dead.unmount(); } catch (e) { /* already broken */ }
+        }
+        this._envWanted = '';
+        if (id !== DEFAULT_ENVIRONMENT && this.active) this._useEnvironment(DEFAULT_ENVIRONMENT);
+    }
+
+    _retire(env) {
+        try { env.leave(); } catch (e) { Logger.error('LightShow: environment leave error:', e); }
+        this._retired = env;
+        this._retireTimer = setTimeout(() => this._flushRetired(), ENV_FADE_MS);
+    }
+
+    _flushRetired() {
+        clearTimeout(this._retireTimer);
+        this._retireTimer = null;
+        const env = this._retired;
+        this._retired = null;
+        if (!env) return;
+        try { env.unmount(); } catch (e) { Logger.error('LightShow: environment unmount error:', e); }
+    }
+
+    /** Take everything off stage (the show stopped). */
+    _dropEnvironment() {
+        this._envToken++;
+        this._envWanted = '';
+        this._flushRetired();
+        const env = this.env;
+        this.env = null;
+        this.envId = '';
+        if (this.container) delete this.container.dataset.lsEnv;
+        if (!env) return;
+        try { env.unmount(); } catch (e) { Logger.error('LightShow: environment unmount error:', e); }
+    }
+
+    // ----------------------------------------------------------------- loop
+
     _startLoop() {
         if (this._raf) return;
         const loop = (ts) => {
@@ -304,14 +396,11 @@ export class LightShowEngine {
     }
 
     _resize(dt, lowPower) {
-        const r = this.renderer;
-        r.floorPx = this.container && this.container.classList.contains('mode-standard') ? 90 : 0;
+        const env = this.env;
         if (lowPower) {
             // Fixed lowest quality; the adaptive state is left as it was.
             this._slowFor = 0;
-            r.quality = 2;
-            r.lowPower = true;
-            r.resize(window.innerWidth, window.innerHeight, LOW_SCALE);
+            env.resize(window.innerWidth, window.innerHeight, { tier: 2, lowPower: true, scale: LOW_SCALE });
             return;
         }
         // Adaptive quality: drop resolution/effects when frames run long.
@@ -328,10 +417,8 @@ export class LightShowEngine {
         }
         this._slowFor = this._quality === 2 && this._frameEma > 1 / 40 ? this._slowFor + dt : 0;
         if (this._slowFor > SLOW_HINT_AFTER) this._hintLowPower();
-        r.quality = this._quality;
-        r.lowPower = false;
         const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        r.resize(window.innerWidth, window.innerHeight, dpr * QUALITY_SCALE[this._quality]);
+        env.resize(window.innerWidth, window.innerHeight, { tier: this._quality, lowPower: false, scale: dpr * QUALITY_SCALE[this._quality] });
     }
 
     _frame(ts) {
@@ -342,9 +429,13 @@ export class LightShowEngine {
         this._lastTs = now;
 
         const prefs = this._getPrefs();
+        const wantedEnv = resolveEnvironment(prefs.environment, this._envFailed);
+        if (wantedEnv !== this._envWanted) this._useEnvironment(wantedEnv);
+        const env = this.env;
+        if (!env) return;   // still on its way
+
         if (prefs.lowPower !== this._lowPower) {
             this._lowPower = prefs.lowPower;
-            this._backdropKey = '';
             // Leaving low power: the ~30 fps frame times would otherwise read as a slow machine.
             if (!prefs.lowPower) this._frameEma = 1 / 60;
             this.container.classList.toggle('ls-lowpower', prefs.lowPower);
@@ -368,238 +459,26 @@ export class LightShowEngine {
         F.jumped = this.clock.jumped;
         F.running = running;
 
-        const I = prefs.intensity === 'auto'
-            ? clamp(0.35 + 0.65 * ((F.profile && F.profile.intensity) ?? 0.6), 0.3, 1)
-            : INTENSITY[prefs.intensity];
-
-        // Hit envelopes (instant attack, short release).
-        const p = this.pulse;
-        p.k = Math.max(p.k * Math.exp(-dt / 0.13), F.hits.k);
-        p.s = Math.max(p.s * Math.exp(-dt / 0.15), F.hits.s);
-        p.h = Math.max(p.h * Math.exp(-dt / 0.07), F.hits.h);
-        if (F.jumped) p.k = p.s = p.h = 0;
-        F.pulse = p;
-
         // ---- Direction ----
-        const { a, b, mix } = this.director.update(F, this.palette, { I, lasers: !prefs.disableLasers }, this.accentHue);
-        if (this.director.paletteTarget) {
-            const snap = this.director.snapPalette || F.jumped;
-            blendPalette(this.palette, this.director.paletteTarget, snap ? 1 : 1 - Math.exp(-dt / 0.6));
-            this.director.snapPalette = false;
-        }
-        const P = this.palette;
+        const S = this.conductor.update(F, prefs, t, now, dt);
 
-        // ---- Master dimmer: blackouts, pre-drop suck-back, pause ----
-        let dimTarget = running ? 1 : 0.35;
-        if (F.stopDepth > 0) dimTarget = 1 - 0.96 * F.stopDepth;
-        else if (F.dropIn > 0 && F.dropIn < F.period && F.stopIn > F.dropIn) {
-            dimTarget = 1 - 0.45 * (1 - F.dropIn / F.period);
-        }
-        this.dim = F.stopDepth > 0 || F.jumped ? dimTarget : lerp(this.dim, dimTarget, 1 - Math.exp(-dt / 0.08));
+        // ---- Lyrics on stage ----
+        const lyrics = this.lyrics;
+        const wantLyrics = prefs.stageLyrics && this.stageLyrics;
+        if (wantLyrics && this.songId && lyrics.songId !== this.songId) lyrics.load(this.songId);
+        S.songId = this.songId;
+        S.lyrics = lyrics;
+        S.lyricsOn = !!(wantLyrics && lyrics.ready && lyrics.songId === this.songId);
 
-        // ---- Triggers ----
-        const S = blendNum(a.strobe, b && b.strobe, mix);
-        const flashScale = 0.4 + 0.6 * I;
-        let fl = 0;
-        if (F.hits.s >= 0.45) fl = Math.max(fl, S.snare * F.hits.s);
-        if (F.hits.k >= 0.5) fl = Math.max(fl, S.kick * F.hits.k);
-        if (F.newBar) fl = Math.max(fl, S.bar);
-        if (S.sub > 0.01) {
-            const n = Math.floor(F.beat * (a.strobe.subN || 1));
-            if (n !== this._lastSub && this._lastSub !== -1) fl = Math.max(fl, S.sub);
-            this._lastSub = n;
-        } else this._lastSub = -1;
-        if (running && fl > 0.02) this._flash(fl * flashScale, P.w, prefs, now);
-
-        const Bl = blendNum(a.blinders, b && b.blinders, mix);
-        let bl = 0;
-        if (F.hits.s >= 0.5) bl = Math.max(bl, Bl.snare * F.hits.s);
-        if (F.newBar && F.hits.k > 0.2) bl = Math.max(bl, Bl.bar);
-        if (bl > 0.05 && running) this.blinderAmt = Math.max(this.blinderAmt, bl * (prefs.reduceFlashing ? 0.4 : 1) * flashScale);
-
-        const R = blendNum(a.rings, b && b.rings, mix);
-        const r = this.renderer;
-        if (running) {
-            if (F.newBar && R.bar > 0.1) r.ring('floor', P.a, 0.5 * R.bar);
-            if (F.hits.k > 0.6 && R.kick > 0.1) r.ring('halo', P.b, 0.4 * R.kick * F.hits.k, 1.3);
-            const sp = lerp(b ? b.sparks : a.sparks, a.sparks, mix);
-            if (sp > 0.05 && F.hits.k > 0.75 && F.newBeat) r.burst(Math.round(10 * sp * I), [P.a, P.b, P.w], 0.6);
-        }
-        for (const ev of F.events) this._onEvent(ev, P, prefs, now, I);
-
-        // ---- Stage lyrics ----
-        const stage = this.stage;
-        const wantStage = prefs.stageLyrics && this.stageLyrics;
-        if (stage && wantStage && this.songId && stage.songId !== this.songId) stage.load(this.songId);
-        this._setStage(!!(stage && wantStage && stage.ready && stage.songId === this.songId));
-        if (this._stageOn) {
-            stage.lowPower = prefs.lowPower;
-            stage.update(F, t, P, now);
-            const lbl = F.section && F.section.label;
-            const hot = lbl === 'drop' || lbl === 'chorus';
-            const on = stage.onset;
-            if (running && on) {
-                // Embers fly off words that land on a hit (or are held) in the hot
-                // sections, spread along the word instead of from a point.
-                if (hot && I > 0.5 && now - this._lastSprayAt > 0.2 && ((on.hit && on.strong) || on.held || F.hits.k > 0.5)) {
-                    this._lastSprayAt = now;
-                    r.sprayAt(on.x, on.y, Math.round(6 + 8 * I), [P.a, P.b, P.w], Math.max(0, on.r - on.l));
-                }
-            }
-            // Line hand-overs are cues for the rig too.
-            const cue = stage.cue;
-            if (running && cue && I > 0.4) {
-                if (cue.type === 'slam') {
-                    this.flashAmt = Math.max(this.flashAmt, 0.3 * I);
-                    r.ring('floor', P.a, 0.5 * I, 1);
-                } else if (cue.type === 'fall') {
-                    r.ring('floor', P.b, 0.4 * I, 0.7);
-                } else if (cue.type === 'flicker') {
-                    this.blinderAmt = Math.max(this.blinderAmt, 0.5 * I);
-                } else if (cue.type === 'break') {
-                    // The vocals drop out and the rig takes the stage.
-                    this.blinderAmt = Math.max(this.blinderAmt, 0.6 * I);
-                    r.ring('floor', P.b, 0.5 * I, 0.9);
-                }
-            }
-        }
-        this._syncHudStage(prefs);
-
-        this.flashAmt *= Math.exp(-dt / 0.07);
-        this.blinderAmt *= Math.exp(-dt / 0.14);
-        this.burstAmt *= Math.exp(-dt / 0.6);
-
-        // ---- Render ----
-        // A CSS blur on a canvas that changes every frame is re-filtered every frame.
-        const want = prefs.showBgBlur && !prefs.lowPower ? 'blur(24px)' : 'none';
-        if (this.canvas.style.filter !== want) this.canvas.style.filter = want;
+        // ---- Environment ----
         try {
-            this._render(F, a, b, mix, dt, P);
+            env.update(S);
+            this.conductor.settle(dt);
+            env.render(S);
         } catch (e) {
             Logger.error('LightShow render error:', e);
         }
-
-        if (this.backdrop) {
-            // Low power: no sub-bass pump, so the heavily blurred backdrop is
-            // only recomposited when the dimmer moves (blackouts, pause).
-            const scale = prefs.lowPower ? 1.02 : 1.02 + 0.05 * p.k * this.dim;
-            const opacity = prefs.lowPower ? 0.5 * Math.round(this.dim * 10) / 10 : (0.4 + 0.35 * F.bands.rms) * this.dim;
-            const key = `${scale.toFixed(3)}|${opacity.toFixed(3)}`;
-            if (key !== this._backdropKey) {
-                this._backdropKey = key;
-                this.backdrop.style.transform = `scale(${scale.toFixed(3)})`;
-                this.backdrop.style.opacity = opacity.toFixed(3);
-            }
-        }
-    }
-
-    _onEvent(ev, P, prefs, now, I) {
-        const r = this.renderer;
-        if (ev.type === 'drop') {
-            this._flash(1, P.w, prefs, now);
-            this.burstAmt = 1;
-            r.ring('floor', P.w, 1, 1.4);
-            r.ring('floor', P.a, 0.8, 0.9);
-            r.ring('halo', P.b, 0.9, 1.2);
-            r.burst(Math.round(90 + 90 * I), [P.a, P.b, P.c, P.w], 1);
-        } else if (ev.type === 'impact') {
-            this._flash(0.5, P.w, prefs, now);
-            this.burstAmt = Math.max(this.burstAmt, 0.5);
-            r.ring('halo', P.a, 0.7, 1.1);
-            r.burst(Math.round(40 * I), [P.a, P.w], 0.8);
-        }
-    }
-
-    /** Strobe with a hard photosensitivity limiter. */
-    _flash(amount, color, prefs, now) {
-        if (prefs.reduceFlashing) {
-            amount = Math.min(amount * 0.3, 0.2);
-            color = mixRgb(this.palette.a, color, 0.3);
-        }
-        if (amount > 0.12) {
-            if (now - this._lastFlashAt < MIN_FLASH_GAP) amount = Math.min(amount, 0.08);
-            else this._lastFlashAt = now;
-        }
-        if (amount > this.flashAmt) {
-            this.flashAmt = amount;
-            this.flashColor = color;
-        }
-    }
-
-    _render(F, a, b, mix, dt, P) {
-        const r = this.renderer;
-        const dim = this.dim;
-        const boost = 1 + 0.6 * this.burstAmt;
-        r.begin(lerp(b ? b.trail : a.trail, a.trail, mix) * (F.stopDepth > 0 ? 0.3 : 1));
-
-        const wash = blendWash(a.wash, b && b.wash, mix);
-        r.wash(wash, dim);
-        const halo = { alpha: lerp(b ? b.halo.alpha : a.halo.alpha, a.halo.alpha, mix), r: lerp(b ? b.halo.r : a.halo.r, a.halo.r, mix), color: a.halo.color };
-        r.halo(halo, dim);
-
-        const ka = mix * dim * boost, kb = (1 - mix) * dim * boost;
-        if (b && kb > 0.01) {
-            for (const beam of b.beams) r.beam(beam, kb);
-            for (const f of b.lasers) r.fan(f, kb);
-        }
-        for (const beam of a.beams) r.beam(beam, ka);
-        for (const f of a.lasers) r.fan(f, ka);
-
-        // The lone laser through the blackout before a drop.
-        if (F.stopDepth > 0) {
-            const sweep = 0.06 * Math.sin(F.t * 3);
-            r.fan({ x: -0.02, y: 0.5, angle: Math.PI / 2 + sweep, spread: 0, count: 1, alpha: 0.85, thick: 1.2, color: P.w }, F.stopDepth);
-        }
-
-        const hazeAmt = lerp(b ? b.haze : a.haze, a.haze, mix);
-        const lights = r.lightsOf(a, ka);
-        if (b && kb > 0.05) lights.push(...r.lightsOf(b, kb));
-        r.hazeLayer(hazeAmt, lights.slice(0, this._lowPower ? 6 : 16), this.pulse.h * dim, dt);
-
-        // Follow spots on the word being sung.
-        const band = this._stageOn && this.stage.band;
-        if (band) {
-            // Pull the lasers back behind the lyric band so the words read.
-            const w = this.canvas.width / r.s;
-            // (Not during an instrumental break: no words to protect, the rig gets the stage.)
-            r.scrim(w / 2, band.top + band.height / 2, Math.min(w * 0.46, 620), band.height * 0.5, 0.55 * (1 - this.stage.interlude));
-        }
-        // Backing vocals get their own small spot and pool in the second colour.
-        const ad = this._stageOn && this.stage.adlib;
-        if (ad) {
-            const k = ad.strength * Math.max(dim, 0.5);
-            r.pool(ad.x, ad.y, 90, (0.2 + 0.15 * this.pulse.k) * k, P.b);
-            r.followSpot(ad.x < this.canvas.width / r.s / 2 ? 0.95 : 0.05, 0, ad.x, ad.y, 0.03, 0.14 * k, mixRgb(P.w, P.b, 0.35));
-        }
-        const focus = this._stageOn && this.stage.focus;
-        if (focus) {
-            const lbl = F.section && F.section.label;
-            const quiet = lbl === 'intro' || lbl === 'outro' || lbl === 'breakdown';
-            const spotA = (quiet ? 0.44 : 0.36 + 0.2 * F.bands.rms) * Math.max(dim, 0.55) * focus.strength;
-            // Each word is picked out in the other palette colour; held notes
-            // get a tighter, brighter cone. The two spots are different colours
-            // and land together in one pool of light on the word.
-            const tone = focus.flip ? P.b : P.a;
-            const other = focus.flip ? P.a : P.b;
-            const kick = this._prefs.reduceFlashing ? 0.25 * this.pulse.k : this.pulse.k;
-            const width = focus.tight ? 0.028 : 0.04;
-            const boost = (focus.tight ? 1.2 : 1) * (0.7 + 0.5 * kick);
-            r.pool(focus.x, focus.y, 150, (0.2 + 0.3 * kick) * (focus.tight ? 1.2 : 1) * Math.max(dim, 0.5) * Math.min(1, focus.strength * 1.4), mixRgb(tone, other, 0.5));
-            r.followSpot(0.05, 0, focus.x - 6, focus.y, width, spotA * boost, mixRgb(tone, P.w, 0.2), { id: 'L', dt, kick });
-            r.followSpot(0.95, 0, focus.x + 6, focus.y, width, spotA * boost, mixRgb(other, P.w, 0.2), { id: 'R', dt, kick });
-        }
-        const bar = this._stageOn && this.stage.bar;
-        if (bar) {
-            r.lyricBar(bar.x0, bar.x1, bar.y, bar.p, bar.fade * Math.max(dim, 0.5), mixRgb(P.w, P.a, 0.4),
-                (bar.hit ? 0.6 : 0) + 0.4 * this.pulse.k);
-        }
-
-        const px = b ? blendPixels(a.pixels, b.pixels, mix) : a.pixels;
-        r.pixels(px, dim);
-        r.effects(dt, Math.max(dim, 0.3));
-        r.blinders(this.blinderAmt * dim, P.w);
-        r.flash(this.flashAmt, this.flashColor);
-        r.vignette();
+        this._syncHudStage(prefs);
     }
 
     /**
@@ -658,28 +537,23 @@ export class LightShowEngine {
             + '<span class="ls-hud-side ls-hud-r"><span class="ls-hud-meta"></span></span>';
         el.querySelector('.ls-hud-lyrics').addEventListener('click', (e) => {
             e.stopPropagation();
-            const on = !this.stageLyrics;
-            this.stageLyrics = on;
-            if (on && this.stage && this.songId) this.stage.load(this.songId);
-            this._renderHud(true);
-            if (on && this.stage && !this.stage.ready) window.showToast?.('No synced lyrics for this song', 'info');
+            this._toggleStageLyrics();
         });
         this.container.appendChild(el);
         this._hud = el;
     }
 
-    /** Enter/leave the stage-lyrics layout (queue hidden, art shrunk). */
-    _setStage(on) {
-        if (on === this._stageOn) return;
-        this._stageOn = on;
-        this._stageAt = performance.now() / 1000;
-        if (this.container) this.container.classList.toggle('ls-stage', on);
-        if (this.stage) {
-            this.stage.show(on);
-            this.stage.invalidateLayout();
-            // Re-measure once the layout transition has settled.
-            setTimeout(() => this.stage && this.stage.invalidateLayout(), 600);
-        }
+    _toggleStageLyrics() {
+        const on = !this.stageLyrics;
+        this.stageLyrics = on;
+        this._renderHud(true);
+        const songId = this.songId;
+        if (!on || !songId) return;
+        this.lyrics.load(songId).then(() => {
+            if (this.stageLyrics && this.songId === songId && this.lyrics.songId === songId && !this.lyrics.ready) {
+                window.showToast?.('No synced lyrics for this song', 'info');
+            }
+        });
     }
 
     _syncHudStage(prefs) {
@@ -690,7 +564,7 @@ export class LightShowEngine {
         const on = !!prefs.stageLyrics && this.stageLyrics;
         const pressed = String(on);
         if (btn.getAttribute('aria-pressed') !== pressed) btn.setAttribute('aria-pressed', pressed);
-        const missing = on && !!this.stage && !this.stage.ready;
+        const missing = on && !this.lyrics.ready;
         btn.classList.toggle('missing', missing);
     }
 
@@ -700,16 +574,14 @@ export class LightShowEngine {
         if (changed) this._renderHud(true);
     }
 
-    /**
-     * With lyrics on stage the HUD moves to the cover's centre line. It waits for
-     * the cover's own layout transition to settle and then glides there once,
-     * rather than chasing the cover while it is still resizing.
-     */
+    /** The environment says where the HUD sits: top centre, or on some axis of its layout. */
     _alignHud(now) {
         const hud = this._hud;
         if (!hud || now - (this._hudAxisAt || 0) < 0.2) return;
         this._hudAxisAt = now;
-        if (!this._stageOn) {
+        const x = this.env.hudAxis(now);
+        if (x === undefined) return;
+        if (x === null) {
             // Plain show: pinned to the top centre of the screen.
             if (this._hudX !== null) {
                 this._hudX = null;
@@ -718,12 +590,6 @@ export class LightShowEngine {
             }
             return;
         }
-        if (now - this._stageAt < HUD_SETTLE) return;
-        const art = this.container.querySelector('#fs-artwork');
-        if (!art) return;
-        const r = art.getBoundingClientRect();
-        if (!r.width) return;
-        const x = Math.round(r.left - this.container.getBoundingClientRect().left + r.width / 2);
         hud.classList.add('stage-pos');
         if (x !== this._hudX) {
             this._hudX = x;
@@ -760,27 +626,3 @@ function readLowPower() {
         return false;
     }
 }
-
-// ---------------------------------------------------------------- blending
-
-function blendNum(a, b, t) {
-    if (!b) return a;
-    const out = {};
-    for (const k of Object.keys(a)) out[k] = lerp(b[k] || 0, a[k] || 0, t);
-    return out;
-}
-
-function blendWash(a, b, t) {
-    if (!b) return a;
-    return {
-        l: lerp(b.l, a.l, t), r: lerp(b.r, a.r, t), top: lerp(b.top, a.top, t), floor: lerp(b.floor, a.floor, t),
-        colL: a.colL, colR: a.colR, colTop: a.colTop, colFloor: a.colFloor,
-    };
-}
-
-function blendPixels(a, b, t) {
-    const cells = new Float32Array(a.cells.length);
-    for (let i = 0; i < cells.length; i++) cells[i] = lerp(b.cells[i], a.cells[i], t);
-    return { cells, colA: a.colA, colB: a.colB, alpha: lerp(b.alpha, a.alpha, t) };
-}
-

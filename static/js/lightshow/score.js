@@ -19,7 +19,7 @@ function b64ToBytes(s) {
 }
 
 /** Index of the last element <= t (or -1). */
-function floorIndex(arr, t) {
+export function floorIndex(arr, t) {
     let lo = 0, hi = arr.length - 1, ans = -1;
     while (lo <= hi) {
         const mid = (lo + hi) >> 1;

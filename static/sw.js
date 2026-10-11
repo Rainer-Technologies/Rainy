@@ -1,7 +1,7 @@
 /**
  * Rainy Service Worker â€” PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v44';
+const CACHE_NAME = 'rainy-v45';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
@@ -55,11 +55,16 @@ const SHELL_ASSETS = [
   '/js/i18n/locales/pl.js',
   '/js/audioGraph.js',
   '/js/lightshow/clock.js',
+  '/js/lightshow/conductor.js',
   '/js/lightshow/engine.js',
-  '/js/lightshow/fixtures.js',
-  '/js/lightshow/lyrics.js',
+  '/js/lightshow/environments/classic/fixtures.js',
+  '/js/lightshow/environments/classic/index.js',
+  '/js/lightshow/environments/classic/lyrics.js',
+  '/js/lightshow/environments/classic/scenes.js',
+  '/js/lightshow/environments/index.js',
+  '/js/lightshow/lyricsTimeline.js',
+  '/js/lightshow/motion.js',
   '/js/lightshow/palette.js',
-  '/js/lightshow/scenes.js',
   '/js/lightshow/score.js',
   '/js/lightshow/sources.js',
   '/js/main.js',
