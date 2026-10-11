@@ -242,63 +242,83 @@
 
 /* ---------------------------------------------------------------------
    Immersive layout (.ls-immersive, set by an environment that is the whole
-   picture): the queue folds away, the cover and title become a small lower
-   third, and the chrome dims while the pointer rests (.ls-idle).
+   picture): the queue folds away, and the song and its controls become one
+   small card at the bottom centre, which dims while the pointer rests
+   (.ls-idle).
    --------------------------------------------------------------------- */
-#fullscreen-player.ls-immersive .fs-current-info {
+#fullscreen-player.ls-immersive .fs-content .fs-current-info {
+    flex: 0 1 auto;
+    align-self: flex-end;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: 1fr auto auto auto auto;
     column-gap: 14px;
     align-items: center;
     justify-items: start;
-    padding: 0;
+    width: min(620px, 100%);
+    margin: 0 auto;
+    padding: 14px 18px 10px;
     text-align: left;
+    background: rgba(8, 8, 14, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
     transition: opacity 0.6s ease;
 }
 
-#fullscreen-player.ls-immersive .fs-artwork-container {
-    grid-area: 2 / 1 / 4 / 2;
-    width: 64px;
-    height: 64px;
+#fullscreen-player.ls-immersive .fs-content .fs-artwork-container {
+    grid-area: 1 / 1 / 3 / 2;
+    width: 48px;
+    height: 48px;
     margin: 0;
     border-radius: var(--radius-md);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
-#fullscreen-player.ls-immersive .fs-title {
-    grid-area: 2 / 2;
+#fullscreen-player.ls-immersive .fs-content .fs-title {
+    grid-area: 1 / 2;
     align-self: end;
     max-width: 100%;
     margin: 0;
     overflow: hidden;
-    font-size: var(--font-size-xl);
+    font-size: var(--font-size-lg);
+    line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.85);
 }
 
-#fullscreen-player.ls-immersive .fs-artist {
-    grid-area: 3 / 2;
+#fullscreen-player.ls-immersive .fs-content .fs-artist {
+    grid-area: 2 / 2;
     align-self: start;
+    max-width: 100%;
     margin: 0;
-    font-size: var(--font-size-base);
-    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.85);
+    overflow: hidden;
+    font-size: var(--font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-#fullscreen-player.ls-immersive .fs-keep-btn {
+#fullscreen-player.ls-immersive .fs-content .fs-keep-btn {
+    grid-area: 3 / 1 / 4 / 3;
+    margin-top: var(--spacing-sm);
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-player-controls {
     grid-area: 4 / 1 / 5 / 3;
+    justify-self: stretch;
+    max-width: none;
     margin-top: var(--spacing-sm);
 }
 
-#fullscreen-player.ls-immersive .fs-player-controls {
-    grid-area: 5 / 1 / 6 / 3;
-    justify-self: center;
-    margin-top: var(--spacing-sm);
+#fullscreen-player.ls-immersive .fs-content .fs-progress-container {
+    margin-bottom: var(--spacing-xs);
 }
 
-/* Standard mode keeps the app's player bar: it already shows the song. */
-#fullscreen-player.mode-standard.ls-immersive .fs-current-info > :not(.fs-player-controls) {
+#fullscreen-player.ls-immersive .fs-content .fs-buttons {
+    padding: 0 var(--spacing-md);
+}
+
+/* Standard mode keeps the app's player bar: it already is that card. */
+#fullscreen-player.mode-standard.ls-immersive .fs-content .fs-current-info {
     display: none;
 }
 
@@ -335,7 +355,6 @@
 }
 
 /* Resting: the show has the screen. Everything is still there on the next move. */
-#fullscreen-player.ls-immersive .fs-player-controls,
 #fullscreen-player.ls-immersive #fs-close-btn,
 #fullscreen-player.ls-immersive #fs-lightshow-btn,
 #fullscreen-player.ls-immersive #fs-volume-btn,
@@ -347,7 +366,6 @@
     cursor: none;
 }
 
-#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-player-controls,
 #fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-close-btn,
 #fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-lightshow-btn,
 #fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-volume-btn,
@@ -355,8 +373,8 @@
     opacity: 0.08;
 }
 
-#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-current-info {
-    opacity: 0.6;
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-content .fs-current-info {
+    opacity: 0.14;
 }
 
 @media (max-width: 768px) {
@@ -367,8 +385,8 @@
         width: auto;
     }
 
-    #fullscreen-player.ls-immersive .fs-current-info {
-        height: 100%;
+    #fullscreen-player.ls-immersive .fs-content .fs-current-info {
+        padding: 12px 14px 8px;
     }
 }
 

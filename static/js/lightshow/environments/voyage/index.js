@@ -146,8 +146,8 @@ export class VoyageEnvironment {
         this.post = new Post(renderer);
         this.sun.setCover(this.track && this.track.cover);
 
-        // The world is the stage: the player's chrome steps back (see .ls-immersive)
-        // and dims while the pointer rests.
+        // The world is the stage: the song and its controls become one small card
+        // (see .ls-immersive) that dims while the pointer rests.
         container.classList.add('ls-immersive');
         for (const type of ['pointermove', 'pointerdown', 'keydown']) window.addEventListener(type, this._wake, { passive: true });
         this._wake();
@@ -168,7 +168,7 @@ export class VoyageEnvironment {
         this._bottomAt = now;
         const c = this.container.getBoundingClientRect();
         let top = c.bottom;
-        for (const sel of ['#fs-artwork', '#fs-title', '.fs-player-controls']) {
+        for (const sel of ['.fs-current-info']) {
             const el = this.container.querySelector(sel);
             const r = el && el.getBoundingClientRect();
             if (r && r.height > 0 && r.top < top) top = r.top;
