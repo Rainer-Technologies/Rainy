@@ -177,9 +177,9 @@ class ConnectModel:
                 INSERT INTO connect_sessions
                     (device_id, user_id, device_name, device_type, song_id,
                      song_title, song_artist, song_album, cover_path, position,
-                     duration, is_playing, volume, is_shuffled, repeat_mode,
-                     queue_index, last_cmd_id, last_seen)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     duration, is_playing, is_buffering, volume, is_shuffled,
+                     repeat_mode, queue_index, last_cmd_id, last_seen)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     user_id = VALUES(user_id),
                     device_name = VALUES(device_name),
@@ -192,6 +192,7 @@ class ConnectModel:
                     position = VALUES(position),
                     duration = VALUES(duration),
                     is_playing = VALUES(is_playing),
+                    is_buffering = VALUES(is_buffering),
                     volume = VALUES(volume),
                     is_shuffled = VALUES(is_shuffled),
                     repeat_mode = VALUES(repeat_mode),
@@ -212,6 +213,7 @@ class ConnectModel:
                     _number(payload.get("position"), 0.0, lo=0),
                     _number(payload.get("duration"), 0.0, lo=0),
                     1 if payload.get("is_playing") else 0,
+                    1 if payload.get("is_buffering") else 0,
                     _integer(payload.get("volume"), 100, lo=0, hi=100),
                     1 if payload.get("is_shuffled") else 0,
                     normalize_repeat(payload.get("repeat_mode")),
@@ -559,6 +561,8 @@ class ConnectModel:
             "position": float(r["position"] or 0),
             "duration": float(r["duration"] or 0),
             "is_playing": bool(r["is_playing"]),
+            # Playing but stalled: the position is not advancing.
+            "is_buffering": bool(r.get("is_buffering")),
             "volume": int(r["volume"] if r["volume"] is not None else 100),
             "is_shuffled": bool(r["is_shuffled"]),
             "repeat_mode": normalize_repeat(r["repeat_mode"]),
