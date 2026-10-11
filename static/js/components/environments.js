@@ -202,7 +202,7 @@ export class EnvironmentManager extends Component {
                         e.target.value = '';
                         this._install(file);
                     })),
-                h.button(this._button, a.class('btn', 'btn-secondary'), a.type('button'),
+                h.button(this._button, a.class('btn', 'btn-secondary', 'btn-sm'), a.type('button'),
                     on.click(() => this._file.value.click()), t('Install package (.zip)')),
             ),
         );
