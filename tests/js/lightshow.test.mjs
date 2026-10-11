@@ -2,6 +2,8 @@
 // lyrics timeline and the environment registry. No DOM, no audio.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { Conductor, MIN_FLASH_GAP } from '../../static/js/lightshow/conductor.js';
 import { LyricsTimeline, buildLines, pickTransition, tokenize, LEAD, REST_AFTER } from '../../static/js/lightshow/lyricsTimeline.js';
 import {
@@ -179,4 +181,20 @@ test('environments: unknown or unusable ids fall back to the default', () => {
         assert.equal(resolveEnvironment(id, new Set([id])), 'classic', `${id} failed on this device`);
         assert.ok(nextEnvironment(id) in ENVIRONMENTS);
     }
+});
+
+test('the service worker shell lists every light show module and the vendored library', () => {
+    const root = new URL('../../static/', import.meta.url).pathname;
+    const sw = readFileSync(join(root, 'sw.js'), 'utf8');
+    const listed = new Set([...sw.matchAll(/'(\/js\/[^']+\.js)'/g)].map((m) => m[1]));
+    const walk = (dir) => readdirSync(join(root, dir)).flatMap((name) => {
+        const rel = `${dir}/${name}`;
+        return statSync(join(root, rel)).isDirectory() ? walk(rel) : name.endsWith('.js') ? [`/${rel}`] : [];
+    });
+    const missing = [...walk('js/lightshow'), ...walk('js/vendor')].filter((f) => !listed.has(f));
+    assert.deepEqual(missing, []);
+    const stale = [...listed].filter((f) => /^\/js\/(lightshow|vendor)\//.test(f)).filter((f) => {
+        try { statSync(join(root, f)); return false; } catch (e) { return true; }
+    });
+    assert.deepEqual(stale, []);
 });

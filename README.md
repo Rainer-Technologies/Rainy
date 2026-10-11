@@ -143,7 +143,7 @@ MySQL data is stored in the `mysql_data` Docker volume. Music stays in the host 
 - **Discovery:** personalised mixes, radio, mood mixes and listening history, using local audio analysis.
 - **Imports:** YouTube and YouTube Music downloads, public Spotify playlist imports and scheduled playlist syncs.
 - **Sharing and devices:** multiple accounts, friends, shared playlists, Rainy Connect remote control, Chromecast and an installable PWA.
-- **Fullscreen player:** synced lyrics and a music-driven light show, with optional GPU acceleration. See [GPU setup](docs/GPU.md).
+- **Fullscreen player:** synced lyrics and a music-driven light show, analysed per song (optional GPU acceleration, see [GPU setup](docs/GPU.md)). The show has environments, each staging the same analysis and lyrics its own way: **Classic**, a concert rig over the album art, and **Voyage**, a 3D flight through the song (WebGL 2).
 
 ## Troubleshooting
 
