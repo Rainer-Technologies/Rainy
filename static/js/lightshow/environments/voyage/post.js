@@ -110,8 +110,9 @@ void main() {
     col = mix(col, bloom * 1.4, uSoft) + bloom * uBloom;
     // Blinders: light pouring in from above.
     col += uBlindCol * uBlind * exp(-(1.0 - vUv.y) * 3.2) * 1.8;
+    // The flash is light added to the scene, not a veil over it.
+    col += uFlashCol * clamp(uFlash, 0.0, 1.0) * 0.8;
     col = aces(col * uExposure);
-    col = mix(col, uFlashCol, clamp(uFlash * 0.6, 0.0, 0.65));
     col *= 1.0 - uVignette * smoothstep(0.12, 0.62, r2);
     col = pow(col, vec3(1.0 / 2.2));
     col += (grain(vUv * uRes + fract(uNow) * 61.0) - 0.5) * uGrain;
@@ -135,7 +136,7 @@ export class Post {
         const mat = (fragmentShader, uniforms, extra = {}) => new THREE.ShaderMaterial({
             vertexShader: VERT, fragmentShader, uniforms, depthTest: false, depthWrite: false, ...extra,
         });
-        this.prefilter = mat(PREFILTER, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uThreshold: { value: 0.75 } });
+        this.prefilter = mat(PREFILTER, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uThreshold: { value: 0.95 } });
         this.down = mat(DOWN, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } });
         this.up = mat(UP, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uGain: { value: 1 } },
             { blending: THREE.AdditiveBlending, transparent: true });
@@ -219,8 +220,10 @@ export class Post {
             this.down.uniforms.uTexel.value.set(1 / mips[i - 1].width, 1 / mips[i - 1].height);
             this._pass(this.down, mips[i]);
         }
-        // Add each level onto the sharper one above it.
+        // Add each level onto the sharper one above it. The wide levels count
+        // for less, so bright things glow without veiling the whole picture.
         r.autoClear = false;
+        this.up.uniforms.uGain.value = 0.7;
         for (let i = mips.length - 1; i > 0; i--) {
             this.up.uniforms.tSrc.value = mips[i].texture;
             this.up.uniforms.uTexel.value.set(0.5 / mips[i].width, 0.5 / mips[i].height);

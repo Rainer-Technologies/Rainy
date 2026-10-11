@@ -42,7 +42,7 @@ void main() {
     float n1 = fbm(q * 1.4 + vec2(uNow * 0.004, 0.0));
     float n2 = fbm(q * 2.9 + vec2(n1 * 1.7, -uNow * 0.003));
     float neb = smoothstep(0.38, 0.8, n2) * up;
-    col += mix(uPalA, uPalB, smoothstep(0.3, 0.7, n1)) * neb * uNebula * (0.2 + 1.1 * uEnergy);
+    col += mix(uPalA, uPalB, smoothstep(0.3, 0.7, n1)) * neb * neb * uNebula * (0.16 + 0.5 * uEnergy);
 
     // Stars.
     vec2 sp = vec2(az, asin(clamp(el, -1.0, 1.0))) * 70.0;

@@ -114,9 +114,9 @@ vec4 palB(float tau) { vec4 c = texture2D(uPal, vec2(0.375, rowOf(tau))); return
 vec4 palC(float tau) { vec4 c = texture2D(uPal, vec2(0.625, rowOf(tau))); return vec4(toLinear(c.rgb), c.a); }
 vec4 palW(float tau) { vec4 c = texture2D(uPal, vec2(0.875, rowOf(tau))); return vec4(toLinear(c.rgb), c.a); }
 
-/** Distance haze toward the horizon colour. */
+/** Distance haze toward the horizon colour (the air near the camera stays clear). */
 vec3 applyFog(vec3 col, float dist) {
-    float f = 1.0 - exp(-dist * uFogK);
-    return mix(col, uHorizon * 0.5 * uDim, f * f);
+    float f = 1.0 - exp(-max(dist - 50.0, 0.0) * uFogK);
+    return mix(col, uHorizon * 0.4 * uDim, f * f);
 }
 `;
