@@ -6,6 +6,9 @@ on:
   push:
     tags:
       - "companion-v*"
+    # Prueba de CI en la rama del PR: solo tests y artefacto, sin release.
+    branches:
+      - feat/rainy-presence-companion
   workflow_dispatch:
 
 permissions:
