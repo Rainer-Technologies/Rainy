@@ -13,6 +13,7 @@
  *  - Beams     — the rig: lasers and searchlights, a pattern per section.
  *  - Particles — dust, speed streaks, bursts.
  *  - Camera    — a shot per section and phrase (camera.js).
+ *  - Lyrics    — the line being sung, hanging in the air over the road (lyrics.js).
  *
  * Skins (skins.js) restyle all of it per genre profile.
  */
@@ -31,6 +32,7 @@ import { Beams } from './beams.js';
 import { Particles } from './particles.js';
 import { Cinematographer } from './camera.js';
 import { skinFor } from './skins.js';
+import { VoyageLyrics, TextLine } from './lyrics.js';
 
 // Per quality tier: bloom depth, the extras that go first, how much of the rig is lit.
 const TIERS = [
@@ -39,9 +41,13 @@ const TIERS = [
     { levels: 3, speedBlur: false, beams: 0.6 },
 ];
 const ROAD_W = 6.5;
+const TITLE_AT = 2.6;        // seconds into the song at which the camera flies through its title
+const IDLE_AFTER = 3;        // seconds without the pointer before the player's chrome dims
 
 export class VoyageEnvironment {
     static id = 'voyage';
+
+    layout = 'immersive';
 
     constructor() {
         this.container = null;
@@ -66,15 +72,27 @@ export class VoyageEnvironment {
         this._colB = new THREE.Vector3();
         this._hz = [0, 0, 0];
         this._still = false;
+        this._lastSpark = 0;
+        this._title = null;          // { key, lines: TextLine[] } the song's title, standing on the road
+        this._extra = [];
+        this._p = new THREE.Vector3();
+        this._idleAt = 0;
+        this._bottom = 0;            // fraction of the screen's height the player's chrome covers at the bottom
+        this._bottomAt = -1;
+        this._wake = () => {
+            this._idleAt = performance.now() / 1000 + IDLE_AFTER;
+            if (this.container) this.container.classList.remove('ls-idle');
+        };
     }
 
     /**
      * @param {object} o
      * @param {HTMLElement} o.container       fullscreen container
      * @param {HTMLCanvasElement} o.canvas    the classic environment's canvas (ours goes right after it)
+     * @param {import('../../lyricsTimeline.js').LyricsTimeline} o.lyrics
      * @param {(err: Error) => void} o.onFatal  the environment cannot go on (context lost, broken shader)
      */
-    mount({ container, canvas, onFatal }) {
+    mount({ container, canvas, lyrics, onFatal }) {
         this.container = container;
         this.onFatal = onFatal;
         const el = document.createElement('canvas');
@@ -121,14 +139,44 @@ export class VoyageEnvironment {
         this.beams = new Beams(G);
         this.particles = new Particles(G);
         this.cine = new Cinematographer();
+        this.family = getComputedStyle(container).fontFamily;
+        this.lyrics = new VoyageLyrics(G, lyrics, this.family);
         this.scene.add(this.sky.mesh, this.sun.mesh, this.terrain.mesh, this.gates.mesh, this.portals.group,
-            this.beams.mesh, this.particles.group);
+            this.beams.mesh, this.particles.group, this.lyrics.frame);
         this.post = new Post(renderer);
         this.sun.setCover(this.track && this.track.cover);
+
+        // The world is the stage: the player's chrome steps back (see .ls-immersive)
+        // and dims while the pointer rests.
+        container.classList.add('ls-immersive');
+        for (const type of ['pointermove', 'pointerdown', 'keydown']) window.addEventListener(type, this._wake, { passive: true });
+        this._wake();
 
         // Fade in (the reflow commits the transparent start of the transition).
         void el.offsetWidth;
         el.classList.add('on');
+    }
+
+    _leaveLayout() {
+        for (const type of ['pointermove', 'pointerdown', 'keydown']) window.removeEventListener(type, this._wake);
+        if (this.container) this.container.classList.remove('ls-immersive', 'ls-idle', 'ls-queue-peek');
+    }
+
+    /** How much of the screen's height the chrome at the bottom covers (0..1), so the lyrics sit above it. */
+    _measureBottom(now) {
+        if (now - this._bottomAt < 0.5) return this._bottom;
+        this._bottomAt = now;
+        const c = this.container.getBoundingClientRect();
+        let top = c.bottom;
+        for (const sel of ['#fs-artwork', '#fs-title', '.fs-player-controls']) {
+            const el = this.container.querySelector(sel);
+            const r = el && el.getBoundingClientRect();
+            if (r && r.height > 0 && r.top < top) top = r.top;
+        }
+        // Standard mode keeps the app's player bar over the bottom of the stage.
+        if (this.container.classList.contains('mode-standard')) top = Math.min(top, c.bottom - 90);
+        this._bottom = clamp((c.bottom - top) / Math.max(1, c.height), 0, 0.45);
+        return this._bottom;
     }
 
     _fail(err) {
@@ -139,16 +187,19 @@ export class VoyageEnvironment {
 
     leave() {
         if (this.canvas) this.canvas.classList.remove('on');
+        this._leaveLayout();
     }
 
     unmount() {
         this._dead = true;
         const el = this.canvas;
         if (!el) return;
+        this._leaveLayout();
         el.removeEventListener('webglcontextlost', this._onLost);
         this._disposeWorld();
+        this._disposeTitle();
         this._blank.dispose();
-        for (const part of [this.sky, this.sun, this.terrain, this.gates, this.portals, this.beams, this.particles, this.post]) part.dispose();
+        for (const part of [this.sky, this.sun, this.terrain, this.gates, this.portals, this.beams, this.particles, this.lyrics, this.post]) part.dispose();
         this.renderer.dispose();
         this.renderer.forceContextLoss();
         el.remove();
@@ -191,10 +242,12 @@ export class VoyageEnvironment {
     }
 
     get lyricsOn() {
-        return false;
+        return !!(this.lyrics && this.lyrics.visible && this.lyrics.ready);
     }
 
-    dropLyrics() { /* no lyrics on this stage yet */ }
+    dropLyrics() {
+        if (this.lyrics) this.lyrics.show(false);
+    }
 
     hudAxis() {
         return null;
@@ -374,8 +427,7 @@ export class VoyageEnvironment {
         }
         portals.end();
 
-        // ---- Rig, particles ----
-        this.beams.update(S, { on: !prefs.disableLasers, amount: skin.beams * q.beams });
+        // ---- Particles ----
         const streak = clamp(0.9 * (F.buildProgress || 0) + (dropAge >= 0 ? Math.exp(-dropAge * 1.2) : 0) + 0.25 * this._heat * F.bands.rms, 0, 1.4);
         const fovRad = (this.camera.fov * Math.PI) / 180;
         this.particles.update(t * U, this._still ? streak * 0.3 : streak, this._h / (2 * Math.tan(fovRad / 2)), skin.dust * (this._lowPower ? 0.6 : 1));
@@ -396,6 +448,82 @@ export class VoyageEnvironment {
         this._aspect = cam.aspect;
         this.sky.follow(cam);
         this._dropAge = dropAge;
+
+        // ---- Lyrics, and the rig answering them ----
+        const ly = this.lyrics;
+        ly.show(S.lyricsOn);
+        ly.update(S, cam, { bottom: this._measureBottom(S.now) });
+        if (S.now > this._idleAt) this.container.classList.add('ls-idle');
+        sunU.uFill.value = ly.interlude > 0.05 ? ly.progress : 0;
+        const extra = this._extra;
+        extra.length = 0;
+        const f = ly.focus;
+        if (f) {
+            // Two beams follow the word being sung, each in its own colour, and
+            // their light pools on the road under it.
+            const tone = f.flip ? P.b : P.a, other = f.flip ? P.a : P.b;
+            const kick = prefs.reduceFlashing ? 0.25 * S.pulse.k : S.pulse.k;
+            const a = (f.held ? 0.5 : 0.36) * f.strength * (0.7 + 0.5 * kick) * Math.max(S.dim, 0.5);
+            for (const [sx, col] of [[-1, tone], [1, other]]) {
+                const o = this._p.set(sx * 26, 24, -64).applyMatrix4(cam.matrixWorld);
+                const dx = f.x - o.x, dy = f.y - o.y, dz = f.z - o.z;
+                const len = Math.hypot(dx, dy, dz) || 1;
+                extra.push({ o: [o.x, o.y, o.z], d: [dx / len, dy / len, dz / len], len, w: f.held ? 0.16 : 0.24, c: col, a });
+            }
+            tu.uPool.value.set(f.x, f.z, 15, 0.45 * f.strength * Math.max(S.dim, 0.5));
+            setLinear(tu.uPoolCol.value, [(tone[0] + other[0]) / 2, (tone[1] + other[1]) / 2, (tone[2] + other[2]) / 2]);
+        } else tu.uPool.value.w = 0;
+        const hot = label === 'drop' || label === 'chorus';
+        const on = ly.onset;
+        if (S.running && on && hot && S.I > 0.5 && S.now - this._lastSpark > 0.2 && ((on.hit && on.strong) || on.held)) {
+            // Embers off a word that lands on a hit.
+            this._lastSpark = S.now;
+            this.particles.burst(t, [on.x, on.y, on.z], on.held ? P.b : P.w, 0.32, 1, false);
+        }
+        const cue = ly.cue;
+        if (S.running && cue && S.I > 0.4) {
+            if (cue.type === 'slam') S.flash(0.22 * S.I, P.w);
+            else if (cue.type === 'flicker') S.blind(0.4 * S.I);
+            else if (cue.type === 'break') S.blind(0.5 * S.I);
+        }
+        this.beams.update(S, { on: !prefs.disableLasers, amount: skin.beams * q.beams, extra });
+        this._syncTitle(t, U, score, P);
+    }
+
+    // ---------------------------------------------------------------- title
+
+    _disposeTitle() {
+        if (this._title) for (const line of this._title.lines) line.dispose();
+        this._title = null;
+    }
+
+    /** The song's title stands on the road at the start, and the camera flies through it. */
+    _syncTitle(t, U, score, P) {
+        const track = this.track;
+        const want = !!(score && track && track.title && t < TITLE_AT + 0.3);
+        const key = want ? `${track.title}|${track.artist}` : '';
+        if (!want || (this._title && this._title.key !== key)) this._disposeTitle();
+        if (!want) return;
+        if (!this._title) {
+            const words = (text) => text.trim().split(/\s+/).filter(Boolean).map((w) => ({ text: w, s: 0, e: 0 }));
+            const lines = [new TextLine(this.globals, words(track.title), { family: this.family, maxEm: 12, plain: true })];
+            if (track.artist) lines.push(new TextLine(this.globals, words(track.artist), { family: this.family, maxEm: 22, weight: 600, plain: true }));
+            for (const line of lines) this.scene.add(line.mesh);
+            this._title = { key, lines };
+        }
+        const ahead = (TITLE_AT - t) * U;
+        const alpha = clamp((FAR * 0.55 - ahead) / 60, 0, 1) * clamp((ahead - 3) / 12, 0, 1);
+        const [title, artist] = this._title.lines;
+        const unit = Math.min(26 / title.w, 7 / title.h);
+        title.place(0, 11, -ahead, unit);
+        title.uniforms.uAlpha.value = alpha;
+        setLinear(title.uniforms.uTint.value, P.a);
+        if (artist) {
+            const au = Math.min(22 / artist.w, 2.6 / artist.h);
+            artist.place(0, 11 - (title.h * unit) / 2 - 2, -ahead, au);
+            artist.uniforms.uAlpha.value = alpha * 0.8;
+            setLinear(artist.uniforms.uTint.value, P.b);
+        }
     }
 
     /** Keep a burst slot on a score event (set every frame: a burst is only its event's time). */

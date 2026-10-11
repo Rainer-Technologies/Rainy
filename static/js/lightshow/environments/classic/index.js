@@ -19,6 +19,8 @@ const HUD_SETTLE = 0.7;      // seconds to wait for the stage layout before the 
 export class ClassicEnvironment {
     static id = 'classic';
 
+    layout = 'stage';
+
     constructor() {
         this.container = null;
         this.canvas = null;

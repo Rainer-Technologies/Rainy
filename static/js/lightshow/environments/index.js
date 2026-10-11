@@ -19,6 +19,7 @@
  *   lyricsOn                the lyrics are on stage right now
  *   dropLyrics()            take them off stage now (a new queue started)
  *   hudAxis(now)            where the HUD sits: null = top centre, number = px, undefined = not yet
+ *   layout                  'stage' (the player's own layout) or 'immersive' (the show fills the screen)
  *
  * `S` is the conductor (see conductor.js): the musical frame `F`, media time,
  * intensity, hit pulses, phrase, palette, dimmer and the flash limiter.

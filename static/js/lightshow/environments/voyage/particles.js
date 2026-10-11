@@ -149,7 +149,7 @@ export class Particles {
             this.group.add(obj);
         }
         this.tier = -1;
-        this._slot = 0;
+        this._slot = 2;
         this.setQuality(0);
     }
 
@@ -204,7 +204,7 @@ export class Particles {
     }
 
     /**
-     * Set off a burst.
+     * Set off a burst (in one of the two slots the score's own events do not use).
      * @param {number} t      media time of the event (so it is where it should be after a seek)
      * @param {number[]} pos  camera-space position at that time
      * @param {number[]} rgb  0..255 colour
@@ -214,7 +214,7 @@ export class Particles {
      */
     burst(t, pos, rgb, power, life = 2.2, world = true) {
         const s = this._slot;
-        this._slot = (s + 1) % BURSTS;
+        this._slot = s === 2 ? 3 : 2;
         this.sparkU.uBurst.value[s].set(t, power, life, world ? 1 : 0);
         this.sparkU.uBurstPos.value[s].set(pos[0], pos[1], pos[2]);
         setLinear(this.sparkU.uBurstCol.value[s], rgb);

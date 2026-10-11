@@ -67,6 +67,7 @@ const SHELL_ASSETS = [
   '/js/lightshow/environments/voyage/gates.js',
   '/js/lightshow/environments/voyage/glsl.js',
   '/js/lightshow/environments/voyage/index.js',
+  '/js/lightshow/environments/voyage/lyrics.js',
   '/js/lightshow/environments/voyage/particles.js',
   '/js/lightshow/environments/voyage/post.js',
   '/js/lightshow/environments/voyage/skins.js',

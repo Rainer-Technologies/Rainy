@@ -240,6 +240,142 @@
     opacity: 1;
 }
 
+/* ---------------------------------------------------------------------
+   Immersive layout (.ls-immersive, set by an environment that is the whole
+   picture): the queue folds away, the cover and title become a small lower
+   third, and the chrome dims while the pointer rests (.ls-idle).
+   --------------------------------------------------------------------- */
+#fullscreen-player.ls-immersive .fs-current-info {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto auto auto auto;
+    column-gap: 14px;
+    align-items: center;
+    justify-items: start;
+    padding: 0;
+    text-align: left;
+    transition: opacity 0.6s ease;
+}
+
+#fullscreen-player.ls-immersive .fs-artwork-container {
+    grid-area: 2 / 1 / 4 / 2;
+    width: 64px;
+    height: 64px;
+    margin: 0;
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+#fullscreen-player.ls-immersive .fs-title {
+    grid-area: 2 / 2;
+    align-self: end;
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-size: var(--font-size-xl);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.85);
+}
+
+#fullscreen-player.ls-immersive .fs-artist {
+    grid-area: 3 / 2;
+    align-self: start;
+    margin: 0;
+    font-size: var(--font-size-base);
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.85);
+}
+
+#fullscreen-player.ls-immersive .fs-keep-btn {
+    grid-area: 4 / 1 / 5 / 3;
+    margin-top: var(--spacing-sm);
+}
+
+#fullscreen-player.ls-immersive .fs-player-controls {
+    grid-area: 5 / 1 / 6 / 3;
+    justify-self: center;
+    margin-top: var(--spacing-sm);
+}
+
+/* Standard mode keeps the app's player bar: it already shows the song. */
+#fullscreen-player.mode-standard.ls-immersive .fs-current-info > :not(.fs-player-controls) {
+    display: none;
+}
+
+/* The queue comes back over the show from its HUD button. */
+#fullscreen-player.ls-immersive .fs-queue-container {
+    position: absolute;
+    top: 76px;
+    bottom: var(--spacing-xl);
+    left: var(--spacing-xl);
+    z-index: 5;
+    width: min(420px, calc(100% - 2 * var(--spacing-xl)));
+    height: auto;
+    padding: var(--spacing-md);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    background: rgba(6, 6, 12, 0.82);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-14px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#fullscreen-player.ls-immersive.layout-swapped .fs-queue-container {
+    left: auto;
+    right: var(--spacing-xl);
+    padding: var(--spacing-md);
+    transform: translateX(14px);
+}
+
+#fullscreen-player.ls-immersive.ls-queue-peek .fs-queue-container {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+/* Resting: the show has the screen. Everything is still there on the next move. */
+#fullscreen-player.ls-immersive .fs-player-controls,
+#fullscreen-player.ls-immersive #fs-close-btn,
+#fullscreen-player.ls-immersive #fs-lightshow-btn,
+#fullscreen-player.ls-immersive #fs-volume-btn,
+#fullscreen-player.ls-immersive .fs-brand {
+    transition: opacity 0.6s ease, background var(--transition-fast), transform var(--transition-fast);
+}
+
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) {
+    cursor: none;
+}
+
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-player-controls,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-close-btn,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-lightshow-btn,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-volume-btn,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-brand {
+    opacity: 0.08;
+}
+
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-current-info {
+    opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+    #fullscreen-player.ls-immersive .fs-queue-container {
+        top: 64px;
+        left: var(--spacing-md);
+        right: var(--spacing-md);
+        width: auto;
+    }
+
+    #fullscreen-player.ls-immersive .fs-current-info {
+        height: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #fullscreen-player.ls-immersive .fs-queue-container { transition: opacity 0.25s ease; transform: none; }
+}
+
 /* Light show on: the stage is always dark, whatever the app theme — the
    lights are additive and need black to read. The backdrop's opacity and
    scale are driven per frame by the engine (sub-bass pump, blackouts). */

@@ -45,6 +45,7 @@ const SLOW_HINT_KEY = 'rainy-ls-slow-hint';
 const ENV_FADE_MS = 600;     // an environment fades out this long before it is unmounted
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
 const ENV_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg>';
+const QUEUE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3 6h13v2H3zm0 5h13v2H3zm0 5h9v2H3zm14-3v6l5-3z"/></svg>';
 const HUD_BTN = 26;          // px, a HUD button
 const HUD_GAP = 4;
 const GENRE_NAMES ={ edm: 'EDM', pop: 'Pop', rock: 'Rock', hiphop: 'Hip-hop', latin: 'Latin', chill: 'Chill', orchestral: 'Orchestral' };
@@ -548,6 +549,7 @@ export class LightShowEngine {
             + '<span class="ls-hud-mid">'
             + `<button type="button" class="ls-hud-btn ls-hud-env" hidden>${ENV_ICON}</button>`
             + `<button type="button" class="ls-hud-btn ls-hud-lyrics" title="${t('Lyrics on stage')}" aria-pressed="false">${MIC_ICON}</button>`
+            + `<button type="button" class="ls-hud-btn ls-hud-queue" title="${t('Up Next')}" aria-pressed="false" hidden>${QUEUE_ICON}</button>`
             + '</span>'
             + '<span class="ls-hud-side ls-hud-r"><span class="ls-hud-meta"></span></span>';
         el.querySelector('.ls-hud-lyrics').addEventListener('click', (e) => {
@@ -557,6 +559,10 @@ export class LightShowEngine {
         el.querySelector('.ls-hud-env').addEventListener('click', (e) => {
             e.stopPropagation();
             this._nextEnvironment();
+        });
+        el.querySelector('.ls-hud-queue').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.container.classList.toggle('ls-queue-peek');
         });
         this.container.appendChild(el);
         this._hud = el;
@@ -610,8 +616,13 @@ export class LightShowEngine {
             env.dataset.env = this.envId;
             env.title = t('Environment: {name}', { name: t(ENVIRONMENTS[this.envId].name) });
         }
+        // An immersive environment folds the queue away: this button brings it back over the show.
+        const queue = hud.querySelector('.ls-hud-queue');
+        queue.hidden = !(this.env && this.env.layout === 'immersive');
+        const peek = String(!queue.hidden && this.container.classList.contains('ls-queue-peek'));
+        if (queue.getAttribute('aria-pressed') !== peek) queue.setAttribute('aria-pressed', peek);
         // Compact, the HUD is just its buttons.
-        const n = (btn.hidden ? 0 : 1) + (env.hidden ? 0 : 1);
+        const n = (btn.hidden ? 0 : 1) + (env.hidden ? 0 : 1) + (queue.hidden ? 0 : 1);
         if (n !== this._hudButtons) {
             this._hudButtons = n;
             hud.style.setProperty('--ls-hud-mid', `${Math.max(0, n * HUD_BTN + (n - 1) * HUD_GAP)}px`);
