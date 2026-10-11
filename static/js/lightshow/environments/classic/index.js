@@ -19,8 +19,6 @@ const HUD_SETTLE = 0.7;      // seconds to wait for the stage layout before the 
 export class ClassicEnvironment {
     static id = 'classic';
 
-    layout = 'stage';
-
     constructor() {
         this.container = null;
         this.canvas = null;
@@ -38,13 +36,16 @@ export class ClassicEnvironment {
     }
 
     /**
-     * @param {object} o
-     * @param {HTMLElement} o.container        fullscreen container (layout classes, lyrics layer)
-     * @param {HTMLCanvasElement} o.canvas     the shared 2D canvas
-     * @param {HTMLElement} o.backdrop         album-art backdrop (pumped with the sub bass)
-     * @param {import('../../lyricsTimeline.js').LyricsTimeline} o.lyrics
+     * Classic is built in: besides the public `ctx` it draws on the player's
+     * own layers (`ctx.internal`).
+     * @param {object} ctx
+     * @param {import('../../lyricsTimeline.js').LyricsTimeline} ctx.lyrics
+     * @param {HTMLElement} ctx.internal.container       fullscreen container (layout classes, lyrics layer)
+     * @param {HTMLCanvasElement} ctx.internal.canvas    the player's 2D canvas
+     * @param {HTMLElement} ctx.internal.backdrop        album-art backdrop (pumped with the sub bass)
      */
-    mount({ container, canvas, backdrop, lyrics }) {
+    mount({ lyrics, internal }) {
+        const { container, canvas, backdrop } = internal;
         this.container = container;
         this.canvas = canvas;
         this.backdrop = backdrop;

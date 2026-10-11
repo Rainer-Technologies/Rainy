@@ -30,6 +30,7 @@ import { LyricsTimeline } from './lyricsTimeline.js';
 import {
     ENVIRONMENTS, ENVIRONMENT_IDS, DEFAULT_ENVIRONMENT, normalizeEnvironment, resolveEnvironment,
 } from './environments/index.js';
+import { EnvironmentStage } from './environments/host.js';
 import { clamp, lerp, hexToHue } from './palette.js';
 // The default environment ships with the engine, so the show starts without a round trip.
 import './environments/classic/index.js';
@@ -43,6 +44,8 @@ const LOW_POWER_KEY = 'rainy-ls-lowpower';
 const SLOW_HINT_AFTER = 10;  // seconds at the lowest auto quality, still slow, before suggesting low power
 const SLOW_HINT_KEY = 'rainy-ls-slow-hint';
 const ENV_FADE_MS = 600;     // an environment fades out this long before it is unmounted
+const ENV_LOAD_MS = 10000;   // an environment that has not loaded and mounted by then is given up on
+const ENV_MAX_ERRORS = 3;    // frames in a row an environment may throw before it is taken off stage
 const MIC_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
 const ENV_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg>';
 const QUEUE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3 6h13v2H3zm0 5h13v2H3zm0 5h9v2H3zm14-3v6l5-3z"/></svg>';
@@ -83,6 +86,8 @@ export class LightShowEngine {
 
         this.env = null;             // environment on stage
         this.envId = '';
+        this._stage = null;          // its host side (see environments/host.js)
+        this._envErrors = 0;
         this._envWanted = '';        // environment on stage or on its way
         this._envToken = 0;
         this._envFailed = new Set(); // environments that broke on this device this session
@@ -149,7 +154,7 @@ export class LightShowEngine {
     resetStageLyrics() {
         if (!this.stageLyrics) return;
         this.stageLyrics = false;
-        if (this.env) this.env.dropLyrics();
+        this._tell('dropLyrics');
         this._renderHud(true);
     }
 
@@ -168,7 +173,7 @@ export class LightShowEngine {
      */
     setTrack(track) {
         this.track = track || null;
-        if (this.env) this.env.setTrack(this.track);
+        this._tell('setTrack', this.track);
     }
 
     /**
@@ -223,7 +228,7 @@ export class LightShowEngine {
         this.score = score;
         this.scoreSrc = score ? new ScoreSource(score) : null;
         if (score) this.conductor.reset();
-        if (this.env) this.env.setScore(score);
+        this._tell('setScore', score);
     }
 
     _schedulePoll(songId, token) {
@@ -244,7 +249,7 @@ export class LightShowEngine {
         this.clock.reset();
         this.conductor.onTrackChange();
         if (this.live) this.live.onTrackChange(performance.now() / 1000);
-        if (this.env) this.env.onTrackChange();
+        this._tell('onTrackChange');
     }
 
     _readAccent() {
@@ -297,6 +302,22 @@ export class LightShowEngine {
     // --------------------------------------------------------- environments
 
     /**
+     * Call one of the optional parts of the contract on the environment on
+     * stage. One that throws is taken off stage: a package must not be able
+     * to break the show.
+     */
+    _tell(method, ...args) {
+        const env = this.env;
+        if (!env || typeof env[method] !== 'function') return undefined;
+        try {
+            return env[method](...args);
+        } catch (e) {
+            this._environmentFailed(this.envId, e);
+            return undefined;
+        }
+    }
+
+    /**
      * Put an environment on stage (the default one when this device cannot
      * run it). The one it replaces fades out and is unmounted afterwards.
      */
@@ -307,35 +328,48 @@ export class LightShowEngine {
         const token = ++this._envToken;   // whatever was on its way is no longer wanted
         if (this.env && this.envId === id) return;
         this._flushRetired();
-        let env = null;
-        try {
-            const Env = await ENVIRONMENTS[id].load();
-            if (token !== this._envToken) return;
-            env = new Env();
-            await env.mount({
-                container: this.container,
-                canvas: this.canvas,
-                backdrop: this.backdrop,
-                lyrics: this.lyrics,
-                onFatal: (e) => this._environmentFailed(id, e),
-            });
-            if (token !== this._envToken) {
-                env.unmount();
-                return;
-            }
-        } catch (e) {
+        const def = ENVIRONMENTS[id];
+        let env = null, stage = null;
+        const giveUp = () => {
             if (env) {
                 try { env.unmount(); } catch (err) { /* already broken */ }
             }
+            if (stage) stage.dispose();
+        };
+        try {
+            const Env = await withTimeout(def.load(), ENV_LOAD_MS, 'loading');
+            if (token !== this._envToken) return;
+            if (typeof Env !== 'function') throw new Error('the package does not export an environment class');
+            stage = new EnvironmentStage({
+                def,
+                container: this.container,
+                anchor: this.canvas,
+                hud: this._hud && this._hud.querySelector('.ls-hud-mid'),
+                lyrics: this.lyrics,
+                onFatal: (e) => this._environmentFailed(id, e),
+                internal: def.builtin ? { container: this.container, canvas: this.canvas, backdrop: this.backdrop } : null,
+            });
+            await stage.loadStyles();
+            env = new Env();
+            await withTimeout(Promise.resolve(env.mount(stage.ctx)), ENV_LOAD_MS, 'mounting');
+            if (token !== this._envToken) {
+                giveUp();
+                return;
+            }
+        } catch (e) {
+            giveUp();
             if (token === this._envToken) this._environmentFailed(id, e);
             return;
         }
-        const old = this.env;
+        const old = this.env ? { env: this.env, stage: this._stage } : null;
         this.env = env;
         this.envId = id;
+        this._stage = stage;
+        this._envErrors = 0;
         this.container.dataset.lsEnv = id;
-        env.setTrack(this.track);
-        env.setScore(this.score);
+        stage.enter();
+        this._tell('setTrack', this.track);
+        this._tell('setScore', this.score);
         if (old) this._retire(old);
         this._hudAxisAt = 0;
         this._renderHud(true);
@@ -343,39 +377,47 @@ export class LightShowEngine {
 
     /** An environment could not start, or died on stage: fall back to the default. */
     _environmentFailed(id, err) {
+        if (this._envFailed.has(id)) return;
         Logger.error(`LightShow: the "${id}" environment failed.`, err);
         this._envFailed.add(id);
         if (id !== DEFAULT_ENVIRONMENT) {
-            window.showToast?.(t('{name} is not available on this device. Back to Classic.', { name: ENVIRONMENTS[id].name }), 'info');
+            const name = ENVIRONMENTS[id] ? ENVIRONMENTS[id].name : id;
+            window.showToast?.(t('{name} is not available on this device. Back to Classic.', { name }), 'info');
         }
         // It never made it on stage: keep what is there.
         if (this.env && this.envId !== id) {
             this._envWanted = this.envId;
             return;
         }
-        if (this.env) {
-            const dead = this.env;
-            this.env = null;
-            this.envId = '';
-            try { dead.unmount(); } catch (e) { /* already broken */ }
-        }
+        if (this.env) this._unmount({ env: this.env, stage: this._stage });
+        this.env = null;
+        this.envId = '';
+        this._stage = null;
         this._envWanted = '';
         if (id !== DEFAULT_ENVIRONMENT && this.active) this._useEnvironment(DEFAULT_ENVIRONMENT);
     }
 
-    _retire(env) {
-        try { env.leave(); } catch (e) { Logger.error('LightShow: environment leave error:', e); }
-        this._retired = env;
+    /** Take an environment off the page: its own clean-up first, then the host's. */
+    _unmount({ env, stage }) {
+        try { env.unmount(); } catch (e) { Logger.error('LightShow: environment unmount error:', e); }
+        if (stage) stage.dispose();
+    }
+
+    _retire(old) {
+        try {
+            if (typeof old.env.leave === 'function') old.env.leave();
+        } catch (e) { Logger.error('LightShow: environment leave error:', e); }
+        if (old.stage) old.stage.leave();
+        this._retired = old;
         this._retireTimer = setTimeout(() => this._flushRetired(), ENV_FADE_MS);
     }
 
     _flushRetired() {
         clearTimeout(this._retireTimer);
         this._retireTimer = null;
-        const env = this._retired;
+        const old = this._retired;
         this._retired = null;
-        if (!env) return;
-        try { env.unmount(); } catch (e) { Logger.error('LightShow: environment unmount error:', e); }
+        if (old) this._unmount(old);
     }
 
     /** Take everything off stage (the show stopped). */
@@ -383,12 +425,12 @@ export class LightShowEngine {
         this._envToken++;
         this._envWanted = '';
         this._flushRetired();
-        const env = this.env;
+        const old = this.env ? { env: this.env, stage: this._stage } : null;
         this.env = null;
         this.envId = '';
+        this._stage = null;
         if (this.container) delete this.container.dataset.lsEnv;
-        if (!env) return;
-        try { env.unmount(); } catch (e) { Logger.error('LightShow: environment unmount error:', e); }
+        if (old) this._unmount(old);
     }
 
     // ----------------------------------------------------------------- loop
@@ -409,11 +451,10 @@ export class LightShowEngine {
     }
 
     _resize(dt, lowPower) {
-        const env = this.env;
         if (lowPower) {
             // Fixed lowest quality; the adaptive state is left as it was.
             this._slowFor = 0;
-            env.resize(window.innerWidth, window.innerHeight, { tier: 2, lowPower: true, scale: LOW_SCALE });
+            this._tell('resize', window.innerWidth, window.innerHeight, { tier: 2, lowPower: true, scale: LOW_SCALE });
             return;
         }
         // Adaptive quality: drop resolution/effects when frames run long.
@@ -431,7 +472,7 @@ export class LightShowEngine {
         this._slowFor = this._quality === 2 && this._frameEma > 1 / 40 ? this._slowFor + dt : 0;
         if (this._slowFor > SLOW_HINT_AFTER) this._hintLowPower();
         const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        env.resize(window.innerWidth, window.innerHeight, { tier: this._quality, lowPower: false, scale: dpr * QUALITY_SCALE[this._quality] });
+        this._tell('resize', window.innerWidth, window.innerHeight, { tier: this._quality, lowPower: false, scale: dpr * QUALITY_SCALE[this._quality] });
     }
 
     _frame(ts) {
@@ -444,8 +485,7 @@ export class LightShowEngine {
         const prefs = this._getPrefs();
         const wantedEnv = resolveEnvironment(prefs.environment, this._envFailed);
         if (wantedEnv !== this._envWanted) this._useEnvironment(wantedEnv);
-        const env = this.env;
-        if (!env) return;   // still on its way
+        if (!this.env) return;   // still on its way
 
         if (prefs.lowPower !== this._lowPower) {
             this._lowPower = prefs.lowPower;
@@ -454,7 +494,11 @@ export class LightShowEngine {
             this.container.classList.toggle('ls-lowpower', prefs.lowPower);
         }
         this._resize(dt, prefs.lowPower);
+        const env = this.env;
+        if (!env) return;   // it broke on the way
+        this._stage.tick(now);
         this._alignHud(now);
+        if (this.env !== env) return;
 
         // ---- Musical state ----
         const tPrev = this.clock.t;
@@ -488,8 +532,11 @@ export class LightShowEngine {
             env.update(S);
             this.conductor.settle(dt);
             env.render(S);
+            this._envErrors = 0;
         } catch (e) {
             Logger.error('LightShow render error:', e);
+            // The default environment has nothing to fall back to; any other is taken off stage.
+            if (this.envId !== DEFAULT_ENVIRONMENT && ++this._envErrors >= ENV_MAX_ERRORS) this._environmentFailed(this.envId, e);
         }
         this._syncHud(prefs);
     }
@@ -618,11 +665,11 @@ export class LightShowEngine {
         }
         // An immersive environment folds the queue away: this button brings it back over the show.
         const queue = hud.querySelector('.ls-hud-queue');
-        queue.hidden = !(this.env && this.env.layout === 'immersive');
+        queue.hidden = !(this._stage && this._stage.layout === 'immersive');
         const peek = String(!queue.hidden && this.container.classList.contains('ls-queue-peek'));
         if (queue.getAttribute('aria-pressed') !== peek) queue.setAttribute('aria-pressed', peek);
         // Compact, the HUD is just its buttons.
-        const n = (btn.hidden ? 0 : 1) + (env.hidden ? 0 : 1) + (queue.hidden ? 0 : 1);
+        const n = hud.querySelectorAll('.ls-hud-btn:not([hidden])').length;
         if (n !== this._hudButtons) {
             this._hudButtons = n;
             hud.style.setProperty('--ls-hud-mid', `${Math.max(0, n * HUD_BTN + (n - 1) * HUD_GAP)}px`);
@@ -640,7 +687,7 @@ export class LightShowEngine {
         const hud = this._hud;
         if (!hud || now - (this._hudAxisAt || 0) < 0.2) return;
         this._hudAxisAt = now;
-        const x = this.env.hudAxis(now);
+        const x = typeof this.env.hudAxis === 'function' ? this._tell('hudAxis', now) : null;
         if (x === undefined) return;
         if (x === null) {
             // Plain show: pinned to the top centre of the screen.
@@ -678,6 +725,15 @@ export class LightShowEngine {
             this._hudTimer = setTimeout(() => el.classList.add('compact'), 4500);
         }
     }
+}
+
+/** `promise`, or a rejection if it has not settled in `ms`. */
+function withTimeout(promise, ms, what) {
+    let timer;
+    const late = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out ${what}`)), ms);
+    });
+    return Promise.race([promise, late]).finally(() => clearTimeout(timer));
 }
 
 function readLowPower() {

@@ -5,10 +5,11 @@
  * run on the same core (clock, score, sources, conductor, lyrics timeline)
  * and differ only in what they draw and how the lyrics are set.
  *
- * The engine hosts one at a time and talks to it through this contract:
+ * The engine hosts one at a time and talks to it through this contract
+ * (only mount, unmount, update and render are required):
  *
- *   mount({ container, canvas, backdrop, lyrics, onFatal })   may be async
- *   leave()                 start fading out, another environment is taking over
+ *   mount(ctx)              may be async; `ctx` is what the host gives it (see host.js)
+ *   leave()                 another environment is taking over (its layer is already fading out)
  *   unmount()               release everything (DOM, GPU)
  *   setScore(score | null)  the song's score arrived or went away
  *   setTrack(track | null)  { id, title, artist, cover } of the song on stage
@@ -16,13 +17,15 @@
  *   resize(cssW, cssH, { tier, lowPower, scale })
  *   update(S)               read the show state, fire cues (S.flash/blind/burst), move the lyrics
  *   render(S)               draw the frame
- *   lyricsOn                the lyrics are on stage right now
- *   dropLyrics()            take them off stage now (a new queue started)
+ *   dropLyrics()            take the lyrics off stage now (a new queue started)
  *   hudAxis(now)            where the HUD sits: null = top centre, number = px, undefined = not yet
- *   layout                  'stage' (the player's own layout) or 'immersive' (the show fills the screen)
  *
  * `S` is the conductor (see conductor.js): the musical frame `F`, media time,
  * intensity, hit pulses, phrase, palette, dimmer and the flash limiter.
+ *
+ * Its registry entry says how it is laid out: `layout` is 'stage' (the
+ * player's own layout, the show behind it) or 'immersive' (the show fills the
+ * screen). The host arranges the player accordingly.
  *
  * Modules are loaded on demand, so an environment's code (and its libraries)
  * costs nothing until it is picked.
@@ -52,12 +55,15 @@ export const ENVIRONMENTS = {
     classic: {
         id: 'classic',
         name: 'Classic',
+        layout: 'stage',
+        builtin: true,
         supported: () => true,
         load: () => import('./classic/index.js').then((m) => m.ClassicEnvironment),
     },
     voyage: {
         id: 'voyage',
         name: 'Voyage',
+        layout: 'immersive',
         supported: hasWebGL2,
         load: () => import('./voyage/index.js').then((m) => m.VoyageEnvironment),
     },

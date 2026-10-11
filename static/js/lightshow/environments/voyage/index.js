@@ -42,18 +42,14 @@ const TIERS = [
 ];
 const ROAD_W = 6.5;
 const TITLE_AT = 2.6;        // seconds into the song at which the camera flies through its title
-const IDLE_AFTER = 3;        // seconds without the pointer before the player's chrome dims
 
 export class VoyageEnvironment {
     static id = 'voyage';
 
-    layout = 'immersive';
-
     constructor() {
-        this.container = null;
+        this.ctx = null;
         this.canvas = null;
         this.renderer = null;
-        this.onFatal = null;
         this.score = null;
         this.track = null;
         this.skin = skinFor('pop');
@@ -76,29 +72,14 @@ export class VoyageEnvironment {
         this._title = null;          // { key, lines: TextLine[] } the song's title, standing on the road
         this._extra = [];
         this._p = new THREE.Vector3();
-        this._idleAt = 0;
-        this._bottom = 0;            // fraction of the screen's height the player's chrome covers at the bottom
-        this._bottomAt = -1;
-        this._wake = () => {
-            this._idleAt = performance.now() / 1000 + IDLE_AFTER;
-            if (this.container) this.container.classList.remove('ls-idle');
-        };
     }
 
-    /**
-     * @param {object} o
-     * @param {HTMLElement} o.container       fullscreen container
-     * @param {HTMLCanvasElement} o.canvas    the classic environment's canvas (ours goes right after it)
-     * @param {import('../../lyricsTimeline.js').LyricsTimeline} o.lyrics
-     * @param {(err: Error) => void} o.onFatal  the environment cannot go on (context lost, broken shader)
-     */
-    mount({ container, canvas, lyrics, onFatal }) {
-        this.container = container;
-        this.onFatal = onFatal;
+    /** @param {object} ctx  what the host gives an environment (root layer, lyrics timeline, ui, fail) */
+    mount(ctx) {
+        this.ctx = ctx;
         const el = document.createElement('canvas');
         el.className = 'ls-voyage-canvas';
-        el.setAttribute('aria-hidden', 'true');
-        canvas.after(el);
+        ctx.root.appendChild(el);
         this.canvas = el;
 
         const renderer = new THREE.WebGLRenderer({
@@ -139,62 +120,24 @@ export class VoyageEnvironment {
         this.beams = new Beams(G);
         this.particles = new Particles(G);
         this.cine = new Cinematographer();
-        this.family = getComputedStyle(container).fontFamily;
-        this.lyrics = new VoyageLyrics(G, lyrics, this.family);
+        this.family = ctx.ui.fontFamily;
+        this.lyrics = new VoyageLyrics(G, ctx.lyrics, this.family);
         this.scene.add(this.sky.mesh, this.sun.mesh, this.terrain.mesh, this.gates.mesh, this.portals.group,
             this.beams.mesh, this.particles.group, this.lyrics.frame);
         this.post = new Post(renderer);
         this.sun.setCover(this.track && this.track.cover);
-
-        // The world is the stage: the song and its controls become one small card
-        // (see .ls-immersive) that dims while the pointer rests.
-        container.classList.add('ls-immersive');
-        for (const type of ['pointermove', 'pointerdown', 'keydown']) window.addEventListener(type, this._wake, { passive: true });
-        this._wake();
-
-        // Fade in (the reflow commits the transparent start of the transition).
-        void el.offsetWidth;
-        el.classList.add('on');
-    }
-
-    _leaveLayout() {
-        for (const type of ['pointermove', 'pointerdown', 'keydown']) window.removeEventListener(type, this._wake);
-        if (this.container) this.container.classList.remove('ls-immersive', 'ls-idle', 'ls-queue-peek');
-    }
-
-    /** How much of the screen's height the chrome at the bottom covers (0..1), so the lyrics sit above it. */
-    _measureBottom(now) {
-        if (now - this._bottomAt < 0.5) return this._bottom;
-        this._bottomAt = now;
-        const c = this.container.getBoundingClientRect();
-        let top = c.bottom;
-        for (const sel of ['.fs-current-info']) {
-            const el = this.container.querySelector(sel);
-            const r = el && el.getBoundingClientRect();
-            if (r && r.height > 0 && r.top < top) top = r.top;
-        }
-        // Standard mode keeps the app's player bar over the bottom of the stage.
-        if (this.container.classList.contains('mode-standard')) top = Math.min(top, c.bottom - 90);
-        this._bottom = clamp((c.bottom - top) / Math.max(1, c.height), 0, 0.45);
-        return this._bottom;
     }
 
     _fail(err) {
         if (this._dead) return;
         this._dead = true;
-        if (this.onFatal) this.onFatal(err);
-    }
-
-    leave() {
-        if (this.canvas) this.canvas.classList.remove('on');
-        this._leaveLayout();
+        this.ctx.fail(err);
     }
 
     unmount() {
         this._dead = true;
         const el = this.canvas;
         if (!el) return;
-        this._leaveLayout();
         el.removeEventListener('webglcontextlost', this._onLost);
         this._disposeWorld();
         this._disposeTitle();
@@ -452,8 +395,7 @@ export class VoyageEnvironment {
         // ---- Lyrics, and the rig answering them ----
         const ly = this.lyrics;
         ly.show(S.lyricsOn);
-        ly.update(S, cam, { bottom: this._measureBottom(S.now), still: this._still });
-        if (S.now > this._idleAt) this.container.classList.add('ls-idle');
+        ly.update(S, cam, { bottom: Math.min(this.ctx.ui.safeArea().bottom, 0.45), still: this._still });
         sunU.uFill.value = ly.interlude > 0.05 ? ly.progress : 0;
         const extra = this._extra;
         extra.length = 0;
