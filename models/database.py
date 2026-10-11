@@ -931,6 +931,25 @@ class Database:
             )
         """)
 
+        # Installed light show environment packages (see utils/environments.py).
+        # The zip itself is kept, so an install survives wherever the server's
+        # files do not (a rebuilt container).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lightshow_environments (
+                id VARCHAR(32) PRIMARY KEY,
+                name VARCHAR(80) NOT NULL,
+                version VARCHAR(48) NOT NULL,
+                manifest TEXT NOT NULL,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                sha256 CHAR(64) NOT NULL,
+                size INT NOT NULL DEFAULT 0,
+                package LONGBLOB NOT NULL,
+                installed_by INT NULL,
+                installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()

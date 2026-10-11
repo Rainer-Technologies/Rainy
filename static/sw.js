@@ -1,7 +1,7 @@
 /**
  * Rainy Service Worker â€” PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v44';
+const CACHE_NAME = 'rainy-v46';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
@@ -34,6 +34,7 @@ const SHELL_ASSETS = [
   '/js/components/addMusicModal.js',
   '/js/components/connectModal.js',
   '/js/components/contextMenu.js',
+  '/js/components/environments.js',
   '/js/components/icon.js',
   '/js/components/index.js',
   '/js/components/lyricsModal.js',
@@ -55,12 +56,19 @@ const SHELL_ASSETS = [
   '/js/i18n/locales/pl.js',
   '/js/audioGraph.js',
   '/js/lightshow/clock.js',
+  '/js/lightshow/conductor.js',
   '/js/lightshow/engine.js',
-  '/js/lightshow/fixtures.js',
-  '/js/lightshow/lyrics.js',
+  '/js/lightshow/environments/classic/fixtures.js',
+  '/js/lightshow/environments/classic/index.js',
+  '/js/lightshow/environments/classic/lyrics.js',
+  '/js/lightshow/environments/classic/scenes.js',
+  '/js/lightshow/environments/host.js',
+  '/js/lightshow/environments/index.js',
+  '/js/lightshow/lyricsTimeline.js',
+  '/js/lightshow/motion.js',
   '/js/lightshow/palette.js',
-  '/js/lightshow/scenes.js',
   '/js/lightshow/score.js',
+  '/js/lightshow/sdk.js',
   '/js/lightshow/sources.js',
   '/js/main.js',
   '/js/modules/bpmShuffle.js',
@@ -81,6 +89,7 @@ const SHELL_ASSETS = [
   '/js/services/cast.js',
   '/js/services/connect.js',
   '/js/services/enrichment.js',
+  '/js/services/environments.js',
   '/js/services/friends.js',
   '/js/services/importJobs.js',
   '/js/services/index.js',

@@ -1,0 +1,6 @@
+/* Voyage draws on one WebGL canvas that fills its layer (Rainy fades the layer in and out). */
+.ls-voyage-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}

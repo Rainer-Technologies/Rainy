@@ -1,0 +1,19 @@
+{
+    "manifest": 1,
+    "api": 1,
+    "id": "example-pulse",
+    "name": "Pulse",
+    "version": "1.0.0",
+    "description": "A small example environment: rings on the beat, a spectrum, the line being sung",
+    "author": "Rainy",
+    "license": "MIT",
+    "entry": "index.js",
+    "styles": ["style.css"],
+    "preview": "preview.jpg",
+    "layout": "stage",
+    "i18n": {
+        "es": { "description": "Un entorno de ejemplo: anillos al compás, un espectro y la línea que se canta" },
+        "ca": { "description": "Un entorn d'exemple: anells al compàs, un espectre i la línia que es canta" },
+        "pl": { "description": "Przykładowe środowisko: pierścienie w rytm, widmo i śpiewany wers" }
+    }
+}

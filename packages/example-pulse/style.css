@@ -1,0 +1,41 @@
+/* Everything an environment puts on the page lives inside its own layer (ctx.root). */
+.pulse-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.pulse-line {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 80%;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-align: center;
+    transition: opacity 0.25s ease;
+}
+
+.pulse-line b {
+    color: #fff;
+    font-weight: inherit;
+}
+
+/* Restyling the player: while Pulse is on stage the fullscreen player has the class
+   ls-env-example-pulse, and --ls-a, --ls-b… hold the song's palette as "r g b". */
+#fullscreen-player.ls-env-example-pulse .fs-progress-fill {
+    background-color: rgb(var(--ls-a, 255 255 255));
+}
+
+#fullscreen-player.ls-env-example-pulse .fs-artwork-container {
+    box-shadow: 0 0 70px rgb(var(--ls-b, 0 0 0) / 0.55);
+    transition: box-shadow 0.6s ease;
+}
+
+#fullscreen-player.ls-env-example-pulse .fs-control-btn.play-pause {
+    background-color: rgb(var(--ls-w, 255 255 255));
+}

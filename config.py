@@ -59,3 +59,14 @@ class Config:
     # Folder (inside the music path) for radio downloads nobody has kept yet.
     # Library scans skip it; see utils/ytradio.py.
     RADIO_DIR = '.radio'
+
+    # Where installed light show environment packages are unpacked to be
+    # served. Only a copy: the packages themselves live in the database, and
+    # this folder is rebuilt from them whenever it is missing.
+    ENVIRONMENTS_CACHE_DIR = os.path.abspath(os.getenv(
+        'RAINY_ENVIRONMENTS_CACHE', os.path.join(os.path.dirname(SQLITE_PATH), 'environments-cache')))
+    # Development only (RAINY_DEV=1): a folder of unpacked environment
+    # packages, served as they are on disk so one can be written without
+    # zipping and installing it on every change.
+    ENVIRONMENTS_DEV_DIR = (os.path.abspath(os.path.join(_ROOT, os.getenv('RAINY_ENVIRONMENTS_DEV')))
+                            if DEV_MODE and os.getenv('RAINY_ENVIRONMENTS_DEV') else None)

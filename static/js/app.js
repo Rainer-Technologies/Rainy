@@ -11,6 +11,7 @@ import { Utils } from './modules/utils.js';
 import { browserLanguage, fillLanguageSelect, getLanguage, setLanguage, t } from './i18n/index.js';
 import { useAuthService } from "./services/auth.js";
 import { useEnrichmentService } from "./services/enrichment.js";
+import { useEnvironmentsService } from "./services/environments.js";
 import { useImportJobsService } from "./services/importJobs.js";
 import { useLightshowService } from "./services/lightshow.js";
 import { useLyricsService } from "./services/lyrics.js";
@@ -23,11 +24,13 @@ import { useUsersService } from './services/users.js';
 import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
+import "./components/environments.js";
 
 // Section id -> page title. Also used to label settings search results.
 const SETTINGS_SECTION_TITLES = {
     appearance: 'Appearance',
     player: 'Player',
+    lightshow: 'Light Show',
     account: 'Account',
     syncs: 'Playlist Sync',
     jobs: 'Jobs',
@@ -151,6 +154,8 @@ export class RainyApp {
         this.applyThemeFromPreferences();
         this.applyPlayerBarPreferences();
         this.applyRoleVisibility();
+        // Which light show environments this server has installed.
+        useEnvironmentsService().refresh();
 
         Router.navigate(new View('app', user), this);
     }
@@ -4057,6 +4062,7 @@ export class RainyApp {
         let currentFsMode = 'standard'; // default for new/no-pref accounts — keep in sync with player.js toggleFullscreen
         let currentLyricsEffect = 'word';
         let currentLightshowIntensity = 'auto';
+        let currentLightshowEnvironment = 'classic';
         let lightshowReduceFlashing = false;
         let lightshowLyrics = true;
         let lightshowOffset = 0;
@@ -4076,6 +4082,7 @@ export class RainyApp {
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
                 if (prefs.lyrics_effect) currentLyricsEffect = prefs.lyrics_effect;
                 if (prefs.lightshow_intensity) currentLightshowIntensity = prefs.lightshow_intensity;
+                if (prefs.lightshow_environment) currentLightshowEnvironment = prefs.lightshow_environment;
                 if (typeof prefs.lightshow_reduce_flashing !== 'undefined') lightshowReduceFlashing = !!prefs.lightshow_reduce_flashing;
                 if (typeof prefs.lightshow_lyrics !== 'undefined') lightshowLyrics = !!prefs.lightshow_lyrics;
                 if (typeof prefs.lightshow_offset_ms !== 'undefined') lightshowOffset = Number(prefs.lightshow_offset_ms) || 0;
@@ -4092,7 +4099,11 @@ export class RainyApp {
         if (colorValue) colorValue.textContent = currentColor;
 
         // Set radio button groups to their saved values
-        const radioValues = { fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect, lightshow_intensity: currentLightshowIntensity };
+        const radioValues = {
+            fullscreen_mode: currentFsMode, lyrics_effect: currentLyricsEffect,
+            lightshow_intensity: currentLightshowIntensity,
+        };
+        document.getElementById('settings-environment-picker')?.set('value', currentLightshowEnvironment);
         document.querySelectorAll('.settings-radio-group').forEach(group => {
             const pref = group.dataset.pref;
             const current = radioValues[pref];
@@ -4221,7 +4232,7 @@ export class RainyApp {
         const settingsContent = document.querySelector('.settings-content');
         if (settingsContent) {
             settingsContent.classList.toggle('settings-content-wide',
-                sectionName === 'users' || sectionName === 'player');
+                sectionName === 'users' || sectionName === 'player' || sectionName === 'lightshow');
         }
 
         if (sectionName === 'jobs') {
@@ -4235,6 +4246,13 @@ export class RainyApp {
         if (sectionName === 'server') {
             this.loadScanStatus();
             this.loadYtdlpStatus();
+        }
+
+        // What is installed may have changed since the page was opened.
+        if (sectionName === 'lightshow') {
+            const manager = document.getElementById('settings-environment-manager');
+            if (this.user?.role === 'sysadmin') manager?.refresh();
+            else useEnvironmentsService().refresh();
         }
 
         if (sectionName === 'syncs') {
@@ -4364,7 +4382,7 @@ export class RainyApp {
                 } else {
                     const desc = labelEl.parentElement?.querySelector(':scope > .settings-group-description');
                     const options = target.classList.contains('settings-card')
-                        ? [...target.querySelectorAll('.settings-radio-item')]
+                        ? [...target.querySelectorAll('.settings-radio-item, .settings-env-card')]
                             .filter(r => r.closest('.settings-card') === target)
                         : [];
                     body = [textOf(desc), ...options.map(textOf)].join(' ');

@@ -223,6 +223,176 @@
     opacity: 0;
 }
 
+/* An environment's own layer, over the backdrop: whatever it draws goes in
+   here. The host fades it in once the environment is mounted (.on). */
+.ls-env-root {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+.ls-env-root.on {
+    opacity: 1;
+}
+
+/* ---------------------------------------------------------------------
+   Immersive layout (.ls-immersive, set by an environment that is the whole
+   picture): the queue folds away, and the song and its controls become one
+   small card at the bottom centre, which dims while the pointer rests
+   (.ls-idle).
+   --------------------------------------------------------------------- */
+#fullscreen-player.ls-immersive .fs-content .fs-current-info {
+    flex: 0 1 auto;
+    align-self: flex-end;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: center;
+    justify-items: start;
+    width: min(620px, 100%);
+    margin: 0 auto;
+    padding: 14px 18px 10px;
+    text-align: left;
+    background: rgba(8, 8, 14, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    transition: opacity 0.6s ease;
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-artwork-container {
+    grid-area: 1 / 1 / 3 / 2;
+    width: 48px;
+    height: 48px;
+    margin: 0;
+    border-radius: var(--radius-md);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-title {
+    grid-area: 1 / 2;
+    align-self: end;
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-size: var(--font-size-lg);
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-artist {
+    grid-area: 2 / 2;
+    align-self: start;
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-size: var(--font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-keep-btn {
+    grid-area: 3 / 1 / 4 / 3;
+    margin-top: var(--spacing-sm);
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-player-controls {
+    grid-area: 4 / 1 / 5 / 3;
+    justify-self: stretch;
+    max-width: none;
+    margin-top: var(--spacing-sm);
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-progress-container {
+    margin-bottom: var(--spacing-xs);
+}
+
+#fullscreen-player.ls-immersive .fs-content .fs-buttons {
+    padding: 0 var(--spacing-md);
+}
+
+/* Standard mode keeps the app's player bar: it already is that card. */
+#fullscreen-player.mode-standard.ls-immersive .fs-content .fs-current-info {
+    display: none;
+}
+
+/* The queue comes back over the show from its HUD button. */
+#fullscreen-player.ls-immersive .fs-queue-container {
+    position: absolute;
+    top: 76px;
+    bottom: var(--spacing-xl);
+    left: var(--spacing-xl);
+    z-index: 5;
+    width: min(420px, calc(100% - 2 * var(--spacing-xl)));
+    height: auto;
+    padding: var(--spacing-md);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    background: rgba(6, 6, 12, 0.82);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-14px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#fullscreen-player.ls-immersive.layout-swapped .fs-queue-container {
+    left: auto;
+    right: var(--spacing-xl);
+    padding: var(--spacing-md);
+    transform: translateX(14px);
+}
+
+#fullscreen-player.ls-immersive.ls-queue-peek .fs-queue-container {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+/* Resting: the show has the screen. Everything is still there on the next move. */
+#fullscreen-player.ls-immersive #fs-close-btn,
+#fullscreen-player.ls-immersive #fs-lightshow-btn,
+#fullscreen-player.ls-immersive #fs-volume-btn,
+#fullscreen-player.ls-immersive .fs-brand {
+    transition: opacity 0.6s ease, background var(--transition-fast), transform var(--transition-fast);
+}
+
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) {
+    cursor: none;
+}
+
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-close-btn,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-lightshow-btn,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) #fs-volume-btn,
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-brand {
+    opacity: 0.08;
+}
+
+#fullscreen-player.ls-immersive.ls-idle:not(.ls-queue-peek) .fs-content .fs-current-info {
+    opacity: 0.14;
+}
+
+@media (max-width: 768px) {
+    #fullscreen-player.ls-immersive .fs-queue-container {
+        top: 64px;
+        left: var(--spacing-md);
+        right: var(--spacing-md);
+        width: auto;
+    }
+
+    #fullscreen-player.ls-immersive .fs-content .fs-current-info {
+        padding: 12px 14px 8px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #fullscreen-player.ls-immersive .fs-queue-container { transition: opacity 0.25s ease; transform: none; }
+}
+
 /* Light show on: the stage is always dark, whatever the app theme — the
    lights are additive and need black to read. The backdrop's opacity and
    scale are driven per frame by the engine (sub-bass pump, blackouts). */
@@ -234,9 +404,9 @@
     transition: background-image 0.5s ease, opacity 0.08s linear;
 }
 
-/* Stage readout: tempo | mic | genre. The mic button is the centre column, so
-   it always sits on the stage's centre line (the cover's axis) whatever the
-   readout says. No chrome — just type over a soft scrim. */
+/* Stage readout: tempo | buttons | genre. The buttons are the centre column,
+   so they always sit on the stage's centre line (the cover's axis) whatever
+   the readout says. No chrome — just type over a soft scrim. */
 .ls-hud {
     position: absolute;
     left: 50%;
@@ -326,9 +496,9 @@
     color: rgba(255, 255, 255, 0.6);
 }
 
-/* Compact: only the mic remains, still dead centre */
+/* Compact: only the buttons remain, still dead centre */
 .ls-hud.compact {
-    width: 26px;
+    width: var(--ls-hud-mid, 26px);
     column-gap: 0;
     opacity: 0.7;
 }
@@ -337,8 +507,13 @@
     opacity: 0;
 }
 
-/* Stage-lyrics toggle (the readout itself ignores clicks) */
-.ls-hud-lyrics {
+.ls-hud-mid {
+    display: flex;
+    gap: 4px;
+}
+
+/* Buttons: environment, stage lyrics (the readout itself ignores clicks) */
+.ls-hud-btn {
     pointer-events: auto;
     flex: none;
     display: flex;
@@ -354,11 +529,11 @@
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.ls-hud-lyrics[hidden] {
+.ls-hud-btn[hidden] {
     display: none;
 }
 
-.ls-hud-lyrics:hover {
+.ls-hud-btn:hover {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
 }

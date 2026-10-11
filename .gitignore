@@ -26,3 +26,6 @@ data/
 venv/
 .pytest_cache/
 .claude/
+
+# Packed light show environments (scripts/pack_environment.py)
+dist/

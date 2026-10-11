@@ -1,9 +1,9 @@
 /**
  * Stage lyrics — kinetic, word-synced lyrics as part of the light show.
  *
- * The current line is set in big type in the free band under the (shrunk)
- * artwork; each word fills with light as it is sung (Whisper word timings
- * when the song has been aligned, a character-weighted estimate otherwise).
+ * This is the classic environment's staging of the shared LyricsTimeline
+ * (what is sung when). The current line is set in big type in the free band
+ * under the (shrunk) artwork; each word fills with light as it is sung.
  * Styling follows the show: section/genre classes pick the typography, and
  * per-frame CSS variables carry the palette, kick pulse, energy, build
  * tension and blackout depth. The engine reads `focus` to aim two follow
@@ -26,14 +26,10 @@
  *    out, with notes drifting up on the beat (`interlude` 0..1, and a
  *    `break` cue when it starts).
  */
-import { useLyricsService } from '../services/lyrics.js';
-import { clamp, lerp } from './palette.js';
+import { clamp, lerp } from '../../palette.js';
+import { HELD, pickTransition } from '../../lyricsTimeline.js';
 
 const OUT_MS = 900;
-const LEAD = 0.28;          // lines enter slightly before they are sung
-const HOLD_MAX = 0.6;        // a line whose last word overruns stays up at most this long past the next line's time
-const REST_AFTER = 1.2;     // seconds after a line's last word before it rests
-const HELD = 0.8;           // words at least this long are 'held' notes
 const SNAP = 0.4;           // media-time jump (s) that counts as a seek
 
 const AD_TAIL = 0.9;        // ad-libs linger this long after their last word
@@ -63,36 +59,21 @@ const GLYPH = '<svg class="ls-inter-glyph" viewBox="0 0 24 24" aria-hidden="true
     + `<path class="ls-wave ls-wave-back" d="${WAVE}" fill="url(#ls-note-grad)"/>`
     + `<path class="ls-wave" d="${WAVE}" fill="url(#ls-note-grad)"/></g></g></svg>`;
 
-/**
- * Split a line into words. Words inside (parentheses) are flagged `back`
- * (backing vocals); the parentheses themselves are dropped from the text.
- */
-const tokenize = (text) => {
-    const raw = (text || '').trim().split(/\s+/).filter(Boolean);
-    if (!raw.length) return [{ text: '♪', back: false }];
-    let depth = 0;
-    return raw.map((tok) => {
-        depth += (tok.match(/\(/g) || []).length;
-        const back = depth > 0;
-        depth = Math.max(0, depth - (tok.match(/\)/g) || []).length);
-        return { text: tok.replace(/[()]/g, ''), back };
-    });
-};
-
 export class StageLyrics {
-    /** @param {HTMLElement} container fullscreen container */
-    constructor(container) {
+    /**
+     * @param {HTMLElement} container fullscreen container
+     * @param {import('../../lyricsTimeline.js').LyricsTimeline} timeline
+     */
+    constructor(container, timeline) {
         this.container = container;
-        this.songId = 0;
-        this.lines = null;       // [{ t0, t1, words: [{ text, s, e }] }]
-        this.aligned = false;
+        this.timeline = timeline;
+        this._version = timeline.version;
         this.idx = -2;
         this.focus = null;       // { x, y, strength } container px
         this.onset = null;       // word that started this frame { x, y, l, r, held, hit, first, strong }
         this.bar = null;         // word being sung { x0, x1, y, p, fade, held, hit }
         this._t = 0;
         this._words = 0;         // words started so far (alternates the spot colour)
-        this._token = 0;
         this._band = null;
         this._bandAt = -1;
         this._cur = null;        // { el, words: [{el, s, e, cx, cy, state}] }
@@ -104,7 +85,6 @@ export class StageLyrics {
         this._lastNow = 0;
         this._lastTr = '';
         this.cue = null;         // { type } set on the frame a line hands over to the next
-        this.adlibs = [];        // [{ s, e, words: [{ text, s, e }], el, x, y }] backing vocals
         this.adlib = null;       // ad-lib being sung { x, y, strength }
         this.interlude = 0;      // 0..1, how far the stage has gone over to an instrumental break
         this._it = 0;
@@ -131,7 +111,16 @@ export class StageLyrics {
     }
 
     get ready() {
-        return !!(this.lines && this.lines.length);
+        return this.timeline.ready;
+    }
+
+    get lines() {
+        return this.timeline.lines;
+    }
+
+    /** Backing vocals; the stage keeps each one's element and position on it (el, x, y). */
+    get adlibs() {
+        return this.timeline.adlibs;
     }
 
     /** Current lyric band in container px ({ top, height }) once laid out. */
@@ -139,70 +128,17 @@ export class StageLyrics {
         return this._band;
     }
 
-    /** Fetch synced lyrics (+ cached word alignment) for a song. */
-    async load(songId) {
-        if (!songId || songId === this.songId) return;
-        const token = ++this._token;
-        this.songId = songId;
-        this.lines = null;
-        this.aligned = false;
+    /** The timeline swapped its lines (new song, word timings arrived): start over. */
+    sync() {
+        if (this._version === this.timeline.version) return;
+        this._version = this.timeline.version;
         this._reset();
-        try {
-            const res = await useLyricsService().get(songId);
-            if (token !== this._token) return;
-            const synced = !res.error && res.value && res.value.lyrics && res.value.lyrics.synced;
-            if (!Array.isArray(synced) || !synced.length) return;
-
-            const { words, pending } = await this._fetchWords(songId, synced.length);
-            if (token !== this._token) return;
-            const built = this._build(synced, words);
-            this.lines = built.lines;
-            this.adlibs = built.adlibs;
-            this.aligned = !!words;
-            if (pending) this._awaitWords(songId, synced, token, 0);
-        } catch (e) {
-            if (token === this._token) this.lines = null;
-        }
+        this.invalidateLayout();
     }
 
-    /** Cached word alignment for a song; `pending` while the server is still computing it. */
-    async _fetchWords(songId, lineCount) {
-        try {
-            const r = await fetch(`/api/music/song/${songId}/lyrics-words`);
-            if (r.ok) {
-                const body = await r.json();
-                if (Array.isArray(body.words) && body.words.length === lineCount) return { words: body.words, pending: false };
-                return { words: null, pending: !!body.pending };
-            }
-        } catch (e) { /* word timings are optional */ }
-        return { words: null, pending: false };
-    }
-
-    /** Re-check while the server aligns the song, then swap the exact times in. */
-    _awaitWords(songId, synced, token, attempt) {
-        if (attempt >= 60) return;
-        setTimeout(async () => {
-            if (token !== this._token) return;
-            const { words, pending } = await this._fetchWords(songId, synced.length);
-            if (token !== this._token) return;
-            if (words) {
-                const built = this._build(synced, words);
-                this._reset();
-                this.lines = built.lines;
-                this.adlibs = built.adlibs;
-                this.aligned = true;
-                this.invalidateLayout();
-            } else if (pending) {
-                this._awaitWords(songId, synced, token, attempt + 1);
-            }
-        }, attempt < 5 ? 3000 : 6000);
-    }
-
-    clear() {
-        this._token++;
-        this.songId = 0;
-        this.lines = null;
+    destroy() {
         this._reset();
+        this.el.remove();
     }
 
     _reset() {
@@ -225,87 +161,6 @@ export class StageLyrics {
         this._it = 0;
         this._interOn = false;
         this.el.classList.remove('resting', 'dots-on');
-    }
-
-    /**
-     * Turn synced lyrics into stage lines. Parenthesised words are lifted out
-     * into `adlibs` (unless that would leave no main lines at all).
-     * @returns {{ lines: object[], adlibs: object[] }}
-     */
-    _build(synced, aligned, extract = true) {
-        const lines = [];
-        const adlibs = [];
-        for (let i = 0; i < synced.length; i++) {
-            const t0 = +synced[i].time || 0;
-            const next = i + 1 < synced.length ? +synced[i + 1].time : t0 + 6;
-            const tokens = tokenize(synced[i].text);
-            const pairs = aligned && aligned[i];
-            let words;
-            if (Array.isArray(pairs) && pairs.length === tokens.length) {
-                words = tokens.map((tok, k) => {
-                    const p = pairs[k];
-                    const s = Array.isArray(p) ? +p[0] : +p;
-                    const e = Array.isArray(p) && Number.isFinite(+p[1]) ? +p[1] : s + 0.3;
-                    return { text: tok.text, back: tok.back, s, e: Math.max(e, s + 0.08) };
-                });
-            } else {
-                // Estimate: spread words over the sung part of the line,
-                // weighted by length (long words take longer to sing).
-                const span = Math.max(0.6, Math.min(next - t0, 0.9 + tokens.map((k) => k.text).join('').length * 0.075) * 0.88);
-                const weights = tokens.map((tok) => 1 + tok.text.length * 0.35);
-                const total = weights.reduce((x, y) => x + y, 0);
-                let acc = t0;
-                words = tokens.map((tok, k) => {
-                    const d = (weights[k] / total) * span;
-                    const w = { text: tok.text, back: tok.back, s: acc, e: acc + d * 0.92 };
-                    acc += d;
-                    return w;
-                });
-            }
-            const blank = tokens.length === 1 && tokens[0].text === '♪';
-            const main = [];
-            let group = null;
-            for (const w of words) {
-                if (!w.text) continue;
-                if (extract && w.back) {
-                    if (!group) {
-                        group = { s: w.s, e: w.e, words: [], el: null, x: 0, y: 0, k: adlibs.length };
-                        adlibs.push(group);
-                    }
-                    group.words.push({ text: w.text, s: w.s, e: w.e });
-                    group.e = w.e;
-                } else {
-                    group = null;
-                    main.push({ text: w.text, s: w.s, e: w.e });
-                }
-            }
-            if (!main.length) continue;
-            lines.push({ t0, t1: next, words: main, blank, end: main[main.length - 1].e });
-        }
-        if (extract && !lines.length) return this._build(synced, aligned, false);
-        // When each line goes live: a little before it is sung (LEAD) — but not while the
-        // previous line's last word is still being sung (LRC times run ahead of the voice).
-        for (let i = 0; i < lines.length; i++) {
-            const L = lines[i];
-            let on = L.t0 - LEAD;
-            if (i > 0) {
-                const prev = lines[i - 1];
-                if (!prev.blank) on = Math.max(on, Math.min(prev.end, L.t0 + HOLD_MAX));
-                on = Math.max(on, prev.on + 0.01);
-            }
-            L.on = on;
-        }
-        return { lines, adlibs };
-    }
-
-    _lineIndex(t) {
-        const L = this.lines;
-        let lo = 0, hi = L.length - 1, ans = -1;
-        while (lo <= hi) {
-            const mid = (lo + hi) >> 1;
-            if (L[mid].on <= t) { ans = mid; lo = mid + 1; } else hi = mid - 1;
-        }
-        return ans;
     }
 
     /**
@@ -440,26 +295,6 @@ export class StageLyrics {
         next.el.classList.toggle('no-room', !room);
     }
 
-    /**
-     * How the line that just finished hands over to the next. Deterministic
-     * per line (so seeking is stable), picked from what the music is doing,
-     * and never the same twice in a row.
-     */
-    _pickTransition(F, idx) {
-        const sec = (F.section && F.section.label) || 'verse';
-        const genre = (F.profile && F.profile.genre) || 'pop';
-        let pool;
-        if (sec === 'chorus' || sec === 'drop') pool = ['slam', 'fall', 'flicker'];
-        else if (sec === 'build') pool = ['sweep'];
-        else if (sec === 'intro' || sec === 'outro' || sec === 'breakdown' || genre === 'chill' || genre === 'orchestral') pool = ['collapse', 'lift'];
-        else if (genre === 'edm' || genre === 'rock') pool = ['lift', 'sweep', 'flicker'];
-        else pool = ['lift', 'sweep', 'fall'];
-        let pick = pool[idx % pool.length];
-        if (pick === this._lastTr && pool.length > 1) pick = pool[(idx + 1) % pool.length];
-        this._lastTr = pick;
-        return pick;
-    }
-
     /** Free band between the artwork/title and the controls (container px). */
     _layout(now) {
         if (this._band && now - this._bandAt < 1) return;
@@ -506,6 +341,7 @@ export class StageLyrics {
     update(F, t, P, now) {
         this.onset = null;
         this.cue = null;
+        this.sync();
         if (!this.ready) {
             this.focus = null;
             return;
@@ -513,11 +349,11 @@ export class StageLyrics {
         this._layout(now);
 
         // ---- Line changes ----
-        const idx = this._lineIndex(t);
+        const idx = this.timeline.lineIndex(t);
         if (idx !== this.idx) {
             const forward = idx === this.idx + 1;
             const promoted = forward && this._next && this._next.i === idx;
-            const tr = forward && idx >= 0 ? this._pickTransition(F, idx) : 'lift';
+            const tr = forward && idx >= 0 ? (this._lastTr = pickTransition(F, idx, this._lastTr)) : 'lift';
             const dir = idx & 1 ? -1 : 1;
             if (this._cur) {
                 const old = this._cur.el;
@@ -625,7 +461,7 @@ export class StageLyrics {
         // ---- Resting / instrumental countdown ----
         const line = cur ? this.lines[cur.i] : null;
         const next = this.lines[idx + 1] || null;
-        const resting = !line || line.blank || t > line.end + REST_AFTER;
+        const resting = this.timeline.resting(t, idx);
         const gap = next ? next.t0 - t : Infinity;
         const beat = F.period || 0.5;
         const dotsOn = !!(resting && next && gap < beat * 4 + 0.05 && (!line || next.t0 - line.end > 3));
@@ -711,7 +547,7 @@ export class StageLyrics {
         }
 
         this._updateAdlibs(t);
-        this._updateInterlude(F, t, dt, line, next, resting);
+        this._updateInterlude(F, t, dt);
     }
 
     _setVar(name, value) {
@@ -777,14 +613,9 @@ export class StageLyrics {
      * gap between lines. The lyrics step aside for a big ♪ that fills with
      * light as the break runs out, and notes rise on the beat.
      */
-    _updateInterlude(F, t, dt, line, next, resting) {
-        const L = this.lines;
+    _updateInterlude(F, t, dt) {
         const beat = F.period || 0.5;
-        let br = null;
-        if (line && line.blank) br = { a: line.t0, b: next ? next.t0 : Infinity };
-        else if (!line && this.idx === -1 && L[0].t0 > 4.5 && t > 0.5) br = { a: 0, b: L[0].t0 };
-        else if (line && resting && next && t > line.end + REST_AFTER && next.t0 - line.end > 6) br = { a: line.end + REST_AFTER, b: next.t0 };
-        else if (line && resting && !next && t > line.end + 6) br = { a: line.end + REST_AFTER, b: Infinity };
+        const br = this.timeline.breakAt(t, this.idx);
         // The countdown dots take over for the last bars.
         const want = br && br.b - t > beat * 4 ? 1 : 0;
         this._it += (want - this._it) * (1 - Math.exp(-dt * 4));

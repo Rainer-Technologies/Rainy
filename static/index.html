@@ -958,6 +958,12 @@
                     </svg>
                     <span data-i18n>Player</span>
                 </a>
+                <a href="/settings/lightshow" class="settings-nav-item" data-section="lightshow">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z" />
+                    </svg>
+                    <span data-i18n>Light Show</span>
+                </a>
                 <a href="/settings/account" class="settings-nav-item" data-section="account">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -1280,11 +1286,47 @@
                         </div>
 
                         <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Light Show</div>
-                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Every song
-                                is analysed on the server so lasers, strobes and scene changes land exactly on its beats,
-                                builds and drops. Pick how hard the rig goes.</div>
-                            <div class="settings-radio-group settings-radio-group--horizontal"
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Layout</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Arrange the
+                                fullscreen player.</div>
+                            <div class="settings-row">
+                                <div class="settings-row-info">
+                                    <div class="settings-row-label" data-i18n>Swap image and queue</div>
+                                    <div class="settings-row-hint" data-i18n>Switch the positions of album art and up next queue
+                                    </div>
+                                </div>
+                                <div class="settings-row-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="settings-fullscreen-swap">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Light Show -->
+                <div class="settings-section" id="settings-section-lightshow">
+                    <div class="settings-group">
+                        <div class="settings-group-title" data-i18n>Light Show</div>
+                        <div class="settings-group-description" data-i18n>Every song is analysed on the server so lasers, strobes
+                            and scene changes land exactly on its beats, builds and drops. Start it from the fullscreen
+                            player.</div>
+
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Environment</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>An environment
+                                is a kind of show. They all follow the same analysis of the song, and each one stages it its
+                                own way, lyrics included. You can also switch from the cube button in the show.</div>
+                            <rainy-environment-picker id="settings-environment-picker"></rainy-environment-picker>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Intensity</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Pick how
+                                hard the show goes.</div>
+                            <div class="settings-radio-group settings-radio-group--horizontal settings-radio-group--quad"
                                 data-pref="lightshow_intensity">
                                 <div class="settings-radio-item selected" data-value="auto">
                                     <div class="settings-radio-circle"></div>
@@ -1319,106 +1361,111 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Lyrics on Stage</div>
-                                    <div class="settings-row-hint" data-i18n>Show synced lyrics as part of the show: big
-                                        word-by-word typography with follow spots on the word being sung. Word timing
-                                        is exact once "Analyse Lyrics" has run for the song. Turn it on from the mic button in the
-                                        show; it stays on for the rest of that queue.</div>
+                        </div>
+
+                        <div class="settings-card-grid">
+                            <div class="settings-card">
+                                <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>On Stage</div>
+                                <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>What the
+                                    show puts on stage, and when.</div>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label" data-i18n>Lyrics on Stage</div>
+                                        <div class="settings-row-hint" data-i18n>Show synced lyrics as part of the show: big
+                                            word-by-word typography with follow spots on the word being sung. Word timing
+                                            is exact once "Analyse Lyrics" has run for the song. Turn it on from the mic button in the
+                                            show; it stays on for the rest of that queue.</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-lightshow-lyrics">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-lightshow-lyrics">
-                                        <span class="toggle-slider"></span>
-                                    </label>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label" data-i18n>Disable Lasers</div>
+                                        <div class="settings-row-hint" data-i18n>Turn off the stage laser beam animations completely
+                                        </div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-disable-lasers">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label" data-i18n>Blur Animated Background</div>
+                                        <div class="settings-row-hint" data-i18n>Apply a smooth ambient blur filter to the light show
+                                            visuals</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-show-bg-blur">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label" data-i18n>Sync Offset <span class="settings-range-value"
+                                                id="settings-lightshow-offset-value">0 ms</span></div>
+                                        <div class="settings-row-hint" data-i18n>Delay the lights if they flash before you hear the
+                                            beat (e.g. on Bluetooth headphones)</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <input type="range" class="settings-range" id="settings-lightshow-offset" min="-300"
+                                            max="300" step="10" value="0" aria-label="Light show sync offset" data-i18n-attr="aria-label">
+                                    </div>
                                 </div>
                             </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Reduce Flashing</div>
-                                    <div class="settings-row-hint" data-i18n>Replace white strobes with soft colour pulses
-                                        (recommended if you are sensitive to flashing lights)</div>
+
+                            <div class="settings-card">
+                                <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Comfort &amp;
+                                    Performance</div>
+                                <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Make the
+                                    show easier on your eyes, or on this device.</div>
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label" data-i18n>Reduce Flashing</div>
+                                        <div class="settings-row-hint" data-i18n>Replace white strobes with soft colour pulses
+                                            (recommended if you are sensitive to flashing lights)</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-lightshow-reduce-flashing">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-lightshow-reduce-flashing">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Low Performance Mode</div>
-                                    <div class="settings-row-hint" data-i18n>A lighter show for laptops with passive cooling or
-                                        older computers: lower resolution, 30 fps and no glow filters on the lyrics.
-                                        Saved on this device only.</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-lightshow-low-power">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Sync Offset <span class="settings-range-value"
-                                            id="settings-lightshow-offset-value">0 ms</span></div>
-                                    <div class="settings-row-hint" data-i18n>Delay the lights if they flash before you hear the
-                                        beat (e.g. on Bluetooth headphones)</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <input type="range" class="settings-range" id="settings-lightshow-offset" min="-300"
-                                        max="300" step="10" value="0" aria-label="Light show sync offset" data-i18n-attr="aria-label">
+                                <div class="settings-row">
+                                    <div class="settings-row-info">
+                                        <div class="settings-row-label" data-i18n>Low Performance Mode</div>
+                                        <div class="settings-row-hint" data-i18n>A lighter show for laptops with passive cooling or
+                                            older computers: lower resolution, 30 fps and no glow filters on the lyrics.
+                                            Saved on this device only.</div>
+                                    </div>
+                                    <div class="settings-row-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="settings-lightshow-low-power">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="settings-card">
-                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Layout &amp;
-                                Effects</div>
-                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Arrange the
-                                fullscreen player and tune its visual effects.</div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Swap image and queue</div>
-                                    <div class="settings-row-hint" data-i18n>Switch the positions of album art and up next queue
-                                    </div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-fullscreen-swap">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Disable Lasers</div>
-                                    <div class="settings-row-hint" data-i18n>Turn off the stage laser beam animations completely
-                                    </div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-disable-lasers">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="settings-row">
-                                <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Blur Animated Background</div>
-                                    <div class="settings-row-hint" data-i18n>Apply a smooth ambient blur filter to the light show
-                                        visuals</div>
-                                </div>
-                                <div class="settings-row-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="settings-show-bg-blur">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
+                        <div class="settings-card sysadmin-only hidden">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Installed
+                                Environments</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Besides the
+                                built-in Classic, you can install more environments as packages for everyone on this server.
+                                A package runs code in the browser of every user, so only install ones from authors you
+                                trust.</div>
+                            <rainy-environment-manager id="settings-environment-manager"></rainy-environment-manager>
                         </div>
                     </div>
                 </div>
@@ -2441,6 +2488,8 @@
             } catch (e) { /* storage unavailable: splash just stays off */ }
         })();
     </script>
+    <!-- What light show environment packages import (see js/lightshow/sdk.js). -->
+    <script type="importmap">{ "imports": { "@rainy/lightshow": "/js/lightshow/sdk.js" } }</script>
     <script type="module" src="/js/main.js"></script>
 
     <!-- Scripts -->

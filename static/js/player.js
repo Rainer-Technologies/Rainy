@@ -612,7 +612,10 @@ export class AudioPlayer {
 
         // Swap in the choreographed light show for this song, if one exists
         // (library songs only — preview tracks have no choreography)
-        if (this.lightShow && !song.videoId) this.lightShow.loadScript(song.id);
+        if (this.lightShow) {
+            this.lightShow.setTrack(this._lightShowTrack(song));
+            if (!song.videoId) this.lightShow.loadScript(song.id);
+        }
 
         // Render clickable artist links in player bar (deduplicated)
         const _splitP = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
@@ -1861,12 +1864,21 @@ export class AudioPlayer {
         }
     }
 
+    /** What the light show's environments may show of a song (cover, title). */
+    _lightShowTrack(song) {
+        return {
+            id: song.id ?? null,
+            title: song.title || '',
+            artist: song.artist || '',
+            cover: song.cover_path ? `/api/music/cover/${encodeURIComponent(song.cover_path)}` : (song.cover_url || null),
+        };
+    }
+
     toggleLightShow() {
         this.lightShowActive = !this.lightShowActive;
 
         if (this.lightShowActive) {
             if (this.fsLightShowBtn) this.fsLightShowBtn.classList.add('active');
-            if (this.fsLightShowCanvas) this.fsLightShowCanvas.classList.remove('hidden');
 
             if (!this.lightShow) {
                 this.lightShow = new LightShowEngine({
@@ -1877,12 +1889,14 @@ export class AudioPlayer {
                 });
             }
             this.lightShow.start(this.audio);
-            if (this.currentSong) this.lightShow.loadScript(this.currentSong.id);
+            if (this.currentSong) {
+                this.lightShow.setTrack(this._lightShowTrack(this.currentSong));
+                this.lightShow.loadScript(this.currentSong.id);
+            }
             window.showToast?.('Light show enabled', 'success');
         } else {
             if (this.fsLightShowBtn) this.fsLightShowBtn.classList.remove('active');
             if (this.lightShow) this.lightShow.stop();
-            if (this.fsLightShowCanvas) this.fsLightShowCanvas.classList.add('hidden');
 
             // Reset backdrop to original styles
             if (this.fsBackdrop) {

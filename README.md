@@ -143,7 +143,7 @@ MySQL data is stored in the `mysql_data` Docker volume. Music stays in the host 
 - **Discovery:** personalised mixes, radio, mood mixes and listening history, using local audio analysis.
 - **Imports:** YouTube and YouTube Music downloads, public Spotify playlist imports and scheduled playlist syncs.
 - **Sharing and devices:** multiple accounts, friends, shared playlists, Rainy Connect remote control, Chromecast and an installable PWA.
-- **Fullscreen player:** synced lyrics and a music-driven light show, with optional GPU acceleration. See [GPU setup](docs/GPU.md).
+- **Fullscreen player:** synced lyrics and a music-driven light show, analysed per song (optional GPU acceleration, see [GPU setup](docs/GPU.md)). The show runs in an environment, which stages that analysis and the lyrics its own way. **Classic**, a concert rig over the album art, is built in; administrators can install more as packages, such as **Voyage**, a 3D flight through the song, in [`packages/voyage`](packages/voyage). Anyone can write one: see [Light show environments](docs/ENVIRONMENTS.md).
 
 ## Troubleshooting
 
@@ -166,6 +166,7 @@ From an activated virtual environment:
 python -m pip install pytest soundfile
 pytest
 node --test tests/js/*.test.mjs
+node --import ./tests/js/sdk-hook.mjs --test packages/*/tests/*.mjs
 ```
 
 Backend tests import the application and require a configured session key and database. Run against a separate test database; several tests expect user and song ID `1` to exist. You can select a separate SQLite file with `RAINY_DB=sqlite` and `SQLITE_PATH`.
