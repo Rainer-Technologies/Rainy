@@ -111,9 +111,10 @@ export class MixesView {
         this.home = document.getElementById('mixes-home');
         this.detail = document.getElementById('mix-detail');
         this.status = document.getElementById('mixes-status');
-        // Keep the "playing" row in an open mix current.
-        this.player.audio?.addEventListener('play', () => this._markPlaying());
-        this.player.audio?.addEventListener('loadstart', () => this._markPlaying());
+        // Keep the "playing" row current even when crossfade swaps audio decks.
+        window.addEventListener('rainy:now-playing', (event) => {
+            if (event.detail?.player === this.player) this._markPlaying();
+        });
     }
 
     // ---------------------------------------------------------------- data

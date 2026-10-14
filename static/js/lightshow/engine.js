@@ -129,13 +129,21 @@ export class LightShowEngine {
 
     // ------------------------------------------------------------------ API
 
+    /** Retarget after a crossfade without restarting the environment/render loop. */
+    setAudioElement(audioEl) {
+        if (this.audioEl === audioEl) return;
+        if (this.audioEl) this.audioEl.removeEventListener('loadstart', this._onLoadStart);
+        this.audioEl = audioEl;
+        if (audioEl) audioEl.addEventListener('loadstart', this._onLoadStart);
+        // The cached analyser belongs to a physical element, not to its role.
+        this.live = null;
+        this._idle = null;
+        this._onTrackChange();
+    }
+
     start(audioEl) {
         if (!this.canvas || !this.container) return;
-        if (this.audioEl !== audioEl) {
-            if (this.audioEl) this.audioEl.removeEventListener('loadstart', this._onLoadStart);
-            this.audioEl = audioEl;
-            audioEl.addEventListener('loadstart', this._onLoadStart);
-        }
+        this.setAudioElement(audioEl);
         this.active = true;
         this._readAccent();
         this._getPrefs(true);

@@ -91,9 +91,9 @@ export class AudioPlayer {
         this._crossfadeEnabled = false;
         this._crossfadeDuration = 5; // seconds
         this._crossfading = false;
-        this._crossfadeRaf = null;
-        this._crossfadeTriggered = false; // prevent re-trigger within same song
-        this._activeBlobUrl = null; // blob URL currently assigned to this.audio.src
+        this._crossfadeTimer = null;
+        this._crossfadeSession = null;
+        this._crossfadeTriggered = false; // one attempt per song
 
         // Rainy Connect (cross-device control)
         this._connectDeviceId = null; // persistent id, generated in _initConnect()
@@ -231,21 +231,61 @@ export class AudioPlayer {
         this.iconLoading = this.playPauseBtn.querySelector('.icon-loading');
     }
 
+    /** Bind each physical element once; only the active role drives the UI. */
+    _bindAudioEvents(audio) {
+        if (!audio) return;
+        this._boundAudioElements ||= new WeakSet();
+        if (this._boundAudioElements.has(audio)) return;
+        this._boundAudioElements.add(audio);
+        const handlers = {
+            timeupdate: () => this.handleTimeUpdate(),
+            loadedmetadata: () => this.handleMetadataLoaded(),
+            ended: () => this.handleEnded(),
+            play: () => this.handlePlay(),
+            pause: () => {
+                if (!(this._crossfading && audio.ended)) this.handlePause();
+            },
+            error: e => this.handleError(e),
+            waiting: () => this.handleWaiting(),
+            stalled: () => this.handleWaiting(),
+            seeking: () => {
+                if (this._crossfading) this._cancelCrossfade();
+                this.handleWaiting();
+            },
+            canplay: () => this.handleCanPlay(),
+            playing: () => this.handleCanPlay(),
+            volumechange: () => {
+                if (this._crossfading) this.crossfadeAudio.muted = audio.muted;
+            },
+            ratechange: () => {
+                if (this._crossfading) this.crossfadeAudio.playbackRate = audio.playbackRate;
+            },
+            seeked: () => {
+                this._listenTracker.sync(audio.currentTime || 0);
+                this.handleCanPlay();
+            },
+        };
+        for (const [event, handler] of Object.entries(handlers)) {
+            audio.addEventListener(event, e => {
+                if (audio === this.audio) handler(e);
+                else if (audio === this.crossfadeAudio && this._crossfadeSession
+                    && (['error', 'ended'].includes(event)
+                        || (this._crossfadeSession.started && ['waiting', 'stalled'].includes(event)))) {
+                    // Don't fade the working stream to silence if the next
+                    // decoder runs out of data or fails.
+                    this._cancelCrossfade();
+                }
+            });
+        }
+    }
+
     bindEvents() {
-        // Audio events
-        this.audio.addEventListener('timeupdate', () => this.handleTimeUpdate());
-        this.audio.addEventListener('loadedmetadata', () => this.handleMetadataLoaded());
-        this.audio.addEventListener('ended', () => this.handleEnded());
-        this.audio.addEventListener('play', () => this.handlePlay());
-        this.audio.addEventListener('pause', () => this.handlePause());
-        this.audio.addEventListener('error', (e) => this.handleError(e));
+        this._bindAudioEvents(this.audio);
+        this._bindAudioEvents(this.crossfadeAudio);
 
         window.addEventListener('resize', () => {
             this._slideFracsDirty = true;
         });
-
-        // Re-anchor the listen tracker after seeks so the jump isn't counted
-        this.audio.addEventListener('seeked', () => this._listenTracker.sync(this.audio.currentTime || 0));
 
         // Page closing: finalise the listen and beacon the outbox out. Entries
         // stay queued (the server dedupes by play_id), so if the beacon is
@@ -270,14 +310,6 @@ export class AudioPlayer {
                 if (!this.audio.paused) peekAudioGraph(this.audio)?.resume();
             }
         });
-
-        // Buffering events
-        this.audio.addEventListener('waiting', () => this.handleWaiting());
-        this.audio.addEventListener('stalled', () => this.handleWaiting());
-        this.audio.addEventListener('seeking', () => this.handleWaiting());
-        this.audio.addEventListener('canplay', () => this.handleCanPlay());
-        this.audio.addEventListener('playing', () => this.handleCanPlay());
-        this.audio.addEventListener('seeked', () => this.handleCanPlay());
 
         // Control buttons
         this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
@@ -454,7 +486,7 @@ export class AudioPlayer {
      */
     syncVolumeUI() {
         if (!this.audio || !this.volumeSlider) return;
-        const pct = this.audio.muted ? 0 : Math.round(this.audio.volume * 1000) / 10;
+        const pct = this.audio.muted ? 0 : Math.round(this.getVolume() * 1000) / 10;
         this.volumeSlider.value = pct;
         this.updateVolumeGradient();
         if (this.fsVolumeSlider) {
@@ -568,11 +600,6 @@ export class AudioPlayer {
         this.clearAbRepeat();
 
         const streamUrl = this._streamUrl(song);
-        // Revoke any blob URL from a previous crossfade before replacing src
-        if (this._activeBlobUrl) {
-            URL.revokeObjectURL(this._activeBlobUrl);
-            this._activeBlobUrl = null;
-        }
         this.audio.src = streamUrl;
 
         // Picking a song is always a fresh listen, even the one already playing
@@ -608,6 +635,8 @@ export class AudioPlayer {
 
     updateNowPlaying(song) {
         this.currentSong = song;
+        // Track changes belong to the player, not a physical crossfade deck.
+        window.dispatchEvent(new CustomEvent('rainy:now-playing', { detail: { player: this, song } }));
         this.nowPlayingTitle.textContent = song.title;
 
         // Swap in the choreographed light show for this song, if one exists
@@ -733,6 +762,7 @@ export class AudioPlayer {
         }
 
         if (this.isPlaying) {
+            this._cancelCrossfade();
             this.audio.pause();
         } else {
             this.audio.play().catch(err => Logger.error('Play error:', err));
@@ -741,6 +771,7 @@ export class AudioPlayer {
 
     playPrevious() {
         if (this.isControllerMode) { this._controllerCommand('previous'); return; }
+        this._cancelCrossfade();
         if (this.audio.currentTime > 3) {
             // If more than 3 seconds into song, restart it
             this.audio.currentTime = 0;
@@ -803,6 +834,7 @@ export class AudioPlayer {
 
     async playNext() {
         if (this.isControllerMode) { this._controllerCommand('next'); return; }
+        this._cancelCrossfade();
         if (!this.playlist.length) return;
         // A song left early steers the radio away from its artist.
         if (!this.audio.ended) this.radio.noteSkip(this.currentSong, this.audio.currentTime || 0);
@@ -1566,18 +1598,17 @@ export class AudioPlayer {
     }
 
     handleEnded() {
-        // If a crossfade is in progress, the secondary audio is already
-        // playing the next song — don't call playNext() again. (The old
-        // song's listen is finalised when the crossfade completes.)
-        if (this._crossfading) return;
-
-        // If a crossfade just completed, the primary's src was already
-        // swapped to the next song and the old song's `ended` event fires
-        // late. Swallow it so playNext() doesn't restart from position 0 —
-        // and so it doesn't end the *new* song's listen tracker.
-        if (this._crossfadeTriggered) {
-            this._crossfadeTriggered = false;
-            return;
+        // `ended` is also the background-tab fallback: requestAnimationFrame
+        // can be suspended while the media clock continues to run.
+        const fade = this._crossfadeSession;
+        if (fade) {
+            if (fade.started && !this.crossfadeAudio.paused && !this.crossfadeAudio.ended) {
+                this._completeCrossfade(fade.nextIndex, fade.nextSong);
+                return;
+            }
+            // The next stream never became playable. Let normal auto-advance
+            // take over rather than swallowing ended and locking the player.
+            this._cancelCrossfade();
         }
 
         // Finalise the listen of the song that just ended
@@ -1727,14 +1758,7 @@ export class AudioPlayer {
 
     handleVolumeChange(e) {
         if (this.isControllerMode) { this._controllerCommand('volume', { volume: Number(e.target.value) }); return; }
-        const volume = e.target.value / 100;
-        this.audio.volume = volume;
-        localStorage.setItem('rainy_volume', volume.toString());
-        this.updateVolumeGradient();
-        if (this.fsVolumeSlider) {
-            this.fsVolumeSlider.value = e.target.value;
-            this.updateFsVolumeGradient();
-        }
+        this.setVolume(e.target.value / 100);
     }
 
     toggleFsVolumePopover() {
@@ -1748,12 +1772,8 @@ export class AudioPlayer {
     }
 
     handleFsVolumeChange(e) {
-        const volume = e.target.value / 100;
-        this.audio.volume = volume;
-        localStorage.setItem('rainy_volume', volume.toString());
-        this.updateFsVolumeGradient();
-        this.volumeSlider.value = e.target.value;
-        this.updateVolumeGradient();
+        if (this.isControllerMode) { this._controllerCommand('volume', { volume: Number(e.target.value) }); return; }
+        this.setVolume(e.target.value / 100);
     }
 
     formatTime(seconds) {
@@ -3188,6 +3208,7 @@ export class AudioPlayer {
     setPlaybackSpeed(rate) {
         rate = Math.max(0.25, Math.min(3, rate));
         this.audio.playbackRate = rate;
+        if (this._crossfading) this.crossfadeAudio.playbackRate = rate;
         localStorage.setItem('rainy_playback_speed', String(rate));
 
         const label = rate === 1 ? '1x' : `${parseFloat(rate.toFixed(2))}x`;
@@ -3241,34 +3262,40 @@ export class AudioPlayer {
      * them between the <audio> element and the destination.
      * Must be called from a user gesture (click) to satisfy autoplay policy.
      */
-    _ensureEqGraph() {
-        if (this._eqContext) return; // already built
-
-        // Shared per-element graph: the light show's live analyser taps the
-        // same source (createMediaElementSource can only be called once).
-        const graph = getAudioGraph(this.audio);
-        if (!graph) { window.showToast?.('Equalizer not supported in this browser', 'error'); return; }
-
-        this._eqContext = graph.ctx;
-        this._eqSource = graph.source;
-
-        this._eqFilters = AudioPlayer.EQ_BANDS.map((freq, i) => {
-            const f = this._eqContext.createBiquadFilter();
-            f.type = 'peaking';
-            f.frequency.value = freq;
-            f.Q.value = 1.4;
-            f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
-            return f;
-        });
-
-        // Chain: source → filter0 → filter1 → … → filter9 → graph output
-        for (let i = 0; i < this._eqFilters.length - 1; i++) {
-            this._eqFilters[i].connect(this._eqFilters[i + 1]);
+    _ensureEqGraph(audio = this.audio) {
+        this._eqGraphs ||= new WeakMap();
+        let eq = this._eqGraphs.get(audio);
+        if (!eq) {
+            const graph = getAudioGraph(audio);
+            if (!graph) { window.showToast?.('Equalizer not supported in this browser', 'error'); return; }
+            const filters = AudioPlayer.EQ_BANDS.map((freq, i) => {
+                const f = graph.ctx.createBiquadFilter();
+                f.type = 'peaking';
+                f.frequency.value = freq;
+                f.Q.value = 1.4;
+                f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
+                return f;
+            });
+            for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
+            graph.setChain(filters[0], filters[filters.length - 1]);
+            eq = { graph, filters };
+            this._eqGraphs.set(audio, eq);
         }
-        graph.setChain(this._eqFilters[0], this._eqFilters[this._eqFilters.length - 1]);
+        eq.graph.resume();
+        if (audio === this.audio) {
+            this._eqContext = eq.graph.ctx;
+            this._eqSource = eq.graph.source;
+            this._eqFilters = eq.filters;
+            if (this._crossfading) this._ensureEqGraph(this.crossfadeAudio);
+        }
+    }
 
-        // If the context was created while audio was already playing, resume it
-        if (this._eqContext.state === 'suspended') this._eqContext.resume();
+    _syncEqFilters() {
+        for (const audio of [this.audio, this.crossfadeAudio]) {
+            this._eqGraphs?.get(audio)?.filters.forEach((f, i) => {
+                f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
+            });
+        }
     }
 
     /**
@@ -3278,9 +3305,7 @@ export class AudioPlayer {
      */
     applyEqGains(gains, presetName = null) {
         this._eqGains = gains.slice(0, 10);
-        this._eqFilters.forEach((f, i) => {
-            f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
-        });
+        this._syncEqFilters();
         if (presetName) this._eqPreset = presetName;
         this._saveEqState();
     }
@@ -3288,9 +3313,7 @@ export class AudioPlayer {
     /** Toggle the EQ on/off. Off bypasses the filters but keeps the saved bands. */
     toggleEqEnabled() {
         this._eqEnabled = !this._eqEnabled;
-        this._eqFilters.forEach((f, i) => {
-            f.gain.value = this._eqEnabled ? this._eqGains[i] : 0;
-        });
+        this._syncEqFilters();
         this._updateEqButtonState();
         this._saveEqState();
     }
@@ -3408,7 +3431,7 @@ export class AudioPlayer {
                 const idx = parseInt(slider.dataset.index);
                 const val = parseInt(slider.value);
                 this._eqGains[idx] = val;
-                if (this._eqFilters[idx]) this._eqFilters[idx].gain.value = this._eqEnabled ? val : 0;
+                this._syncEqFilters();
                 const vl = menu.querySelector(`#eq-val-${idx}`);
                 if (vl) vl.textContent = `${val > 0 ? '+' : ''}${val}`;
                 // Deselect preset (custom)
@@ -3497,15 +3520,18 @@ export class AudioPlayer {
      * song is within the fade window of its end.
      */
     _checkCrossfade() {
-        if (!this._crossfadeEnabled || this._crossfading) return;
-        if (!this.audio.duration || this.audio.duration < this._crossfadeDuration + 2) return;
+        if (!this._crossfadeEnabled || this._crossfading || this._crossfadeTriggered) return;
+        if (!this.crossfadeAudio || this.isControllerMode || this.audio.paused || this.audio.ended) return;
+        if (this.abPointA != null && this.abPointB != null) return;
+        const rate = this.audio.playbackRate || 1;
+        if (!Number.isFinite(this.audio.duration) || this.audio.duration < this._crossfadeDuration * rate + 2) return;
         if (this.repeatMode === 'one') return;
         // Don't trigger while the user is manually seeking — they chose a
         // position on purpose, and starting a crossfade mid-seek causes
         // AbortError races in _completeCrossfade.
         if (this.audio.seeking) return;
 
-        const remaining = this.audio.duration - this.audio.currentTime;
+        const remaining = (this.audio.duration - this.audio.currentTime) / rate;
         if (remaining <= this._crossfadeDuration && remaining > 0.3) {
             // Determine next index
             let nextIndex = this.currentIndex + 1;
@@ -3530,182 +3556,104 @@ export class AudioPlayer {
      * Begin the overlapping crossfade to the song at nextIndex.
      */
     _startCrossfade(nextIndex) {
-        if (this._crossfading) return;
+        if (this._crossfading || !this.crossfadeAudio) return;
         const nextSong = this.playlist[nextIndex];
         if (!nextSong) return;
-
+        const outgoing = this.audio;
+        const cf = this.crossfadeAudio;
+        const session = this._crossfadeSession = {
+            nextIndex, nextSong, volume: outgoing.volume, started: false,
+            startPosition: outgoing.currentTime, span: 1, progress: 0,
+        };
         this._crossfading = true;
         this._crossfadeTriggered = true;
-        this._crossfadeBlobUrl = null;
-        const cf = this.crossfadeAudio;
-        const targetVolume = this.audio.volume;
-
-        cf.src = this._streamUrl(nextSong);
+        if (this._eqContext || this._eqEnabled) this._ensureEqGraph(cf);
         cf.volume = 0;
-        cf.playbackRate = this.audio.playbackRate || 1;
-
-        // Prefetch the full song as a blob so the primary can swap
-        // instantly from memory instead of a fresh HTTP request.
-        fetch(this._streamUrl(nextSong))
-            .then(r => r.blob())
-            .then(blob => {
-                if (this._crossfading) {
-                    this._crossfadeBlobUrl = URL.createObjectURL(blob);
-                }
-            })
-            .catch(() => { /* fall back to URL src in _completeCrossfade */ });
-
+        cf.muted = outgoing.muted;
+        cf.playbackRate = outgoing.playbackRate || 1;
+        cf.src = this._streamUrl(nextSong);
+        peekAudioGraph(cf)?.resume();
         cf.play().then(() => {
-            const startTime = performance.now();
-            const fadeMs = this._crossfadeDuration * 1000;
-
-            const animate = (now) => {
-                if (!this._crossfading) return; // cancelled
-                // Clamp to [0,1] — a stray negative/overshoot here would push
-                // audio.volume below 0 and break the fade.
-                const progress = Math.max(0, Math.min((now - startTime) / fadeMs, 1));
-
-                // Equal-power crossfade curve (clamped so volume stays >= 0)
-                this.audio.volume = Math.max(0, targetVolume * Math.cos(progress * Math.PI / 2));
-                cf.volume = Math.max(0, targetVolume * Math.sin(progress * Math.PI / 2));
-
-                if (progress < 1) {
-                    this._crossfadeRaf = requestAnimationFrame(animate);
-                } else {
-                    this._completeCrossfade(nextIndex, nextSong, cf.currentTime);
-                }
-            };
-            this._crossfadeRaf = requestAnimationFrame(animate);
+            if (this._crossfadeSession !== session) return;
+            if (outgoing.paused && !outgoing.ended) { this._cancelCrossfade(); return; }
+            session.started = true;
+            session.startPosition = outgoing.currentTime;
+            // Loading can consume part of the tail. Fade over what remains,
+            // not a new full window that outlives the outgoing track.
+            session.span = Math.max(0.01, outgoing.duration - outgoing.currentTime);
+            // Unlike rAF, a timer still runs in background tabs. Progress comes
+            // from the media clock so throttling/rate changes don't freeze it.
+            this._crossfadeTimer = setInterval(() => this._advanceCrossfade(session), 25);
+            this._advanceCrossfade(session);
         }).catch(() => {
-            // Autoplay blocked or load error — fall back to normal transition
-            this._crossfading = false;
+            if (this._crossfadeSession === session) this._cancelCrossfade();
         });
     }
 
-    /**
-     * Finalize the crossfade: swap the primary audio to the next song at
-     * the position the secondary reached, then clean up.
-     */
-    _completeCrossfade(nextIndex, nextSong, _position) {
-        if (this._crossfadeRaf) { cancelAnimationFrame(this._crossfadeRaf); this._crossfadeRaf = null; }
+    _advanceCrossfade(session = this._crossfadeSession) {
+        if (!session || this._crossfadeSession !== session || !session.started) return;
+        if (this.crossfadeAudio.paused || this.crossfadeAudio.ended) {
+            this._cancelCrossfade();
+            return;
+        }
+        session.progress = Math.max(0, Math.min(1,
+            (this.audio.currentTime - session.startPosition) / session.span));
+        this.audio.volume = session.volume * Math.cos(session.progress * Math.PI / 2);
+        this.crossfadeAudio.volume = session.volume * Math.sin(session.progress * Math.PI / 2);
+        if (session.progress >= 1 || this.audio.ended) {
+            this._completeCrossfade(session.nextIndex, session.nextSong);
+        }
+    }
 
-        const cf = this.crossfadeAudio;
-        const targetVolume = parseFloat(localStorage.getItem('rainy_volume') || '0.8');
-
-        // Flush listening stats for the song that just ended
+    /** Promote the already-playing decoder: never reload or seek the next song. */
+    _completeCrossfade(nextIndex, nextSong) {
+        if (!this._crossfading) return;
+        if (this._crossfadeTimer) { clearInterval(this._crossfadeTimer); this._crossfadeTimer = null; }
+        const outgoing = this.audio;
+        const incoming = this.crossfadeAudio;
         this._flushListenTracking();
 
-        // Point the primary at the next song — use the prefetched blob if
-        // available (instant load from memory), otherwise fall back to URL.
-        this.currentIndex = nextIndex;
-        this._maybeExtendMix();  // endless mixes / radio keep topping up
-        // The crossfaded song actually started — count it in the shuffle
-        // cycle (the pick in _checkCrossfade was only a peek, so a cancelled
-        // crossfade never loses a song from the cycle).
-        if (this.isShuffle) this._markShufflePlayed(nextIndex);
-        const blobUrl = this._crossfadeBlobUrl;
-
-        // Mute and pause BEFORE changing src. The element was previously
-        // playing, so without this it can auto-play from position 0 at full
-        // volume for a brief moment before loadedmetadata fires — that's
-        // the "repeated second" artifact.
-        this.audio.pause();
-        this.audio.volume = 0;
-
-        // Revoke the OLD active blob before assigning a new src.
-        if (this._activeBlobUrl && this._activeBlobUrl !== blobUrl) {
-            URL.revokeObjectURL(this._activeBlobUrl);
-        }
-        this._activeBlobUrl = blobUrl;
-        this.audio.src = blobUrl || this._streamUrl(nextSong);
-
-        const onLoaded = () => {
-            this.audio.removeEventListener('loadedmetadata', onLoaded);
-            this.audio.volume = 0;
-
-            // Seek to the secondary's current position while the primary is
-            // still PAUSED. This guarantees no audio frame is ever output
-            // from the wrong position.
-            const syncPos = cf.currentTime;
-
-            const startPlayback = () => {
-                this.audio.removeEventListener('seeked', startPlayback);
-
-                const onPlaying = () => {
-                    this.audio.removeEventListener('playing', onPlaying);
-                    this._crossfadeTriggered = false;
-                    this._crossfadeBlobUrl = null;
-
-                    // Primary is confirmed playing at the correct position.
-                    // Fade it in and ramp the secondary down over 150 ms.
-                    this.audio.volume = targetVolume;
-                    const cfVol = cf.volume;
-                    const t0 = performance.now();
-                    const ramp = (now) => {
-                        const p = Math.min((now - t0) / 150, 1);
-                        cf.volume = cfVol * (1 - p);
-                        if (p < 1) {
-                            requestAnimationFrame(ramp);
-                        } else {
-                            cf.pause();
-                            cf.removeAttribute('src');
-                            cf.load();
-                        }
-                    };
-                    requestAnimationFrame(ramp);
-                };
-
-                this.audio.addEventListener('playing', onPlaying);
-                this.audio.play().catch(() => {
-                    this.audio.removeEventListener('playing', onPlaying);
-                    this._crossfadeTriggered = false;
-                    this._crossfadeBlobUrl = null;
-                    cf.pause();
-                    cf.removeAttribute('src');
-                    cf.load();
-                });
-            };
-
-            if (syncPos > 0 && syncPos < this.audio.duration) {
-                this.audio.addEventListener('seeked', startPlayback);
-                this.audio.currentTime = syncPos;
-            } else {
-                startPlayback();
-            }
-        };
-        this.audio.addEventListener('loadedmetadata', onLoaded);
-
-        // Reset crossfade state — but keep _crossfadeTriggered set.
-        // The old song's `ended` event may already be queued in the event
-        // loop; handleEnded needs the flag to swallow it.
+        // Change roles BEFORE retiring the old element. Its queued pause/ended/
+        // load events must not change the new song's UI or advance the queue.
+        this.audio = incoming;
+        this.crossfadeAudio = outgoing;
+        if (this._eqContext || this._eqEnabled) this._ensureEqGraph(incoming);
+        outgoing.id = 'crossfade-audio';
+        incoming.id = 'audio-player';
         this._crossfading = false;
+        this._crossfadeTriggered = false;
+        incoming.volume = this._crossfadeSession.volume;
+        this._crossfadeSession = null;
+        this.lightShow?.setAudioElement(incoming);
+        outgoing.pause();
+        outgoing.removeAttribute('src');
+        outgoing.load();
 
-        // Update all UI
+        this.currentIndex = nextIndex;
+        if (this.isShuffle) this._markShufflePlayed(nextIndex);
+        this.clearAbRepeat();
         this.updateNowPlaying(nextSong);
+        this._maybeExtendMix();
+        this.handleMetadataLoaded();
+        this.handleCanPlay();
+        this.handlePlay();
         this.savePlaybackState();
-        if (this.lyricsActive) this.loadLyrics(nextSong.id);
+        if (this.lyricsActive && !nextSong.videoId) this.loadLyrics(nextSong.id);
     }
 
     /** Cancel an in-progress crossfade (e.g. user skipped manually). */
     _cancelCrossfade() {
-        if (this._crossfadeRaf) { cancelAnimationFrame(this._crossfadeRaf); this._crossfadeRaf = null; }
-        if (this.crossfadeAudio) {
-            this.crossfadeAudio.pause();
-            this.crossfadeAudio.removeAttribute('src');
-            this.crossfadeAudio.load();
-        }
-        // Revoke any prefetched blob — but NOT if it's already the active
-        // src on the primary audio (revoking a live src causes
-        // ERR_FILE_NOT_FOUND on every subsequent seek/buffer).
-        if (this._crossfadeBlobUrl && this._crossfadeBlobUrl !== this._activeBlobUrl) {
-            URL.revokeObjectURL(this._crossfadeBlobUrl);
-        }
-        this._crossfadeBlobUrl = null;
-        // Restore primary volume
-        const vol = parseFloat(localStorage.getItem('rainy_volume') || '0.8');
-        if (this.audio) this.audio.volume = vol;
+        const session = this._crossfadeSession;
+        this._crossfadeSession = null;
         this._crossfading = false;
-        this._crossfadeTriggered = false;
+        if (this._crossfadeTimer) { clearInterval(this._crossfadeTimer); this._crossfadeTimer = null; }
+        if (!session) return;
+        this.crossfadeAudio.pause();
+        this.crossfadeAudio.removeAttribute('src');
+        this.crossfadeAudio.load();
+        this.audio.volume = session.volume;
+        // Keep the attempted flag for this song. Pausing, seeking or a failed
+        // incoming stream must not start the same intro again on every tick.
     }
 
     /**
@@ -4002,7 +3950,7 @@ export class AudioPlayer {
                 ? Math.round(this.audio.duration * 1000) / 1000 : (song?.duration || 0),
             is_playing: this.isPlaying,
             is_buffering: !!this.isBuffering,
-            volume: Math.round((this.audio ? this.audio.volume : 0.8) * 100),
+            volume: Math.round(this.getVolume() * 100),
             is_shuffled: this.isShuffle,
             repeat_mode: this.repeatMode || 'none',
             queue_index: index,
@@ -4318,17 +4266,28 @@ export class AudioPlayer {
         this._connectStartAt(position);
     }
 
-    /**
-     * Set volume (0..1) and sync both sliders + gradient fill.
-     * @param {number} volume
-     */
-    setVolume(volume) {
-        if (!this.audio) return;
+    /** Logical volume before the per-stream fade envelopes. */
+    getVolume() {
+        return this._crossfadeSession?.volume ?? this.audio?.volume ?? 0.8;
+    }
+
+    /** Set volume (0..1) and sync both sliders; transient fades don't persist. */
+    setVolume(volume, { persist = true } = {}) {
+        if (!this.audio || !Number.isFinite(volume)) return;
         const v = Math.max(0, Math.min(1, volume));
-        this.audio.volume = v;
-        try {
-            localStorage.setItem('rainy_volume', v.toString());
-        } catch (e) { /* ignore */ }
+        const fade = this._crossfadeSession;
+        if (fade) {
+            fade.volume = v;
+            this.audio.volume = v * Math.cos(fade.progress * Math.PI / 2);
+            this.crossfadeAudio.volume = v * Math.sin(fade.progress * Math.PI / 2);
+        } else {
+            this.audio.volume = v;
+        }
+        if (persist) {
+            try {
+                localStorage.setItem('rainy_volume', v.toString());
+            } catch (e) { /* ignore */ }
+        }
         const pct = Math.round(v * 1000) / 10; // one decimal, matches slider step
         if (this.volumeSlider) this.volumeSlider.value = pct;
         this.updateVolumeGradient();
@@ -4426,6 +4385,8 @@ export class AudioPlayer {
             this._stopControllerMode({ quiet: true });
         }
 
+        // Stop both decks before parking the local queue or mirroring a remote.
+        this._cancelCrossfade();
         // Stop local audio (it keeps its place for when we come back) and
         // persist the local state while the queue in memory is still ours.
         if (this.audio) this.audio.pause();
@@ -4523,7 +4484,7 @@ export class AudioPlayer {
         this._paintProgress(position, duration);
 
         // Volume
-        if (this.audio) this.setVolume(this.audio.volume);
+        if (this.audio) this.setVolume(this.getVolume());
 
         // Shuffle / repeat
         this._paintToggleButtons(this.isShuffle, this.repeatMode !== 'none');

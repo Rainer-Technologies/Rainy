@@ -66,11 +66,11 @@ export class KeyboardShortcuts {
                 break;
             case 'ArrowUp':
                 e.preventDefault();
-                if (p.audio) p.setVolume(p.audio.volume + 0.05);
+                if (p.audio) p.setVolume(p.getVolume() + 0.05);
                 break;
             case 'ArrowDown':
                 e.preventDefault();
-                if (p.audio) p.setVolume(p.audio.volume - 0.05);
+                if (p.audio) p.setVolume(p.getVolume() - 0.05);
                 break;
             case 'm':
             case 'M':

@@ -11,7 +11,7 @@ export class SleepTimer {
         this.timerId = null;
         this.tickId = null;
         this.fadeId = null;
-        this.originalVolume = 1;
+        this.originalVolume = player.getVolume();
         this.isActive = false;
         this.onTick = null;      // callback(remainingMs)
         this.onEnd = null;       // callback()
@@ -23,7 +23,7 @@ export class SleepTimer {
         this.cancel();
         this.remainingMs = minutes * 60 * 1000;
         this.isActive = true;
-        this.originalVolume = this.player.audio ? this.player.audio.volume : 1;
+        this.originalVolume = this.player.getVolume();
 
         const startedAt = Date.now();
         const targetEnd = startedAt + this.remainingMs;
@@ -53,7 +53,7 @@ export class SleepTimer {
             const elapsed = Date.now() - fadeStart;
             const frac = Math.min(1, elapsed / this.FADE_DURATION_MS);
             if (this.player.audio) {
-                this.player.audio.volume = Math.max(0, startVol * (1 - frac));
+                this.player.setVolume(Math.max(0, startVol * (1 - frac)), { persist: false });
             }
             if (frac >= 1) {
                 clearInterval(this.fadeId);
@@ -64,7 +64,7 @@ export class SleepTimer {
 
     _finish() {
         if (this.player.isPlaying) this.player.togglePlayPause();
-        if (this.player.audio) this.player.audio.volume = this.originalVolume;
+        if (this.player.audio) this.player.setVolume(this.originalVolume, { persist: false });
         this.cancel();
         if (this.onEnd) this.onEnd();
         Logger.info('Sleep timer ended — playback paused');
@@ -74,7 +74,7 @@ export class SleepTimer {
     cancel() {
         if (this.tickId) { clearInterval(this.tickId); this.tickId = null; }
         if (this.fadeId) { clearInterval(this.fadeId); this.fadeId = null; }
-        if (this.player.audio) this.player.audio.volume = this.originalVolume;
+        if (this.player.audio) this.player.setVolume(this.originalVolume, { persist: false });
         this.isActive = false;
         this.remainingMs = 0;
     }
