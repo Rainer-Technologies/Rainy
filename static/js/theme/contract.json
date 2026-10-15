@@ -205,7 +205,8 @@
       "part": "user-menu-trigger",
       "selector": "[data-part~=\"user-menu-trigger\"]",
       "description": "The avatar and name that open the account menu.",
-      "static": true
+      "static": true,
+      "control": true
     },
     {
       "part": "user-dropdown",
@@ -217,7 +218,8 @@
       "part": "menu-settings",
       "selector": "[data-part~=\"menu-settings\"]",
       "description": "The Settings entry of the account menu.",
-      "static": true
+      "static": true,
+      "control": true
     },
     {
       "part": "app-body",
@@ -235,7 +237,8 @@
       "part": "sidebar-backdrop",
       "selector": "[data-part~=\"sidebar-backdrop\"]",
       "description": "What dims the page behind the sidebar on phones.",
-      "static": true
+      "static": true,
+      "control": true
     },
     {
       "part": "nav",
@@ -356,7 +359,8 @@
       "part": "now-playing",
       "selector": "[data-part~=\"now-playing\"]",
       "description": "The song playing, in the player bar (opens the full player).",
-      "static": true
+      "static": true,
+      "control": true
     },
     {
       "part": "player-controls",
@@ -428,7 +432,8 @@
       "part": "theme-escape",
       "selector": "[data-part~=\"theme-escape\"]",
       "description": "What must stay reachable whatever the theme: the account menu's trigger, its Settings entry and the theme picker. Rainy keeps these visible and clickable.",
-      "static": true
+      "static": true,
+      "control": true
     },
     {
       "part": "toasts",
@@ -676,12 +681,268 @@
       "description": "The box of a dialog (.modal-header, .modal-body inside)."
     },
     {
+      "part": "menu",
+      "selector": ".context-menu",
+      "sources": [
+        "static/js/components/contextMenu.js",
+        "static/index.html"
+      ],
+      "description": "A menu (the song menu, the player bar's More menu)."
+    },
+    {
       "part": "menu-item",
       "selector": ".context-menu-item",
       "sources": [
         "static/js/components/contextMenu.js"
       ],
       "description": "An entry of a menu."
+    },
+    {
+      "part": "view-title",
+      "selector": ".section-title",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The big title of the library and playlist views."
+    },
+    {
+      "part": "shelf",
+      "selector": ".library-section",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A shelf of the library: its title and its cards."
+    },
+    {
+      "part": "shelf-title",
+      "selector": ".section-heading",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A shelf's title."
+    },
+    {
+      "part": "shelf-row",
+      "selector": ".horizontal-scroll-content",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The cards of a shelf, in a row that scrolls sideways."
+    },
+    {
+      "part": "song-artwork",
+      "selector": ".song-artwork",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's cover in a card (.song-artwork-overlay and .play-btn-overlay on hover)."
+    },
+    {
+      "part": "song-title",
+      "selector": ".song-title",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's title in a card."
+    },
+    {
+      "part": "song-artist",
+      "selector": ".song-artist",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's artists in a card."
+    },
+    {
+      "part": "song-info",
+      "selector": ".song-info",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The text under a song card's cover."
+    },
+    {
+      "part": "play-overlay",
+      "selector": ".play-btn-overlay",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The play button over a cover, on hover."
+    },
+    {
+      "part": "album-cover",
+      "selector": ".album-card-cover",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "An album's cover in its card."
+    },
+    {
+      "part": "progress-bar",
+      "selector": ".progress-bar",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The player bar's progress bar; .progress-fill is the part played."
+    },
+    {
+      "part": "progress-fill",
+      "selector": ".progress-fill",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The played part of the progress bar."
+    },
+    {
+      "part": "progress-time",
+      "selector": ".progress-time",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The times either side of the progress bar (.current is the first)."
+    },
+    {
+      "part": "now-playing-artwork",
+      "selector": ".now-playing-artwork",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The cover of the song playing, in the player bar."
+    },
+    {
+      "part": "chip",
+      "selector": ".recent-tab",
+      "sources": [
+        "static/index.html",
+        "static/js/modules/mixes.js"
+      ],
+      "description": "A tab or filter chip (.active when it is the chosen one)."
+    },
+    {
+      "part": "view-toggle",
+      "selector": ".view-toggle-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The grid/list switch of a view (.active when chosen)."
+    },
+    {
+      "part": "nav-header",
+      "selector": ".nav-header",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The title of a group of the navigation (in Browse it is also the button that folds it)."
+    },
+    {
+      "part": "shuffle-button",
+      "selector": "#shuffle-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Shuffle, in the player bar."
+    },
+    {
+      "part": "previous-button",
+      "selector": "#prev-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Previous track, in the player bar."
+    },
+    {
+      "part": "play-button",
+      "selector": "#play-pause-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Play/pause, in the player bar."
+    },
+    {
+      "part": "next-button",
+      "selector": "#next-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Next track, in the player bar."
+    },
+    {
+      "part": "repeat-button",
+      "selector": "#repeat-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Repeat, in the player bar."
+    },
+    {
+      "part": "keep-button",
+      "selector": "#keep-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Keep a radio song in the library (only while one plays)."
+    },
+    {
+      "part": "like-button",
+      "selector": "#like-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Like, in the player bar."
+    },
+    {
+      "part": "dislike-button",
+      "selector": "#dislike-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Dislike, in the player bar."
+    },
+    {
+      "part": "queue-button",
+      "selector": "#queue-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The queue, in the player bar."
+    },
+    {
+      "part": "more-button",
+      "selector": "#player-more-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The player bar's More menu."
+    },
+    {
+      "part": "fs-tab",
+      "selector": ".fs-side-tab",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A tab of the full player's side panel (queue, lyrics); .active when chosen."
+    },
+    {
+      "part": "fs-artwork",
+      "selector": ".fs-artwork-container",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The album art in the full player."
     }
+  ],
+  "stateClasses": [
+    "active",
+    "selected",
+    "playing",
+    "current",
+    "collapsed",
+    "open",
+    "hidden",
+    "no-anime",
+    "success",
+    "error",
+    "info",
+    "warning"
   ]
 }

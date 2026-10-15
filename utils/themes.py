@@ -60,10 +60,15 @@ API_VERSIONS = (CONTRACT['api'],)
 PUBLIC_TOKENS = frozenset(CONTRACT['tokens'])
 PARTS = frozenset(p['part'] for p in CONTRACT['parts'])
 HIDEABLE_PARTS = frozenset(p['part'] for p in CONTRACT['parts'] if p.get('hideable'))
+# Parts that only hold others: a theme may flatten them (display: contents) to lay their children out itself.
+CONTAINER_PARTS = frozenset(p['part'] for p in CONTRACT['parts'] if not p.get('control'))
 PUBLIC_CLASSES = frozenset(
     name for item in CONTRACT['items'] for name in re.findall(r'\.([\w-]+)', item['selector'])
-) | {'active', 'hidden', 'no-anime', 'success', 'error', 'info', 'btn-primary', 'btn-secondary',
-     'btn-danger', 'icon-btn-small', 'play-pause', 'secondary', 'modal-header', 'modal-body', 'collapsed'}
+) | frozenset(CONTRACT.get('stateClasses', [])) | {
+    'btn-primary', 'btn-secondary', 'btn-danger', 'icon-btn-small', 'play-pause', 'secondary',
+    'modal-header', 'modal-body'}
+PUBLIC_IDS = frozenset(
+    name for item in CONTRACT['items'] for name in re.findall(r'#([\w-]+)', item['selector']))
 
 _TOKEN_NAME = re.compile(r'^--[a-z][a-z0-9-]{0,63}$')
 _BAD_VALUE = re.compile(r'[;{}<>\\]|!\s*important|url\s*\(|expression\s*\(', re.I)
@@ -226,11 +231,16 @@ def _parts_named(compound):
     return set(re.findall(r'\[\s*data-part\s*[~|^*$]?=\s*["\']?([\w-]+)', compound))
 
 
-def _may_hide(selector):
-    """Whether hiding what this selector selects is allowed."""
+def _may_hide(selector, prop='', value=''):
+    """Whether hiding what this selector selects (with this declaration) is allowed."""
     if '#rainy-theme-layer' in selector:   # everything in the theme's own layers is the theme's
         return True
     compound = _rightmost(selector)
+    if prop == 'display' and ' '.join(value.lower().split()) == 'contents':
+        # Flattening a region keeps everything in it on screen, laid out by its grandparent.
+        parts = _parts_named(compound)
+        if parts and parts <= CONTAINER_PARTS and not re.search(r'[.#]', re.sub(r'\[[^\]]*\]', '', compound)):
+            return True
     if '::' in compound or re.search(r':(before|after|placeholder|first-line|first-letter|marker|selection)\b', compound):
         return True
     if re.search(r'\.theme-[\w-]+', compound):
@@ -295,7 +305,7 @@ def lint_css(text, path='style.css'):
                 if not selectors or in_keyframes or not _hiding(prop, value):
                     continue
                 for sel in selectors:
-                    if not _may_hide(sel):
+                    if not _may_hide(sel, prop, value):
                         errors.append(f'{path}: "{prop}: {value}" on {sel} could hide Rainy\'s controls. '
                                       'A theme may hide only what it draws itself (pseudo-elements, .theme-* '
                                       'elements) and the parts marked hideable in docs/THEMES.md.')
@@ -304,11 +314,13 @@ def lint_css(text, path='style.css'):
                 sels = selectors_of(prelude, selectors)
                 for sel in _split_selectors(prelude):
                     unknown_parts.update(_parts_named(sel) - PARTS)
+                    if '#rainy-theme-layer' in sel:   # the theme's own drawings: its own names
+                        continue
                     for cls in re.findall(r'\.([\w-]+)', sel):
                         if not cls.startswith('theme-') and cls not in PUBLIC_CLASSES:
                             internal.add('.' + cls)
                     for ident in re.findall(r'#([\w-]+)', sel):
-                        if ident != 'rainy-theme-layer':
+                        if ident not in PUBLIC_IDS:
                             internal.add('#' + ident)
                 walk(inner, sels, in_keyframes)
             else:

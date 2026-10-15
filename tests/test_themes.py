@@ -297,3 +297,13 @@ def test_development_folder(admin, anon_client, monkeypatch, tmp_path):
     assert [(t['id'], t['dev']) for t in listed] == [('my-theme', True)]
     res = anon_client.get(listed[0]['styles'][0])
     assert res.status_code == 200 and res.headers['Cache-Control'] == 'no-store'
+
+
+@pytest.mark.parametrize('folder', ['example-daylight', 'encore'])
+def test_the_repository_themes_pack_cleanly(folder):
+    """The themes in packages/ install, and use only what the contract promises (no warnings)."""
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'packages', folder)
+    warnings = []
+    manifest, _data = packages.pack_directory(root, warnings=warnings)
+    assert manifest['id'] == folder and manifest['preview']
+    assert warnings == []

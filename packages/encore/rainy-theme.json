@@ -1,0 +1,48 @@
+{
+    "manifest": 1,
+    "api": 1,
+    "id": "encore",
+    "name": "Encore",
+    "version": "1.0.0",
+    "description": "A streaming-app look: a black canvas, red accent, a slim top bar, shelves of big covers, the player along the bottom with its progress on the edge, and the colours of the song washing over the top of the page.",
+    "author": "Rainy",
+    "license": "MIT",
+    "colorScheme": "dark",
+    "tokens": {
+        "--bg-primary": "#030303",
+        "--bg-secondary": "#0f0f0f",
+        "--bg-tertiary": "#212121",
+        "--bg-elevated": "#282828",
+        "--bg-glass": "rgba(3, 3, 3, 0.86)",
+        "--text-primary": "#ffffff",
+        "--text-secondary": "#aaaaaa",
+        "--text-tertiary": "#717171",
+        "--accent-primary": "#ff0033",
+        "--font-family": "Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif",
+        "--font-family-display": "Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif",
+        "--radius-sm": "4px",
+        "--radius-md": "8px",
+        "--radius-lg": "12px",
+        "--radius-card": "8px",
+        "--radius-control": "8px",
+        "--header-height": "64px",
+        "--player-height": "72px",
+        "--sidebar-width": "240px",
+        "--theme-surface-bar": "#212121"
+    },
+    "styles": [
+        "css/shell.css",
+        "css/player.css",
+        "css/views.css"
+    ],
+    "entry": "index.js",
+    "preview": "preview.jpg",
+    "i18n": {
+        "es": {
+            "description": "Aspecto de app de streaming: lienzo negro, acento rojo, barra superior fina, estanterías de carátulas grandes, el reproductor abajo con el progreso en el borde y los colores de la canción tiñendo la parte de arriba."
+        },
+        "ca": {
+            "description": "Aspecte d'app de streaming: llenç negre, accent vermell, barra superior fina, prestatges de caràtules grans, el reproductor a baix amb el progrés a la vora i els colors de la cançó tenyint la part de dalt."
+        }
+    }
+}

@@ -132,6 +132,13 @@ customElements.define(Parent.componentName, Parent);
 - Wire events using on.* and forward state to children with p.*.
 - Use useContext for cross-view or global flags; keep complex UI state local.
 
+**Interface themes (docs/THEMES.md)**
+- Themes only style what the app builds, through a public contract (static/js/theme/contract.json): data-part regions, a few classes and ids, html state attributes and the CSS tokens. tests/test_theme_contract.py keeps it honest.
+- Colours in CSS and inline styles use tokens (var(--text-primary), var(--accent-primary), color-mix(in srgb, var(--text-primary) 10%, transparent) for tints), never literals; the test counts literals and !important rules and fails if either grows.
+- A new button or field in index.html goes inside an existing data-part region; a new region gets a data-part, listed in contract.json and docs/THEMES.md.
+- Hide things with .hidden or [hidden] (guard layer, out of a theme's reach), not with inline display:none; a state rule that must hold whatever a theme says belongs in static/css/guard.css.
+- Renaming a listed part, class or id breaks installed themes: keep the old name working.
+
 **Gotchas**
 - set is a no-op if path parent doesn’t exist; initialize keys first via this.set in created.
 - watch triggers only when oldValue !== newValue; mutate with new objects if you need emissions.

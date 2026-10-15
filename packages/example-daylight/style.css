@@ -1,0 +1,35 @@
+/* Daylight: Rainy in light colours. The tokens in rainy-theme.json do most
+   of the work; these few rules give the chrome a little depth. Everything
+   here is in the `theme` layer, so it wins over Rainy's own rules without
+   having to out-specify them (docs/THEMES.md). */
+
+[data-part~="header"] {
+    background: var(--bg-glass);
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: saturate(1.4) blur(18px);
+}
+
+[data-part~="sidebar"] {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+}
+
+[data-part~="player-bar"] {
+    box-shadow: 0 -6px 24px rgba(20, 24, 33, 0.06);
+}
+
+.song-card,
+.album-card,
+.mix-card {
+    box-shadow: var(--shadow-sm);
+}
+
+.song-card:hover,
+.album-card:hover,
+.mix-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.settings-card {
+    box-shadow: var(--shadow-sm);
+}

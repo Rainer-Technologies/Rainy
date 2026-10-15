@@ -144,6 +144,7 @@ MySQL data is stored in the `mysql_data` Docker volume. Music stays in the host 
 - **Imports:** YouTube and YouTube Music downloads, public Spotify playlist imports and scheduled playlist syncs.
 - **Sharing and devices:** multiple accounts, friends, shared playlists, Rainy Connect remote control, Chromecast and an installable PWA.
 - **Fullscreen player:** synced lyrics and a music-driven light show, analysed per song (optional GPU acceleration, see [GPU setup](docs/GPU.md)). The show runs in an environment, which stages that analysis and the lyrics its own way. **Classic**, a concert rig over the album art, is built in; administrators can install more as packages, such as **Voyage**, a 3D flight through the song, in [`packages/voyage`](packages/voyage). Anyone can write one: see [Light show environments](docs/ENVIRONMENTS.md).
+- **Interface themes:** the whole web interface can be restyled by theme packages, from colours to layout, with each user picking their own. Two ship in [`packages`](packages): **Daylight**, a light theme in a few lines, and **Encore**, a streaming-app look whose colours follow the song. Themes only style what Rainy builds, so new features show up in every theme. See [Interface themes](docs/THEMES.md).
 
 ## Troubleshooting
 

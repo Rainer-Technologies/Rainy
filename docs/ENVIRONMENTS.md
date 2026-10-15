@@ -284,7 +284,9 @@ The palette of the song is on the player as CSS variables, each holding `r g b`,
 
 Use them as `rgb(var(--ls-a))` or, with transparency, `rgb(var(--ls-a) / 0.5)`.
 
-Rainy's own theme is there too: `--accent-primary`, `--text-primary`, `--text-secondary`, `--text-tertiary`, `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--bg-elevated`, `--border-subtle`, `--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-full`, `--spacing-xs` to `--spacing-xl` and `--font-family`.
+Rainy's own theme is there too: `--accent-primary`, `--text-primary`, `--text-secondary`, `--text-tertiary`, `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--bg-elevated`, `--border-subtle`, `--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-full`, `--spacing-xs` to `--spacing-xl` and `--font-family`. They follow the interface theme the user wears ([THEMES.md](THEMES.md)).
+
+Your stylesheets are not in a cascade layer, so they win over Rainy's rules and over the interface theme's. The exception is `!important`: Rainy keeps a few state rules `!important` in its own layers (what is hidden stays hidden), and those beat yours. You should not need it.
 
 ### Limits
 
@@ -319,8 +321,10 @@ node --import ./tests/js/sdk-hook.mjs --test packages/voyage/tests/*.mjs
 ## Pack and install
 
 ```bash
-python scripts/pack_environment.py packages/example-pulse
+python scripts/pack_package.py packages/example-pulse
 ```
+
+(`scripts/pack_environment.py` does the same for environments only.)
 
 writes `dist/example-pulse-1.0.0.zip`, after checking the folder exactly as the server checks an upload. Hidden files and the folder's `tests/` are left out, and the same files always give the same zip.
 

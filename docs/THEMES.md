@@ -1,0 +1,328 @@
+# Interface themes
+
+A theme changes how all of Rainy looks in the browser: colours, type, shapes, and where things sit on the screen. **Rainy** (Rainy's own look) is built in. Anything else is a **package**: a zip an administrator installs on a server. Each user then picks one in Settings → Appearance, and their pick follows them to every device. An administrator can also choose the theme people get until they pick their own.
+
+Two packages live in this repository:
+
+- [`packages/example-daylight`](../packages/example-daylight): a light theme made of tokens and about 40 lines of CSS. Start here.
+- [`packages/encore`](../packages/encore): a streaming-app look. It has a black canvas, a slim top bar, shelves of big covers and a one-row player bar with the progress along its edge. A small module washes the song's colours over the page.
+
+> **A package is trusted code.** Its stylesheets restyle the app for everyone on the server. Its module, if it has one, runs in their browser, inside Rainy's page and with their session. Rainy checks that a package is well formed and that its styles follow the rules below; it cannot make an untrusted package safe. Only administrators can install packages, and they should only install ones from authors they trust.
+
+## What a theme can and cannot do
+
+A theme **never replaces Rainy's markup**. Rainy builds every view, button and menu, and a theme only styles them. This one rule is what lets themes and Rainy change independently:
+
+- **A feature Rainy adds shows up in every theme.** It is built by Rainy, so it is there. It takes the theme's look through the tokens and the shared classes (`.btn`, `.control-btn`, `.nav-item`, …), and through the region it lands in.
+- **A theme cannot hide Rainy's controls.** Before a package is installed, its stylesheets are read. Any rule that would hide, disable or shrink away something Rainy built is refused: `display: none`, `visibility: hidden`, `opacity: 0`, `pointer-events: none`, `font-size: 0`, `content-visibility: hidden`, and `display: contents` on anything but a region. A theme may hide only:
+  - what it draws itself (pseudo-elements, its own `.theme-*` elements, anything in its layers);
+  - the parts below marked *may be hidden*.
+- **Rainy's state always wins.** What Rainy hides (a closed menu, an inactive tab, `.hidden`, `[hidden]`) stays hidden whatever a theme says. These rules live in a cascade layer no theme can override, and `!important` is not allowed in a theme.
+- **There is always a way back.** The account menu, its Settings entry and the theme picker are kept visible and clickable whatever a theme does. `?theme=off` in the address, or **Alt+Shift+D**, shows Rainy's own look in that tab.
+- **What a theme breaks can be found.** Settings → Appearance → *Check the theme in use* (administrators) compares every control on every view with the theme's styles off and on. It reports what the theme hides, covers, shrinks, pushes off screen or makes hard to read. See [Checking a theme](#checking-a-theme).
+
+## A package
+
+```
+my-theme.zip
+  rainy-theme.json    the manifest
+  style.css           stylesheets, as many as you like (up to 8)
+  index.js            optional: a module for decorative layers
+  preview.jpg         the picture people pick it by (16:9)
+  …                   fonts, images, more modules
+```
+
+The manifest sits at the root of the zip, or inside a single top-level folder (what a repository download gives you). The limits and file types are the same as for [light show environments](ENVIRONMENTS.md#a-package): up to 20 MB zipped, 60 MB unpacked and 500 files. Each stylesheet may be up to 1 MB.
+
+### Manifest
+
+```json
+{
+    "manifest": 1,
+    "api": 1,
+    "id": "my-theme",
+    "name": "My Theme",
+    "version": "1.0.0",
+    "description": "One line for the picker",
+    "author": "You",
+    "license": "MIT",
+    "homepage": "https://example.com",
+    "colorScheme": "dark",
+    "tokens": { "--accent-primary": "#ff0033", "--bg-primary": "#030303" },
+    "styles": ["style.css"],
+    "entry": "index.js",
+    "preview": "preview.jpg",
+    "i18n": { "es": { "name": "Mi tema", "description": "Una línea para el selector" } }
+}
+```
+
+| Field | | |
+| --- | --- | --- |
+| `manifest` | required | Version of this file's format: `1`. |
+| `api` | required | Version of the theme contract (below) the theme was written for: `1`. Rainy refuses a package for a version it does not speak. |
+| `id` | required | 2 to 32 characters: lowercase letters, digits and hyphens, starting with a letter. Installing a package with the id of an installed one replaces it. `rainy` is taken. |
+| `name`, `version` | required | `version` looks like `1.2.3`. |
+| `colorScheme` | | `dark` (default) or `light`. It tells the browser how to draw its own controls (scroll bars, date pickers), and the picker shows it. |
+| `tokens` | | Values for Rainy's [tokens](#tokens), or for your own (their names start with `--theme-`). A value is a CSS value of at most 200 characters, without `;`, braces, `<`, `>`, `\`, `url()` or `!important`. |
+| `styles` | | Stylesheets of the package, in order. A theme needs `tokens`, `styles` or both. |
+| `entry` | | A module for [decorative layers](#a-themes-module). |
+| `preview` | recommended | A 16:9 picture of the theme, about 960 × 540. A screenshot works best. Without one, the picker draws a little window in the theme's colours. |
+| `description`, `author`, `license`, `homepage`, `i18n` | | As for environments. |
+
+## Tokens
+
+Rainy's CSS is written in tokens: custom properties on `:root` (static/css/variables.css). Set them in the manifest and every view follows. A light theme is mostly a matter of tokens; see Daylight.
+
+| Token | |
+| --- | --- |
+| `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--bg-elevated`, `--bg-glass` | Backgrounds from the page down to raised panels; `--bg-glass` is for translucent bars. |
+| `--surface-base`, `--surface-raised`, `--surface-elevated`, `--surface-popover`, `--surface-accent` | The same levels by role. They follow the backgrounds unless you set them. |
+| `--text-primary`, `--text-secondary`, `--text-tertiary` | Text, from titles to hints. |
+| `--tint-2`, `--tint-4`, `--tint-6`, `--tint-10`, `--tint-15`, `--tint-20`, `--tint-30`, `--tint-50`, `--bg-hover`, `--bg-highlight`, `--border-color`, `--border-subtle` | Washes of the text colour (2 % to 50 %) for hovers, wells and hairlines. They follow `--text-primary`, so they turn dark in a light theme on their own. |
+| `--accent-primary` | The accent. `--accent-light`, `--accent-secondary`, `--accent-gradient`, `--accent-glow`, `--accent-bg-subtle` and `--focus-ring` follow it; set them only to override that. |
+| `--text-on-accent` | Text and icons drawn on the accent. |
+| `--error`, `--success`, `--warning` | Status colours. |
+| `--scrim` | What dims the page behind a dialog. |
+| `--shadow-sm`, `--shadow-md`, `--shadow-lg`, `--shadow-glow` | Shadows. |
+| `--font-family`, `--font-family-display` | Body text, and headings and big titles. Bundle your fonts with `@font-face` in a stylesheet. |
+| `--font-size-xs`, `--font-size-sm`, `--font-size-base`, `--font-size-lg`, `--font-size-xl`, `--font-size-2xl`, `--font-size-3xl`, `--font-size-4xl` | The type scale. |
+| `--spacing-xs`, `--spacing-sm`, `--spacing-md`, `--spacing-lg`, `--spacing-xl`, `--spacing-2xl` | Spacing. |
+| `--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-xl`, `--radius-full`, `--radius-card`, `--radius-control` | Corners. |
+| `--transition-fast`, `--transition-base`, `--transition-normal`, `--transition-slow`, `--hit-target` | Timing, and the smallest size of a thing to press. |
+| `--header-height`, `--player-height`, `--mobile-player-height`, `--sidebar-width` | The size of the chrome. |
+| `--shell-inset-top`, `--shell-inset-right`, `--shell-inset-bottom`, `--shell-inset-left` | How much of each edge of the content the fixed chrome covers (by default, the player bar at the bottom). If you move the player or the navigation, move these with it so nothing hides behind them. |
+
+**The accent.** `--accent-primary` in your tokens is the theme's accent. A user can still pick their own in Settings → Appearance; theirs wins, and *Reset* goes back to the theme's. Picking a theme also goes back to its accent.
+
+The full player is a dark stage over the album art whatever the theme. Its own light show variables (`--ls-*`) are in [ENVIRONMENTS.md](ENVIRONMENTS.md#variables).
+
+## Stylesheets
+
+Your stylesheets are loaded into the **`theme` cascade layer**, which comes after Rainy's own (`@layer guard, rainy, theme`). Your rules therefore win over Rainy's on order alone: `.nav-item { … }` beats Rainy's `.app-sidebar .nav-section .nav-item { … }`, whatever the specificity. The only rules you cannot beat are Rainy's guard rules, which keep its state and the way back. Relative `url()`s and `@font-face` work as usual; files must come from the package (no outside addresses, no `@import`).
+
+Write your rules against the **contract**: the parts, classes and states below. They are Rainy's promise. Within an `api` version they are only ever added, never removed or renamed. Anything else is internal and may change in any release. Packing or installing a theme warns you about internal names it uses; it still installs, and such rules simply stop matching if Rainy changes.
+
+### Parts
+
+Regions of the page carry a `data-part` attribute. Select them with `[data-part~="name"]`.
+
+| Part | |
+| --- | --- |
+| `splash` | The boot splash, shown to signed-in users while Rainy loads. |
+| `setup`, `login` | The first-run setup screen and the sign-in screen. |
+| `app` | The signed-in app: header, body and player bar. |
+| `header` | The top bar. |
+| `header-start` | Left of the top bar: the navigation toggle and the brand. |
+| `brand` | The Rainy logo and name in the top bar. *May be hidden.* |
+| `logo` | The logo picture in the brand. *May be hidden.* |
+| `header-actions` | Right of the top bar: search, shortcuts and the account menu. |
+| `search` | The library search box. |
+| `user-menu` | The account menu (trigger and dropdown). |
+| `user-menu-trigger` | The avatar and name that open the account menu. *A control.* |
+| `user-dropdown` | The account menu's dropdown. |
+| `menu-settings` | The Settings entry of the account menu. *A control.* |
+| `app-body` | Everything between the top bar and the player bar: sidebar and main. |
+| `sidebar` | The navigation sidebar. |
+| `sidebar-backdrop` | What dims the page behind the sidebar on phones. *A control.* |
+| `nav` | The navigation inside the sidebar. |
+| `nav-section` | A group of the navigation: Library, Browse, Playlists. |
+| `playlists` | The list of playlists in the sidebar. |
+| `main` | The scrolling area where every view is shown. |
+| `section-header` | The title row of the library and playlist views, with the grid/list toggle. |
+| `library-stats` | The song, artist and album counts of the library. *May be hidden.* |
+| `loading`, `empty-state` | The library's loading and empty states. |
+| `song-grid`, `song-list` | The library's songs as a grid (shelves and cards), and as a list. |
+| `view-discover`, `view-friends`, `view-recent`, `view-smartmix` | The Discover, Friends, Recently Played and Smart Mix views. |
+| `view-artists`, `artist-profile` | The Artists view, and one artist's page. |
+| `view-albums`, `album-detail` | The Albums view, and one album's page. |
+| `player-bar` | The player at the bottom of the app. |
+| `now-playing` | The song playing, in the player bar; it opens the full player. *A control.* |
+| `player-controls` | The middle of the player bar: transport and progress. |
+| `transport` | Shuffle, previous, play/pause, next and repeat. |
+| `progress` | The progress bar and the times. |
+| `player-actions` | The right of the player bar: like, queue, volume, more. |
+| `volume` | The volume control. |
+| `player-menu` | The player bar's More menu: sleep timer, speed, EQ, crossfade, Connect. |
+| `settings` | The Settings page. |
+| `settings-sidebar`, `settings-nav` | The Settings page's navigation and search, and its list of sections. |
+| `settings-main`, `settings-content` | The Settings page's title and content, and the open section. |
+| `theme-escape` | What must stay reachable whatever the theme: the account menu's trigger, its Settings entry and the theme picker. Rainy keeps these visible and clickable. |
+| `toasts` | Where notices appear. |
+| `modal` | A dialog: its host element (a `.modal-overlay` or a `rainy-*-modal`). |
+| `context-menu` | The song menu. |
+| `fullscreen` | The full player. While a light show runs, its environment styles it too ([ENVIRONMENTS.md](ENVIRONMENTS.md#styling-the-player)). |
+| `fs-content` | The box with the song and the side panel in the full player. |
+| `fs-side` | The full player's side panel: queue and lyrics. |
+| `fs-now-playing` | The song in the full player: artwork, title, artist and controls. |
+| `fs-controls` | The full player's progress and buttons. |
+
+Parts not marked *a control* are containers. You may flatten one with `display: contents`, and its children become items of its parent's layout. Encore does this to the player bar.
+
+### Classes and ids
+
+What Rainy builds over and over has a class of its own, and a few controls have an id. These are public too.
+
+| Selector | |
+| --- | --- |
+| `.song-card`, `.song-card-horizontal`, `.song-row` | A song as a card in a grid or shelf, as a wide card in a horizontal shelf, and as a row in a list. |
+| `.song-artwork`, `.song-info`, `.song-title`, `.song-artist`, `.play-btn-overlay` | Inside a song card: the cover, the text under it, the title, the artists, and the play button over the cover on hover. |
+| `.album-track-row`, `.artist-track-row`, `.recent-song-row` | A track of an album page, a song on an artist's page, a song in Recently Played. |
+| `.album-card`, `.album-card-cover` | An album in the Albums grid, and its cover. |
+| `.artist-circle-card` | An artist in the Artists grid. |
+| `.mix-card` | A mix in Smart Mix. |
+| `.discover-item` | A search result in Discover. |
+| `.friend-row` | A friend, request or invite. |
+| `.library-section`, `.section-heading`, `.horizontal-scroll-content` | A shelf of the library, its title, and its cards in a row that scrolls sideways. |
+| `.section-title` | The big title of the library and playlist views. |
+| `.nav-item`, `.nav-header`, `#sidebar-playlists .nav-item` | An entry of the sidebar navigation (`.active` when it is the current view), the title of a group (in Browse it is also the button that folds it), and a playlist in the sidebar. |
+| `.btn` | A button. `.btn-primary`, `.btn-secondary` and `.btn-danger` say which kind. |
+| `.icon-btn` | A round button with only an icon (`.icon-btn-small` too). |
+| `.control-btn` | A player control; `.play-pause` is the big one. |
+| `#shuffle-btn`, `#prev-btn`, `#play-pause-btn`, `#next-btn`, `#repeat-btn` | The transport, in the player bar. |
+| `#keep-btn`, `#like-btn`, `#dislike-btn`, `#queue-btn`, `#player-more-btn` | Keep a radio song (only while one plays), like, dislike, the queue and the More menu, in the player bar. |
+| `.progress-bar`, `.progress-fill`, `.progress-time` | The player bar's progress bar, the part played, and the times either side of it (`.current` is the first). |
+| `.now-playing-artwork` | The cover of the song playing, in the player bar. |
+| `.recent-tab`, `.view-toggle-btn` | A tab or filter chip, and the grid/list switch of a view (`.active` when chosen). |
+| `.form-input`, `.toggle-switch` | A text field or select, and an on/off switch. |
+| `.settings-card`, `.settings-row` | A card of rows in Settings, and one setting in it. |
+| `.modal-content` | The box of a dialog (`.modal-header` and `.modal-body` inside). |
+| `.context-menu`, `.context-menu-item` | A menu (the song menu, the player bar's More menu), and an entry of it. |
+| `.toast` | A notice (`.success`, `.error`, `.info`). |
+| `.global-search-overlay`, `.shortcut-overlay` | The global search palette and the keyboard shortcuts sheet. |
+| `.fs-side-tab`, `.fs-artwork-container` | A tab of the full player's side panel (queue, lyrics; `.active` when chosen), and its album art. |
+
+The state classes `active`, `selected`, `playing`, `current`, `collapsed`, `open`, `hidden`, `no-anime`, `success`, `error`, `info` and `warning` may be combined with any of these.
+
+### States
+
+Attributes on `<html>` say what the app is doing, so a theme can follow it: `html[data-view="albums"] [data-part~="main"] { … }`.
+
+| Attribute | Values | |
+| --- | --- | --- |
+| `data-theme` | the id of the theme in use (`rainy` is Rainy's own) | Which theme is on. |
+| `data-color-scheme` | `dark`, `light` | The theme's colour scheme. |
+| `data-auth` | `setup`, `login`, `app` | Which screen is showing. |
+| `data-view` | `library`, `playlist`, `albums`, `artists`, `recent`, `smartmix`, `discover`, `friends` | The view in the main area. |
+| `data-playing` | `true`, `false` | Music is playing. |
+| `data-has-track` | `true`, `false` | There is a song in the player. |
+| `data-fullscreen` | `true`, `false` | The full player is open. |
+| `data-settings` | `true`, `false` | Settings is open. |
+| `data-sidebar` | `open`, `collapsed` | Whether the sidebar is folded to icons. |
+| `class no-anime` | present or not | The user hid the anime logo. |
+
+## Laying things out
+
+A theme can move almost anything. Encore turns the player bar into one row with the progress along its top edge. Daylight only recolours. Some advice so a layout keeps working as Rainy grows:
+
+- **Leave room for what comes later.** A region you lay out yourself will get new buttons one day. In a grid, set `grid-auto-flow: column` (or `row`) so an item you did not place gets a cell of its own instead of landing outside the box. In a flex row, let it wrap, or let it scroll. Encore's player bar does this: a button Rainy adds to the transport appears at the end of the bar, styled like its neighbours.
+- **Do not count children.** `:nth-child(3)` is "the third button today". Use the ids and classes above.
+- **Keep phones in mind.** Your rules apply at every width. Encore keeps its big layout changes inside `@media (min-width: 900px)` and only recolours on phones, where Rainy's own layout already fits.
+- **Move the insets with the chrome.** If the player or the navigation moves, update `--shell-inset-*` so the content is not hidden behind them.
+- **Mind the light show.** While an environment is on stage it styles the full player too, and its rules win over yours there. Leave the full player mostly to it.
+
+## A theme's module
+
+The `entry` module is for decoration: a backdrop that follows the music, grain, a glow. Its default export is a class:
+
+| | |
+| --- | --- |
+| `mount(ctx)` | Build everything. May be `async`; 5 seconds at most. |
+| `unmount()` | Release what the page cannot release for you (timers, workers, WebGL contexts). |
+
+```js
+export default class MyTheme {
+    mount(ctx) {
+        this.glow = document.createElement('div');
+        this.glow.className = 'theme-glow';
+        ctx.layers.back.appendChild(this.glow);
+        ctx.on('track', async (track) => {
+            const colors = track && track.cover ? await ctx.colors(track.cover) : null;
+            ctx.setVar('--theme-glow', colors ? colors.vivid.join(' ') : null);
+        });
+    }
+
+    unmount() {}
+}
+```
+
+### `ctx`
+
+| | |
+| --- | --- |
+| `ctx.layers.back`, `ctx.layers.front` | Your own layers, each filling the window: one behind the app, one over it. They never take a click. Rainy's backgrounds are opaque, so to see the back layer make the regions over it transparent in your stylesheet (`[data-part~="app"] { background: transparent }`); Encore does. |
+| `ctx.state.get()` | `{ view, auth, playing, hasTrack, fullscreen, settings, sidebar, track }`. `track` is `{ id, title, artist, album, cover }` or `null`. |
+| `ctx.on(event, fn)` | `'track'`, `'view'`, `'playing'`, `'fullscreen'`, `'settings'`: the new value of that state. `'state'`: `(name, value, state)` for any of them. `'accent'`: the accent in effect, as `#rrggbb`. `'visibility'`: whether the page is visible. Returns a function that stops. |
+| `ctx.setVar(name, value)` | Set one of your own `--theme-*` variables on the page (`null` removes it), for your stylesheets to use. |
+| `ctx.colors(url)` | `{ average, vivid }`, each `[r, g, b]`, of a picture from this server (a cover). |
+| `ctx.asset(path)` | The address of a file of your package. |
+| `ctx.reducedMotion`, `ctx.lowPower` | The user asked for less motion, or for Low Performance Mode. Keep still, or keep it light. |
+| `ctx.signal` | An `AbortSignal`, aborted when your theme comes off. |
+| `ctx.locale`, `ctx.id`, `ctx.manifest`, `ctx.api` | Language of the interface, who you are, and the contract version. |
+| `ctx.toast(message)` | A short notice. |
+| `ctx.fail(error)` | You cannot go on. Your module is taken off; your stylesheets stay. |
+
+If `mount` throws or takes too long, or any of your listeners throws three times in a row, the module is taken off. Rainy shows a notice and keeps your stylesheets: the theme stays on, without its decoration. If a stylesheet does not load, the whole theme comes off and Rainy's own look takes its place until the page is reloaded.
+
+### Rules of the house
+
+- **Draw in your layers.** Talk to Rainy through `ctx`, and do not reach for `window.app`, `window.player`, Rainy's API or the page's other elements. That keeps your theme working when Rainy changes, and lets a future Rainy run modules isolated.
+- **Pause when no one is looking.** Stop animating when the page is hidden (`'visibility'`), and while the full player is open, where the light show needs the GPU.
+- **Respect the user.** Honour `ctx.reducedMotion` and `ctx.lowPower`. Never flash.
+- **Carry your libraries.** Put what you import inside the package; do not load code from other servers.
+
+## Safe mode and recovery
+
+- `?theme=off` at the end of any Rainy address shows Rainy's own look in that tab until `?theme=on` or the tab is closed. **Alt+Shift+D** does the same from the keyboard, and turns it back off. The user's pick is not changed.
+- An administrator can switch a theme off (Settings → Appearance → Installed Themes). Everyone wearing it goes back to the default on their next visit, or at once if they are on Settings.
+- A theme's pick that is no longer installed falls back to the server's default, then to Rainy.
+
+## Checking a theme
+
+Settings → Appearance → Installed Themes → **Check the theme in use** (administrators) visits every view and the full player. On each one it compares every control (buttons, links, fields, anything focusable) with the theme's styles switched off and on. It reports a control the theme:
+
+- hides;
+- shrinks below 8 px;
+- covers with something else, so a click at its centre lands elsewhere;
+- pushes off screen where it cannot be scrolled to;
+- leaves with text contrast under 3:1 where Rainy's own look had more.
+
+Run it at a desktop width and at a phone width (the browser's device toolbar), with a song playing. It finds problems in whatever Rainy adds later too, with no list to keep up to date.
+
+The same check runs from the browser console:
+
+```js
+const audit = await import('/js/theme/audit.js');
+audit.describeReport(await audit.auditAllViews());
+```
+
+or from [tests/browser/theme-audit.js](../tests/browser/theme-audit.js).
+
+## Develop
+
+Start Rainy in development mode with a folder of unpacked packages:
+
+```bash
+RAINY_DEV=1 RAINY_THEMES_DEV=packages .venv/bin/python app.py
+```
+
+Every folder in it that holds a valid `rainy-theme.json` is listed as a theme, tagged *Development*, and served straight from disk: change a file and pick the theme again, or reload. A folder stands in for the installed package with the same id. Folders that do not validate are reported on the server's console. One folder can hold environments and themes both (`RAINY_ENVIRONMENTS_DEV=packages` too); each kind takes the folders with its own manifest.
+
+## Pack and install
+
+```bash
+python scripts/pack_package.py packages/encore
+```
+
+writes `dist/encore-1.0.0.zip`, after checking the folder exactly as the server checks an upload. It lists the internal names your stylesheets use. Then, as an administrator: Settings → Appearance → Installed Themes → *Install package (.zip)*. From there a theme can be switched off, made everyone's default, or removed. Installing a package with an id that is already installed updates it: you get the new version at once, and everyone else on their next visit.
+
+Installed packages are kept in the database, so they survive a rebuilt container. The unpacked copy they are served from is rebuilt whenever it is missing. A theme's files are served without a session, so the sign-in screen can wear the theme a device last wore.
+
+## For Rainy's developers
+
+Themes keep working as Rainy changes because the contract is checked by `tests/test_theme_contract.py`:
+
+- **New UI uses tokens.** Use `var(--…)` for colours, never a literal. For a wash of the text colour, use `color-mix(in srgb, var(--text-primary) 10%, transparent)` or a `--tint-*`. The test counts hard-coded colours and `!important` rules in Rainy's CSS, and fails if either grows.
+- **A new control goes inside a region.** Any button, link or field in index.html must sit inside a `data-part`. A new region gets a part. Add it to static/js/theme/contract.json and to this file.
+- **Renaming or removing something in the contract breaks installed themes.** The test fails if a part disappears from the page or a listed class is no longer built. Keep the old name working, or wait for a new `api` version.
+- **State goes through classes or `.hidden`, not inline styles.** If something must stay hidden whatever a theme says (a closed panel, an inactive tab), express it with `.hidden` or `[hidden]`, or add its rule to static/css/guard.css.
+- **A new view gets a value for `data-view`** (through the `current-view-type` context). Add it to the states table.

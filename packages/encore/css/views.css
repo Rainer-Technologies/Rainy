@@ -1,0 +1,136 @@
+/* Encore: the views. Big bold titles, shelves of large square covers with
+   no box around them, the title and the artists underneath, a play button
+   that appears over the cover. */
+
+@media (min-width: 900px) {
+    [data-part~="main"] {
+        padding: var(--spacing-xl) clamp(var(--spacing-xl), 4vw, 72px);
+    }
+}
+
+.section-title {
+    font-family: var(--font-family-display);
+    font-size: clamp(28px, 3.2vw, 44px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* Streaming apps do not count your songs at you. */
+[data-part~="library-stats"] {
+    display: none;
+}
+
+.library-section + .library-section {
+    margin-top: var(--spacing-xl);
+}
+
+.section-heading {
+    font-family: var(--font-family-display);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.horizontal-scroll-content {
+    gap: var(--spacing-lg);
+}
+
+/* ---- Song cards: the cover is the card ---------------------------------- */
+
+.song-card,
+.song-card-horizontal {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.song-card:hover,
+.song-card.playing,
+.song-card-horizontal:hover,
+.song-card-horizontal.playing {
+    transform: none;
+    border: none;
+    box-shadow: none;
+}
+
+.song-artwork {
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.song-card .song-info,
+.song-card-horizontal .song-info {
+    padding: var(--spacing-sm) 0 0;
+}
+
+.song-title {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.song-artist {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.song-card.playing .song-title {
+    color: var(--text-primary);
+}
+
+.play-btn-overlay {
+    width: 48px;
+    height: 48px;
+    background: rgb(0 0 0 / 0.6);
+    box-shadow: none;
+}
+
+/* ---- Lists -------------------------------------------------------------- */
+
+.song-row,
+.album-track-row,
+.artist-track-row,
+.recent-song-row {
+    border-radius: var(--radius-sm);
+}
+
+.song-row:hover,
+.album-track-row:hover,
+.artist-track-row:hover,
+.recent-song-row:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+/* ---- Albums, artists, mixes --------------------------------------------- */
+
+.album-card,
+.mix-card {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.album-card:hover,
+.mix-card:hover {
+    transform: none;
+    box-shadow: none;
+    background: transparent;
+}
+
+.album-card-cover {
+    border-radius: var(--radius-sm);
+}
+
+.artist-circle-card:hover {
+    background: transparent;
+}
+
+/* ---- Settings ----------------------------------------------------------- */
+
+[data-part~="settings"] {
+    background: var(--bg-primary);
+}
+
+[data-part~="settings-sidebar"] {
+    background: var(--bg-secondary);
+}

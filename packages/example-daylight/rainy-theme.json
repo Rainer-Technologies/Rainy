@@ -1,0 +1,41 @@
+{
+    "manifest": 1,
+    "api": 1,
+    "id": "example-daylight",
+    "name": "Daylight",
+    "version": "1.0.0",
+    "description": "A light theme in a few lines: tokens and a short stylesheet. Start here.",
+    "author": "Rainy",
+    "license": "MIT",
+    "colorScheme": "light",
+    "tokens": {
+        "--bg-primary": "#f5f6f8",
+        "--bg-secondary": "#ffffff",
+        "--bg-tertiary": "#eceef2",
+        "--bg-elevated": "#ffffff",
+        "--bg-glass": "rgba(255, 255, 255, 0.82)",
+        "--text-primary": "#15171c",
+        "--text-secondary": "#555b68",
+        "--text-tertiary": "#8a909d",
+        "--accent-primary": "#2563eb",
+        "--scrim": "rgba(20, 24, 33, 0.35)",
+        "--shadow-sm": "0 1px 3px rgba(20, 24, 33, 0.08)",
+        "--shadow-md": "0 4px 16px rgba(20, 24, 33, 0.10)",
+        "--shadow-lg": "0 12px 40px rgba(20, 24, 33, 0.14)",
+        "--radius-card": "14px"
+    },
+    "styles": [
+        "style.css"
+    ],
+    "preview": "preview.jpg",
+    "i18n": {
+        "es": {
+            "name": "Luz de día",
+            "description": "Un tema claro en pocas líneas: tokens y una hoja de estilos corta. Empieza por aquí."
+        },
+        "ca": {
+            "name": "Llum de dia",
+            "description": "Un tema clar en poques línies: tokens i un full d'estils curt. Comença per aquí."
+        }
+    }
+}

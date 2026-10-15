@@ -1,0 +1,189 @@
+/* Encore: the player. On wide screens the bar is one row:
+   previous, play, next and the time on the left; the song in the middle with
+   its like and dislike; volume, repeat, shuffle, queue and more on the right;
+   and the progress as a line along the bar's top edge.
+
+   The bar's regions (player-controls, transport, player-actions) are
+   flattened with display: contents so their buttons can be placed one by one
+   on the bar's grid. Anything Rainy adds to those regions later lands in a
+   column of its own at the end (grid-auto-flow: column), never off the bar. */
+
+[data-part~="player-bar"] {
+    background: color-mix(in srgb, rgb(var(--theme-ambient, 33 33 33)) 10%, var(--theme-surface-bar));
+    border-top: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: background 1.4s ease;
+}
+
+.control-btn svg {
+    fill: var(--text-primary);
+}
+
+.control-btn.secondary svg {
+    opacity: 0.85;
+}
+
+.control-btn:hover svg {
+    opacity: 1;
+}
+
+/* Play is the big plain one, no colour of its own. */
+#play-pause-btn {
+    background: none;
+    box-shadow: none;
+    width: 48px;
+    height: 48px;
+}
+
+#play-pause-btn svg {
+    fill: var(--text-primary);
+    width: 34px;
+    height: 34px;
+}
+
+#play-pause-btn:hover {
+    transform: none;
+    box-shadow: none;
+    background: rgb(255 255 255 / 0.1);
+}
+
+.control-btn[aria-pressed="true"] svg {
+    fill: var(--text-primary);
+    opacity: 1;
+}
+
+.progress-bar {
+    background: rgb(255 255 255 / 0.2);
+}
+
+.progress-fill {
+    background: var(--accent-primary);
+}
+
+.now-playing-artwork {
+    border-radius: var(--radius-sm);
+}
+
+@media (min-width: 900px) {
+    [data-part~="player-bar"] {
+        grid-template-columns:
+            [prev] auto [play] auto [next] auto [time] auto [time-end] auto [t-gap] minmax(16px, 1fr)
+            [now] minmax(0, 520px) [keep] auto [like] auto [dislike] auto [n-gap] minmax(16px, 1fr)
+            [volume] auto [repeat] auto [shuffle] auto [queue] auto [more] auto;
+        grid-template-rows: 1fr;
+        grid-auto-flow: column;
+        grid-auto-columns: auto;
+        align-items: center;
+        column-gap: var(--spacing-xs);
+        padding: 0 var(--spacing-md);
+    }
+
+    [data-part~="player-controls"],
+    [data-part~="transport"],
+    [data-part~="player-actions"],
+    [data-part~="progress"] {
+        display: contents;
+    }
+
+    #prev-btn { grid-column: prev; }
+    #play-pause-btn { grid-column: play; }
+    #next-btn { grid-column: next; }
+    #shuffle-btn { grid-column: shuffle; }
+    #repeat-btn { grid-column: repeat; }
+    #keep-btn { grid-column: keep; }
+    #like-btn { grid-column: like; }
+    #dislike-btn { grid-column: dislike; }
+    #queue-btn { grid-column: queue; }
+    #player-more-btn { grid-column: more; }
+    [data-part~="volume"] { grid-column: volume; }
+
+    [data-part~="now-playing"] {
+        grid-column: now;
+        justify-self: center;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    /* "0:42 / 3:15" next to the transport. */
+    .progress-time {
+        grid-row: 1;
+        grid-column: time;
+        min-width: 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .progress-time.current {
+        padding-left: var(--spacing-sm);
+        text-align: right;
+    }
+
+    .progress-time:not(.current) {
+        grid-column: time-end;
+        text-align: left;
+    }
+
+    .progress-time:not(.current)::before {
+        content: "/ ";
+    }
+
+    /* The progress is a line along the top edge of the bar, thicker under the pointer. */
+    .progress-bar {
+        position: absolute;
+        top: -1px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 0;
+        z-index: 1;
+    }
+
+    .progress-bar::before {
+        content: "";
+        position: absolute;
+        inset: -8px 0;
+    }
+
+    .progress-bar:hover {
+        height: 5px;
+    }
+
+    .progress-fill {
+        border-radius: 0;
+    }
+}
+
+/* ---- The full player ---------------------------------------------------- */
+
+[data-part~="fullscreen"] {
+    background: var(--bg-primary);
+}
+
+.fs-side-tab {
+    border-radius: 0;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.fs-side-tab:hover {
+    color: var(--text-primary);
+    background: none;
+}
+
+.fs-side-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--text-primary);
+    background: none;
+}
+
+.fs-artwork-container {
+    border-radius: var(--radius-md);
+}

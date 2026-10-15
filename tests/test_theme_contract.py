@@ -151,13 +151,13 @@ def test_the_way_back_to_the_theme_picker_is_marked(page):
 @pytest.mark.parametrize('kind', ['items'])
 def test_built_items_are_still_built(contract, kind):
     for item in contract[kind]:
-        classes = re.findall(r'\.([\w-]+)', item['selector'])
-        assert classes, item
-        token = classes[-1]
+        names = re.findall(r'[.#]([\w-]+)', item['selector'])
+        assert names, item
+        token = names[-1]
         for source in item['sources']:
             text = read(*source.split('/'))
             assert re.search(rf'(?<![\w-]){re.escape(token)}(?![\w-])', text), \
-                f'{source} no longer uses .{token} ({item["part"]}): update the contract or keep the class'
+                f'{source} no longer uses {token} ({item["part"]}): update the contract or keep the name'
 
 
 def test_tokens_match_the_variables(contract):
@@ -240,3 +240,15 @@ def test_service_worker_assets_exist():
         if path == '/':
             continue
         assert os.path.isfile(os.path.join(STATIC, path.lstrip('/'))), f'sw.js caches {path}, which does not exist'
+
+
+# ------------------------------------------------------------- the docs
+
+def test_the_docs_list_the_whole_contract(contract):
+    """docs/THEMES.md is what theme authors read: everything in the contract is in it."""
+    docs = read('docs', 'THEMES.md')
+    missing = [p['part'] for p in contract['parts'] if f"`{p['part']}`" not in docs]
+    missing += [i['selector'] for i in contract['items'] if f"`{i['selector']}`" not in docs]
+    missing += [s['name'] for s in contract['states'] if f"`{s['name']}`" not in docs]
+    missing += [t for t in contract['tokens'] if f'`{t}`' not in docs]
+    assert not missing, f'Document these in docs/THEMES.md: {missing}'
