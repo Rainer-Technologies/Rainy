@@ -109,14 +109,14 @@
 
 <body>
     <!-- Boot splash: removed by the script at the end of <body> once the app is ready -->
-    <div id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy" data-i18n-attr="aria-label">
+    <div data-part="splash" id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy" data-i18n-attr="aria-label">
         <img src="/icons/icon-192.png" alt="" width="88" height="88" decoding="async" fetchpriority="high">
         <span class="rs-word" aria-hidden="true">Rainy</span>
         <div class="rs-line" aria-hidden="true"></div>
     </div>
 
     <!-- Setup Wizard View -->
-    <div id="setup-view" class="setup-wizard hidden">
+    <div data-part="setup" id="setup-view" class="setup-wizard hidden">
         <div class="setup-container">
             <div class="setup-card slide-up">
                 <div class="setup-header">
@@ -191,7 +191,7 @@
     </div>
 
     <!-- Login View -->
-    <div id="login-view" class="login-container hidden">
+    <div data-part="login" id="login-view" class="login-container hidden">
         <div class="setup-container">
             <div class="setup-card slide-up">
                 <div class="setup-header">
@@ -229,11 +229,11 @@
     </div>
 
     <!-- Main App View -->
-    <div id="app-view" class="app-container hidden">
+    <div data-part="app" id="app-view" class="app-container hidden">
         <!-- Header -->
-        <header class="app-header">
+        <header data-part="header" class="app-header">
             <!-- Left section - toggle wrapper for alignment + brand -->
-            <div class="header-left">
+            <div data-part="header-start" class="header-left">
                 <div class="header-toggle-wrapper">
                     <button class="sidebar-toggle header-icon-btn" id="sidebar-toggle" type="button" title="Toggle navigation" aria-label="Toggle navigation" aria-expanded="true" data-i18n-attr="title aria-label">
                         <svg viewBox="0 0 24 24" fill="currentColor">
@@ -241,8 +241,8 @@
                         </svg>
                     </button>
                 </div>
-                <div class="header-brand">
-                    <div class="header-logo">
+                <div data-part="brand" class="header-brand">
+                    <div data-part="logo" class="header-logo">
                         <img src="/icons/icon-192.png" alt="Rainy" />
                     </div>
                     <span class="header-title">Rainy</span>
@@ -250,8 +250,8 @@
             </div>
 
             <!-- Right section - actions -->
-            <div class="header-actions">
-                <div class="header-search">
+            <div data-part="header-actions" class="header-actions">
+                <div data-part="search" class="header-search">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
                             d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
@@ -266,8 +266,8 @@
                             d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" />
                     </svg>
                 </button>
-                <div class="user-menu" id="user-menu">
-                    <div class="user-menu-trigger" id="user-menu-trigger" role="button" tabindex="0"
+                <div data-part="user-menu" class="user-menu" id="user-menu">
+                    <div data-part="user-menu-trigger theme-escape" class="user-menu-trigger" id="user-menu-trigger" role="button" tabindex="0"
                         aria-label="Open account menu" aria-expanded="false" data-i18n-attr="aria-label">
                         <div class="user-avatar" id="user-avatar">U</div>
                         <span class="user-name" id="user-name">User</span>
@@ -275,7 +275,7 @@
                             <path d="M7 10l5 5 5-5z" />
                         </svg>
                     </div>
-                    <div class="user-dropdown hidden" id="user-dropdown">
+                    <div data-part="user-dropdown" class="user-dropdown hidden" id="user-dropdown">
                         <button type="button" class="dropdown-item" id="menu-add-music">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path
@@ -284,7 +284,7 @@
                             <span data-i18n>Import music</span>
                         </button>
                         <div class="dropdown-divider"></div>
-                        <button type="button" class="dropdown-item" id="menu-settings">
+                        <button data-part="menu-settings theme-escape" type="button" class="dropdown-item" id="menu-settings">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
@@ -305,10 +305,10 @@
         </header>
 
         <!-- Main Content -->
-        <div class="app-body">
-            <aside class="app-sidebar" aria-label="Main navigation" data-i18n-attr="aria-label">
-                <nav class="sidebar-nav">
-                    <div class="nav-section">
+        <div data-part="app-body" class="app-body">
+            <aside data-part="sidebar" class="app-sidebar" aria-label="Main navigation" data-i18n-attr="aria-label">
+                <nav data-part="nav" class="sidebar-nav">
+                    <div class="nav-section" data-part="nav-section">
                         <h3 class="nav-header" data-i18n>Library</h3>
                         <a href="/library" class="nav-item active" id="nav-library">
                             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -354,7 +354,7 @@
                         </div>
                     </div>
 
-                    <div class="nav-section">
+                    <div class="nav-section" data-part="nav-section">
                         <button class="nav-header nav-collapse-toggle" id="nav-browse-toggle" type="button"
                             aria-expanded="true" aria-controls="nav-browse-items">
                             <span data-i18n>Browse</span>
@@ -378,7 +378,7 @@
                         </div>
                     </div>
 
-                    <div class="nav-section">
+                    <div class="nav-section" data-part="nav-section">
                         <div class="nav-header-row">
                             <h3 class="nav-header" data-i18n>Playlists</h3>
                             <button class="icon-btn-small" id="sidebar-new-playlist" type="button" title="New Playlist" aria-label="New playlist" data-i18n-attr="title aria-label">
@@ -387,16 +387,16 @@
                                 </svg>
                             </button>
                         </div>
-                        <div class="sidebar-playlists" id="sidebar-playlists">
+                        <div data-part="playlists" class="sidebar-playlists" id="sidebar-playlists">
                             <!-- Playlists populated via JS -->
                         </div>
                     </div>
                 </nav>
             </aside>
-            <button class="sidebar-backdrop hidden" id="sidebar-backdrop" type="button"
+            <button data-part="sidebar-backdrop" class="sidebar-backdrop hidden" id="sidebar-backdrop" type="button"
                 aria-label="Close navigation" aria-hidden="true" data-i18n-attr="aria-label"></button>
-            <main class="app-main" id="app-main">
-                <div class="section-header">
+            <main data-part="main" class="app-main" id="app-main">
+                <div data-part="section-header" class="section-header">
                     <div>
                         <div class="title-row">
                             <h1 class="section-title" data-i18n>Your Library</h1>
@@ -487,7 +487,7 @@
                 </div>
 
                 <!-- Library Stats -->
-                <div class="library-stats" id="library-stats">
+                <div data-part="library-stats" class="library-stats" id="library-stats">
                     <div class="stat-card">
                         <div class="stat-value" id="stat-songs">0</div>
                         <div class="stat-label" data-i18n>Songs</div>
@@ -503,13 +503,13 @@
                 </div>
 
                 <!-- Loading State -->
-                <div id="loading-state" class="loading-container hidden">
+                <div data-part="loading" id="loading-state" class="loading-container hidden">
                     <div class="loading-spinner"></div>
                     <p class="loading-text" data-i18n>Loading your library...</p>
                 </div>
 
                 <!-- Empty State -->
-                <div id="empty-state" class="empty-state hidden">
+                <div data-part="empty-state" id="empty-state" class="empty-state hidden">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
                             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
@@ -519,10 +519,10 @@
                 </div>
 
                 <!-- Songs Grid View -->
-                <div id="songs-grid" class="songs-grid"></div>
+                <div data-part="song-grid" id="songs-grid" class="songs-grid"></div>
 
                 <!-- Songs List View -->
-                <div id="songs-list" class="songs-list hidden">
+                <div data-part="song-list" id="songs-list" class="songs-list hidden">
                     <div class="list-header">
                         <span>#</span>
                         <span class="list-header-sortable" id="list-sort-title" data-i18n>
@@ -538,7 +538,7 @@
                 </div>
 
                 <!-- Discover Music View -->
-                <div id="discover-view" class="discover-view hidden">
+                <div data-part="view-discover" id="discover-view" class="discover-view hidden">
                     <div class="discover-search-container">
                         <div class="search-bar-wrapper">
                             <span class="search-icon-left">
@@ -600,7 +600,7 @@
                 </div>
 
                 <!-- Friends View -->
-                <div id="friends-view" class="friends-view hidden">
+                <div data-part="view-friends" id="friends-view" class="friends-view hidden">
                     <div class="friends-tabs">
                         <button type="button" class="friends-tab active" data-tab="friends" data-i18n>Friends</button>
                         <button type="button" class="friends-tab" data-tab="requests" data-i18n>Requests</button>
@@ -626,7 +626,7 @@
                 </div>
 
                 <!-- Artists View -->
-                <div id="artists-view" class="artists-view hidden">
+                <div data-part="view-artists" id="artists-view" class="artists-view hidden">
                     <!-- 1. Artists Grid View -->
                     <div id="artists-grid-view" class="artists-grid-view">
                         <div class="artists-header-bar">
@@ -643,7 +643,7 @@
                     </div>
 
                     <!-- 2. Artist Profile/Detail View -->
-                    <div id="artist-profile-view" class="artist-profile-view hidden">
+                    <div data-part="artist-profile" id="artist-profile-view" class="artist-profile-view hidden">
                         <div class="artist-hero" id="artist-hero-banner">
                             <div class="artist-hero-blur-bg" id="artist-hero-blur-bg"></div>
                             <div class="artist-hero-overlay"></div>
@@ -718,7 +718,7 @@
                 </div>
 
                 <!-- Albums View -->
-                <div id="albums-view" class="albums-view hidden">
+                <div data-part="view-albums" id="albums-view" class="albums-view hidden">
                     <div class="albums-header-bar">
                         <div class="albums-search-wrapper">
                             <svg viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -733,7 +733,7 @@
                     </div>
                     <div class="albums-grid" id="albums-grid-list"></div>
                     <!-- Album Detail -->
-                    <div id="album-detail-view" class="album-detail-view hidden">
+                    <div data-part="album-detail" id="album-detail-view" class="album-detail-view hidden">
                         <button id="album-back-btn" class="album-back-btn" data-i18n>&larr; Back to Albums</button>
                         <div class="album-detail-hero" id="album-detail-hero"></div>
                         <div class="album-detail-tracks" id="album-detail-tracks"></div>
@@ -741,7 +741,7 @@
                 </div>
 
                 <!-- Recently Played View -->
-                <div id="recent-view" class="recent-view hidden">
+                <div data-part="view-recent" id="recent-view" class="recent-view hidden">
                     <div class="recent-header-bar">
                         <div class="recent-tabs">
                             <button class="recent-tab active" data-tab="recent" data-i18n>Recently Played</button>
@@ -755,7 +755,7 @@
                 </div>
 
                 <!-- Smart Mix View -->
-                <div id="smartmix-view" class="smartmix-view hidden">
+                <div data-part="view-smartmix" id="smartmix-view" class="smartmix-view hidden">
                     <div id="mixes-status" class="hidden"></div>
                     <div id="mixes-home"></div>
                     <div id="mix-detail" class="album-detail-view hidden"></div>
@@ -765,9 +765,9 @@
         </div>
 
         <!-- Player Bar -->
-        <div class="player-bar">
+        <div data-part="player-bar" class="player-bar">
             <!-- Now Playing -->
-            <div class="now-playing" role="button" tabindex="0" aria-label="Open full player" data-i18n-attr="aria-label">
+            <div data-part="now-playing" class="now-playing" role="button" tabindex="0" aria-label="Open full player" data-i18n-attr="aria-label">
                 <div class="now-playing-artwork" id="now-playing-artwork" aria-hidden="true">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
@@ -781,8 +781,8 @@
             </div>
 
             <!-- Controls -->
-            <div class="player-controls">
-                <div class="controls-main">
+            <div data-part="player-controls" class="player-controls">
+                <div data-part="transport" class="controls-main">
                     <button class="control-btn secondary" id="shuffle-btn" type="button" title="Shuffle" aria-label="Shuffle" aria-pressed="false" data-i18n-attr="title aria-label">
                         <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
@@ -819,7 +819,7 @@
                     </button>
                 </div>
 
-                <div class="progress-container">
+                <div data-part="progress" class="progress-container">
                     <span class="progress-time current" id="current-time">0:00</span>
                     <div class="progress-bar" id="progress-bar">
                         <div class="progress-fill" id="progress-fill"></div>
@@ -830,7 +830,7 @@
             </div>
 
             <!-- Compact actions -->
-            <div class="player-actions">
+            <div data-part="player-actions" class="player-actions">
                 <!-- Radio songs only: keep the one playing in the library -->
                 <button class="control-btn secondary hidden" id="keep-btn" type="button" title="Add to Your Library" aria-label="Add to Your Library" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -852,7 +852,7 @@
                         <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
                     </svg>
                 </button>
-                <div class="volume-control">
+                <div data-part="volume" class="volume-control">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                     </svg>
@@ -869,7 +869,7 @@
             </div>
 
             <!-- Advanced playback tools, progressively disclosed from More -->
-            <div class="player-extra context-menu hidden" id="player-extra" role="menu" aria-label="Advanced playback controls" data-i18n-attr="aria-label">
+            <div data-part="player-menu" class="player-extra context-menu hidden" id="player-extra" role="menu" aria-label="Advanced playback controls" data-i18n-attr="aria-label">
                 <button class="context-menu-item player-menu-item" id="sleep-timer-btn" type="button" title="Sleep Timer" aria-label="Sleep timer" role="menuitem" data-i18n-attr="title aria-label">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
@@ -915,9 +915,9 @@
     </div>
 
     <!-- Discord-Style Settings Page -->
-    <div class="settings-page hidden" id="settings-page">
+    <div data-part="settings" class="settings-page hidden" id="settings-page">
         <!-- Settings Sidebar -->
-        <div class="settings-sidebar">
+        <div data-part="settings-sidebar" class="settings-sidebar">
             <!-- User Profile -->
             <div class="settings-user-profile">
                 <div class="settings-user-avatar" id="settings-user-avatar">U</div>
@@ -945,7 +945,7 @@
             </div>
 
             <!-- Navigation -->
-            <nav class="settings-nav">
+            <nav data-part="settings-nav" class="settings-nav">
                 <div class="settings-nav-category" data-i18n>User Settings</div>
                 <a href="/settings/appearance" class="settings-nav-item active" data-section="appearance">
                     <svg viewBox="0 0 24 24" fill="currentColor">
@@ -1025,7 +1025,7 @@
         </div>
 
         <!-- Settings Main Content -->
-        <div class="settings-main">
+        <div data-part="settings-main" class="settings-main">
             <div class="settings-header">
                 <h1 class="settings-title" id="settings-page-title" data-i18n>Appearance</h1>
                 <button class="settings-close" id="settings-close" type="button" aria-label="Close settings" data-i18n-attr="aria-label">
@@ -1036,7 +1036,7 @@
                 </button>
             </div>
 
-            <div class="settings-content">
+            <div data-part="settings-content" class="settings-content">
                 <!-- Section: Appearance -->
                 <div class="settings-section active" id="settings-section-appearance">
                     <div class="settings-group">
@@ -1063,7 +1063,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-part="theme-escape">
                         <div class="settings-group-title" data-i18n>Theme</div>
                         <div class="settings-group-description" data-i18n>Customize the look and feel of Rainy.</div>
 
@@ -2113,17 +2113,17 @@
     </div>
 
     <!-- Metadata Search Modal -->
-    <rainy-metadata-modal></rainy-metadata-modal>
+    <rainy-metadata-modal data-part="modal"></rainy-metadata-modal>
 
     <!-- Lyrics Search Modal -->
-    <rainy-lyrics-modal></rainy-lyrics-modal>
+    <rainy-lyrics-modal data-part="modal"></rainy-lyrics-modal>
 
     <!-- Song Settings Modal -->
-    <rainy-song-settings-modal></rainy-song-settings-modal>
+    <rainy-song-settings-modal data-part="modal"></rainy-song-settings-modal>
 
     <!-- Create Playlist Modal -->
     <!-- Playlist Share Modal -->
-    <div class="modal-overlay hidden" id="playlist-share-modal">
+    <div data-part="modal" class="modal-overlay hidden" id="playlist-share-modal">
         <div class="modal-content playlist-share-modal-content">
             <div class="modal-header">
                 <div class="modal-header-info">
@@ -2150,13 +2150,13 @@
         </div>
     </div>
 
-    <rainy-new-playlist-modal></rainy-new-playlist-modal>
+    <rainy-new-playlist-modal data-part="modal"></rainy-new-playlist-modal>
 
     <!-- Rainy Connect (device picker / remote control) -->
-    <rainy-connect-modal></rainy-connect-modal>
+    <rainy-connect-modal data-part="modal"></rainy-connect-modal>
 
     <!-- Edit Playlist Icon Modal -->
-    <div class="modal-overlay hidden" id="edit-playlist-icon-modal">
+    <div data-part="modal" class="modal-overlay hidden" id="edit-playlist-icon-modal">
         <div class="modal-content playlist-modal-content">
             <div class="modal-header">
                 <div class="modal-header-info">
@@ -2219,16 +2219,16 @@
     </div>
 
     <!-- Add Music Modal -->
-    <rainy-add-music-modal></rainy-add-music-modal>
+    <rainy-add-music-modal data-part="modal"></rainy-add-music-modal>
 
     <!-- Song Context Menu -->
-    <rainy-song-context-menu></rainy-song-context-menu>
+    <rainy-song-context-menu data-part="context-menu"></rainy-song-context-menu>
     
     <!-- Toast Notifications Container -->
-    <div id="toast-container"></div>
+    <div data-part="toasts" id="toast-container"></div>
 
     <!-- Rename Playlist Modal -->
-    <div class="modal-overlay hidden" id="rename-playlist-modal">
+    <div data-part="modal" class="modal-overlay hidden" id="rename-playlist-modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 data-i18n>Rename Playlist</h2>
@@ -2253,11 +2253,8 @@
         </div>
     </div>
 
-    </div>
-    </div>
-
     <!-- Fullscreen Player -->
-    <div id="fullscreen-player" class="hidden">
+    <div id="fullscreen-player" data-part="fullscreen" class="hidden">
         <div class="fs-backdrop" id="fs-backdrop"></div>
         <canvas id="fs-lightshow-canvas" class="hidden"></canvas>
         <!-- Fullscreen Logo Branding -->
@@ -2288,8 +2285,8 @@
         <div id="fs-volume-popover" class="hidden">
             <input type="range" id="fs-volume-slider" class="fs-volume-slider" min="0" max="100" step="0.1" value="80">
         </div>
-        <div class="fs-content">
-            <div class="fs-queue-container">
+        <div data-part="fs-content" class="fs-content">
+            <div data-part="fs-side" class="fs-queue-container">
                 <div class="fs-queue-header fs-side-tabs">
                     <button class="fs-side-tab" id="fs-tab-queue" type="button" data-i18n>Up Next</button>
                     <button class="fs-side-tab" id="fs-tab-lyrics" type="button" data-i18n>Lyrics</button>
@@ -2304,7 +2301,7 @@
                     </div>
                 </div>
             </div>
-            <div class="fs-current-info">
+            <div data-part="fs-now-playing" class="fs-current-info">
                 <div class="fs-artwork-container" id="fs-artwork">
                     <!-- Artwork injected here -->
                 </div>
@@ -2320,7 +2317,7 @@
                 </button>
 
                 <!-- Fullscreen Player Controls -->
-                <div class="fs-player-controls">
+                <div data-part="fs-controls" class="fs-player-controls">
                     <div class="fs-progress-container">
                         <span class="fs-time current" id="fs-current-time">0:00</span>
                         <div class="fs-progress-bar" id="fs-progress-bar">
@@ -2379,7 +2376,7 @@
         </div>
     </div>
 
-    <rainy-modal id='delete-playlist-modal'>
+    <rainy-modal data-part="modal" id='delete-playlist-modal'>
         <svg slot='header-icon' viewBox='0 0 24 24' fill='currentColor'>
             <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' />
         </svg>
@@ -2390,7 +2387,7 @@
     </rainy-modal>
 
     <!-- Reset User Password Modal -->
-    <div class="modal-overlay hidden" id="reset-user-password-modal">
+    <div data-part="modal" class="modal-overlay hidden" id="reset-user-password-modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 data-i18n>Reset Password</h2>
@@ -2419,7 +2416,7 @@
     </div>
 
     <!-- Delete User Modal -->
-    <div class="modal-overlay hidden" id="delete-user-modal">
+    <div data-part="modal" class="modal-overlay hidden" id="delete-user-modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 data-i18n>Delete User</h2>
@@ -2507,7 +2504,7 @@
     <script type='module' src='/js/components/connectModal.js'></script>
 
     <!-- Edit Artist Profile Modal -->
-    <div class="modal-overlay hidden" id="edit-artist-modal">
+    <div data-part="modal" class="modal-overlay hidden" id="edit-artist-modal">
         <div class="modal-content artist-edit-modal-content">
             <div class="modal-header">
                 <div>

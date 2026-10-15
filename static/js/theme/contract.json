@@ -1,0 +1,687 @@
+{
+  "api": 1,
+  "about": "The public surface a UI theme package may style (docs/THEMES.md). Within an api version things are only added, never removed or renamed. Anything not listed is internal.",
+  "tokens": [
+    "--bg-primary",
+    "--bg-secondary",
+    "--bg-tertiary",
+    "--bg-elevated",
+    "--bg-glass",
+    "--tint-2",
+    "--tint-4",
+    "--tint-6",
+    "--tint-10",
+    "--tint-15",
+    "--tint-20",
+    "--tint-30",
+    "--tint-50",
+    "--bg-hover",
+    "--bg-highlight",
+    "--scrim",
+    "--surface-base",
+    "--surface-raised",
+    "--surface-elevated",
+    "--surface-popover",
+    "--surface-accent",
+    "--accent-primary",
+    "--accent-light",
+    "--accent-secondary",
+    "--accent-gradient",
+    "--accent-glow",
+    "--accent-bg-subtle",
+    "--text-on-accent",
+    "--text-primary",
+    "--text-secondary",
+    "--text-tertiary",
+    "--border-color",
+    "--border-subtle",
+    "--error",
+    "--success",
+    "--warning",
+    "--shadow-sm",
+    "--shadow-md",
+    "--shadow-lg",
+    "--shadow-glow",
+    "--font-family",
+    "--font-family-display",
+    "--font-size-xs",
+    "--font-size-sm",
+    "--font-size-base",
+    "--font-size-lg",
+    "--font-size-xl",
+    "--font-size-2xl",
+    "--font-size-3xl",
+    "--font-size-4xl",
+    "--spacing-xs",
+    "--spacing-sm",
+    "--spacing-md",
+    "--spacing-lg",
+    "--spacing-xl",
+    "--spacing-2xl",
+    "--radius-sm",
+    "--radius-md",
+    "--radius-lg",
+    "--radius-xl",
+    "--radius-full",
+    "--radius-card",
+    "--radius-control",
+    "--transition-fast",
+    "--transition-base",
+    "--transition-slow",
+    "--transition-normal",
+    "--focus-ring",
+    "--hit-target",
+    "--header-height",
+    "--player-height",
+    "--sidebar-width",
+    "--mobile-player-height",
+    "--shell-inset-top",
+    "--shell-inset-right",
+    "--shell-inset-bottom",
+    "--shell-inset-left"
+  ],
+  "states": [
+    {
+      "name": "data-theme",
+      "values": "the id of the theme in use (rainy is Rainy's own)",
+      "description": "Which theme is on."
+    },
+    {
+      "name": "data-color-scheme",
+      "values": "dark | light",
+      "description": "The theme's colour scheme."
+    },
+    {
+      "name": "data-auth",
+      "values": "setup | login | app",
+      "description": "Which screen is showing."
+    },
+    {
+      "name": "data-view",
+      "values": "library | playlist | albums | artists | recent | smartmix | discover | friends",
+      "description": "The view in the main area."
+    },
+    {
+      "name": "data-playing",
+      "values": "true | false",
+      "description": "Music is playing."
+    },
+    {
+      "name": "data-has-track",
+      "values": "true | false",
+      "description": "There is a song in the player."
+    },
+    {
+      "name": "data-fullscreen",
+      "values": "true | false",
+      "description": "The full player is open."
+    },
+    {
+      "name": "data-settings",
+      "values": "true | false",
+      "description": "Settings is open."
+    },
+    {
+      "name": "data-sidebar",
+      "values": "open | collapsed",
+      "description": "Whether the sidebar is collapsed to icons."
+    },
+    {
+      "name": "class no-anime",
+      "values": "present or not",
+      "description": "The user hid the anime logo."
+    }
+  ],
+  "parts": [
+    {
+      "part": "splash",
+      "selector": "[data-part~=\"splash\"]",
+      "description": "The boot splash, shown to signed-in users while Rainy loads.",
+      "static": true
+    },
+    {
+      "part": "setup",
+      "selector": "[data-part~=\"setup\"]",
+      "description": "The first-run setup screen.",
+      "static": true
+    },
+    {
+      "part": "login",
+      "selector": "[data-part~=\"login\"]",
+      "description": "The sign-in screen.",
+      "static": true
+    },
+    {
+      "part": "app",
+      "selector": "[data-part~=\"app\"]",
+      "description": "The signed-in app: header, body and player bar.",
+      "static": true
+    },
+    {
+      "part": "header",
+      "selector": "[data-part~=\"header\"]",
+      "description": "The top bar.",
+      "static": true
+    },
+    {
+      "part": "header-start",
+      "selector": "[data-part~=\"header-start\"]",
+      "description": "Left of the top bar: the navigation toggle and the brand.",
+      "static": true
+    },
+    {
+      "part": "brand",
+      "selector": "[data-part~=\"brand\"]",
+      "description": "The Rainy logo and name in the top bar.",
+      "hideable": true,
+      "static": true
+    },
+    {
+      "part": "logo",
+      "selector": "[data-part~=\"logo\"]",
+      "description": "The logo picture in the brand.",
+      "hideable": true,
+      "static": true
+    },
+    {
+      "part": "header-actions",
+      "selector": "[data-part~=\"header-actions\"]",
+      "description": "Right of the top bar: search, shortcuts and the account menu.",
+      "static": true
+    },
+    {
+      "part": "search",
+      "selector": "[data-part~=\"search\"]",
+      "description": "The library search box.",
+      "static": true
+    },
+    {
+      "part": "user-menu",
+      "selector": "[data-part~=\"user-menu\"]",
+      "description": "The account menu (trigger and dropdown).",
+      "static": true
+    },
+    {
+      "part": "user-menu-trigger",
+      "selector": "[data-part~=\"user-menu-trigger\"]",
+      "description": "The avatar and name that open the account menu.",
+      "static": true
+    },
+    {
+      "part": "user-dropdown",
+      "selector": "[data-part~=\"user-dropdown\"]",
+      "description": "The account menu's dropdown.",
+      "static": true
+    },
+    {
+      "part": "menu-settings",
+      "selector": "[data-part~=\"menu-settings\"]",
+      "description": "The Settings entry of the account menu.",
+      "static": true
+    },
+    {
+      "part": "app-body",
+      "selector": "[data-part~=\"app-body\"]",
+      "description": "Everything between the top bar and the player bar: sidebar and main.",
+      "static": true
+    },
+    {
+      "part": "sidebar",
+      "selector": "[data-part~=\"sidebar\"]",
+      "description": "The navigation sidebar.",
+      "static": true
+    },
+    {
+      "part": "sidebar-backdrop",
+      "selector": "[data-part~=\"sidebar-backdrop\"]",
+      "description": "What dims the page behind the sidebar on phones.",
+      "static": true
+    },
+    {
+      "part": "nav",
+      "selector": "[data-part~=\"nav\"]",
+      "description": "The navigation inside the sidebar.",
+      "static": true
+    },
+    {
+      "part": "nav-section",
+      "selector": "[data-part~=\"nav-section\"]",
+      "description": "A group of the navigation: Library, Browse, Playlists.",
+      "static": true
+    },
+    {
+      "part": "playlists",
+      "selector": "[data-part~=\"playlists\"]",
+      "description": "The list of playlists in the sidebar.",
+      "static": true
+    },
+    {
+      "part": "main",
+      "selector": "[data-part~=\"main\"]",
+      "description": "The scrolling area where every view is shown.",
+      "static": true
+    },
+    {
+      "part": "section-header",
+      "selector": "[data-part~=\"section-header\"]",
+      "description": "The title row of the library and playlist views, with the grid/list toggle.",
+      "static": true
+    },
+    {
+      "part": "library-stats",
+      "selector": "[data-part~=\"library-stats\"]",
+      "description": "The song, artist and album counts of the library.",
+      "hideable": true,
+      "static": true
+    },
+    {
+      "part": "loading",
+      "selector": "[data-part~=\"loading\"]",
+      "description": "The loading state of the library.",
+      "static": true
+    },
+    {
+      "part": "empty-state",
+      "selector": "[data-part~=\"empty-state\"]",
+      "description": "What the library shows when it is empty.",
+      "static": true
+    },
+    {
+      "part": "song-grid",
+      "selector": "[data-part~=\"song-grid\"]",
+      "description": "The library's songs as a grid (shelves and cards).",
+      "static": true
+    },
+    {
+      "part": "song-list",
+      "selector": "[data-part~=\"song-list\"]",
+      "description": "The library's songs as a list.",
+      "static": true
+    },
+    {
+      "part": "view-discover",
+      "selector": "[data-part~=\"view-discover\"]",
+      "description": "The Discover view.",
+      "static": true
+    },
+    {
+      "part": "view-friends",
+      "selector": "[data-part~=\"view-friends\"]",
+      "description": "The Friends view.",
+      "static": true
+    },
+    {
+      "part": "view-artists",
+      "selector": "[data-part~=\"view-artists\"]",
+      "description": "The Artists view (grid and profile).",
+      "static": true
+    },
+    {
+      "part": "artist-profile",
+      "selector": "[data-part~=\"artist-profile\"]",
+      "description": "One artist's page.",
+      "static": true
+    },
+    {
+      "part": "view-albums",
+      "selector": "[data-part~=\"view-albums\"]",
+      "description": "The Albums view (grid and detail).",
+      "static": true
+    },
+    {
+      "part": "album-detail",
+      "selector": "[data-part~=\"album-detail\"]",
+      "description": "One album's page.",
+      "static": true
+    },
+    {
+      "part": "view-recent",
+      "selector": "[data-part~=\"view-recent\"]",
+      "description": "The Recently Played view.",
+      "static": true
+    },
+    {
+      "part": "view-smartmix",
+      "selector": "[data-part~=\"view-smartmix\"]",
+      "description": "The Smart Mix view.",
+      "static": true
+    },
+    {
+      "part": "player-bar",
+      "selector": "[data-part~=\"player-bar\"]",
+      "description": "The player at the bottom of the app.",
+      "static": true
+    },
+    {
+      "part": "now-playing",
+      "selector": "[data-part~=\"now-playing\"]",
+      "description": "The song playing, in the player bar (opens the full player).",
+      "static": true
+    },
+    {
+      "part": "player-controls",
+      "selector": "[data-part~=\"player-controls\"]",
+      "description": "The middle of the player bar: transport and progress.",
+      "static": true
+    },
+    {
+      "part": "transport",
+      "selector": "[data-part~=\"transport\"]",
+      "description": "Shuffle, previous, play/pause, next and repeat.",
+      "static": true
+    },
+    {
+      "part": "progress",
+      "selector": "[data-part~=\"progress\"]",
+      "description": "The progress bar and the times.",
+      "static": true
+    },
+    {
+      "part": "player-actions",
+      "selector": "[data-part~=\"player-actions\"]",
+      "description": "The right of the player bar: like, queue, volume, more.",
+      "static": true
+    },
+    {
+      "part": "volume",
+      "selector": "[data-part~=\"volume\"]",
+      "description": "The volume control.",
+      "static": true
+    },
+    {
+      "part": "player-menu",
+      "selector": "[data-part~=\"player-menu\"]",
+      "description": "The player bar's \"more\" menu: sleep timer, speed, EQ, crossfade, Connect.",
+      "static": true
+    },
+    {
+      "part": "settings",
+      "selector": "[data-part~=\"settings\"]",
+      "description": "The Settings page.",
+      "static": true
+    },
+    {
+      "part": "settings-sidebar",
+      "selector": "[data-part~=\"settings-sidebar\"]",
+      "description": "The Settings page's navigation and search.",
+      "static": true
+    },
+    {
+      "part": "settings-nav",
+      "selector": "[data-part~=\"settings-nav\"]",
+      "description": "The list of Settings sections.",
+      "static": true
+    },
+    {
+      "part": "settings-main",
+      "selector": "[data-part~=\"settings-main\"]",
+      "description": "The Settings page's title and content.",
+      "static": true
+    },
+    {
+      "part": "settings-content",
+      "selector": "[data-part~=\"settings-content\"]",
+      "description": "The open Settings section.",
+      "static": true
+    },
+    {
+      "part": "theme-escape",
+      "selector": "[data-part~=\"theme-escape\"]",
+      "description": "What must stay reachable whatever the theme: the account menu's trigger, its Settings entry and the theme picker. Rainy keeps these visible and clickable.",
+      "static": true
+    },
+    {
+      "part": "toasts",
+      "selector": "[data-part~=\"toasts\"]",
+      "description": "Where notices appear.",
+      "static": true
+    },
+    {
+      "part": "modal",
+      "selector": "[data-part~=\"modal\"]",
+      "description": "A dialog: its host element (a .modal-overlay or a rainy-*-modal).",
+      "static": true
+    },
+    {
+      "part": "context-menu",
+      "selector": "[data-part~=\"context-menu\"]",
+      "description": "The song menu.",
+      "static": true
+    },
+    {
+      "part": "fullscreen",
+      "selector": "[data-part~=\"fullscreen\"]",
+      "description": "The full player. While a light show runs, its environment styles it too (docs/ENVIRONMENTS.md).",
+      "static": true
+    },
+    {
+      "part": "fs-content",
+      "selector": "[data-part~=\"fs-content\"]",
+      "description": "The box with the song and the side panel in the full player.",
+      "static": true
+    },
+    {
+      "part": "fs-side",
+      "selector": "[data-part~=\"fs-side\"]",
+      "description": "The full player's side panel: queue and lyrics.",
+      "static": true
+    },
+    {
+      "part": "fs-now-playing",
+      "selector": "[data-part~=\"fs-now-playing\"]",
+      "description": "The song in the full player: artwork, title, artist and controls.",
+      "static": true
+    },
+    {
+      "part": "fs-controls",
+      "selector": "[data-part~=\"fs-controls\"]",
+      "description": "The full player's progress and buttons.",
+      "static": true
+    }
+  ],
+  "items": [
+    {
+      "part": "song-card",
+      "selector": ".song-card",
+      "sources": [
+        "static/js/modules/library.js",
+        "static/js/app.js"
+      ],
+      "description": "A song as a card in a grid or shelf."
+    },
+    {
+      "part": "song-card-horizontal",
+      "selector": ".song-card-horizontal",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song as a wide card in a horizontal shelf."
+    },
+    {
+      "part": "song-row",
+      "selector": ".song-row",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song as a row in a list."
+    },
+    {
+      "part": "album-track-row",
+      "selector": ".album-track-row",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A track of an album page."
+    },
+    {
+      "part": "artist-track-row",
+      "selector": ".artist-track-row",
+      "sources": [
+        "static/js/app.js"
+      ],
+      "description": "A song on an artist's page."
+    },
+    {
+      "part": "album-card",
+      "selector": ".album-card",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "An album in the Albums grid."
+    },
+    {
+      "part": "artist-card",
+      "selector": ".artist-circle-card",
+      "sources": [
+        "static/js/app.js"
+      ],
+      "description": "An artist in the Artists grid."
+    },
+    {
+      "part": "mix-card",
+      "selector": ".mix-card",
+      "sources": [
+        "static/js/modules/mixes.js"
+      ],
+      "description": "A mix in Smart Mix."
+    },
+    {
+      "part": "recent-row",
+      "selector": ".recent-song-row",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A song in Recently Played."
+    },
+    {
+      "part": "discover-item",
+      "selector": ".discover-item",
+      "sources": [
+        "static/js/app.js"
+      ],
+      "description": "A search result in Discover."
+    },
+    {
+      "part": "friend-row",
+      "selector": ".friend-row",
+      "sources": [
+        "static/js/modules/friends.js"
+      ],
+      "description": "A friend, request or invite."
+    },
+    {
+      "part": "playlist-item",
+      "selector": "#sidebar-playlists .nav-item",
+      "sources": [
+        "static/js/modules/playlists.js"
+      ],
+      "description": "A playlist in the sidebar."
+    },
+    {
+      "part": "nav-item",
+      "selector": ".nav-item",
+      "sources": [
+        "static/index.html",
+        "static/js/modules/playlists.js"
+      ],
+      "description": "An entry of the sidebar navigation (.active when it is the current view)."
+    },
+    {
+      "part": "toast",
+      "selector": ".toast",
+      "sources": [
+        "static/js/modules/utils.js"
+      ],
+      "description": "A notice (.success, .error, .info)."
+    },
+    {
+      "part": "global-search",
+      "selector": ".global-search-overlay",
+      "sources": [
+        "static/js/modules/globalSearch.js"
+      ],
+      "description": "The global search palette."
+    },
+    {
+      "part": "shortcut-overlay",
+      "selector": ".shortcut-overlay",
+      "sources": [
+        "static/js/modules/shortcutOverlay.js"
+      ],
+      "description": "The keyboard shortcuts sheet."
+    },
+    {
+      "part": "button",
+      "selector": ".btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A button. .btn-primary, .btn-secondary and .btn-danger say which kind."
+    },
+    {
+      "part": "icon-button",
+      "selector": ".icon-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A round button with only an icon (.icon-btn-small too)."
+    },
+    {
+      "part": "control-button",
+      "selector": ".control-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A player control; .play-pause is the big one."
+    },
+    {
+      "part": "input",
+      "selector": ".form-input",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A text field or select."
+    },
+    {
+      "part": "toggle",
+      "selector": ".toggle-switch",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "An on/off switch."
+    },
+    {
+      "part": "settings-card",
+      "selector": ".settings-card",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A card of rows in Settings."
+    },
+    {
+      "part": "settings-row",
+      "selector": ".settings-row",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A setting: label and hint on one side, the control on the other."
+    },
+    {
+      "part": "modal-content",
+      "selector": ".modal-content",
+      "sources": [
+        "static/index.html",
+        "static/js/components/modal.js"
+      ],
+      "description": "The box of a dialog (.modal-header, .modal-body inside)."
+    },
+    {
+      "part": "menu-item",
+      "selector": ".context-menu-item",
+      "sources": [
+        "static/js/components/contextMenu.js"
+      ],
+      "description": "An entry of a menu."
+    }
+  ]
+}

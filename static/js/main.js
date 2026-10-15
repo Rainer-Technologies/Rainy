@@ -14,6 +14,7 @@ import { KeyboardShortcuts } from './modules/keyboardShortcuts.js';
 import { GlobalSearch } from './modules/globalSearch.js';
 import { ShortcutOverlay } from './modules/shortcutOverlay.js';
 import { NewViews } from './modules/newViews.js';
+import { startStateBridge } from './theme/state.js';
 
 // The i18n module loads its dictionary with a top-level await, so this
 // module can run after DOMContentLoaded has already fired: boot right away
@@ -38,6 +39,9 @@ onDocumentReady(() => {
 
     // Initialize main application
     window.app = new RainyApp();
+
+    // Mirror what the app is doing onto <html> for UI themes (data-view, data-playing, …)
+    startStateBridge();
 
     // Initialize setup and login wizards
     initSetup();
