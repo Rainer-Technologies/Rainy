@@ -5,19 +5,15 @@ Anyone signed in can list and load the enabled environments. Installing,
 enabling and removing are for administrators only: a package is code that
 runs in the page of every user of this server.
 """
-import os
-
-from flask import Blueprint, jsonify, request, send_from_directory
-from werkzeug.exceptions import NotFound
+from flask import Blueprint, jsonify, request
 
 from models.audit import AuditModel
 from models.environment import EnvironmentModel
+from routes._packages import install_upload, serve_file
 from routes.auth import get_current_user_id, is_sysadmin, require_auth, require_sysadmin, server_error
 from utils import environments as packages
 
 environments_bp = Blueprint('environments', __name__)
-
-_YEAR = 365 * 24 * 3600
 
 
 def _view(manifest, rev, *, enabled=True, dev=False, row=None, admin=False):
@@ -83,32 +79,8 @@ def list_environments():
 @require_sysadmin
 def install_environment():
     """Install a package (multipart field ``package``), or update the installed one with the same id."""
-    upload = request.files.get('package')
-    if not upload:
-        return jsonify({'error': 'No package provided'}), 400
-    if request.content_length and request.content_length > packages.MAX_ZIP_BYTES + 64 * 1024:
-        return jsonify({'error': f'The package is larger than {packages.MAX_ZIP_BYTES // (1024 * 1024)} MB.'}), 413
-    data = upload.read(packages.MAX_ZIP_BYTES + 1)
-    try:
-        manifest = packages.read_package(data)
-    except packages.PackageError as e:
-        return jsonify({'error': str(e)}), 400
-    try:
-        previous = EnvironmentModel.get(manifest['id'])
-        digest = packages.package_digest(data)
-        row = EnvironmentModel.save(manifest, data, digest, get_current_user_id())
-        packages.extract_package(data, packages.cache_dir(manifest['id'], digest))
-        packages.prune_cache(manifest['id'], keep=digest)
-        AuditModel.record('environment_install', user_id=get_current_user_id(), ip=request.remote_addr,
-                          detail=f"{manifest['id']} {manifest['version']} sha256:{digest[:16]}")
-        return jsonify({
-            'success': True,
-            'environment': _view(row['manifest'], packages.revision(digest), enabled=row['enabled'], row=row, admin=True),
-            'updated': bool(previous),
-            'previous_version': previous['version'] if previous else None,
-        })
-    except Exception:
-        return server_error('install the environment')
+    return install_upload(packages, EnvironmentModel, 'environment', lambda row, digest: _view(
+        row['manifest'], packages.revision(digest), enabled=row['enabled'], row=row, admin=True))
 
 
 @environments_bp.route('/api/environments/<env_id>', methods=['PATCH'])
@@ -151,24 +123,4 @@ def remove_environment(env_id):
 def environment_file(env_id, rev, filename):
     """A file of an environment package. The revision in the address changes with the
     package's contents, so what is served under one never changes."""
-    directory, immutable = None, True
-    if rev.startswith('dev-'):
-        found = packages.dev_packages().get(env_id)
-        if found:
-            directory, immutable = found[1], False
-    else:
-        row = EnvironmentModel.get(env_id)
-        # Disabled or replaced: its files stop being served.
-        if row and row['enabled'] and packages.revision(row['sha256']) == rev:
-            directory = packages.ensure_unpacked(env_id, row['sha256'], lambda: EnvironmentModel.get_package(env_id))
-    name = os.path.basename(filename)
-    if not directory or name.startswith('.') or os.path.splitext(name)[1].lower() not in packages.MIME_TYPES:
-        raise NotFound()
-    response = send_from_directory(directory, filename, mimetype=packages.mime_type(filename),
-                                   max_age=_YEAR if immutable else 0)
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    if immutable:
-        response.headers['Cache-Control'] = f'private, max-age={_YEAR}, immutable'
-    else:
-        response.headers['Cache-Control'] = 'no-store'
-    return response
+    return serve_file(packages, EnvironmentModel, env_id, rev, filename)

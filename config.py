@@ -70,3 +70,11 @@ class Config:
     # zipping and installing it on every change.
     ENVIRONMENTS_DEV_DIR = (os.path.abspath(os.path.join(_ROOT, os.getenv('RAINY_ENVIRONMENTS_DEV')))
                             if DEV_MODE and os.getenv('RAINY_ENVIRONMENTS_DEV') else None)
+
+    # The same two folders for UI theme packages (docs/THEMES.md). One
+    # development folder can hold both kinds: each takes the folders with its
+    # own manifest.
+    THEMES_CACHE_DIR = os.path.abspath(os.getenv(
+        'RAINY_THEMES_CACHE', os.path.join(os.path.dirname(SQLITE_PATH), 'themes-cache')))
+    THEMES_DEV_DIR = (os.path.abspath(os.path.join(_ROOT, os.getenv('RAINY_THEMES_DEV')))
+                      if DEV_MODE and os.getenv('RAINY_THEMES_DEV') else None)

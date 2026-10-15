@@ -18,6 +18,7 @@ from routes.server import server_bp
 from routes.playlist_syncs import playlist_syncs_bp
 from routes.radio import radio_bp
 from routes.environments import environments_bp
+from routes.themes import themes_bp
 
 # Static files are served by the explicit catch-all below so frontend routes
 # such as /albums can fall back to index.html instead of Flask's built-in
@@ -90,6 +91,7 @@ app.register_blueprint(server_bp)
 app.register_blueprint(playlist_syncs_bp)
 app.register_blueprint(radio_bp)
 app.register_blueprint(environments_bp)
+app.register_blueprint(themes_bp)
 
 @app.route('/')
 def serve_index():

@@ -950,6 +950,23 @@ class Database:
             )
         """)
 
+        # Installed UI theme packages (see utils/themes.py), kept the same way.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ui_themes (
+                id VARCHAR(32) PRIMARY KEY,
+                name VARCHAR(80) NOT NULL,
+                version VARCHAR(48) NOT NULL,
+                manifest TEXT NOT NULL,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                sha256 CHAR(64) NOT NULL,
+                size INT NOT NULL DEFAULT 0,
+                package LONGBLOB NOT NULL,
+                installed_by INT NULL,
+                installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()
