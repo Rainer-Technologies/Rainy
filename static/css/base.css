@@ -68,11 +68,7 @@ textarea {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Utility Classes */
-.hidden {
-    display: none !important;
-}
-
+/* Utility Classes (.hidden lives in guard.css, out of any theme's reach) */
 .flex {
     display: flex;
 }

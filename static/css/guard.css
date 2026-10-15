@@ -1,0 +1,29 @@
+/* ============================================
+   Guard: rules no UI theme can undo
+   ============================================
+   This file is imported into the `guard` layer, the first in the order
+   (see style.css). For !important declarations earlier layers win, so these
+   beat anything a theme writes, and themes may not use !important at all.
+   Keep it tiny: only what must hold whatever a theme does. */
+
+/* Hidden means hidden: the app's own state, never a theme's to override. */
+.hidden,
+[hidden] {
+    display: none !important;
+}
+
+/* A theme's decorative layers never take a click meant for the app. */
+#rainy-theme-layer,
+#rainy-theme-layer * {
+    pointer-events: none !important;
+}
+
+/* The way back: whatever a theme does, the theme picker in
+   Settings → Appearance stays visible and usable. */
+[data-part~="theme-escape"]:not(.hidden) {
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    filter: none !important;
+    transform: none !important;
+}

@@ -4,33 +4,42 @@
    Main Entry Point - Imports all modular CSS
    ============================================ */
 
+/* Cascade layers (docs/THEMES.md). Everything of Rainy's own is in `rainy`,
+   in this order, so source order and specificity work as they always did.
+   A UI theme's stylesheets go in `theme`, after it, so they win without
+   specificity games. `guard` holds the few !important rules no theme may
+   undo (for !important, earlier layers win). index.html declares the same
+   order first thing in <head>, before anything can name a layer. */
+@layer guard, rainy, theme;
+@import url('./guard.css') layer(guard);
+
 /* Core */
-@import url('./variables.css');
-@import url('./base.css');
+@import url('./variables.css') layer(rainy);
+@import url('./base.css') layer(rainy);
 
 /* Components */
-@import url('./components/buttons.css');
-@import url('./components/forms.css');
-@import url('./components/cards.css');
-@import url('./components/modals.css');
-@import url('./components/header.css');
-@import url('./components/sidebar.css');
-@import url('./components/player-bar.css');
-@import url('./components/fullscreen.css');
-@import url('./components/toast.css');
-@import url('./components/context-menu.css');
-@import url('./components/settings-page.css');
-@import url('./components/new-features.css');
-@import url('./components/connect.css');
-@import url('./components/friends.css');
+@import url('./components/buttons.css') layer(rainy);
+@import url('./components/forms.css') layer(rainy);
+@import url('./components/cards.css') layer(rainy);
+@import url('./components/modals.css') layer(rainy);
+@import url('./components/header.css') layer(rainy);
+@import url('./components/sidebar.css') layer(rainy);
+@import url('./components/player-bar.css') layer(rainy);
+@import url('./components/fullscreen.css') layer(rainy);
+@import url('./components/toast.css') layer(rainy);
+@import url('./components/context-menu.css') layer(rainy);
+@import url('./components/settings-page.css') layer(rainy);
+@import url('./components/new-features.css') layer(rainy);
+@import url('./components/connect.css') layer(rainy);
+@import url('./components/friends.css') layer(rainy);
 
 /* Pages */
-@import url('./pages/setup.css');
-@import url('./pages/login.css');
-@import url('./pages/library.css');
-@import url('./pages/discover.css');
-@import url('./pages/mixes.css');
-@import url('./pages/artists.css');
+@import url('./pages/setup.css') layer(rainy);
+@import url('./pages/login.css') layer(rainy);
+@import url('./pages/library.css') layer(rainy);
+@import url('./pages/discover.css') layer(rainy);
+@import url('./pages/mixes.css') layer(rainy);
+@import url('./pages/artists.css') layer(rainy);
 
 /* Final shared geometry and surface rules for the feature views. */
-@import url('./components/ui-consistency.css');
+@import url('./components/ui-consistency.css') layer(rainy);
