@@ -62,7 +62,7 @@
 .header-title {
     font-size: var(--font-size-xl);
     font-weight: 700;
-    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, #8cc5e8 100%);
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 50%, var(--accent-light) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -303,19 +303,19 @@
 }
 
 .dropdown-item.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .dropdown-item.logout:hover {
-    background: rgba(255, 59, 48, 0.1);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .dropdown-item.logout:hover svg {
-    fill: #ff3b30;
+    fill: var(--error);
 }
 
 .dropdown-item.logout:hover span {
-    color: #ff3b30;
+    color: var(--error);
 }
 
 .dropdown-divider {

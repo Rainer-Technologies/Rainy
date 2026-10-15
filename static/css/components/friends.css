@@ -9,8 +9,8 @@
     height: 18px;
     padding: 0 5px;
     border-radius: 10px;
-    background: var(--error, #ff453a);
-    color: #fff;
+    background: var(--error);
+    color: var(--text-on-accent);
     font-size: 0.6875rem;
     font-weight: 700;
     line-height: 18px;
@@ -26,7 +26,7 @@
     width: 13px;
     height: 13px;
     flex: none;
-    color: var(--text-tertiary, #6e6e6e);
+    color: var(--text-tertiary);
 }
 
 .nav-shared-item .nav-shared-badge {
@@ -56,10 +56,10 @@
     margin: 0 0 12px;
     padding: 8px 12px;
     border-radius: 10px;
-    background: var(--surface-raised, #1a1a1a);
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
     font-size: 0.8rem;
-    color: var(--text-secondary, #9a9a9a);
+    color: var(--text-secondary);
 }
 
 .share-invite-role label {
@@ -70,9 +70,9 @@
 .share-invite-role select {
     flex: 1;
     min-width: 0;
-    background: var(--bg-secondary, #1c1c1e);
-    border: 1px solid var(--border-color, #333);
-    color: var(--text-primary, #f5f5f5);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 6px;
     padding: 6px 8px;
     font-size: 0.8rem;
@@ -82,9 +82,9 @@
 .share-role-change {
     flex: none;
     min-width: 84px;
-    background: var(--bg-secondary, #1c1c1e);
-    border: 1px solid var(--border-color, #333);
-    color: var(--text-primary, #f5f5f5);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 6px;
     padding: 5px 8px;
     font-size: 0.75rem;
@@ -105,34 +105,34 @@
     gap: 6px;
     margin-bottom: 24px;
     padding: 4px;
-    background: var(--surface-raised, #1a1a1a);
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
-    border-radius: var(--radius-lg, 16px);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
     width: fit-content;
 }
 
 .friends-tab {
     background: none;
     border: none;
-    color: var(--text-secondary, #a1a1a1);
+    color: var(--text-secondary);
     font-size: 0.8125rem;
     font-weight: 600;
     padding: 8px 16px;
-    border-radius: var(--radius-md, 10px);
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: background var(--transition-fast, 150ms), color var(--transition-fast, 150ms);
+    transition: background var(--transition-fast), color var(--transition-fast);
     white-space: nowrap;
 }
 
 .friends-tab:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.05));
-    color: var(--text-primary, #fff);
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .friends-tab.active {
-    color: #fff;
-    background: var(--accent-gradient, linear-gradient(135deg, #5b9be0, #2b497c));
-    box-shadow: 0 2px 10px var(--accent-glow, rgba(61, 125, 196, 0.3));
+    color: var(--text-on-accent);
+    background: var(--accent-gradient);
+    box-shadow: 0 2px 10px var(--accent-glow);
 }
 
 /* Section label */
@@ -142,7 +142,7 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--text-tertiary, #6e6e6e);
+    color: var(--text-tertiary);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -156,8 +156,8 @@
     height: 20px;
     padding: 0 6px;
     border-radius: 999px;
-    background: var(--surface-elevated, #252525);
-    color: var(--text-secondary, #a1a1a1);
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0;
@@ -170,9 +170,9 @@
     gap: 10px;
     margin-bottom: 8px;
     padding: 14px;
-    border-radius: var(--radius-lg, 16px);
-    background: var(--surface-raised, #1a1a1a);
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
 }
 
 .friends-add-form .form-input {
@@ -187,13 +187,13 @@
 /* Empty state — friendly, not a bare dashed box */
 .friends-empty {
     padding: 32px 20px;
-    border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.1));
-    border-radius: var(--radius-lg, 16px);
-    color: var(--text-tertiary, #6e6e6e);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-tertiary);
     font-size: 0.85rem;
     line-height: 1.6;
     text-align: center;
-    background: var(--surface-base, #0d0d0d);
+    background: var(--surface-base);
 }
 
 /* Friend rows — roomier cards with avatar + name + meta + actions */
@@ -202,16 +202,16 @@
     align-items: center;
     gap: 14px;
     padding: 12px 16px;
-    border-radius: var(--radius-md, 10px);
-    background: var(--surface-raised, #1a1a1a);
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
     margin-bottom: 8px;
-    transition: background var(--transition-fast, 150ms), border-color var(--transition-fast, 150ms);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .friend-row:hover {
-    background: var(--surface-elevated, #252525);
-    border-color: var(--border-color, rgba(255, 255, 255, 0.1));
+    background: var(--surface-elevated);
+    border-color: var(--border-color);
 }
 
 /* Avatar — gradient disc with a soft ring */
@@ -220,14 +220,14 @@
     height: 42px;
     flex: none;
     border-radius: 50%;
-    background: var(--accent-gradient, linear-gradient(135deg, #5b9be0, #2b497c));
-    color: #fff;
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
     font-weight: 700;
     font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 0 2px var(--bg-primary, #0d0d0d), 0 0 0 3px var(--border-color, rgba(255, 255, 255, 0.1));
+    box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 3px var(--border-color);
 }
 
 .friend-info {
@@ -238,7 +238,7 @@
 .friend-name {
     font-weight: 600;
     font-size: 0.9rem;
-    color: var(--text-primary, #fff);
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -246,7 +246,7 @@
 
 .friend-email {
     font-size: 0.75rem;
-    color: var(--text-tertiary, #6e6e6e);
+    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -264,16 +264,16 @@
     display: inline-block;
     padding: 3px 10px;
     border-radius: 999px;
-    background: rgba(52, 199, 89, 0.15);
-    color: var(--success, #34c759);
+    background: color-mix(in srgb, var(--success) 15%, transparent);
+    color: var(--success);
     font-size: 0.6875rem;
     font-weight: 700;
     text-transform: capitalize;
 }
 
 .friend-chip-warn {
-    background: rgba(255, 149, 0, 0.12);
-    color: var(--warning, #ff9500);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+    color: var(--warning);
 }
 
 /* Share modal lists are compact */

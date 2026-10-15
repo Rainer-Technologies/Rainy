@@ -46,8 +46,8 @@
 
 /* Error Message */
 .error-message {
-    background: rgba(255, 59, 48, 0.15);
-    border: 1px solid rgba(255, 59, 48, 0.3);
+    background: color-mix(in srgb, var(--error) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
     color: #ff6b6b;
     padding: var(--spacing-md);
     border-radius: var(--radius-md);

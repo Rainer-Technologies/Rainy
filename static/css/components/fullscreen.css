@@ -1507,7 +1507,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(61, 125, 196, 0.3);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 .no-anime .fs-logo { display: none; }
@@ -1522,7 +1522,7 @@
 .fs-brand-title {
     font-size: var(--font-size-lg);
     font-weight: 700;
-    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, #8cc5e8 100%);
+    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, var(--accent-light) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -1871,7 +1871,7 @@
 }
 
 .fs-queue-menu-item.danger:hover {
-    background: rgba(var(--danger-rgb, 239, 68, 68), 0.15);
+    background: color-mix(in srgb, var(--error) 15%, transparent);
 }
 
 .fs-queue-menu-item.active.liked {
@@ -1879,7 +1879,7 @@
 }
 
 .fs-queue-menu-item.active.liked:hover {
-    background: rgba(var(--accent-primary-rgb, 61, 125, 196), 0.15);
+    background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .fs-queue-menu-item.active.disliked {
@@ -1887,7 +1887,7 @@
 }
 
 .fs-queue-menu-item.active.disliked:hover {
-    background: rgba(var(--error-rgb, 239, 68, 68), 0.15);
+    background: color-mix(in srgb, var(--error) 15%, transparent);
 }
 
 /* Right Side: Current Song */

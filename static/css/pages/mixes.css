@@ -225,7 +225,7 @@
     border: none;
     border-radius: var(--radius-full);
     background: var(--accent-primary);
-    color: #fff;
+    color: var(--text-on-accent);
     box-shadow: var(--shadow-sm);
     cursor: pointer;
     opacity: 0;

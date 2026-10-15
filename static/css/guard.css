@@ -27,3 +27,27 @@
     filter: none !important;
     transform: none !important;
 }
+
+/* State the app expresses with classes: a panel shows only while its tab is
+   the active one, a menu only while it is open, and so on. A theme may give
+   these parts any layout it likes, but cannot bring back what the state hides. */
+.settings-content > .settings-section:not(.active),
+.ss-pane:not(.active),
+.add-music-content:not(.active),
+.settings-tab-content:not(.active),
+.artist-modal-tab-panel:not(.active),
+#fullscreen-player:not(.lyrics-active) #fs-lyrics-container,
+#fullscreen-player.lyrics-active #fs-queue-list,
+#fullscreen-player.mode-standard .fs-player-controls,
+#fullscreen-player.mode-standard #fs-volume-btn,
+#fullscreen-player.mode-standard #fs-volume-popover,
+#fullscreen-player.mode-standard .fs-keep-btn,
+#fullscreen-player.mode-modern .fs-like-group,
+.app-sidebar:not(.more-open) .nav-secondary-items,
+.app-sidebar:not(.collapsed).browse-closed .nav-browse-items,
+.settings-sidebar.is-searching .settings-nav,
+.no-anime .header-logo,
+.no-anime .setup-logo,
+.no-anime .fs-logo {
+    display: none !important;
+}

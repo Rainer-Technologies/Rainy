@@ -29,7 +29,7 @@
 
 .discover-search-container .search-bar-wrapper:focus-within {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 4px rgba(61, 125, 196, 0.15);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-primary) 15%, transparent);
     background: var(--bg-tertiary);
 }
 
@@ -69,7 +69,7 @@
     height: 38px;
     border-radius: var(--radius-full);
     background: var(--accent-primary);
-    color: #ffffff;
+    color: var(--text-on-accent);
     border: none;
     outline: none;
     cursor: pointer;
@@ -195,7 +195,7 @@
 
 .discover-btn-download {
     background: var(--accent-primary);
-    color: #ffffff;
+    color: var(--text-on-accent);
 }
 
 .discover-btn-download:hover:not(:disabled) {
@@ -211,7 +211,7 @@
 /* Floating Preview Player Bar */
 .discover-preview-bar {
     position: fixed;
-    bottom: calc(var(--player-height) + var(--spacing-md));
+    bottom: calc(var(--shell-inset-bottom) + var(--spacing-md));
     left: 50%;
     transform: translateX(-50%) translateY(0);
     width: calc(100% - var(--spacing-xl) * 2);
@@ -386,15 +386,15 @@
 }
 
 .discover-clickable-artist:hover {
-    color: var(--accent-primary) !important;
+    color: var(--accent-primary);
     cursor: pointer;
     text-decoration: underline;
 }
 
 /* In-Library / Downloaded Item indicator */
 .discover-item.in-library {
-    border-color: rgba(52, 199, 89, 0.2);
-    background: rgba(52, 199, 89, 0.03);
+    border-color: color-mix(in srgb, var(--success) 20%, transparent);
+    background: color-mix(in srgb, var(--success) 3%, transparent);
 }
 
 .discover-item.in-library .discover-item-title::after {
@@ -402,7 +402,7 @@
     font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--success);
-    background: rgba(52, 199, 89, 0.1);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
     padding: 2px 8px;
     border-radius: var(--radius-sm);
     margin-left: var(--spacing-sm);

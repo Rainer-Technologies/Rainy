@@ -22,7 +22,7 @@
     width: 200%;
     height: 200%;
     background:
-        radial-gradient(ellipse at 20% 30%, rgba(61, 125, 196, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 20% 30%, color-mix(in srgb, var(--accent-primary) 15%, transparent) 0%, transparent 50%),
         radial-gradient(ellipse at 80% 70%, rgba(138, 43, 226, 0.1) 0%, transparent 50%),
         radial-gradient(ellipse at 50% 50%, rgba(0, 122, 255, 0.08) 0%, transparent 60%);
     animation: bgPulse 15s ease-in-out infinite alternate;
@@ -105,7 +105,7 @@
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 50%, #8cc5e8 100%);
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 50%, var(--accent-light) 100%);
     background-size: 200% 200%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -136,7 +136,7 @@
 .setup-header h1 {
     font-size: var(--font-size-3xl);
     margin-bottom: var(--spacing-sm);
-    background: linear-gradient(135deg, #fff 0%, #a1a1a1 100%);
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

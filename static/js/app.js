@@ -25,6 +25,7 @@ import * as AppView from "./view/app.js";
 import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
 import "./components/environments.js";
+import { cssColorToHex } from "./theme/color.js";
 
 // Section id -> page title. Also used to label settings search results.
 const SETTINGS_SECTION_TITLES = {
@@ -287,7 +288,7 @@ export class RainyApp {
         colorInput?.addEventListener('input', (e) => {
             const color = e.target.value;
             document.getElementById('settings-accent-color-value').textContent = color;
-            this.applyTheme(color);
+            this.applyAccent(color);
         });
 
         // Save on commit
@@ -301,18 +302,16 @@ export class RainyApp {
                 const color = btn.dataset.color;
                 if (colorInput) colorInput.value = color;
                 document.getElementById('settings-accent-color-value').textContent = color;
-                this.applyTheme(color);
+                this.applyAccent(color);
                 this.savePreferences({ theme_color: color });
             });
         });
 
-        // Reset Theme
+        // Reset: back to the accent colour of the interface theme in use
         document.getElementById('reset-theme-btn')?.addEventListener('click', () => {
-            const defaultColor = '#3d7dc4';
-            if (colorInput) colorInput.value = defaultColor;
-            document.getElementById('settings-accent-color-value').textContent = defaultColor;
-            this.applyTheme(defaultColor);
-            this.savePreferences({ theme_color: defaultColor });
+            this.applyAccent(null);
+            this.savePreferences({ theme_color: null });
+            this.syncAccentPicker();
         });
 
         // Interface language (saved per account)
@@ -1134,7 +1133,7 @@ export class RainyApp {
                 results.appendChild(this._renderDupGroup(group));
             }
         } catch (e) {
-            results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;color:#ff6b6b;">${t('Error: {message}', { message: this._esc(t(e.message)) })}</p>`;
+            results.innerHTML = `<p class="settings-row-hint" style="padding:12px 0;color:var(--error);">${t('Error: {message}', { message: this._esc(t(e.message)) })}</p>`;
         } finally {
             btn.disabled = false;
         }
@@ -1143,7 +1142,7 @@ export class RainyApp {
     _renderDupGroup(group) {
         const wrap = document.createElement('div');
         wrap.className = 'dup-group';
-        wrap.style.cssText = 'border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-top:12px;';
+        wrap.style.cssText = 'border:1px solid var(--border-color);border-radius:10px;padding:12px;margin-top:12px;';
 
         const songs = group.songs || [];
         // First song is the suggested keeper (already sorted by score server-side).
@@ -1155,7 +1154,7 @@ export class RainyApp {
             radio.name = `dup-keep-${group.key}`;
             radio.value = song.id;
             radio.checked = idx === 0;
-            radio.style.accentColor = 'var(--accent-color, #fa586a)';
+            radio.style.accentColor = 'var(--accent-primary)';
 
             const badges = [];
             if (song.likes > 0) badges.push(`♥ ${song.likes}`);
@@ -1166,10 +1165,10 @@ export class RainyApp {
             const info = document.createElement('div');
             info.style.cssText = 'flex:1;min-width:0;';
             info.innerHTML = `
-                <div style="color:#fff;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    ${this._esc(song.title)} ${idx === 0 ? `<span style="color:var(--accent-color,#fa586a);font-size:11px;">${t('(suggested)')}</span>` : ''}
+                <div style="color:var(--text-primary);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ${this._esc(song.title)} ${idx === 0 ? `<span style="color:var(--accent-primary);font-size:11px;">${t('(suggested)')}</span>` : ''}
                 </div>
-                <div style="color:rgba(255,255,255,0.5);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                <div style="color:var(--text-secondary);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     ${this._esc(song.artist)} ${badges.length ? '· ' + badges.join(' · ') : ''}
                 </div>`;
 
@@ -3308,7 +3307,7 @@ export class RainyApp {
             listEl.innerHTML = '';
             syncs.forEach(s => listEl.appendChild(this._renderSyncRow(s)));
         } catch (e) {
-            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">${this._esc(t('Error: {message}', { message: t(e.message) }))}</div>`;
+            listEl.innerHTML = `<div class="import-jobs-empty" style="color:var(--error);">${this._esc(t('Error: {message}', { message: t(e.message) }))}</div>`;
         }
     }
 
@@ -3331,7 +3330,7 @@ export class RainyApp {
         })();
         const sourceBadge = s.source === 'spotify' ? 'Spotify' : 'YouTube';
         const modeBadge = s.sync_mode === 'mirror' ? t('Mirror') : t('Add only');
-        const statusColor = s.last_status === 'success' ? '#4ade80' : s.last_status === 'failed' ? '#f87171' : s.last_status === 'running' ? '#60a5fa' : 'var(--text-tertiary)';
+        const statusColor = s.last_status === 'success' ? 'var(--success)' : s.last_status === 'failed' ? 'var(--error)' : s.last_status === 'running' ? 'var(--accent-light)' : 'var(--text-tertiary)';
         const enabled = !!s.enabled;
         const nextSync = s.next_sync_at ? new Date(s.next_sync_at).toLocaleString() : '—';
         const lastSync = s.last_synced_at ? new Date(s.last_synced_at).toLocaleString() : t('Never');
@@ -3341,9 +3340,9 @@ export class RainyApp {
                 <div class="sync-row-info">
                     <div class="sync-row-title">
                         <span>${this._esc(playlistDisplayName(s.playlist_name) || t('Playlist #{id}', { id: s.playlist_id }))}</span>
-                        <span class="import-job-badge" style="background:rgba(61,125,196,0.12); color:var(--accent-primary);">${sourceBadge}</span>
+                        <span class="import-job-badge" style="background:color-mix(in srgb, var(--accent-primary) 12%, transparent); color:var(--accent-primary);">${sourceBadge}</span>
                         <span class="import-job-badge">${modeBadge}</span>
-                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(t(s.last_status || 'pending'))}</span>
+                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid color-mix(in srgb, ${statusColor} 20%, transparent); background:color-mix(in srgb, ${statusColor} 8%, transparent);">${this._esc(t(s.last_status || 'pending'))}</span>
                     </div>
                     <div class="sync-row-meta">
                         <span>${this._esc(intervalLabel)}</span> · ${this._esc(t('Next: {date}', { date: nextSync }))} · ${this._esc(t('Last: {date}', { date: lastSync }))}
@@ -3539,7 +3538,7 @@ export class RainyApp {
             listEl.innerHTML = '';
             rows.forEach(r => {
                 const when = r.ran_at ? new Date(r.ran_at).toLocaleString() : '—';
-                const statusColor = r.status === 'success' ? '#4ade80' : r.status === 'failed' ? '#f87171' : 'var(--text-tertiary)';
+                const statusColor = r.status === 'success' ? 'var(--success)' : r.status === 'failed' ? 'var(--error)' : 'var(--text-tertiary)';
                 const details = r.details || {};
                 const added = details.added || [];
                 const removed = details.removed || [];
@@ -3550,7 +3549,7 @@ export class RainyApp {
                 card.innerHTML = `
                     <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:center;">
                         <div style="font-weight:600; color:var(--text-primary);">${this._esc(playlistDisplayName(r.playlist_name) || t('Playlist #{id}', { id: r.playlist_id }))} <span style="font-weight:400; color:var(--text-tertiary); font-size:0.85rem;">· ${this._esc(when)}</span></div>
-                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid ${statusColor}33; background:${statusColor}14;">${this._esc(t(r.status))}</span>
+                        <span class="import-job-badge" style="color:${statusColor}; border:1px solid color-mix(in srgb, ${statusColor} 20%, transparent); background:color-mix(in srgb, ${statusColor} 8%, transparent);">${this._esc(t(r.status))}</span>
                     </div>
                     <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">
                         ${this._esc(t('+{added} added · -{removed} removed · {kept} kept · {failed} failed · {remote} remote', {
@@ -3563,8 +3562,8 @@ export class RainyApp {
                         <details style="margin-top:8px;">
                             <summary style="cursor:pointer; font-size:0.8rem; color:var(--accent-primary);">${t('Details')}</summary>
                             <div style="margin-top:8px; display:grid; gap:8px;">
-                                ${added.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#4ade80;">${t('Added ({count}):', { count: added.length })}</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${added.map(x => this._esc(x)).join('<br>')}</div></div>` : ''}
-                                ${removed.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:#f87171;">${t('Removed ({count}):', { count: removed.length })}</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${removed.map(x => this._esc(x)).join('<br>')}</div></div>` : ''}
+                                ${added.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:var(--success);">${t('Added ({count}):', { count: added.length })}</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${added.map(x => this._esc(x)).join('<br>')}</div></div>` : ''}
+                                ${removed.length ? `<div><div style="font-size:0.78rem; font-weight:600; color:var(--error);">${t('Removed ({count}):', { count: removed.length })}</div><div style="font-size:0.78rem; color:var(--text-secondary); max-height:120px; overflow:auto;">${removed.map(x => this._esc(x)).join('<br>')}</div></div>` : ''}
                             </div>
                         </details>
                     ` : ''}
@@ -3572,7 +3571,7 @@ export class RainyApp {
                 listEl.appendChild(card);
             });
         } catch (e) {
-            listEl.innerHTML = `<div class="import-jobs-empty" style="color:#f87171;">${this._esc(t('Error: {message}', { message: t(e.message) }))}</div>`;
+            listEl.innerHTML = `<div class="import-jobs-empty" style="color:var(--error);">${this._esc(t('Error: {message}', { message: t(e.message) }))}</div>`;
         }
     }
 
@@ -3929,18 +3928,34 @@ export class RainyApp {
 
     // User Settings & Theming Methods
 
-    applyTheme(color) {
-        if (!color) return;
+    /**
+     * The user's own accent colour, over the interface theme's. Every other
+     * accent token derives from --accent-primary (variables.css). `null` goes
+     * back to the theme's accent.
+     */
+    applyAccent(color) {
         const root = document.documentElement;
-        root.style.setProperty('--accent-primary', color);
-        try { localStorage.setItem('rainy-accent', color); } catch (e) { /* ignore */ }
-        root.style.setProperty('--accent-secondary', color); // Simple fallback
-        // Create a simple gradient
-        root.style.setProperty('--accent-gradient', `linear-gradient(135deg, ${color} 0%, ${color} 100%)`);
-        // Calculate glow (hex + opacity)
-        root.style.setProperty('--accent-glow', `${color}4D`); // ~30% opacity
-        // Calculate subtle bg (hex + opacity)
-        root.style.setProperty('--accent-bg-subtle', `${color}14`); // ~8% opacity
+        if (color) root.style.setProperty('--accent-primary', color);
+        else root.style.removeProperty('--accent-primary');
+        try {
+            if (color) localStorage.setItem('rainy-accent', color);
+            else localStorage.removeItem('rainy-accent');
+        } catch (e) { /* ignore */ }
+        document.dispatchEvent(new CustomEvent('rainy:accent', { detail: { color: color || null } }));
+    }
+
+    /** The accent colour in effect right now, as #rrggbb (for the colour picker). */
+    currentAccentHex() {
+        return cssColorToHex(getComputedStyle(document.documentElement).getPropertyValue('--accent-primary')) || '#3d7dc4';
+    }
+
+    /** Show the accent in effect in Settings → Appearance. */
+    syncAccentPicker() {
+        const color = this.currentAccentHex();
+        const colorInput = document.getElementById('settings-accent-color');
+        const colorValue = document.getElementById('settings-accent-color-value');
+        if (colorInput) colorInput.value = color;
+        if (colorValue) colorValue.textContent = color;
     }
 
     /** Hide the anime logo everywhere and show the animated Rainy wordmark instead. */
@@ -3964,9 +3979,10 @@ export class RainyApp {
                     return;
                 }
             }
-            if (prefs && prefs.theme_color) {
-                this.applyTheme(prefs.theme_color);
-            }
+            // Before UI themes, Reset saved Rainy's own blue: that now means "the theme's accent".
+            const accent = prefs && prefs.theme_color && prefs.theme_color.toLowerCase() !== '#3d7dc4'
+                ? prefs.theme_color : null;
+            this.applyAccent(accent);
             if (prefs && typeof prefs.no_anime !== 'undefined') {
                 this.applyNoAnime(prefs.no_anime);
             }
@@ -4058,7 +4074,6 @@ export class RainyApp {
         if (languageSelect) languageSelect.value = getLanguage();
 
         // Set current color in picker
-        let currentColor = '#3d7dc4';
         let currentFsMode = 'standard'; // default for new/no-pref accounts — keep in sync with player.js toggleFullscreen
         let currentLyricsEffect = 'word';
         let currentLightshowIntensity = 'auto';
@@ -4078,7 +4093,6 @@ export class RainyApp {
                 } catch (e) { }
             }
             if (prefs) {
-                if (prefs.theme_color) currentColor = prefs.theme_color;
                 if (prefs.fullscreen_mode) currentFsMode = prefs.fullscreen_mode;
                 if (prefs.lyrics_effect) currentLyricsEffect = prefs.lyrics_effect;
                 if (prefs.lightshow_intensity) currentLightshowIntensity = prefs.lightshow_intensity;
@@ -4092,11 +4106,8 @@ export class RainyApp {
             }
         }
 
-        // Set color picker
-        const colorInput = document.getElementById('settings-accent-color');
-        const colorValue = document.getElementById('settings-accent-color-value');
-        if (colorInput) colorInput.value = currentColor;
-        if (colorValue) colorValue.textContent = currentColor;
+        // Set color picker (the user's accent, or the theme's)
+        this.syncAccentPicker();
 
         // Set radio button groups to their saved values
         const radioValues = {

@@ -33,6 +33,7 @@ import {
 } from './environments/index.js';
 import { EnvironmentStage } from './environments/host.js';
 import { clamp, lerp, hexToHue } from './palette.js';
+import { cssColorToHex } from '../theme/color.js';
 // The default environment ships with the engine, so the show starts without a round trip.
 import './environments/classic/index.js';
 
@@ -275,8 +276,9 @@ export class LightShowEngine {
 
     _readAccent() {
         try {
-            const v = getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim();
-            if (/^#[0-9a-fA-F]{6}$/.test(v)) this.conductor.accentHue = hexToHue(v);
+            // A theme may give its accent in any CSS syntax: read it as #rrggbb.
+            const v = cssColorToHex(getComputedStyle(document.documentElement).getPropertyValue('--accent-primary'));
+            if (v) this.conductor.accentHue = hexToHue(v);
         } catch (e) { /* keep previous */ }
     }
 

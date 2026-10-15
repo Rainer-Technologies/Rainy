@@ -54,15 +54,15 @@
 }
 
 .context-menu-item.danger {
-    color: #ff4444;
+    color: var(--error);
 }
 
 .context-menu-item.danger svg {
-    fill: #ff4444;
+    fill: var(--error);
 }
 
 .context-menu-item.danger:hover {
-    background: rgba(255, 68, 68, 0.1);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 /* Context menu submenus */
@@ -136,7 +136,7 @@
 .context-submenu .context-menu-label {
     padding: var(--spacing-xs) var(--spacing-lg);
     font-size: var(--font-size-xs);
-    color: var(--text-tertiary, var(--text-secondary));
+    color: var(--text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     white-space: nowrap;

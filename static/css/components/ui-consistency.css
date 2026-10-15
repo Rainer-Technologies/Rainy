@@ -229,7 +229,7 @@
 .crossfade-preset.active {
     border-color: var(--accent-primary);
     background: var(--accent-primary);
-    color: #fff;
+    color: var(--text-on-accent);
 }
 
 .eq-power-btn.on:hover,
@@ -296,7 +296,7 @@
 
 .settings-tab.active,
 .settings-nav-item.active {
-    border-color: rgba(var(--accent-primary-rgb), 0.24);
+    border-color: color-mix(in srgb, var(--accent-primary) 24%, transparent);
     background: var(--surface-accent);
     color: var(--accent-primary);
 }

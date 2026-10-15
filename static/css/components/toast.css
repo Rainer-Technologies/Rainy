@@ -31,7 +31,7 @@
 }
 
 .toast.error {
-    border-left: 3px solid #ff4444;
+    border-left: 3px solid var(--error);
 }
 
 .toast svg {
@@ -45,7 +45,7 @@
 }
 
 .toast.error svg {
-    fill: #ff4444;
+    fill: var(--error);
 }
 
 .toast-message {

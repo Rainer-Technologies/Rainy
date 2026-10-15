@@ -27,7 +27,7 @@
     width: auto;
     min-height: var(--hit-target);
     background: var(--accent-gradient);
-    color: white;
+    color: var(--text-on-accent);
     box-shadow: var(--shadow-sm);
 }
 
@@ -74,25 +74,25 @@
 }
 
 .btn-warning {
-    background: rgba(255, 149, 0, 0.15);
-    color: #ff9500;
-    border: 1px solid rgba(255, 149, 0, 0.3);
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 .btn-warning:hover {
-    background: rgba(255, 149, 0, 0.25);
-    border-color: rgba(255, 149, 0, 0.5);
+    background: color-mix(in srgb, var(--warning) 25%, transparent);
+    border-color: color-mix(in srgb, var(--warning) 50%, transparent);
 }
 
 .btn-danger {
-    background-color: var(--error) !important;
-    color: white !important;
-    border-color: var(--error) !important;
+    background-color: var(--error);
+    color: var(--text-on-accent);
+    border-color: var(--error);
 }
 
 .btn-danger:hover {
     filter: brightness(1.1);
-    box-shadow: 0 4px 12px rgba(255, 69, 58, 0.3);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 /* Icon Buttons */

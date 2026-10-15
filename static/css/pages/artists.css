@@ -227,8 +227,8 @@
     background: linear-gradient(
         to top,
         var(--bg-primary) 0%,
-        rgba(13, 13, 13, 0.6) 40%,
-        rgba(13, 13, 13, 0.2) 100%
+        color-mix(in srgb, var(--bg-primary) 60%, transparent) 40%,
+        color-mix(in srgb, var(--bg-primary) 20%, transparent) 100%
     );
     z-index: 1;
 }
@@ -249,7 +249,7 @@
     border-radius: var(--radius-full);
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
     color: #ffffff;
     cursor: pointer;
     transition: all var(--transition-fast);
@@ -257,7 +257,7 @@
 
 .artist-back-btn:hover {
     background: rgba(0, 0, 0, 0.6);
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: color-mix(in srgb, var(--text-primary) 30%, transparent);
     transform: scale(1.05);
 }
 
@@ -275,7 +275,7 @@
     height: 160px;
     border-radius: var(--radius-full);
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-    border: 4px solid rgba(255, 255, 255, 0.15);
+    border: 4px solid color-mix(in srgb, var(--text-primary) 15%, transparent);
     overflow: hidden;
     flex-shrink: 0;
     background: var(--bg-tertiary);
@@ -321,7 +321,7 @@
 
 .artist-profile-meta {
     font-size: var(--font-size-sm);
-    color: rgba(255, 255, 255, 0.6);
+    color: color-mix(in srgb, var(--text-primary) 60%, transparent);
     font-weight: 500;
 }
 
@@ -344,27 +344,27 @@
     font-weight: 700;
     cursor: pointer;
     transition: all var(--transition-fast);
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
     color: var(--text-primary);
     letter-spacing: 0.01em;
 }
 
 .artist-action-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.25);
+    background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+    border-color: color-mix(in srgb, var(--text-primary) 25%, transparent);
     transform: translateY(-1px);
 }
 
 .artist-action-btn-primary {
-    background: var(--accent-gradient, var(--accent-primary));
+    background: var(--accent-gradient);
     border: none;
-    color: #ffffff;
+    color: var(--text-on-accent);
     box-shadow: 0 4px 16px var(--accent-glow);
 }
 
 .artist-action-btn-primary:hover {
-    background: var(--accent-gradient, var(--accent-primary));
+    background: var(--accent-gradient);
     filter: brightness(1.1);
     box-shadow: 0 6px 24px var(--accent-glow);
     transform: translateY(-2px);
@@ -750,7 +750,7 @@
 .artist-modal-input:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px var(--accent-glow, rgba(99, 102, 241, 0.15));
+    box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .artist-modal-input::placeholder {
@@ -805,8 +805,8 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-sm) var(--spacing-md);
-    background: rgba(99, 102, 241, 0.07);
-    border: 1px solid rgba(99, 102, 241, 0.15);
+    background: color-mix(in srgb, var(--accent-primary) 7%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 15%, transparent);
     border-radius: var(--radius-md);
     margin-bottom: var(--spacing-lg);
     gap: var(--spacing-sm);
@@ -835,7 +835,7 @@
     gap: 6px;
     padding: 7px var(--spacing-md);
     background: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
     border: none;
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
@@ -848,7 +848,7 @@
 
 .btn-scrape:hover {
     filter: brightness(1.1);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 .btn-scrape:disabled {
@@ -862,8 +862,8 @@
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-md);
-    background: rgba(52, 199, 89, 0.1);
-    border: 1px solid rgba(52, 199, 89, 0.25);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
@@ -871,7 +871,7 @@
 }
 
 .scrape-result svg {
-    fill: #34c759;
+    fill: var(--success);
     flex-shrink: 0;
 }
 
@@ -920,8 +920,8 @@
     align-items: center;
     gap: 7px;
     padding: 9px var(--spacing-xl);
-    background: var(--accent-gradient, var(--accent-primary));
-    color: white;
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
     border: none;
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
@@ -932,7 +932,7 @@
 
 .artist-modal-btn-save:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 /* Songs Tab */

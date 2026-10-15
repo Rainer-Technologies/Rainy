@@ -184,7 +184,7 @@
 .control-btn.play-pause svg {
     width: 20px;
     height: 20px;
-    fill: white;
+    fill: var(--text-on-accent);
 }
 
 .control-btn.play-pause .icon-play {
@@ -229,7 +229,7 @@
 .progress-bar {
     flex: 1;
     height: 4px;
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--text-primary) 20%, transparent);
     border-radius: var(--radius-full);
     position: relative;
     cursor: pointer;
@@ -297,8 +297,8 @@
     background: linear-gradient(to right,
             var(--accent-primary) 0%,
             var(--accent-primary) var(--volume-percent, 80%),
-            rgba(255, 255, 255, 0.2) var(--volume-percent, 80%),
-            rgba(255, 255, 255, 0.2) 100%);
+            color-mix(in srgb, var(--text-primary) 20%, transparent) var(--volume-percent, 80%),
+            color-mix(in srgb, var(--text-primary) 20%, transparent) 100%);
     border-radius: var(--radius-full);
     cursor: pointer;
 }

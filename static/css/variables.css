@@ -11,21 +11,41 @@
     --bg-tertiary: #252525;
     --bg-elevated: #2d2d2d;
     --bg-glass: rgba(45, 45, 45, 0.7);
-    --bg-hover: rgba(255, 255, 255, 0.05);
-    --bg-highlight: rgba(255, 255, 255, 0.08);
+    /* Tints of the text colour over whatever surface they sit on: hovers,
+       hairlines, wells. Defined from --text-primary, so a light theme gets
+       dark tints by changing the text colour alone. */
+    --tint-2: color-mix(in srgb, var(--text-primary) 2%, transparent);
+    --tint-4: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    --tint-6: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    --tint-10: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    --tint-15: color-mix(in srgb, var(--text-primary) 15%, transparent);
+    --tint-20: color-mix(in srgb, var(--text-primary) 20%, transparent);
+    --tint-30: color-mix(in srgb, var(--text-primary) 30%, transparent);
+    --tint-50: color-mix(in srgb, var(--text-primary) 50%, transparent);
+    --bg-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    --bg-highlight: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    /* What dims the page behind a dialog. */
+    --scrim: rgba(0, 0, 0, 0.6);
 
     /* Shared surface language. Pages should choose a level, not invent one. */
     --surface-base: var(--bg-primary);
     --surface-raised: var(--bg-secondary);
     --surface-elevated: var(--bg-tertiary);
     --surface-popover: var(--bg-elevated);
-    --surface-accent: var(--accent-bg-subtle, rgba(61, 125, 196, 0.08));
+    --surface-accent: var(--accent-bg-subtle);
 
-    /* Accent Colors — derived from the Rainy logo (cobalt hair + cyan raindrops) */
+    /* Accent Colors — derived from the Rainy logo (cobalt hair + cyan raindrops).
+       Only --accent-primary is set by hand (by a theme, or by the user's accent
+       colour in Settings); everything else follows it. */
     --accent-primary: #3d7dc4;
-    --accent-secondary: #2b497c;
-    --accent-gradient: linear-gradient(135deg, #5b9be0 0%, #3d7dc4 50%, #2b497c 100%);
-    --accent-glow: rgba(61, 125, 196, 0.3);
+    --accent-light: color-mix(in srgb, var(--accent-primary) 80%, white);
+    --accent-secondary: color-mix(in srgb, var(--accent-primary) 62%, black);
+    --accent-gradient: linear-gradient(135deg, var(--accent-light) 0%, var(--accent-primary) 50%, var(--accent-secondary) 100%);
+    --accent-glow: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+    --accent-bg-subtle: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    /* Text and icons drawn on the accent colour (buttons, badges). */
+    --text-on-accent: #ffffff;
+    /* Deprecated: an r, g, b triple that cannot follow the accent. Use color-mix(). */
     --accent-primary-rgb: 61, 125, 196;
 
     /* Text Colors */
@@ -34,8 +54,8 @@
     --text-tertiary: #6e6e6e;
 
     /* Borders */
-    --border-color: rgba(255, 255, 255, 0.1);
-    --border-subtle: rgba(255, 255, 255, 0.05);
+    --border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    --border-subtle: color-mix(in srgb, var(--text-primary) 5%, transparent);
 
     /* Status Colors */
     --error: #ff453a;
@@ -50,6 +70,8 @@
 
     /* Typography */
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* Headings and big titles. */
+    --font-family-display: var(--font-family);
     --font-size-xs: 0.75rem;
     --font-size-sm: 0.875rem;
     --font-size-base: 1rem;
@@ -81,7 +103,7 @@
     --transition-base: 250ms ease;
     --transition-slow: 400ms ease;
     --transition-normal: 200ms ease;
-    --focus-ring: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.45);
+    --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 45%, transparent);
     --hit-target: 44px;
 
     /* Layout */
@@ -89,4 +111,10 @@
     --player-height: 88px;
     --sidebar-width: 220px;
     --mobile-player-height: 80px;
+    /* How much of each edge of the main content the app's fixed chrome covers.
+       A theme that moves the player or the navigation moves these with it. */
+    --shell-inset-top: 0px;
+    --shell-inset-right: 0px;
+    --shell-inset-bottom: var(--player-height);
+    --shell-inset-left: 0px;
 }
