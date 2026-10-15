@@ -3,10 +3,11 @@
  * Space=play/pause, arrows=seek/track, º / /=global search,
  * M=mute, F=fullscreen player, L=like current song, B=A-B repeat (section loop),
  * [/]=speed down/up (0.25x steps), 0=reset speed to 1x, E=equalizer, X=crossfade,
- * ?=keyboard shortcut cheat sheet overlay.
+ * ?=keyboard shortcut cheat sheet overlay, Alt+Shift+D=Rainy's own look in this tab (theme safe mode).
  */
 import { Logger } from '../helper/logger.js';
 import { t } from '../i18n/index.js';
+import { isSafe, setSafeMode } from '../theme/host.js';
 
 export class KeyboardShortcuts {
     constructor(player, app) {
@@ -26,6 +27,18 @@ export class KeyboardShortcuts {
     }
 
     _onKeyDown(e) {
+        // Alt+Shift+D: Rainy's own look in this tab, and back. The way out of an interface theme
+        // that gets in the way, so it works always, even while typing.
+        if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyD') {
+            e.preventDefault();
+            const on = !isSafe();
+            setSafeMode(on);
+            window.showToast?.(on
+                ? t("Showing Rainy's own look in this tab. Alt+Shift+D brings your theme back.")
+                : t('Your interface theme is back.'), 'info');
+            return;
+        }
+
         if (!this.enabled) return;
 
         // Escape — close overlays

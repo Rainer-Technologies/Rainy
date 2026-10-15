@@ -1691,3 +1691,105 @@
 .settings-env-install {
     margin-top: var(--spacing-md);
 }
+
+/* ---- Interface themes (Settings → Appearance) ---- */
+
+/* A theme without a picture of its own: a little window in its colours. */
+.settings-env-picture.is-blank .settings-theme-swatch {
+    align-self: stretch;
+}
+
+.settings-theme-swatch {
+    display: grid;
+    grid-template-columns: 22% 1fr;
+    grid-template-rows: 1fr 16%;
+    width: 100%;
+    height: 100%;
+    background: var(--sw-bg);
+}
+
+.settings-theme-swatch-side {
+    grid-row: 1 / 3;
+    background: var(--sw-panel);
+    border-right: 1px solid color-mix(in srgb, var(--sw-text) 10%, transparent);
+}
+
+.settings-theme-swatch-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8%;
+    padding: 12% 10% 0;
+}
+
+.settings-theme-swatch-line {
+    height: 9%;
+    min-height: 6px;
+    width: 70%;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--sw-text) 75%, transparent);
+}
+
+.settings-theme-swatch-line.short {
+    width: 45%;
+    background: color-mix(in srgb, var(--sw-text) 35%, transparent);
+}
+
+.settings-theme-swatch-dot {
+    width: 18%;
+    aspect-ratio: 1;
+    margin-top: 4%;
+    border-radius: var(--radius-full);
+    background: var(--sw-accent);
+}
+
+.settings-theme-swatch-bar {
+    grid-column: 2;
+    background: var(--sw-panel);
+    border-top: 1px solid color-mix(in srgb, var(--sw-text) 10%, transparent);
+}
+
+.settings-theme-safe {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--warning) 10%, transparent);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.settings-theme-report {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--tint-4);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
+.settings-theme-report.is-error {
+    border-color: color-mix(in srgb, var(--error) 40%, transparent);
+}
+
+.settings-theme-report.is-warning {
+    border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+}
+
+.settings-theme-report.is-success {
+    border-color: color-mix(in srgb, var(--success) 40%, transparent);
+}
+
+.settings-env-install {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}

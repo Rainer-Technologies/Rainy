@@ -208,3 +208,20 @@ textarea {
         transition-duration: 0.001ms !important;
     }
 }
+
+/* A UI theme's own layers (js/theme/host.js): one behind the app, one over
+   it. They never take a click (guard.css). */
+#rainy-theme-layer > .theme-layer-back,
+#rainy-theme-layer > .theme-layer-front {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+}
+
+#rainy-theme-layer > .theme-layer-back {
+    z-index: -1;
+}
+
+#rainy-theme-layer > .theme-layer-front {
+    z-index: 2147482000;
+}

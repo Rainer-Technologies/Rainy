@@ -26,6 +26,9 @@ import * as LoginView from "./view/login.js";
 import * as SetupView from "./view/setup.js";
 import "./components/environments.js";
 import { cssColorToHex } from "./theme/color.js";
+import { wearPreferred } from "./theme/host.js";
+import { useThemesService } from "./services/themes.js";
+import "./components/themes.js";
 
 // Section id -> page title. Also used to label settings search results.
 const SETTINGS_SECTION_TITLES = {
@@ -157,6 +160,9 @@ export class RainyApp {
         this.applyRoleVisibility();
         // Which light show environments this server has installed.
         useEnvironmentsService().refresh();
+        // The interface theme: usually already on from the last visit; give a change a moment
+        // to land behind the boot splash, but never hold the app up for it.
+        await Promise.race([this.loadInterfaceTheme(), new Promise((resolve) => setTimeout(resolve, 1500))]);
 
         Router.navigate(new View('app', user), this);
     }
@@ -3958,6 +3964,26 @@ export class RainyApp {
         if (colorValue) colorValue.textContent = color;
     }
 
+    /**
+     * Which interface themes this server has, and wear the user's pick (their
+     * `ui_theme` preference; the server's default if they have none). Without
+     * the list the page keeps what it wore last time.
+     */
+    async loadInterfaceTheme() {
+        const res = await useThemesService().refresh();
+        if (res.error) return Logger.error('Could not list the interface themes', res.error);
+        await wearPreferred(this._getPlayerPrefs().ui_theme ?? null);
+        this.syncAccentPicker();
+    }
+
+    /** The user picked an interface theme in Settings: wear it with its own accent, and remember it. */
+    async pickInterfaceTheme(id) {
+        this.applyAccent(null);
+        await wearPreferred(id);
+        this.syncAccentPicker();
+        await this.savePreferences({ ui_theme: id, theme_color: null });
+    }
+
     /** Hide the anime logo everywhere and show the animated Rainy wordmark instead. */
     applyNoAnime(enabled) {
         document.documentElement.classList.toggle('no-anime', !!enabled);
@@ -4243,7 +4269,8 @@ export class RainyApp {
         const settingsContent = document.querySelector('.settings-content');
         if (settingsContent) {
             settingsContent.classList.toggle('settings-content-wide',
-                sectionName === 'users' || sectionName === 'player' || sectionName === 'lightshow');
+                sectionName === 'users' || sectionName === 'player' || sectionName === 'lightshow'
+                || sectionName === 'appearance');
         }
 
         if (sectionName === 'jobs') {
@@ -4260,6 +4287,11 @@ export class RainyApp {
         }
 
         // What is installed may have changed since the page was opened.
+        if (sectionName === 'appearance') {
+            const manager = document.getElementById('settings-theme-manager');
+            if (this.user?.role === 'sysadmin') manager?.refresh();
+            else useThemesService().refresh();
+        }
         if (sectionName === 'lightshow') {
             const manager = document.getElementById('settings-environment-manager');
             if (this.user?.role === 'sysadmin') manager?.refresh();

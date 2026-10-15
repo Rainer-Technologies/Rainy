@@ -15,6 +15,7 @@ import { GlobalSearch } from './modules/globalSearch.js';
 import { ShortcutOverlay } from './modules/shortcutOverlay.js';
 import { NewViews } from './modules/newViews.js';
 import { startStateBridge } from './theme/state.js';
+import { startThemes } from './theme/host.js';
 
 // The i18n module loads its dictionary with a top-level await, so this
 // module can run after DOMContentLoaded has already fired: boot right away
@@ -33,6 +34,9 @@ onDocumentReady(() => {
     window.escapeHtml = Utils.escapeHtml.bind(Utils);
     window.showToast = Utils.showToast.bind(Utils);
     window.handleCoverError = Utils.handleCoverError.bind(Utils);
+
+    // The interface theme the boot script put on (and safe mode), before anything renders
+    startThemes();
 
     // Initialize player first as app depends on it
     window.player = new AudioPlayer();

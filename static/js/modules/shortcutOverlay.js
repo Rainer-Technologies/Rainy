@@ -60,6 +60,7 @@ const SHORTCUT_GROUPS = [
         shortcuts: [
             { keys: ['?'], action: 'Toggle this shortcut sheet' },
             { keys: ['Esc'], action: 'Close overlays / menus' },
+            { keys: ['Alt', 'Shift', 'D'], action: "Rainy's own look in this tab (interface theme off)" },
         ],
     },
 ];

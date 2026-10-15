@@ -34,6 +34,38 @@
             // "No anime" mode: swap the mascot logo for the animated Rainy wordmark everywhere.
             if (localStorage.getItem('rainy-no-anime') === '1') document.documentElement.classList.add('no-anime');
         } catch (e) { document.documentElement.classList.add('rs-skip'); }
+        // The UI theme this device wore last time, on before first paint (js/theme/host.js takes
+        // over from here). ?theme=off, or safe mode in this tab, shows Rainy's own look instead.
+        try {
+            var q = new URLSearchParams(location.search).get('theme');
+            var safe = q === 'off' || (q !== 'on' && sessionStorage.getItem('rainy-theme-safe') === '1');
+            var th = !safe && JSON.parse(localStorage.getItem('rainy-theme') || 'null');
+            if (th && th.api === 1 && /^[a-z][a-z0-9-]{1,31}$/.test(th.id) && th.id !== 'rainy') {
+                var scheme = th.colorScheme === 'light' ? 'light' : 'dark';
+                var css = 'color-scheme:' + scheme + ';';
+                for (var k in th.tokens || {}) {
+                    var v = String(th.tokens[k]);
+                    if (/^--[a-z][a-z0-9-]{0,63}$/.test(k) && !/[;{}<>\\]|!\s*important|url\s*\(|expression\s*\(/i.test(v)) css += k + ':' + v + ';';
+                }
+                var add = function (kind, text) {
+                    var s = document.createElement('style');
+                    s.setAttribute('data-rainy-theme', kind);
+                    s.setAttribute('data-rev', String(th.rev));
+                    s.setAttribute('data-theme-id', th.id);
+                    s.setAttribute('blocking', 'render');
+                    s.textContent = text;
+                    document.head.appendChild(s);
+                };
+                add('tokens', '@layer theme {\n:root {' + css + '}\n}\n');
+                (th.styles || []).forEach(function (u) {
+                    if (/^\/themes\/[a-z][a-z0-9-]{1,31}\/[\w-]{1,40}\/[^"'\s()\\]+$/.test(u) && u.indexOf('..') < 0) {
+                        add('sheet', '@import url("' + u + '") layer(theme);');
+                    }
+                });
+                document.documentElement.setAttribute('data-theme', th.id);
+                document.documentElement.setAttribute('data-color-scheme', scheme);
+            }
+        } catch (e) { /* Rainy's own look */ }
     </script>
     <style>
         /* Custom elements render their light-DOM children (e.g. an unsized modal icon <svg>)
@@ -1068,6 +1100,15 @@
                         <div class="settings-group-description" data-i18n>Customize the look and feel of Rainy.</div>
 
                         <div class="settings-card">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Interface Theme</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>A
+                                theme changes how all of Rainy looks, from the colours to where things are. Your pick
+                                follows you to every device. If a theme ever gets in your way, press Alt+Shift+D to see
+                                Rainy's own look in this tab.</div>
+                            <rainy-theme-picker id="settings-theme-picker"></rainy-theme-picker>
+                        </div>
+
+                        <div class="settings-card">
                             <div class="settings-row">
                                 <div class="settings-row-info">
                                     <div class="settings-row-label" data-i18n>Accent Color</div>
@@ -1109,14 +1150,24 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-row-info">
-                                    <div class="settings-row-label" data-i18n>Reset Theme</div>
-                                    <div class="settings-row-hint" data-i18n>Restore the default accent color</div>
+                                    <div class="settings-row-label" data-i18n>Reset Accent Color</div>
+                                    <div class="settings-row-hint" data-i18n>Go back to the accent color of your interface theme</div>
                                 </div>
                                 <div class="settings-row-control">
                                     <button class="btn btn-secondary btn-sm" id="reset-theme-btn" data-i18n>Reset to
                                         Default</button>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="settings-card sysadmin-only hidden">
+                            <div class="settings-group-title" style="margin-bottom: var(--spacing-xs);" data-i18n>Installed
+                                Themes</div>
+                            <div class="settings-group-description" style="margin-bottom: var(--spacing-md);" data-i18n>Besides
+                                Rainy's own look, you can install interface themes as packages for everyone on this server,
+                                and choose the one people get until they pick their own. A theme may run code in the
+                                browser of every user, so only install ones from authors you trust.</div>
+                            <rainy-theme-manager id="settings-theme-manager"></rainy-theme-manager>
                         </div>
                     </div>
                 </div>

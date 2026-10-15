@@ -3,7 +3,8 @@ import {
     ENVIRONMENTS, DEFAULT_ENVIRONMENT, environmentIds, environmentText, onEnvironmentsChange, unsupportedReason,
 } from "../lightshow/environments/index.js";
 import { useEnvironmentsService } from "../services/environments.js";
-import { a, Component, h, on, s, useRef } from "./index.js";
+import { a, Component, h, on, useRef } from "./index.js";
+import { formatSize, packagePicture } from "./packageUi.js";
 
 const FEATURE_NAMES = { webgl: 'WebGL', webgl2: 'WebGL 2', webgpu: 'WebGPU' };
 
@@ -23,15 +24,6 @@ function unsupportedText(id) {
     return t('Needs {feature}, which this device does not have', { feature: FEATURE_NAMES[reason] || reason });
 }
 
-/** What stands in for an environment's picture when its package has none. */
-const plateIcon = () => s.svg(a.viewBox('0 0 24 24'), a.fill('none'), a.stroke('currentColor'), a['stroke-width']('1.5'),
-    a['stroke-linejoin']('round'), a['aria-hidden']('true'),
-    s.path(a.d('M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z')),
-    s.path(a.d('M3.5 7 12 11.5 20.5 7M12 11.5v10')));
-
-const formatSize = (bytes) => (bytes >= 1024 * 1024
-    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 /**
  * Settings → Light Show: which environment the show runs in. One card per
@@ -60,16 +52,7 @@ export class EnvironmentPicker extends Component {
 
     /** An environment's picture: the preview its package brought, or a plain plate when it has none. */
     _picture(def) {
-        if (!def.preview) return h.div(a.class('settings-env-picture', 'is-blank'), plateIcon());
-        const img = h.img(a.src(def.preview), a.alt(''), a.loading('lazy'), a.decoding('async'));
-        const picture = h.div(a.class('settings-env-picture'), img);
-        // A picture that does not load leaves the plate, not a broken image.
-        img.addEventListener('error', () => {
-            img.remove();
-            picture.classList.add('is-blank');
-            picture.append(plateIcon());
-        }, { once: true });
-        return picture;
+        return packagePicture(def.preview);
     }
 
     _option(id) {
