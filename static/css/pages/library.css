@@ -531,3 +531,8 @@
     height: 18px;
     flex: none;
 }
+
+/* A playlist's cover in its head: there for UI themes, not shown in Rainy's own look. */
+.playlist-cover-art {
+    display: none;
+}

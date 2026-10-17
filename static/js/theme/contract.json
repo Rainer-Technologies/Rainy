@@ -299,6 +299,13 @@
       "static": true
     },
     {
+      "part": "playlist-cover",
+      "selector": "[data-part~=\"playlist-cover\"]",
+      "description": "A playlist's cover in its head: its picture (an img, hidden when the playlist has none). Rainy's own look does not show it; a theme may.",
+      "static": true,
+      "hideable": true
+    },
+    {
       "part": "view-title",
       "selector": "[data-part~=\"view-title\"]",
       "description": "The big title of the library and playlist views.",

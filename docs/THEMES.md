@@ -140,6 +140,7 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | `playlists` | The list of playlists in the sidebar. |
 | `main` | The scrolling area where every view is shown. |
 | `section-header` | The title row of the library and playlist views, with the grid/list toggle. |
+| `playlist-cover` | A playlist's cover in its head: its picture (an `img`, hidden when the playlist has none). Rainy's own look does not show it; a theme may. *May be hidden.* |
 | `button-label` | The words of a button that also has an icon and tells screen readers what it does (a playlist's or an album's Play). *May be hidden*, which leaves the icon. |
 | `shelf-title` | A shelf's title (built by the app; the same element as `.section-heading`). *May be hidden*, for a view whose only shelf needs none, like a playlist's. |
 | `view-title`, `view-subtitle` | The big title of the library and playlist views, and the line under it. *May be hidden.* Hide them by view (`html[data-view="library"]`): on a playlist the title is the playlist's name. |

@@ -21,6 +21,7 @@ import re
 import shutil
 import stat
 import tempfile
+import threading
 import zipfile
 
 from config import Config
@@ -179,6 +180,15 @@ def parse_manifest(raw, manifest_name):
         return json.loads(raw.decode('utf-8'))
     except (UnicodeDecodeError, ValueError) as e:
         raise PackageError(f'{manifest_name} is not valid JSON: {e}') from None
+
+
+_locks = {}
+_locks_guard = threading.Lock()
+
+
+def _unpack_lock(path):
+    with _locks_guard:
+        return _locks.setdefault(path, threading.Lock())
 
 
 # ------------------------------------------------------------------ kinds
@@ -368,12 +378,18 @@ class PackageKind:
         dest = self.cache_dir(pkg_id, digest)
         if os.path.isfile(os.path.join(dest, self.manifest_name)):
             return dest
-        data = load_package()
-        if not data:
-            return None
-        self.extract_package(bytes(data), dest)
-        self.prune_cache(pkg_id, keep=digest)
-        return dest
+        # A page asks for several files at once: only one request unpacks, the
+        # others wait for it (two unpacking at once would pull the folder from
+        # under each other's feet).
+        with _unpack_lock(dest):
+            if os.path.isfile(os.path.join(dest, self.manifest_name)):
+                return dest
+            data = load_package()
+            if not data:
+                return None
+            self.extract_package(bytes(data), dest)
+            self.prune_cache(pkg_id, keep=digest)
+            return dest
 
     def prune_cache(self, pkg_id, keep=None):
         """Drop the unpacked copies of a package (all but the revision in ``keep``)."""

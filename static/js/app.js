@@ -2841,6 +2841,7 @@ export class RainyApp {
 
         document.getElementById('playlist-menu-container').classList.remove('hidden');
         document.getElementById('playlist-actions')?.classList.toggle('hidden', !playlist.songs.length);
+        this.showPlaylistCover(playlist);
 
         this.songs = playlist.songs;
         this.filteredSongs = [...playlist.songs];
@@ -2935,6 +2936,7 @@ export class RainyApp {
         document.getElementById('library-stats').classList.add('hidden');
         document.getElementById('playlist-menu-container').classList.add('hidden');
         document.getElementById('playlist-actions')?.classList.add('hidden');
+        document.getElementById('playlist-cover-art')?.classList.add('hidden');
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
@@ -2983,6 +2985,7 @@ export class RainyApp {
         // Hide playlist settings menu
         document.getElementById('playlist-menu-container').classList.add('hidden');
         document.getElementById('playlist-actions')?.classList.add('hidden');
+        document.getElementById('playlist-cover-art')?.classList.add('hidden');
 
         // Show Stats
         document.getElementById('library-stats').classList.remove('hidden');
@@ -3029,6 +3032,7 @@ export class RainyApp {
         // Hide elements
         document.getElementById('playlist-menu-container').classList.add('hidden');
         document.getElementById('playlist-actions')?.classList.add('hidden');
+        document.getElementById('playlist-cover-art')?.classList.add('hidden');
         document.getElementById('library-stats').classList.add('hidden');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('songs-grid').classList.add('hidden');
@@ -4009,6 +4013,22 @@ export class RainyApp {
         else this.handleRoute().catch((error) => Logger.error('Could not redraw the view:', error));
     }
 
+    /** A playlist's cover in its head (for UI themes that show it): its picture, or none. */
+    showPlaylistCover(playlist) {
+        const box = document.getElementById('playlist-cover-art');
+        const img = document.getElementById('playlist-cover-img');
+        if (!box || !img) return;
+        box.classList.remove('hidden');
+        if (playlist.cover_path) {
+            img.src = `/api/music/cover/${encodeURIComponent(playlist.cover_path)}`;
+            img.hidden = false;
+            img.onerror = () => { img.hidden = true; };
+        } else {
+            img.removeAttribute('src');
+            img.hidden = true;
+        }
+    }
+
     /** The user picked an interface theme in Settings: wear it with its own accent, and remember it. */
     async pickInterfaceTheme(id) {
         this.applyAccent(null);
@@ -4921,6 +4941,7 @@ export class RainyApp {
         // Hide elements
         document.getElementById('playlist-menu-container').classList.add('hidden');
         document.getElementById('playlist-actions')?.classList.add('hidden');
+        document.getElementById('playlist-cover-art')?.classList.add('hidden');
         document.getElementById('library-stats').classList.add('hidden');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('songs-grid').classList.add('hidden');

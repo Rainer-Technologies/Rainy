@@ -433,6 +433,10 @@
                 aria-label="Close navigation" aria-hidden="true" data-i18n-attr="aria-label"></button>
             <main data-part="main" class="app-main" id="app-main">
                 <div data-part="section-header" class="section-header">
+                    <!-- A playlist's cover: shown by UI themes that want it (Rainy's own look does not). -->
+                    <div data-part="playlist-cover" class="playlist-cover-art hidden" id="playlist-cover-art" aria-hidden="true">
+                        <img id="playlist-cover-img" alt="" decoding="async" hidden>
+                    </div>
                     <div>
                         <div class="title-row">
                             <h1 data-part="view-title" class="section-title" data-i18n>Your Library</h1>

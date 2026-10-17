@@ -607,14 +607,23 @@ html[data-view="library"] [data-part~="section-header"] {
         text-align: center;
     }
 
-    html[data-view="playlist"] [data-part~="section-header"]::before {
-        content: "";
+    /* The playlist's own cover; with none, a tile in the song's colours. */
+    html[data-view="playlist"] [data-part~="playlist-cover"] {
+        display: block;
         width: 264px;
         height: 264px;
         border-radius: 8px;
+        overflow: hidden;
         background:
             url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'><path fill='white' fill-opacity='.9' d='M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z'/></svg>") center / 96px no-repeat,
             linear-gradient(135deg, rgb(var(--theme-ambient, 255 0 51) / 0.9), rgb(var(--theme-ambient, 255 0 51) / 0.35) 55%, #212121);
+    }
+
+    html[data-view="playlist"] [data-part~="playlist-cover"] img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
     html[data-view="playlist"] .title-row {

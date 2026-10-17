@@ -387,3 +387,23 @@ def test_a_theme_may_choose_its_full_player():
     assert packages.read_package(make_zip(MANIFEST))['fullscreen'] is None
     with pytest.raises(PackageError, match='"fullscreen" must be one of'):
         packages.read_package(make_zip({**MANIFEST, 'fullscreen': 'cinema'}))
+
+
+def test_files_asked_for_at_once_unpack_once(admin, anon_client):
+    """A page asks for all a theme's stylesheets at once; the first visit after a
+    wiped cache must serve every one of them."""
+    import shutil
+    import threading
+    theme = upload(admin, make_zip(files={**FILES, 'a.css': '.x{}', 'b.css': '.y{}', 'c.css': '.z{}'},
+                                   manifest={**MANIFEST, 'styles': ['style.css', 'a.css', 'b.css', 'c.css']})).get_json()['theme']
+    shutil.rmtree(packages.Config.THEMES_CACHE_DIR)
+    results = []
+
+    def get(url):
+        results.append(anon_client.application.test_client().get(url).status_code)
+    threads = [threading.Thread(target=get, args=(url,)) for url in theme['styles'] * 3]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert results and all(code == 200 for code in results), results
