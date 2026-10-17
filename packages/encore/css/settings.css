@@ -1,0 +1,79 @@
+/* Encore: Settings, as YouTube Music's settings dialog. On wide screens the
+   page becomes a dialog over a dimmed app: the categories on the left, the
+   options on the right as plain rows with red switches. */
+
+[data-part~="settings"] {
+    background: #212121;
+    font-family: Roboto, Arial, sans-serif;
+}
+
+[data-part~="settings-sidebar"] {
+    background: #212121;
+    border-right: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.settings-nav-item {
+    min-height: 48px;
+    border-radius: 0;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.settings-nav-item:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+.settings-nav-item.active {
+    background: rgb(255 255 255 / 0.2);
+    color: #fff;
+    border: none;
+}
+
+.settings-nav-item svg {
+    fill: #fff;
+}
+
+[data-part~="settings-main"] {
+    background: #212121;
+}
+
+.settings-card {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+}
+
+.settings-row {
+    padding: 16px 0;
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.settings-row-label {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 400;
+}
+
+.settings-row-hint {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+}
+
+@media (min-width: 900px) {
+    /* A dialog over the dimmed app. */
+    [data-part~="settings"] {
+        inset: 8vh max(24px, calc(50% - 480px));
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.7), 0 16px 48px rgb(0 0 0 / 0.6);
+    }
+
+    [data-part~="settings-sidebar"] {
+        width: 240px;
+        padding-top: 16px;
+    }
+}

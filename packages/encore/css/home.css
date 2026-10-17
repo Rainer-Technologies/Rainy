@@ -1,0 +1,495 @@
+/* Encore: the views, as YouTube Music draws them. Home has no big title,
+   only chips; shelves have big bold titles and covers with no box; "All
+   songs" becomes Quick picks (rows of small covers in columns that scroll
+   sideways); lists are 56px rows. */
+
+[data-part~="main"] {
+    padding: 24px clamp(16px, 4.5vw, 72px) 40px;
+    font-family: Roboto, Arial, sans-serif;
+}
+
+/* ---- Home: chips, no title ---------------------------------------------- */
+
+html[data-view="library"] [data-part~="view-title"],
+html[data-view="library"] [data-part~="view-subtitle"],
+[data-part~="library-stats"] {
+    display: none;
+}
+
+[data-part~="section-header"] {
+    margin-bottom: 24px;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+html[data-view="library"] [data-part~="section-header"] {
+    justify-content: flex-start;
+    margin-bottom: 8px;
+}
+
+.view-toggle {
+    gap: 12px;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+/* Playlist pages keep their title, as big as YouTube Music's. */
+[data-part~="view-title"] {
+    font-family: Roboto, Arial, sans-serif;
+    font-size: clamp(32px, 3.2vw, 45px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #fff;
+}
+
+[data-part~="view-subtitle"] {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 16px;
+}
+
+/* ---- Shelves ------------------------------------------------------------ */
+
+.library-section {
+    margin-top: 40px;
+}
+
+.library-section + .library-section {
+    margin-top: 56px;
+}
+
+.section-heading {
+    margin: 0 0 20px;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: clamp(28px, 2.6vw, 40px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    color: #fff;
+}
+
+.section-header-row {
+    align-items: flex-end;
+    margin-bottom: 20px;
+}
+
+.section-header-row .section-heading {
+    margin-bottom: 0;
+}
+
+/* The sort select, as YouTube Music's outlined "More" pill. */
+.section-sort {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 16px;
+    border: 1px solid rgb(255 255 255 / 0.2);
+    background: transparent;
+}
+
+.section-sort:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+#sort-select {
+    color: #fff;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.horizontal-scroll-content {
+    gap: 24px;
+    padding: 0 0 8px;
+}
+
+/* ---- Cards: the cover is the card --------------------------------------- */
+
+.song-card,
+.song-card-horizontal,
+.album-card,
+.mix-card,
+.artist-circle-card {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+}
+
+.song-card:hover,
+.song-card.playing,
+.song-card-horizontal:hover,
+.song-card-horizontal.playing,
+.album-card:hover,
+.mix-card:hover,
+.artist-circle-card:hover {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    transform: none;
+}
+
+.song-card-horizontal {
+    width: 200px;
+}
+
+.song-artwork,
+.album-card-cover {
+    border-radius: 4px;
+    overflow: hidden;
+    background: #212121;
+}
+
+.song-artwork-overlay {
+    background: linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 40%, transparent 60%, rgb(0 0 0 / 0.5));
+}
+
+.play-btn-overlay {
+    width: 48px;
+    height: 48px;
+    background: rgb(0 0 0 / 0.6);
+    box-shadow: none;
+    transform: scale(1);
+}
+
+.play-btn-overlay svg {
+    width: 32px;
+    height: 32px;
+    fill: #fff;
+}
+
+.song-menu-btn {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+}
+
+.song-menu-btn:hover {
+    background: rgb(255 255 255 / 0.1);
+    transform: none;
+}
+
+.song-menu-btn svg {
+    fill: #fff;
+}
+
+.song-info {
+    padding: 8px 0 0;
+}
+
+.song-title {
+    color: #fff;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.song-artist,
+.song-duration {
+    color: rgb(255 255 255 / 0.7);
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.song-card.playing .song-title,
+.song-card-horizontal.playing .song-title {
+    color: #fff;
+}
+
+/* ---- Quick picks: "All songs" as rows of small covers, in columns ------- */
+
+@media (min-width: 900px) {
+    .songs-grid-section {
+        display: grid;
+        grid-template-rows: repeat(4, 56px);
+        grid-template-columns: none;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(320px, 400px);
+        gap: 4px 24px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-bottom: 8px;
+    }
+
+    .songs-grid-section .song-card {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) 40px;
+        align-items: center;
+        column-gap: 16px;
+        height: 56px;
+        padding: 0 4px 0 0;
+        border-radius: 4px;
+    }
+
+    .songs-grid-section .song-card:hover {
+        background: rgb(255 255 255 / 0.1);
+    }
+
+    .songs-grid-section .song-artwork {
+        grid-column: 1;
+        grid-row: 1;
+        width: 48px;
+        height: 48px;
+        aspect-ratio: 1;
+        border-radius: 2px;
+    }
+
+    .songs-grid-section .play-btn-overlay {
+        width: 48px;
+        height: 48px;
+        background: rgb(0 0 0 / 0.5);
+        border-radius: 2px;
+    }
+
+    .songs-grid-section .play-btn-overlay svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .songs-grid-section .song-info {
+        grid-column: 2;
+        grid-row: 1;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        column-gap: 4px;
+        padding: 0;
+        min-width: 0;
+    }
+
+    .songs-grid-section .song-title {
+        grid-column: 1 / -1;
+        font-size: 16px;
+    }
+
+    .songs-grid-section .song-artist {
+        grid-column: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .songs-grid-section .song-duration::before {
+        content: "• ";
+    }
+
+    .songs-grid-section .song-menu-btn {
+        grid-column: 3;
+        grid-row: 1;
+        position: static;
+        justify-self: center;
+    }
+}
+
+/* ---- Lists: 56px rows --------------------------------------------------- */
+
+.songs-list,
+.artist-tracks-list,
+.album-detail-tracks,
+.recent-content {
+    font-family: Roboto, Arial, sans-serif;
+}
+
+.song-row,
+.album-track-row,
+.artist-track-row,
+.recent-song-row,
+.discover-item,
+.friend-row {
+    min-height: 56px;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+    background: transparent;
+}
+
+.song-row:hover,
+.album-track-row:hover,
+.artist-track-row:hover,
+.recent-song-row:hover,
+.discover-item:hover,
+.friend-row:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+.song-row-title,
+.recent-song-title,
+.discover-item-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.song-row-artist,
+.song-row-album,
+.song-row-duration,
+.discover-item-artist-album {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+}
+
+.song-row-artwork,
+.recent-song-cover,
+.discover-item-cover {
+    border-radius: 2px;
+}
+
+/* ---- Albums and artists ------------------------------------------------- */
+
+.album-card-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.album-card-artist,
+.album-card-meta {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+}
+
+.artist-circle-card {
+    text-align: center;
+}
+
+.album-detail-hero,
+.artist-hero {
+    font-family: Roboto, Arial, sans-serif;
+}
+
+.album-detail-hero h1,
+.album-detail-hero h2,
+.artist-hero h1 {
+    font-size: clamp(32px, 3.2vw, 45px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* ---- Smart Mix ---------------------------------------------------------- */
+
+.mix-hero,
+.mix-detail-head {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.mix-card-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.mix-card-sub {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+}
+
+.mix-nav .icon-btn-small {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgb(255 255 255 / 0.2);
+    background: transparent;
+}
+
+/* ---- An album's page ---------------------------------------------------- */
+
+.album-detail-cover {
+    width: 264px;
+    height: 264px;
+    border-radius: 4px;
+    box-shadow: none;
+}
+
+.album-detail-type {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.album-detail-title {
+    font-size: clamp(32px, 3.2vw, 45px);
+    font-weight: 700;
+}
+
+.album-detail-artist {
+    color: #fff;
+    font-size: 16px;
+}
+
+.album-detail-meta {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+}
+
+/* "Play": a white pill with a black play icon. */
+.album-play-btn,
+#artist-play-all-btn {
+    height: 36px;
+    padding: 0 16px 0 10px;
+    gap: 6px;
+    border-radius: 18px;
+    background: #fff;
+    color: #030303;
+    border: none;
+    box-shadow: none;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.album-play-btn:hover,
+#artist-play-all-btn:hover {
+    background: rgb(255 255 255 / 0.85);
+    transform: none;
+    box-shadow: none;
+}
+
+.album-play-btn svg,
+#artist-play-all-btn svg {
+    fill: #030303;
+}
+
+.album-back-btn,
+#artist-back-btn {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
+    background: none;
+    border: none;
+}
+
+.album-back-btn:hover {
+    color: #fff;
+}
+
+/* The library's own search and sort, as YouTube Music's field and pill. */
+.albums-search-wrapper,
+.artists-search-wrapper {
+    border-radius: 8px;
+    background: rgb(255 255 255 / 0.1);
+    border: 1px solid transparent;
+}
+
+.albums-search-input,
+.artists-search-input {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+}
+
+.albums-sort-select {
+    height: 32px;
+    padding: 0 28px 0 12px;
+    border-radius: 16px;
+    border: 1px solid rgb(255 255 255 / 0.2);
+    background-color: transparent;
+    color: #fff;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+}
