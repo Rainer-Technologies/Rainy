@@ -140,6 +140,13 @@
       "static": true
     },
     {
+      "part": "splash-logo",
+      "selector": "[data-part~=\"splash-logo\"]",
+      "description": "The logo on the boot splash (the wordmark .rs-word shows instead in No Anime mode).",
+      "static": true,
+      "hideable": true
+    },
+    {
       "part": "setup",
       "selector": "[data-part~=\"setup\"]",
       "description": "The first-run setup screen.",
@@ -202,6 +209,20 @@
       "static": true
     },
     {
+      "part": "user-name",
+      "selector": "[data-part~=\"user-name\"]",
+      "description": "The user's name beside the avatar, in the top bar.",
+      "static": true,
+      "hideable": true
+    },
+    {
+      "part": "user-menu-arrow",
+      "selector": "[data-part~=\"user-menu-arrow\"]",
+      "description": "The little chevron of the account menu trigger.",
+      "static": true,
+      "hideable": true
+    },
+    {
       "part": "user-menu-trigger",
       "selector": "[data-part~=\"user-menu-trigger\"]",
       "description": "The avatar and name that open the account menu.",
@@ -253,6 +274,13 @@
       "static": true
     },
     {
+      "part": "nav-title",
+      "selector": "[data-part~=\"nav-title\"]",
+      "description": "The title of a group of the navigation, where it is only a title (Library, Playlists).",
+      "static": true,
+      "hideable": true
+    },
+    {
       "part": "playlists",
       "selector": "[data-part~=\"playlists\"]",
       "description": "The list of playlists in the sidebar.",
@@ -269,6 +297,20 @@
       "selector": "[data-part~=\"section-header\"]",
       "description": "The title row of the library and playlist views, with the grid/list toggle.",
       "static": true
+    },
+    {
+      "part": "view-title",
+      "selector": "[data-part~=\"view-title\"]",
+      "description": "The big title of the library and playlist views.",
+      "static": true,
+      "hideable": true
+    },
+    {
+      "part": "view-subtitle",
+      "selector": "[data-part~=\"view-subtitle\"]",
+      "description": "The line under that title.",
+      "static": true,
+      "hideable": true
     },
     {
       "part": "library-stats",
@@ -391,6 +433,13 @@
       "selector": "[data-part~=\"volume\"]",
       "description": "The volume control.",
       "static": true
+    },
+    {
+      "part": "volume-readout",
+      "selector": "[data-part~=\"volume-readout\"]",
+      "description": "The volume as a number, beside the slider.",
+      "static": true,
+      "hideable": true
     },
     {
       "part": "player-menu",
@@ -698,7 +747,7 @@
       "description": "An entry of a menu."
     },
     {
-      "part": "view-title",
+      "part": "section-title",
       "selector": ".section-title",
       "sources": [
         "static/index.html"
@@ -929,6 +978,574 @@
         "static/index.html"
       ],
       "description": "The album art in the full player."
+    },
+    {
+      "part": "new-playlist-button",
+      "selector": "#sidebar-new-playlist",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "New playlist, beside the Playlists title of the navigation."
+    },
+    {
+      "part": "search-input",
+      "selector": "#search-input",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The search field in the top bar."
+    },
+    {
+      "part": "user-avatar",
+      "selector": "#user-avatar",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The user's initial in a circle, in the top bar."
+    },
+    {
+      "part": "volume-slider",
+      "selector": "#volume-slider",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The volume slider of the player bar."
+    },
+    {
+      "part": "album-hero",
+      "selector": ".album-detail-hero",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The head of an album's page: cover, title, details, buttons."
+    },
+    {
+      "part": "artist-hero",
+      "selector": ".artist-hero",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The head of an artist's page."
+    },
+    {
+      "part": "fs-queue-item",
+      "selector": ".fs-queue-item",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "A song in the full player's queue (.active is the one playing)."
+    },
+    {
+      "part": "settings-nav-item",
+      "selector": ".settings-nav-item",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "An entry of the Settings navigation (.active when open)."
+    },
+    {
+      "part": "sidebar-toggle",
+      "selector": "#sidebar-toggle",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The button that opens or folds the navigation."
+    },
+    {
+      "part": "header-icon-btn",
+      "selector": ".header-icon-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A round icon button of the top bar (navigation, shortcuts)."
+    },
+    {
+      "part": "dropdown-item",
+      "selector": ".dropdown-item",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "An entry of the account menu."
+    },
+    {
+      "part": "nav-more-toggle",
+      "selector": ".nav-more-toggle",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The \"More\" row of the navigation, which opens Recently played, Smart Mix, Discover and Friends."
+    },
+    {
+      "part": "nav-browse-toggle",
+      "selector": "#nav-browse-toggle",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The title of the Browse group of the navigation, which folds it."
+    },
+    {
+      "part": "nav-header-row",
+      "selector": ".nav-header-row",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The title row of the Playlists group, with the New playlist button."
+    },
+    {
+      "part": "view-switch",
+      "selector": ".view-toggle",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The grid/list switch of a view (its buttons are .view-toggle-btn)."
+    },
+    {
+      "part": "songs-list",
+      "selector": ".songs-list",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The library's songs as a list."
+    },
+    {
+      "part": "section-header-row",
+      "selector": ".section-header-row",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The title row of a shelf that has a control beside its title (the sort)."
+    },
+    {
+      "part": "section-sort",
+      "selector": ".section-sort",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The sort control of the All songs shelf."
+    },
+    {
+      "part": "sort-select",
+      "selector": "#sort-select",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The sort select of the All songs shelf."
+    },
+    {
+      "part": "songs-grid-section",
+      "selector": ".songs-grid-section",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "The cards of the All songs shelf, in a grid."
+    },
+    {
+      "part": "song-artwork-overlay",
+      "selector": ".song-artwork-overlay",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "What darkens a song card's cover on hover, under its play button."
+    },
+    {
+      "part": "song-menu-btn",
+      "selector": ".song-menu-btn",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song card's or row's menu button (three dots)."
+    },
+    {
+      "part": "song-duration",
+      "selector": ".song-duration",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's length in a card."
+    },
+    {
+      "part": "song-row-artwork",
+      "selector": ".song-row-artwork",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's cover in a list row."
+    },
+    {
+      "part": "song-row-title",
+      "selector": ".song-row-title",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's title in a list row."
+    },
+    {
+      "part": "song-row-artist",
+      "selector": ".song-row-artist",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's artists in a list row."
+    },
+    {
+      "part": "song-row-album",
+      "selector": ".song-row-album",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's album in a list row."
+    },
+    {
+      "part": "song-row-duration",
+      "selector": ".song-row-duration",
+      "sources": [
+        "static/js/modules/library.js"
+      ],
+      "description": "A song's length in a list row."
+    },
+    {
+      "part": "album-card-title",
+      "selector": ".album-card-title",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "An album's title in its card."
+    },
+    {
+      "part": "album-card-artist",
+      "selector": ".album-card-artist",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "An album's artists in its card."
+    },
+    {
+      "part": "album-card-meta",
+      "selector": ".album-card-meta",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "An album's song count and length in its card."
+    },
+    {
+      "part": "album-back-btn",
+      "selector": ".album-back-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Back to the list, on an album or mix page."
+    },
+    {
+      "part": "album-detail-cover",
+      "selector": ".album-detail-cover",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "The cover on an album's page."
+    },
+    {
+      "part": "album-detail-type",
+      "selector": ".album-detail-type",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "The kind of page (\"Album\"), above its title."
+    },
+    {
+      "part": "album-detail-title",
+      "selector": ".album-detail-title",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "The title on an album's page."
+    },
+    {
+      "part": "album-detail-artist",
+      "selector": ".album-detail-artist",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "The artists on an album's page."
+    },
+    {
+      "part": "album-detail-meta",
+      "selector": ".album-detail-meta",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "The year, song count and length on an album's page."
+    },
+    {
+      "part": "album-detail-tracks",
+      "selector": ".album-detail-tracks",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The songs of an album's page."
+    },
+    {
+      "part": "album-play-btn",
+      "selector": ".album-play-btn",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "Play, on an album's or mix's page."
+    },
+    {
+      "part": "albums-search-wrapper",
+      "selector": ".albums-search-wrapper",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The search box of the Albums view (.albums-search-input inside)."
+    },
+    {
+      "part": "albums-search-input",
+      "selector": ".albums-search-input",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The search field of the Albums view."
+    },
+    {
+      "part": "albums-sort-select",
+      "selector": ".albums-sort-select",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The sort select of the Albums view."
+    },
+    {
+      "part": "artists-search-wrapper",
+      "selector": ".artists-search-wrapper",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The search box of the Artists view (.artists-search-input inside)."
+    },
+    {
+      "part": "artists-search-input",
+      "selector": ".artists-search-input",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The search field of the Artists view."
+    },
+    {
+      "part": "artist-back-btn",
+      "selector": "#artist-back-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Back to the artists, on an artist's page."
+    },
+    {
+      "part": "artist-play-all-btn",
+      "selector": "#artist-play-all-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Play all, on an artist's page."
+    },
+    {
+      "part": "artist-tracks-list",
+      "selector": ".artist-tracks-list",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The songs of an artist's page."
+    },
+    {
+      "part": "recent-content",
+      "selector": ".recent-content",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The content of the Recently played view."
+    },
+    {
+      "part": "recent-song-cover",
+      "selector": ".recent-song-cover",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A cover in a Recently played row."
+    },
+    {
+      "part": "recent-song-title",
+      "selector": ".recent-song-title",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A title in a Recently played row."
+    },
+    {
+      "part": "discover-item-cover",
+      "selector": ".discover-item-cover",
+      "sources": [
+        "static/js/app.js"
+      ],
+      "description": "A cover in a Discover result."
+    },
+    {
+      "part": "discover-item-title",
+      "selector": ".discover-item-title",
+      "sources": [
+        "static/js/app.js"
+      ],
+      "description": "A title in a Discover result."
+    },
+    {
+      "part": "discover-item-artist-album",
+      "selector": ".discover-item-artist-album",
+      "sources": [
+        "static/js/app.js"
+      ],
+      "description": "The artist and album in a Discover result."
+    },
+    {
+      "part": "mix-hero",
+      "selector": ".mix-hero",
+      "sources": [
+        "static/js/modules/mixes.js"
+      ],
+      "description": "The big mix at the top of Smart Mix."
+    },
+    {
+      "part": "mix-detail-head",
+      "selector": ".mix-detail-head",
+      "sources": [
+        "static/js/modules/mixes.js"
+      ],
+      "description": "The head of a mix's page."
+    },
+    {
+      "part": "mix-card-title",
+      "selector": ".mix-card-title",
+      "sources": [
+        "static/js/modules/mixes.js"
+      ],
+      "description": "A mix's name in its card."
+    },
+    {
+      "part": "mix-card-sub",
+      "selector": ".mix-card-sub",
+      "sources": [
+        "static/js/modules/mixes.js"
+      ],
+      "description": "A mix's line under its name."
+    },
+    {
+      "part": "mix-nav",
+      "selector": ".mix-nav",
+      "sources": [
+        "static/js/modules/mixes.js"
+      ],
+      "description": "The arrows that scroll a row of mixes."
+    },
+    {
+      "part": "now-playing-title",
+      "selector": "#now-playing-title",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The title of the song playing, in the player bar."
+    },
+    {
+      "part": "now-playing-artist",
+      "selector": "#now-playing-artist",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The artist of the song playing, in the player bar."
+    },
+    {
+      "part": "fs-backdrop",
+      "selector": ".fs-backdrop",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The full player's background (the blurred album art)."
+    },
+    {
+      "part": "fs-brand",
+      "selector": ".fs-brand",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The Rainy mark at the top left of the full player."
+    },
+    {
+      "part": "fs-title",
+      "selector": ".fs-title",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The song's title in the full player."
+    },
+    {
+      "part": "fs-artist",
+      "selector": ".fs-artist",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The song's artist in the full player."
+    },
+    {
+      "part": "fs-side-tabs",
+      "selector": ".fs-side-tabs",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The tabs of the full player's side panel."
+    },
+    {
+      "part": "fs-control-btn",
+      "selector": ".fs-control-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A button of the full player's own controls (.play-pause is the big one)."
+    },
+    {
+      "part": "fs-progress-fill",
+      "selector": ".fs-progress-fill",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The played part of the full player's progress bar."
+    },
+    {
+      "part": "modal-overlay",
+      "selector": ".modal-overlay",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The dimmed backdrop of a dialog (it holds .modal-content)."
+    },
+    {
+      "part": "settings-row-label",
+      "selector": ".settings-row-label",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A setting's name."
+    },
+    {
+      "part": "settings-row-hint",
+      "selector": ".settings-row-hint",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The line under a setting's name."
+    },
+    {
+      "part": "toggle-slider",
+      "selector": ".toggle-slider",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The track and knob of a .toggle-switch."
     }
   ],
   "stateClasses": [
@@ -944,5 +1561,363 @@
     "error",
     "info",
     "warning"
+  ],
+  "icons": [
+    {
+      "name": "add",
+      "description": "Add, new (a plus)"
+    },
+    {
+      "name": "album",
+      "description": "An album"
+    },
+    {
+      "name": "arrow-back",
+      "description": "Go back"
+    },
+    {
+      "name": "arrow-forward",
+      "description": "Go on, submit"
+    },
+    {
+      "name": "auto-awesome",
+      "description": "Automatic, magic (sparkles)"
+    },
+    {
+      "name": "autorenew",
+      "description": "Jobs running again"
+    },
+    {
+      "name": "bolt",
+      "description": "Energy"
+    },
+    {
+      "name": "bookmark",
+      "description": "Saved"
+    },
+    {
+      "name": "build",
+      "description": "Maintenance (a wrench)"
+    },
+    {
+      "name": "cast",
+      "description": "Cast to a device, Rainy Connect"
+    },
+    {
+      "name": "check",
+      "description": "Done"
+    },
+    {
+      "name": "check-circle",
+      "description": "Success"
+    },
+    {
+      "name": "chevron-left",
+      "description": "Scroll back"
+    },
+    {
+      "name": "chevron-right",
+      "description": "Scroll on, open"
+    },
+    {
+      "name": "close",
+      "description": "Close, cancel"
+    },
+    {
+      "name": "cloud-download",
+      "description": "Download from the internet"
+    },
+    {
+      "name": "crossfade",
+      "description": "Crossfade"
+    },
+    {
+      "name": "delete",
+      "description": "Delete"
+    },
+    {
+      "name": "description",
+      "description": "A file (export)"
+    },
+    {
+      "name": "disc",
+      "description": "A disc"
+    },
+    {
+      "name": "drag-indicator",
+      "description": "Drag to reorder"
+    },
+    {
+      "name": "edit",
+      "description": "Edit, rename"
+    },
+    {
+      "name": "equalizer",
+      "description": "Equalizer"
+    },
+    {
+      "name": "error",
+      "description": "Error"
+    },
+    {
+      "name": "exit",
+      "description": "Leave"
+    },
+    {
+      "name": "expand-more",
+      "description": "Open a list or menu (a chevron down)"
+    },
+    {
+      "name": "explore",
+      "description": "Discover, explore"
+    },
+    {
+      "name": "fire",
+      "description": "Hot"
+    },
+    {
+      "name": "graphic-eq",
+      "description": "Light show"
+    },
+    {
+      "name": "grid-view",
+      "description": "Grid view"
+    },
+    {
+      "name": "group",
+      "description": "Friends, users, sharing"
+    },
+    {
+      "name": "guitar",
+      "description": "Instrumental"
+    },
+    {
+      "name": "headphones",
+      "description": "Listening"
+    },
+    {
+      "name": "heart",
+      "description": "Loved"
+    },
+    {
+      "name": "help",
+      "description": "Help"
+    },
+    {
+      "name": "history",
+      "description": "Recently played"
+    },
+    {
+      "name": "image",
+      "description": "A picture, cover"
+    },
+    {
+      "name": "import",
+      "description": "Import"
+    },
+    {
+      "name": "info",
+      "description": "About, information"
+    },
+    {
+      "name": "key",
+      "description": "Password"
+    },
+    {
+      "name": "keyboard",
+      "description": "Keyboard shortcuts"
+    },
+    {
+      "name": "library-music",
+      "description": "The library"
+    },
+    {
+      "name": "list-view",
+      "description": "List view"
+    },
+    {
+      "name": "logout",
+      "description": "Sign out"
+    },
+    {
+      "name": "lyrics",
+      "description": "Lyrics"
+    },
+    {
+      "name": "menu",
+      "description": "Open the navigation (three lines)"
+    },
+    {
+      "name": "monitor",
+      "description": "A computer"
+    },
+    {
+      "name": "moon",
+      "description": "Night, sleep"
+    },
+    {
+      "name": "more-horiz",
+      "description": "More (three dots in a row)"
+    },
+    {
+      "name": "more-vert",
+      "description": "More actions (three dots in a column)"
+    },
+    {
+      "name": "music-note",
+      "description": "A song, music, no cover"
+    },
+    {
+      "name": "palette",
+      "description": "Colour, appearance"
+    },
+    {
+      "name": "pause",
+      "description": "Pause"
+    },
+    {
+      "name": "person",
+      "description": "An artist, a user"
+    },
+    {
+      "name": "phone",
+      "description": "A phone"
+    },
+    {
+      "name": "play",
+      "description": "Play"
+    },
+    {
+      "name": "play-circle",
+      "description": "Play (in a circle)"
+    },
+    {
+      "name": "playlist-add",
+      "description": "Add to a playlist"
+    },
+    {
+      "name": "playlist-play",
+      "description": "Play a playlist"
+    },
+    {
+      "name": "queue-music",
+      "description": "The queue"
+    },
+    {
+      "name": "queue-play-next",
+      "description": "Play next"
+    },
+    {
+      "name": "radio",
+      "description": "Radio"
+    },
+    {
+      "name": "refresh",
+      "description": "Refresh, scan"
+    },
+    {
+      "name": "remove",
+      "description": "Remove (a minus)"
+    },
+    {
+      "name": "repeat",
+      "description": "Repeat"
+    },
+    {
+      "name": "save",
+      "description": "Save"
+    },
+    {
+      "name": "save-alt",
+      "description": "Keep, download to the device"
+    },
+    {
+      "name": "schedule",
+      "description": "Time, schedule"
+    },
+    {
+      "name": "search",
+      "description": "Search"
+    },
+    {
+      "name": "settings",
+      "description": "Settings"
+    },
+    {
+      "name": "share",
+      "description": "Share"
+    },
+    {
+      "name": "shield",
+      "description": "Role, permissions"
+    },
+    {
+      "name": "shuffle",
+      "description": "Shuffle, mix"
+    },
+    {
+      "name": "skip-next",
+      "description": "Next track"
+    },
+    {
+      "name": "skip-previous",
+      "description": "Previous track"
+    },
+    {
+      "name": "sort",
+      "description": "Sort"
+    },
+    {
+      "name": "speed",
+      "description": "Playback speed"
+    },
+    {
+      "name": "spinner",
+      "description": "Loading (drawn as an arc)"
+    },
+    {
+      "name": "spotify",
+      "description": "Spotify"
+    },
+    {
+      "name": "star",
+      "description": "Favourite"
+    },
+    {
+      "name": "sun",
+      "description": "Day"
+    },
+    {
+      "name": "sync",
+      "description": "Sync"
+    },
+    {
+      "name": "thumb-down",
+      "description": "Dislike"
+    },
+    {
+      "name": "thumb-up",
+      "description": "Like"
+    },
+    {
+      "name": "timer",
+      "description": "Sleep timer"
+    },
+    {
+      "name": "tune",
+      "description": "Options, adjust"
+    },
+    {
+      "name": "upload",
+      "description": "Upload"
+    },
+    {
+      "name": "volume-up",
+      "description": "Volume"
+    },
+    {
+      "name": "yt",
+      "description": "YouTube"
+    }
   ]
 }

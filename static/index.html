@@ -68,50 +68,54 @@
         } catch (e) { /* Rainy's own look */ }
     </script>
     <style>
-        /* Custom elements render their light-DOM children (e.g. an unsized modal icon <svg>)
+        /* Custom elements render their light-DOM children (e.g. an unsized modal icon <svg data-icon="expand-more">)
            at full size until their class is registered; keep them out of sight until then. */
         rainy-modal:not(:defined), rainy-metadata-modal:not(:defined), rainy-lyrics-modal:not(:defined),
         rainy-song-settings-modal:not(:defined), rainy-new-playlist-modal:not(:defined),
         rainy-connect-modal:not(:defined), rainy-add-music-modal:not(:defined),
         rainy-song-context-menu:not(:defined) { display: none; }
 
-        #rainy-splash {
-            position: fixed; inset: 0; z-index: 2147483000;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: var(--bg-primary, #0d0d0d); transition: opacity .35s ease, visibility .35s;
-        }
+        /* Its state stays out of any layer, so no theme can keep the splash up. */
         #rainy-splash.rs-out { opacity: 0; visibility: hidden; pointer-events: none; }
         .rs-skip #rainy-splash { display: none; }
-        #rainy-splash img {
-            display: block; width: 88px; height: 88px; border-radius: 20px; object-fit: cover;
-            animation: rs-fade .5s ease both;
-        }
-        #rainy-splash .rs-line {
-            position: relative; width: 88px; height: 2px; margin-top: 24px; overflow: hidden;
-            border-radius: 2px; background: color-mix(in srgb, var(--accent-primary, #3d7dc4) 20%, transparent);
-        }
-        #rainy-splash .rs-line::after {
-            content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 38%;
-            border-radius: inherit; background: var(--accent-primary, #3d7dc4);
-            animation: rs-slide 1.5s cubic-bezier(.65, 0, .35, 1) infinite;
-        }
-        #rainy-splash .rs-word {
-            display: none; font: 700 44px/1.1 var(--font-family-display, var(--font-family, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif));
-            letter-spacing: -0.02em;
-            background: linear-gradient(135deg, var(--text-primary, #fff) 0%, var(--accent-primary, #3d7dc4) 50%, color-mix(in srgb, var(--accent-primary, #3d7dc4) 45%, var(--text-primary, #fff)) 100%);
-            background-size: 200% 200%; -webkit-background-clip: text; background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: rs-fade .5s ease both, rs-shift 3s ease infinite;
-        }
-        .no-anime #rainy-splash img { display: none; }
-        .no-anime #rainy-splash .rs-word { display: block; }
-        .no-anime #rainy-splash .rs-line { width: 120px; }
-        @keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes rs-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
-        @keyframes rs-slide { from { transform: translateX(-100%); } to { transform: translateX(263%); } }
-        @media (prefers-reduced-motion: reduce) {
-            #rainy-splash *, #rainy-splash *::after { animation: none !important; }
-            #rainy-splash .rs-line::after { left: 31%; }
+        /* Its looks are in Rainy's layer, so a UI theme can restyle the splash too. */
+        @layer rainy {
+            #rainy-splash {
+                position: fixed; inset: 0; z-index: 2147483000;
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                background: var(--bg-primary, #0d0d0d); transition: opacity .35s ease, visibility .35s;
+            }
+            #rainy-splash img {
+                display: block; width: 88px; height: 88px; border-radius: 20px; object-fit: cover;
+                animation: rs-fade .5s ease both;
+            }
+            #rainy-splash .rs-line {
+                position: relative; width: 88px; height: 2px; margin-top: 24px; overflow: hidden;
+                border-radius: 2px; background: color-mix(in srgb, var(--accent-primary, #3d7dc4) 20%, transparent);
+            }
+            #rainy-splash .rs-line::after {
+                content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 38%;
+                border-radius: inherit; background: var(--accent-primary, #3d7dc4);
+                animation: rs-slide 1.5s cubic-bezier(.65, 0, .35, 1) infinite;
+            }
+            #rainy-splash .rs-word {
+                display: none; font: 700 44px/1.1 var(--font-family-display, var(--font-family, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif));
+                letter-spacing: -0.02em;
+                background: linear-gradient(135deg, var(--text-primary, #fff) 0%, var(--accent-primary, #3d7dc4) 50%, color-mix(in srgb, var(--accent-primary, #3d7dc4) 45%, var(--text-primary, #fff)) 100%);
+                background-size: 200% 200%; -webkit-background-clip: text; background-clip: text;
+                -webkit-text-fill-color: transparent;
+                animation: rs-fade .5s ease both, rs-shift 3s ease infinite;
+            }
+            .no-anime #rainy-splash img { display: none; }
+            .no-anime #rainy-splash .rs-word { display: block; }
+            .no-anime #rainy-splash .rs-line { width: 120px; }
+            @keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes rs-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+            @keyframes rs-slide { from { transform: translateX(-100%); } to { transform: translateX(263%); } }
+            @media (prefers-reduced-motion: reduce) {
+                #rainy-splash *, #rainy-splash *::after { animation: none !important; }
+                #rainy-splash .rs-line::after { left: 31%; }
+            }
         }
     </style>
 
@@ -142,7 +146,7 @@
 <body>
     <!-- Boot splash: removed by the script at the end of <body> once the app is ready -->
     <div data-part="splash" id="rainy-splash" role="status" aria-live="polite" aria-label="Loading Rainy" data-i18n-attr="aria-label">
-        <img src="/icons/icon-192.png" alt="" width="88" height="88" decoding="async" fetchpriority="high">
+        <img data-part="splash-logo" src="/icons/icon-192.png" alt="" width="88" height="88" decoding="async" fetchpriority="high">
         <span class="rs-word" aria-hidden="true">Rainy</span>
         <div class="rs-line" aria-hidden="true"></div>
     </div>
@@ -167,7 +171,7 @@
                         <label class="form-label" for="setup-language" data-i18n>Language</label>
                         <div class="select-wrapper">
                             <select id="setup-language" class="form-input"></select>
-                            <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="expand-more" class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
                         </div>
@@ -213,7 +217,7 @@
 
                     <button type="submit" class="btn btn-primary" id="setup-submit">
                         <span data-i18n>Complete Setup</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="arrow-forward" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                         </svg>
                     </button>
@@ -251,7 +255,7 @@
 
                     <button type="submit" class="btn btn-primary" id="login-submit">
                         <span data-i18n>Sign In</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="arrow-forward" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                         </svg>
                     </button>
@@ -268,7 +272,7 @@
             <div data-part="header-start" class="header-left">
                 <div class="header-toggle-wrapper">
                     <button class="sidebar-toggle header-icon-btn" id="sidebar-toggle" type="button" title="Toggle navigation" aria-label="Toggle navigation" aria-expanded="true" data-i18n-attr="title aria-label">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="menu" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
                         </svg>
                     </button>
@@ -284,7 +288,7 @@
             <!-- Right section - actions -->
             <div data-part="header-actions" class="header-actions">
                 <div data-part="search" class="header-search">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <svg data-icon="search" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
                             d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                     </svg>
@@ -293,7 +297,7 @@
 
                 <button type="button" class="header-icon-btn shortcuts-btn" id="shortcuts-btn"
                     title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" data-i18n-attr="title aria-label">
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg data-icon="keyboard" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path
                             d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" />
                     </svg>
@@ -302,14 +306,14 @@
                     <div data-part="user-menu-trigger theme-escape" class="user-menu-trigger" id="user-menu-trigger" role="button" tabindex="0"
                         aria-label="Open account menu" aria-expanded="false" data-i18n-attr="aria-label">
                         <div class="user-avatar" id="user-avatar">U</div>
-                        <span class="user-name" id="user-name">User</span>
-                        <svg class="user-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <span data-part="user-name" class="user-name" id="user-name">User</span>
+                        <svg data-icon="expand-more" data-part="user-menu-arrow" class="user-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M7 10l5 5 5-5z" />
                         </svg>
                     </div>
                     <div data-part="user-dropdown" class="user-dropdown hidden" id="user-dropdown">
                         <button type="button" class="dropdown-item" id="menu-add-music">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="music-note" viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zM10 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
                             </svg>
@@ -317,7 +321,7 @@
                         </button>
                         <div class="dropdown-divider"></div>
                         <button data-part="menu-settings theme-escape" type="button" class="dropdown-item" id="menu-settings">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="settings" viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                             </svg>
@@ -325,7 +329,7 @@
                         </button>
                         <div class="dropdown-divider"></div>
                         <button type="button" class="dropdown-item logout" id="menu-logout">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="logout" viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
                             </svg>
@@ -341,9 +345,9 @@
             <aside data-part="sidebar" class="app-sidebar" aria-label="Main navigation" data-i18n-attr="aria-label">
                 <nav data-part="nav" class="sidebar-nav">
                     <div class="nav-section" data-part="nav-section">
-                        <h3 class="nav-header" data-i18n>Library</h3>
+                        <h3 data-part="nav-title" class="nav-header" data-i18n>Library</h3>
                         <a href="/library" class="nav-item active" id="nav-library">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="library-music" viewBox="0 0 24 24" fill="currentColor">
                                 <path
                                     d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 16h8V4h-2v6l-2.5-1.5L11 10V4h-1v12z" />
                             </svg>
@@ -352,31 +356,31 @@
                         <button class="nav-more-toggle" id="nav-more-toggle" type="button" aria-expanded="false"
                             aria-controls="nav-secondary-items">
                             <span data-i18n>More</span>
-                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <svg data-icon="expand-more" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
                         </button>
                         <div class="nav-secondary-items" id="nav-secondary-items">
                             <a href="/recent" class="nav-item nav-secondary-item" id="nav-recent">
-                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="history" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
                                 </svg>
                                 <span data-i18n>Recently Played</span>
                             </a>
                             <a href="/smart-mix" class="nav-item nav-secondary-item" id="nav-smartmix">
-                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="shuffle" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
                                 </svg>
                                 <span data-i18n>Smart Mix</span>
                             </a>
                             <a href="/discover" class="nav-item nav-secondary-item" id="nav-discover">
-                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="explore" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13l-2 5 5 2-2 5-5-2 2-5-5-2z"/>
                                 </svg>
                                 <span data-i18n>Discover Music</span>
                             </a>
                             <a href="/friends" class="nav-item nav-secondary-item" id="nav-friends">
-                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="group" viewBox="0 0 24 24" fill="currentColor">
                                     <path
                                         d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                                 </svg>
@@ -390,19 +394,19 @@
                         <button class="nav-header nav-collapse-toggle" id="nav-browse-toggle" type="button"
                             aria-expanded="true" aria-controls="nav-browse-items">
                             <span data-i18n>Browse</span>
-                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <svg data-icon="expand-more" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
                         </button>
                         <div class="nav-browse-items" id="nav-browse-items">
                         <a href="/albums" class="nav-item nav-browse-item" id="nav-albums">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="album" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
                             </svg>
                             <span data-i18n>Albums</span>
                         </a>
                         <a href="/artists" class="nav-item nav-browse-item" id="nav-artists">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="person" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                             </svg>
                             <span data-i18n>Artists</span>
@@ -412,9 +416,9 @@
 
                     <div class="nav-section" data-part="nav-section">
                         <div class="nav-header-row">
-                            <h3 class="nav-header" data-i18n>Playlists</h3>
+                            <h3 data-part="nav-title" class="nav-header" data-i18n>Playlists</h3>
                             <button class="icon-btn-small" id="sidebar-new-playlist" type="button" title="New Playlist" aria-label="New playlist" data-i18n-attr="title aria-label">
-                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="add" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                                 </svg>
                             </button>
@@ -431,67 +435,67 @@
                 <div data-part="section-header" class="section-header">
                     <div>
                         <div class="title-row">
-                            <h1 class="section-title" data-i18n>Your Library</h1>
+                            <h1 data-part="view-title" class="section-title" data-i18n>Your Library</h1>
                             <div class="playlist-menu-container hidden" id="playlist-menu-container">
                                 <button class="icon-btn" id="playlist-settings-btn" title="Playlist Settings" data-i18n-attr="title">
-                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <svg data-icon="more-vert" viewBox="0 0 24 24" fill="currentColor">
                                         <path
                                             d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
                                     </svg>
                                 </button>
                                 <div class="dropdown-menu hidden" id="playlist-settings-dropdown">
                                     <div class="dropdown-item" id="action-edit-playlist-icon">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="palette" viewBox="0 0 24 24" fill="currentColor">
                                             <path
                                                 d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                                         </svg>
                                         <span data-i18n>Edit Icon</span>
                                     </div>
                                     <div class="dropdown-item" id="action-rename-playlist">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="edit" viewBox="0 0 24 24" fill="currentColor">
                                             <path
                                                 d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                                         </svg>
                                         <span data-i18n>Rename</span>
                                     </div>
                                     <div class="dropdown-item" id="action-share-playlist">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="group" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                                         </svg>
                                         <span data-i18n>Invite Friend</span>
                                     </div>
                                     <div class="dropdown-item" id="action-leave-playlist">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="exit" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
                                         </svg>
                                         <span data-i18n>Leave Playlist</span>
                                     </div>
                                     <div class="dropdown-item" id="action-download-playlist">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="cloud-download" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
                                         </svg>
                                         <span data-i18n>Download Playlist</span>
                                     </div>
                                     <div class="dropdown-item" id="action-export-m3u">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="description" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v7h7v9H6zm2-5h8v1.5H8V15zm0-3h8v1.5H8V12z" />
                                         </svg>
                                         <span data-i18n>Export as M3U</span>
                                     </div>
                                     <div class="dropdown-item" id="action-export-csv">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="description" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v7h7v9H6zm2-5h8v1.5H8V15zm0-3h8v1.5H8V12zm0-3h4v1.5H8V9z" />
                                         </svg>
                                         <span data-i18n>Export as CSV</span>
                                     </div>
                                     <div class="dropdown-item" id="action-regen-cover">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="image" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                                         </svg>
                                         <span data-i18n>Regenerate Cover</span>
                                     </div>
                                     <div class="dropdown-item danger" id="action-delete-playlist">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="delete" viewBox="0 0 24 24" fill="currentColor">
                                             <path
                                                 d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                                         </svg>
@@ -500,17 +504,17 @@
                                 </div>
                             </div>
                         </div>
-                        <p class="section-subtitle" id="library-subtitle" data-i18n>All your music in one place</p>
+                        <p data-part="view-subtitle" class="section-subtitle" id="library-subtitle" data-i18n>All your music in one place</p>
                     </div>
 
                     <div class="view-toggle">
                         <button class="view-toggle-btn active" id="grid-view-btn" type="button" title="Grid View" aria-label="Grid view" aria-pressed="true" data-i18n-attr="title aria-label">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="grid-view" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
                             </svg>
                         </button>
                         <button class="view-toggle-btn" id="list-view-btn" type="button" title="List View" aria-label="List view" aria-pressed="false" data-i18n-attr="title aria-label">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="list-view" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path
                                     d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                             </svg>
@@ -542,7 +546,7 @@
 
                 <!-- Empty State -->
                 <div data-part="empty-state" id="empty-state" class="empty-state hidden">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
                             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                     </svg>
@@ -559,7 +563,7 @@
                         <span>#</span>
                         <span class="list-header-sortable" id="list-sort-title" data-i18n>
                             Title
-                            <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <svg data-icon="expand-more" class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M7 10l5 5 5-5z" />
                             </svg>
                         </span>
@@ -574,13 +578,13 @@
                     <div class="discover-search-container">
                         <div class="search-bar-wrapper">
                             <span class="search-icon-left">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="search" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                                 </svg>
                             </span>
                             <input type="text" id="discover-search-input" placeholder="Search YouTube Music for songs..." data-i18n-attr="placeholder">
                             <button id="discover-search-btn" class="search-btn-pill" title="Search" data-i18n-attr="title">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <svg data-icon="arrow-forward" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                                 </svg>
                             </button>
@@ -594,7 +598,7 @@
                     </div>
                     
                     <div id="discover-empty" class="empty-state hidden">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="search" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                         </svg>
                         <h3 data-i18n>No Results Found</h3>
@@ -614,7 +618,7 @@
                         </div>
                         <div class="preview-controls">
                             <button id="preview-play-btn" class="preview-control-btn">
-                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                <svg data-icon="play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                             </button>
                             <div class="preview-progress-wrapper">
                                 <span id="preview-current-time">0:00</span>
@@ -625,7 +629,7 @@
                             </div>
                         </div>
                         <button id="preview-close-btn" class="preview-close-btn">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+                            <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
                         </button>
                         <audio id="discover-preview-audio" class="hidden"></audio>
                     </div>
@@ -663,7 +667,7 @@
                     <div id="artists-grid-view" class="artists-grid-view">
                         <div class="artists-header-bar">
                             <div class="artists-search-wrapper">
-                                <svg viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                                <svg data-icon="search" viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                                 <input type="text" id="artists-search-input" placeholder="Search artists..." class="artists-search-input" data-i18n-attr="placeholder">
                                 <button id="artists-search-clear" class="search-clear-btn hidden">&times;</button>
                             </div>
@@ -681,7 +685,7 @@
                             <div class="artist-hero-overlay"></div>
                             <div class="artist-hero-top-bar">
                                 <button class="artist-back-btn" id="artist-back-btn">
-                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                    <svg data-icon="arrow-back" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                                         <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                                     </svg>
                                 </button>
@@ -690,7 +694,7 @@
                                 <div class="artist-hero-avatar-wrap" id="artist-hero-avatar-wrap"></div>
                                 <div class="artist-hero-info">
                                     <div class="artist-verified-badge">
-                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                        <svg data-icon="check-circle" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                                         </svg>
                                         <span data-i18n>Verified Artist</span>
@@ -703,19 +707,19 @@
 
                         <div class="artist-action-bar">
                             <button class="artist-action-btn artist-action-btn-primary" id="artist-play-all-btn">
-                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                <svg data-icon="play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                                     <path d="M8 5v14l11-7z"/>
                                 </svg>
                                 <span data-i18n>Play All</span>
                             </button>
                             <button class="artist-action-btn" id="artist-discover-btn">
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                <svg data-icon="search" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                                     <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                                 </svg>
                                 <span data-i18n>Discover</span>
                             </button>
                             <button class="artist-action-btn" id="edit-artist-profile-btn">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <svg data-icon="edit" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                     <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                                 </svg>
                                 <span data-i18n>Edit</span>
@@ -732,12 +736,12 @@
                                 <h2 class="artist-section-title" data-i18n>Songs</h2>
                                 <div class="view-toggle">
                                     <button class="view-toggle-btn" id="artist-grid-view-btn" title="Grid View" data-i18n-attr="title">
-                                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <svg data-icon="grid-view" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z" />
                                         </svg>
                                     </button>
                                     <button class="view-toggle-btn active" id="artist-list-view-btn" title="List View" data-i18n-attr="title">
-                                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <svg data-icon="list-view" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                                         </svg>
                                     </button>
@@ -753,7 +757,7 @@
                 <div data-part="view-albums" id="albums-view" class="albums-view hidden">
                     <div class="albums-header-bar">
                         <div class="albums-search-wrapper">
-                            <svg viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                            <svg data-icon="search" viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                             <input type="text" id="albums-search-input" placeholder="Search albums..." class="albums-search-input" data-i18n-attr="placeholder">
                         </div>
                         <select id="albums-sort-select" class="albums-sort-select">
@@ -801,7 +805,7 @@
             <!-- Now Playing -->
             <div data-part="now-playing" class="now-playing" role="button" tabindex="0" aria-label="Open full player" data-i18n-attr="aria-label">
                 <div class="now-playing-artwork" id="now-playing-artwork" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path
                             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                     </svg>
@@ -816,36 +820,36 @@
             <div data-part="player-controls" class="player-controls">
                 <div data-part="transport" class="controls-main">
                     <button class="control-btn secondary" id="shuffle-btn" type="button" title="Shuffle" aria-label="Shuffle" aria-pressed="false" data-i18n-attr="title aria-label">
-                        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <svg data-icon="shuffle" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
                         </svg>
                     </button>
                     <button class="control-btn secondary" id="prev-btn" type="button" title="Previous" aria-label="Previous track" data-i18n-attr="title aria-label">
-                        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <svg data-icon="skip-previous" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                         </svg>
                     </button>
                     <button class="control-btn play-pause" id="play-pause-btn" type="button" title="Play" aria-label="Play" data-i18n-attr="title aria-label">
-                        <svg class="icon-play" width="20" height="20" viewBox="0 0 24 24"
+                        <svg data-icon="play" class="icon-play" width="20" height="20" viewBox="0 0 24 24"
                             xmlns="http://www.w3.org/2000/svg">
                             <path d="M8 5v14l11-7z" />
                         </svg>
-                        <svg class="icon-pause hidden" width="20" height="20" viewBox="0 0 24 24"
+                        <svg data-icon="pause" class="icon-pause hidden" width="20" height="20" viewBox="0 0 24 24"
                             xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                         </svg>
-                        <svg class="icon-loading hidden" width="20" height="20" viewBox="0 0 24 24"
+                        <svg data-icon="spinner" class="icon-loading hidden" width="20" height="20" viewBox="0 0 24 24"
                             xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z" />
                         </svg>
                     </button>
                     <button class="control-btn secondary" id="next-btn" type="button" title="Next" aria-label="Next track" data-i18n-attr="title aria-label">
-                        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <svg data-icon="skip-next" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                         </svg>
                     </button>
                     <button class="control-btn secondary" id="repeat-btn" type="button" title="Repeat" aria-label="Repeat" aria-pressed="false" data-i18n-attr="title aria-label">
-                        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <svg data-icon="repeat" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
                         </svg>
                     </button>
@@ -865,36 +869,36 @@
             <div data-part="player-actions" class="player-actions">
                 <!-- Radio songs only: keep the one playing in the library -->
                 <button class="control-btn secondary hidden" id="keep-btn" type="button" title="Add to Your Library" aria-label="Add to Your Library" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg data-icon="save-alt" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                     </svg>
                 </button>
                 <button class="control-btn secondary" id="like-btn" type="button" title="Like" aria-label="Like" aria-pressed="false" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <svg data-icon="thumb-up" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
                     </svg>
                 </button>
                 <button class="control-btn secondary" id="dislike-btn" type="button" title="Dislike" aria-label="Dislike" aria-pressed="false" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <svg data-icon="thumb-down" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
                     </svg>
                 </button>
                 <button class="control-btn secondary" id="queue-btn" type="button" title="Queue" aria-label="Open queue" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg data-icon="queue-music" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
                     </svg>
                 </button>
                 <div data-part="volume" class="volume-control">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <svg data-icon="volume-up" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                     </svg>
                     <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" step="0.1" value="80" aria-label="Volume" data-i18n-attr="aria-label">
-                    <span class="volume-readout" id="volume-readout">80%</span>
+                    <span data-part="volume-readout" class="volume-readout" id="volume-readout">80%</span>
                 </div>
                 <button class="control-btn secondary player-more-btn" id="player-more-btn" type="button"
                     title="More playback controls" aria-label="More playback controls" aria-expanded="false"
                     aria-controls="player-extra" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg data-icon="more-horiz" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
                     </svg>
                 </button>
@@ -903,20 +907,20 @@
             <!-- Advanced playback tools, progressively disclosed from More -->
             <div data-part="player-menu" class="player-extra context-menu hidden" id="player-extra" role="menu" aria-label="Advanced playback controls" data-i18n-attr="aria-label">
                 <button class="context-menu-item player-menu-item" id="sleep-timer-btn" type="button" title="Sleep Timer" aria-label="Sleep timer" role="menuitem" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="schedule" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
                     </svg>
                     <span class="player-menu-label" data-i18n>Sleep Timer</span>
                 </button>
                 <button class="context-menu-item player-menu-item" id="ab-repeat-btn" type="button" title="A-B Repeat (loop a section)" aria-label="A-B repeat" role="menuitem" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="repeat" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
                         <text x="12" y="14.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="Arial">AB</text>
                     </svg>
                     <span class="player-menu-label" data-i18n>A-B Repeat</span>
                 </button>
                 <button class="context-menu-item player-menu-item" id="speed-btn" type="button" title="Playback Speed" aria-label="Playback speed" role="menuitem" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="speed" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.28-10.43z"/>
                         <path d="M10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/>
                     </svg>
@@ -924,20 +928,20 @@
                     <span class="speed-label" id="speed-label">1x</span>
                 </button>
                 <button class="context-menu-item player-menu-item" id="eq-btn" type="button" title="Equalizer" aria-label="Equalizer" role="menuitem" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="equalizer" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M3 21h2v-6H3v6zm0-8h2V3H3v10zm4 8h2v-10H7v10zm0-12h2V3H7v6zm4 12h2v-4h-2v4zm0-6h2V3h-2v12zm4 6h2v-8h-2v8zm0-10h2V3h-2v6zm4 10h2v-2h-2v2zm0-4h2V3h-2v14z"/>
                     </svg>
                     <span class="player-menu-label" data-i18n>Equalizer</span>
                 </button>
                 <button class="context-menu-item player-menu-item" id="crossfade-btn" type="button" title="Crossfade" aria-label="Crossfade" role="menuitem" data-i18n-attr="title aria-label">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="crossfade" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M6.5 5.5C4 7.5 3 10 3 12s1 4.5 3.5 6.5M17.5 5.5C20 7.5 21 10 21 12s-1 4.5-3.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                         <path d="M8 8l-3 4 3 4M16 8l3 4-3 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                     <span class="player-menu-label" data-i18n>Crossfade</span>
                 </button>
                 <button class="context-menu-item player-menu-item" id="connect-btn" type="button" title="Rainy Connect — play on other devices" aria-label="Rainy Connect" role="menuitem" data-i18n-attr="title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="cast" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/>
                     </svg>
                     <span class="player-menu-label">Rainy Connect</span>
@@ -961,7 +965,7 @@
 
             <!-- Search -->
             <div class="settings-search">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="search" viewBox="0 0 24 24" fill="currentColor">
                     <path
                         d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                 </svg>
@@ -969,7 +973,7 @@
                     spellcheck="false" aria-label="Search settings" aria-controls="settings-search-results" data-i18n-attr="aria-label placeholder">
                 <button type="button" class="settings-search-clear hidden" id="settings-search-clear"
                     aria-label="Clear search" data-i18n-attr="aria-label">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
@@ -980,54 +984,54 @@
             <nav data-part="settings-nav" class="settings-nav">
                 <div class="settings-nav-category" data-i18n>User Settings</div>
                 <a href="/settings/appearance" class="settings-nav-item active" data-section="appearance">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="palette" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                     </svg>
                     <span data-i18n>Appearance</span>
                 </a>
                 <a href="/settings/player" class="settings-nav-item" data-section="player">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="music-note" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                     </svg>
                     <span data-i18n>Player</span>
                 </a>
                 <a href="/settings/lightshow" class="settings-nav-item" data-section="lightshow">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="auto-awesome" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z" />
                     </svg>
                     <span data-i18n>Light Show</span>
                 </a>
                 <a href="/settings/account" class="settings-nav-item" data-section="account">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="person" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                     </svg>
                     <span data-i18n>Account</span>
                 </a>
                 <a href="/settings/syncs" class="settings-nav-item" data-section="syncs" id="settings-nav-syncs">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="sync" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
                     </svg>
                     <span data-i18n>Playlist Sync</span>
                 </a>
 
                 <a href="/settings/jobs" class="settings-nav-item" data-section="jobs" id="settings-nav-jobs">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="autorenew" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z" />
                     </svg>
                     <span data-i18n>Jobs</span>
                 </a>
                 <a href="/settings/chromecast" class="settings-nav-item" data-section="chromecast" id="settings-nav-chromecast">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="cast" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
                     </svg>
                     <span data-i18n>Chromecast Setup</span>
                 </a>
                 <a href="/settings/about" class="settings-nav-item" data-section="about" id="settings-nav-about">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="info" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
                     </svg>
                     <span data-i18n>About</span>
@@ -1036,14 +1040,14 @@
                 <div class="settings-nav-category sysadmin-only hidden" id="settings-nav-server-category" data-i18n>Server
                     Settings</div>
                 <a href="/settings/server" class="settings-nav-item sysadmin-only hidden" data-section="server" id="settings-nav-server">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="build" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
                     </svg>
                     <span data-i18n>Maintenance</span>
                 </a>
                 <a href="/settings/users" class="settings-nav-item sysadmin-only hidden" data-section="users" id="settings-nav-users">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="group" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                     </svg>
@@ -1061,7 +1065,7 @@
             <div class="settings-header">
                 <h1 class="settings-title" id="settings-page-title" data-i18n>Appearance</h1>
                 <button class="settings-close" id="settings-close" type="button" aria-label="Close settings" data-i18n-attr="aria-label">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
@@ -1086,7 +1090,7 @@
                                     <div class="select-wrapper">
                                         <select id="settings-language" class="form-input"
                                             aria-label="Interface language" data-i18n-attr="aria-label"></select>
-                                        <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
+                                        <svg data-icon="expand-more" class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M7 10l5 5 5-5z" />
                                         </svg>
                                     </div>
@@ -1669,7 +1673,7 @@
                                 </div>
                                 <div class="settings-row-control">
                                     <button class="btn btn-secondary" id="dup-scan-btn">
-                                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                                        <svg data-icon="search" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
                                             <path
                                                 d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                                         </svg>
@@ -1845,14 +1849,14 @@
 
                             <div class="settings-scan-actions">
                                 <button class="btn btn-secondary" id="quick-scan-btn">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                    <svg data-icon="refresh" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                                         <path
                                             d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
                                     </svg>
                                     <span data-i18n>Quick Scan</span>
                                 </button>
                                 <button class="btn btn-warning" id="full-scan-btn">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                    <svg data-icon="sync" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                                         <path
                                             d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
                                     </svg>
@@ -1977,7 +1981,7 @@
                                         <span class="user-count-badge" id="user-count">0</span>
                                         <button type="button" class="btn btn-secondary btn-sm add-user-btn"
                                             id="add-user-toggle-btn">
-                                            <svg viewBox="0 0 24 24">
+                                            <svg data-icon="add" viewBox="0 0 24 24">
                                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                                             </svg>
                                             <span class="add-user-btn-label" data-i18n>Add User</span>
@@ -2018,7 +2022,7 @@
                                                     <option value="user" data-i18n>User</option>
                                                     <option value="sysadmin" data-i18n>Administrator</option>
                                                 </select>
-                                                <svg class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
+                                                <svg data-icon="expand-more" class="select-arrow" viewBox="0 0 24 24" fill="currentColor">
                                                     <path d="M7 10l5 5 5-5z" />
                                                 </svg>
                                             </div>
@@ -2182,7 +2186,7 @@
                     <p class="modal-subtitle" data-i18n>Admins can add &amp; remove songs — viewers can only listen</p>
                 </div>
                 <button class="modal-close" id="close-playlist-share-modal" type="button" aria-label="Close" data-i18n-attr="aria-label">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
                 </button>
             </div>
             <div class="modal-body">
@@ -2212,7 +2216,7 @@
             <div class="modal-header">
                 <div class="modal-header-info">
                     <div class="modal-icon playlist-modal-icon edit-icon-mode">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="palette" viewBox="0 0 24 24" fill="currentColor">
                             <path
                                 d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                         </svg>
@@ -2223,7 +2227,7 @@
                     </div>
                 </div>
                 <button class="modal-close" id="close-edit-icon-modal">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
@@ -2284,7 +2288,7 @@
             <div class="modal-header">
                 <h2 data-i18n>Rename Playlist</h2>
                 <button class="modal-close" id="close-rename-playlist-modal">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
@@ -2316,19 +2320,19 @@
             <span class="fs-brand-title">Rainy</span>
         </div>
         <button id="fs-volume-btn" title="Volume" data-i18n-attr="title">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <svg data-icon="volume-up" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                 <path
                     d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"
                     fill="currentColor" />
             </svg>
         </button>
         <button id="fs-lightshow-btn" title="Toggle Light Show" data-i18n-attr="title">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <svg data-icon="graphic-eq" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M4 9h2v6H4zm3-4h2v14H7zm3 6h2v4h-2zm3-8h2v16h-2zm3 5h2v9h-2zm3-2h2v7h-2z"/>
             </svg>
         </button>
         <button id="fs-close-btn" title="Close Fullscreen" data-i18n-attr="title">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <svg data-icon="close" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     fill="none" />
             </svg>
@@ -2361,7 +2365,7 @@
                 <!-- Radio songs only: keep the one playing in the library. Shown in
                      modern mode; standard mode has the same button in the player bar. -->
                 <button class="fs-keep-btn hidden" id="fs-keep-btn" type="button">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg data-icon="save-alt" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                     </svg>
                     <span data-i18n>Add to Your Library</span>
@@ -2379,45 +2383,45 @@
 
                     <div class="fs-buttons">
                         <button class="fs-control-btn secondary" id="fs-shuffle-btn" title="Shuffle" data-i18n-attr="title">
-                            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="shuffle" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path
                                     d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
                             </svg>
                         </button>
                         <button class="fs-control-btn" id="fs-prev-btn" title="Previous" data-i18n-attr="title">
-                            <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="skip-previous" width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                             </svg>
                         </button>
                         <button class="fs-control-btn play-pause" id="fs-play-pause-btn" title="Play" data-i18n-attr="title">
-                            <svg class="icon-play" width="48" height="48" viewBox="0 0 24 24"
+                            <svg data-icon="play" class="icon-play" width="48" height="48" viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
-                            <svg class="icon-pause hidden" width="48" height="48" viewBox="0 0 24 24"
+                            <svg data-icon="pause" class="icon-pause hidden" width="48" height="48" viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg">
                                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                             </svg>
                         </button>
                         <button class="fs-control-btn" id="fs-next-btn" title="Next" data-i18n-attr="title">
-                            <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="skip-next" width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                             </svg>
                         </button>
                         <div class="fs-like-group">
                             <button class="fs-control-btn secondary" id="fs-like-btn" title="Like" data-i18n-attr="title">
-                                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg data-icon="thumb-up" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
                                 </svg>
                             </button>
                             <button class="fs-control-btn secondary" id="fs-dislike-btn" title="Dislike" data-i18n-attr="title">
-                                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg data-icon="thumb-down" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
                                 </svg>
                             </button>
                         </div>
                         <button class="fs-control-btn secondary" id="fs-repeat-btn" title="Repeat" data-i18n-attr="title">
-                            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="repeat" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
                             </svg>
                         </button>
@@ -2428,7 +2432,7 @@
     </div>
 
     <rainy-modal data-part="modal" id='delete-playlist-modal'>
-        <svg slot='header-icon' viewBox='0 0 24 24' fill='currentColor'>
+        <svg data-icon="delete" slot='header-icon' viewBox='0 0 24 24' fill='currentColor'>
             <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' />
         </svg>
         <h2 slot='header-title' data-i18n>Delete Playlist</h2>
@@ -2443,7 +2447,7 @@
             <div class="modal-header">
                 <h2 data-i18n>Reset Password</h2>
                 <button class="modal-close" id="close-reset-user-password-modal">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
@@ -2472,7 +2476,7 @@
             <div class="modal-header">
                 <h2 data-i18n>Delete User</h2>
                 <button class="modal-close" id="close-delete-user-modal">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
@@ -2563,18 +2567,18 @@
                     <p class="modal-subtitle" id="edit-artist-modal-subtitle" data-i18n>Update profile info and manage songs</p>
                 </div>
                 <button class="modal-close" id="close-edit-artist-modal">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+                    <svg data-icon="close" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
                 </button>
             </div>
 
             <!-- Tab Nav -->
             <div class="artist-modal-tabs">
                 <button class="artist-modal-tab active" data-tab="profile" data-i18n>
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <svg data-icon="person" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     Profile
                 </button>
                 <button class="artist-modal-tab" data-tab="songs" data-i18n>
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    <svg data-icon="music-note" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                     Songs
                 </button>
             </div>
@@ -2586,11 +2590,11 @@
                     <!-- Auto-scrape banner -->
                     <div class="scrape-section">
                         <div class="scrape-info">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
+                            <svg data-icon="timer" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
                             <span data-i18n-html>Auto-fill from <strong>YouTube Music</strong></span>
                         </div>
                         <button class="btn btn-scrape" id="scrape-artist-btn">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                            <svg data-icon="sync" viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
                             <span id="scrape-btn-text" data-i18n>Scrape Info</span>
                         </button>
                     </div>
@@ -2598,7 +2602,7 @@
                     <!-- Multiple-match picker (hidden until scrape returns 2+ candidates) -->
                     <div class="scrape-picker hidden" id="scrape-picker">
                         <div class="scrape-picker-header">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                            <svg data-icon="tune" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
                             <span data-i18n>Multiple matches found — pick the correct artist:</span>
                             <button class="scrape-picker-close" id="scrape-picker-close" type="button" aria-label="Close picker" data-i18n-attr="aria-label">×</button>
                         </div>
@@ -2608,7 +2612,7 @@
                     </div>
 
                     <div class="scrape-result hidden" id="scrape-result-banner" data-i18n>
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <svg data-icon="check-circle" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                         Found on YouTube Music: <a id="scrape-source-link" href="#" target="_blank" rel="noopener noreferrer" class="scrape-wiki-link"></a>
                     </div>
 
@@ -2617,7 +2621,7 @@
                         <label class="artist-modal-label" for="edit-artist-image-input" data-i18n>Artist Image URL</label>
                         <div class="artist-image-row">
                             <div class="artist-image-preview" id="artist-image-preview">
-                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                <svg data-icon="person" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                             </div>
                             <input type="text" id="edit-artist-image-input" class="artist-modal-input" placeholder="https://example.com/artist-image.jpg">
                         </div>
@@ -2633,7 +2637,7 @@
                 <div class="artist-modal-footer">
                     <button class="btn artist-modal-btn-cancel" id="cancel-edit-artist-btn" data-i18n>Cancel</button>
                     <button class="btn artist-modal-btn-save" id="save-edit-artist-btn" data-i18n>
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                        <svg data-icon="save" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
                         Save Changes
                     </button>
                 </div>
@@ -2642,7 +2646,7 @@
             <!-- Songs Tab -->
             <div class="artist-modal-tab-panel" id="artist-tab-songs">
                 <div class="artist-songs-search">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    <svg data-icon="search" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                     <input type="text" id="artist-songs-search" class="artist-songs-search-input" placeholder="Search songs..." data-i18n-attr="placeholder">
                 </div>
                 <div class="artist-songs-loading hidden" id="artist-songs-loading">

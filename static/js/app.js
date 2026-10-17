@@ -4,11 +4,12 @@ import { Logger } from "./helper/logger.js";
 import { ResponseError } from './helper/request.js';
 import { Result } from './helper/result.js';
 import { Router, View } from './helper/router.js';
+import { setIcon } from './helper/icons.js';
 import { Library } from './modules/library.js';
 import { LibraryWatcher } from './modules/libraryWatcher.js';
 import { Playlists, playlistDisplayName } from './modules/playlists.js';
 import { Utils } from './modules/utils.js';
-import { browserLanguage, fillLanguageSelect, getLanguage, setLanguage, t } from './i18n/index.js';
+import { browserLanguage, fillLanguageSelect, getLanguage, onThemeWordsChange, setLanguage, t } from './i18n/index.js';
 import { useAuthService } from "./services/auth.js";
 import { useEnrichmentService } from "./services/enrichment.js";
 import { useEnvironmentsService } from "./services/environments.js";
@@ -155,6 +156,9 @@ export class RainyApp {
         }
 
         this.user = user;
+        // A theme's words changed (another theme put on): redraw what the app drew with the old ones.
+        // (A change of language reloads the page instead.)
+        onThemeWordsChange(() => this.refreshThemeWords());
         this.applyThemeFromPreferences();
         this.applyPlayerBarPreferences();
         this.applyRoleVisibility();
@@ -3098,7 +3102,7 @@ export class RainyApp {
             });
 
             previewAudio.addEventListener('ended', () => {
-                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                previewPlayBtn.innerHTML = '<svg data-icon="play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
             });
         }
 
@@ -3110,10 +3114,10 @@ export class RainyApp {
                     window.player.updatePlayButton();
                 }
                 previewAudio.play();
-                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+                previewPlayBtn.innerHTML = '<svg data-icon="pause" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
             } else {
                 previewAudio.pause();
-                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                previewPlayBtn.innerHTML = '<svg data-icon="play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
             }
         });
 
@@ -3602,7 +3606,7 @@ export class RainyApp {
         previewCover.src = song.cover_url || DEFAULT_COVER_BASE64;
 
         previewBar.classList.remove('hidden');
-        previewPlayBtn.innerHTML = '<svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="40 40" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>';
+        previewPlayBtn.innerHTML = '<svg data-icon="spinner" class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="40 40" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>';
         
         // Pause main player
         if (window.player && !window.player.audio.paused) {
@@ -3612,10 +3616,10 @@ export class RainyApp {
 
         previewAudio.src = `/api/music/discover/preview/${song.videoId}`;
         previewAudio.play().then(() => {
-            previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+            previewPlayBtn.innerHTML = '<svg data-icon="pause" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
         }).catch(err => {
             Logger.error(err);
-            previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+            previewPlayBtn.innerHTML = '<svg data-icon="play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
         });
     }
 
@@ -3974,6 +3978,19 @@ export class RainyApp {
         if (res.error) return Logger.error('Could not list the interface themes', res.error);
         await wearPreferred(this._getPlayerPrefs().ui_theme ?? null);
         this.syncAccentPicker();
+    }
+
+    /**
+     * Show the words of the interface theme just put on in what the app drew
+     * itself (the view, the playlists, the search box); the static page is
+     * re-translated by i18n.
+     */
+    refreshThemeWords() {
+        if (!this._routingStarted) return;
+        window.globalSearch?._applyModeUI?.();
+        this.renderSidebarPlaylists();
+        if (useContext().get('current-view-type') === 'library') this.renderSections();
+        else this.handleRoute().catch((error) => Logger.error('Could not redraw the view:', error));
     }
 
     /** The user picked an interface theme in Settings: wear it with its own accent, and remember it. */
@@ -4713,16 +4730,16 @@ export class RainyApp {
                     </div>
                     <div class="user-list-actions">
                         <button class="icon-btn-small user-full-library-toggle ${hasFullLibrary ? 'active-full-library' : ''}" data-id="${user.id}" data-full="${hasFullLibrary ? '1' : '0'}" title="${fullLibraryTitle}" aria-label="${fullLibraryTitle}">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${libraryPath}"/></svg>
+                            <svg data-icon="library-music" viewBox="0 0 24 24" fill="currentColor"><path d="${libraryPath}"/></svg>
                         </button>
                         <button class="icon-btn-small user-role-toggle ${isAdmin ? 'active-admin' : ''}" data-id="${user.id}" data-role="${user.role}" title="${roleTitle}" aria-label="${roleTitle}">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${shieldPath}"/></svg>
+                            <svg data-icon="shield" viewBox="0 0 24 24" fill="currentColor"><path d="${shieldPath}"/></svg>
                         </button>
                         <button class="icon-btn-small user-reset-password" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="${Utils.escapeHtml(t('Reset password'))}" aria-label="${Utils.escapeHtml(t('Reset password'))}">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${keyPath}"/></svg>
+                            <svg data-icon="key" viewBox="0 0 24 24" fill="currentColor"><path d="${keyPath}"/></svg>
                         </button>
                         <button class="icon-btn-small user-action-delete user-delete" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}" title="${Utils.escapeHtml(isSelf ? t('You cannot delete yourself') : t('Delete user'))}" aria-label="${Utils.escapeHtml(t('Delete user'))}" ${isSelf ? 'disabled' : ''}>
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="${trashPath}"/></svg>
+                            <svg data-icon="delete" viewBox="0 0 24 24" fill="currentColor"><path d="${trashPath}"/></svg>
                         </button>
                     </div>
                 </div>
@@ -4756,14 +4773,14 @@ export class RainyApp {
         layout.classList.toggle('users-layout--with-form', open);
 
         const label = btn.querySelector('.add-user-btn-label');
-        const iconPath = btn.querySelector('svg path');
+        const icon = btn.querySelector('svg[data-icon]');
         if (open) {
             if (label) label.textContent = t('Cancel');
-            if (iconPath) iconPath.setAttribute('d', 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
+            setIcon(icon, 'close', 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
             setTimeout(() => document.getElementById('new-user-username')?.focus(), 50);
         } else {
             if (label) label.textContent = t('Add User');
-            if (iconPath) iconPath.setAttribute('d', 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z');
+            setIcon(icon, 'add', 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z');
         }
     }
 
@@ -4998,7 +5015,7 @@ export class RainyApp {
                         <div class="artist-circle-avatar" style="${initialsStyle}">
                             ${initials}
                             <div class="artist-circle-play-overlay">
-                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>
+                                <svg data-icon="play" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>
                             </div>
                         </div>
                         <div class="artist-circle-name">${Utils.escapeHtml(artistName)}</div>
@@ -5130,7 +5147,7 @@ export class RainyApp {
                 const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
                 const coverHtml = overridePath
                     ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
-                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                    : `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
                 const globalIndex = this.librarySongs.findIndex(s => s.id === song.id);
                 const _splitA = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists(song.artist || 'Unknown Artist') : (()=>{ const seen=new Set(); const out=[]; for(const p of String(song.artist||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out; })();
@@ -5142,7 +5159,7 @@ export class RainyApp {
                     <div class="track-number-col">
                         <span class="track-number">${trackIndex + 1}</span>
                         <button class="track-play-btn" title="${escapeHtml(t('Play'))}">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                            <svg data-icon="play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                                 <path d="M8 5v14l11-7z"/>
                             </svg>
                         </button>
@@ -5158,7 +5175,7 @@ export class RainyApp {
                     <div class="track-duration-col">${Utils.formatDuration(song.duration)}</div>
                     <div class="track-actions-col">
                         <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}" data-song-cover="${escapeHtml(song.cover_path || song.cover || '')}" data-song-duration="${song.duration || 0}" data-song-album="${escapeHtml(song.album || '')}">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                            <svg data-icon="more-vert" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                 <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                             </svg>
                         </button>
@@ -5197,7 +5214,7 @@ export class RainyApp {
                 const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
                 const coverHtml = overridePath
                     ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
-                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                    : `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
                 const _splitB = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists(song.artist || 'Unknown Artist') : (()=>{ const seen=new Set(); const out=[]; for(const p of String(song.artist||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out; })();
                 const artistNames = _splitB;
@@ -5206,7 +5223,7 @@ export class RainyApp {
                 return `
                 <div class="song-card fade-in" data-index="${globalIndex}" data-id="${song.id}">
                     <button class="song-menu-btn" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}" data-song-cover="${escapeHtml(song.cover_path || song.cover || '')}" data-song-duration="${song.duration || 0}" data-song-album="${escapeHtml(song.album || '')}">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <svg data-icon="more-vert" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                         </svg>
                     </button>
@@ -5214,7 +5231,7 @@ export class RainyApp {
                         ${coverHtml}
                         <div class="song-artwork-overlay">
                             <div class="play-btn-overlay">
-                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg data-icon="play" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M8 5v14l11-7z"/>
                                 </svg>
                             </div>
@@ -5360,7 +5377,7 @@ export class RainyApp {
                 if (url) {
                     imagePreview.innerHTML = `<img src="${Utils.escapeHtml(url)}" alt="Artist" onerror="this.parentElement.innerHTML='<svg viewBox=\'0 0 24 24\' fill=\'currentColor\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'">`;
                 } else {
-                    imagePreview.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                    imagePreview.innerHTML = `<svg data-icon="person" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
                 }
             }
         };

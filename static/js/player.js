@@ -659,7 +659,7 @@ export class AudioPlayer {
             // Preview/discover tracks carry a remote cover URL
             this.nowPlayingArtwork.innerHTML = `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`;
         } else {
-            this.nowPlayingArtwork.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            this.nowPlayingArtwork.innerHTML = `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
             </svg>`;
         }
@@ -1651,7 +1651,7 @@ export class AudioPlayer {
             discoverPreviewAudio.pause();
             const previewPlayBtn = document.getElementById('preview-play-btn');
             if (previewPlayBtn) {
-                previewPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                previewPlayBtn.innerHTML = '<svg data-icon="play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
             }
         }
 
@@ -2576,7 +2576,7 @@ export class AudioPlayer {
                     this.fsBackdrop.style.backgroundImage = `url('${song.cover_url}')`;
                 }
             } else {
-                this.fsArtwork.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                this.fsArtwork.innerHTML = `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
                 if (this.fsBackdrop) {
                     this.fsBackdrop.style.backgroundImage = 'none';
                     this.fsBackdrop.style.backgroundColor = 'var(--bg-primary)';
@@ -2597,12 +2597,12 @@ export class AudioPlayer {
                 ? `<img src="/api/music/cover/${encodeURIComponent(song.cover_path)}" alt="Cover" loading="lazy">`
                 : song.cover_url
                     ? `<img src="${song.cover_url}" alt="Cover" loading="lazy" referrerpolicy="no-referrer">`
-                    : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                    : `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             return `
                 <div class="fs-queue-item ${isActive ? 'active' : ''}" data-index="${index}" data-song-id="${song.id}" draggable="true">
                     <div class="fs-queue-drag-handle" title="${t('Drag to reorder')}">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="drag-indicator" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                         </svg>
                     </div>
@@ -2613,7 +2613,7 @@ export class AudioPlayer {
                     </div>
                     <div class="fs-queue-duration">${this.formatTime(song.duration)}</div>
                     <button class="fs-queue-menu-btn" data-index="${index}" title="${t('More options')}">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
+                        <svg data-icon="more-vert" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                         </svg>
                     </button>
@@ -2735,37 +2735,37 @@ export class AudioPlayer {
         menu.className = 'fs-queue-context-menu';
         menu.innerHTML = `
             <div class="fs-queue-menu-item" data-action="play" data-index="${index}">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="play" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5v14l11-7z"/>
                 </svg>
                 <span>${t('Play Now')}</span>
             </div>
             <div class="fs-queue-menu-item" data-action="playnext" data-index="${index}">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="queue-play-next" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M6 3v18l8.5-6L6 9zm2 4.83l3.5 2.5L8 13.16zM16 6h5v2h-5zm0 4h5v2h-5zm0 4h5v2h-5z"/>
                 </svg>
                 <span>${t('Play Next')}</span>
             </div>
             <div class="fs-queue-menu-item" data-action="addqueue" data-index="${index}">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="add" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                 </svg>
                 <span>${t('Add to Queue')}</span>
             </div>
             <div class="fs-queue-menu-item ${isLiked ? 'active liked' : ''}" data-action="like" data-index="${index}">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="thumb-up" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/>
                 </svg>
                 <span>${isLiked ? t('Unlike') : t('Like')}</span>
             </div>
             <div class="fs-queue-menu-item ${isDisliked ? 'active disliked' : ''}" data-action="dislike" data-index="${index}">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="thumb-down" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 7.83V19c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z" transform="rotate(180 12 12)"/>
                 </svg>
                 <span>${isDisliked ? t('Undislike') : t('Dislike')}</span>
             </div>
             <div class="fs-queue-menu-item danger" data-action="remove" data-index="${index}">
-                <svg viewBox="0 0 24 24" fill="currentColor">
+                <svg data-icon="remove" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13H5v-2h14v2z"/>
                 </svg>
                 <span>${t('Remove from Queue')}</span>

@@ -307,3 +307,76 @@ def test_the_repository_themes_pack_cleanly(folder):
     manifest, _data = packages.pack_directory(root, warnings=warnings)
     assert manifest['id'] == folder and manifest['preview']
     assert warnings == []
+
+
+# ------------------------------------------------------------ icons and words
+
+SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M320-203v-560l440 280z"/></svg>'
+
+
+def with_icons(icons, files_extra=None, strings=None):
+    manifest = {**MANIFEST, 'icons': icons}
+    if strings is not None:
+        manifest['strings'] = strings
+    return make_zip(manifest, files={**FILES, **(files_extra or {})})
+
+
+def test_icons_and_words_are_read():
+    manifest = packages.read_package(with_icons(
+        {'play': 'icons/play.svg'}, {'icons/play.svg': SVG},
+        strings={'es': {'Library': 'Inicio'}, 'en': {'Library': 'Home'}}))
+    assert manifest['icons'] == {'play': 'icons/play.svg'}
+    assert manifest['strings'] == {'es': {'Library': 'Inicio'}, 'en': {'Library': 'Home'}}
+    # A theme of icons alone changes something too.
+    alone = {k: v for k, v in MANIFEST.items() if k not in ('tokens', 'styles', 'entry', 'preview')}
+    data = make_zip({**alone, 'icons': {'play': 'icons/play.svg'}}, files={'icons/play.svg': SVG})
+    assert packages.read_package(data)['styles'] == []
+
+
+@pytest.mark.parametrize('icons, extra, message', [
+    ({'not-an-icon': 'icons/x.svg'}, {'icons/x.svg': SVG}, "not one of Rainy's icons"),
+    ({'play': 'icons/missing.svg'}, {}, 'not in the package'),
+    ({'play': 'style.css'}, {}, 'must be one of'),
+    (['play'], {}, '"icons" must map'),
+])
+def test_rejects_bad_icon_maps(icons, extra, message):
+    with pytest.raises(PackageError, match=message):
+        packages.read_package(with_icons(icons, extra))
+
+
+@pytest.mark.parametrize('svg', [
+    '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><path d="M0 0h1"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/x.png"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><a xlink:href="javascript:alert(1)"><path d="M0 0"/></a></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div>x</div></foreignObject></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><use href="https://evil.example/s.svg#x"/></svg>',
+    '<!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>',
+    '<html><body>not an icon</body></html>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><path d="' + 'M0 0 ' * 8000 + '"/></svg>',
+])
+def test_rejects_icons_that_are_not_plain_shapes(svg):
+    with pytest.raises(PackageError):
+        packages.read_package(with_icons({'play': 'icons/play.svg'}, {'icons/play.svg': svg}))
+
+
+@pytest.mark.parametrize('strings, message', [
+    ({'es': {'Library': '<b>Inicio</b>'}}, 'plain text'),
+    ({'es': {'Library': 'x' * 161}}, 'plain text'),
+    ({'es': ['Library']}, '"strings" must map'),
+    ({'Spanish': {'Library': 'Inicio'}}, '"strings" must map'),
+    ({'es': {'Library': 7}}, 'plain text'),
+])
+def test_rejects_bad_words(strings, message):
+    with pytest.raises(PackageError, match=message):
+        packages.read_package(with_icons({}, strings=strings))
+
+
+def test_the_listing_carries_icons_and_words(admin, anon_client):
+    res = upload(admin, with_icons({'play': 'icons/play.svg'}, {'icons/play.svg': SVG},
+                                   strings={'es': {'Library': 'Inicio'}}))
+    theme = res.get_json()['theme']
+    assert theme['icons'] == {'play': theme['base'] + 'icons/play.svg'}
+    assert theme['strings'] == {'es': {'Library': 'Inicio'}}
+    icon = anon_client.get(theme['icons']['play'])
+    assert icon.status_code == 200 and icon.mimetype == 'image/svg+xml'

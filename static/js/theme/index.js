@@ -28,6 +28,8 @@ const BUILTIN = {
         colorScheme: 'dark',
         tokens: {},
         styles: [],
+        icons: {},
+        strings: {},
         entry: null,
         preview: null,
         api: THEME_API,
@@ -83,6 +85,8 @@ export function setInstalled(list, defaultId = null) {
             colorScheme: view.colorScheme === 'light' ? 'light' : 'dark',
             tokens: view.tokens && typeof view.tokens === 'object' ? view.tokens : {},
             styles: Array.isArray(view.styles) ? view.styles : [],
+            icons: cleanIcons(view.icons),
+            strings: cleanStrings(view.strings),
             entry: view.entry || null,
             preview: view.preview || null,
             i18n: view.i18n || {},
@@ -163,6 +167,34 @@ export function cleanTokens(tokens) {
     return out;
 }
 
+const ICON_NAME = /^[a-z][a-z0-9-]{0,40}$/;
+const LANG = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/;
+
+/** A theme's icons that point at its own files: { name: url }. */
+export function cleanIcons(icons) {
+    const out = {};
+    for (const [name, url] of Object.entries(icons || {})) {
+        if (ICON_NAME.test(name) && isThemeUrl(url) && /\.svg$/i.test(url)) out[name] = url;
+    }
+    return out;
+}
+
+/** A theme's words, plain text only: { lang: { english source: text } }. */
+export function cleanStrings(strings) {
+    const out = {};
+    for (const [lang, table] of Object.entries(strings || {})) {
+        if (!LANG.test(lang) || !table || typeof table !== 'object') continue;
+        const words = {};
+        for (const [key, value] of Object.entries(table)) {
+            if (typeof key !== 'string' || !key || key.length > 300) continue;
+            if (typeof value !== 'string' || value.length > 160 || /[<>]/.test(value)) continue;
+            words[key] = value;
+        }
+        if (Object.keys(words).length) out[lang] = words;
+    }
+    return out;
+}
+
 /** A theme's tokens and colour scheme as the CSS of its `theme` layer. */
 export function buildTokenCss(def) {
     if (!def) return '';
@@ -186,6 +218,8 @@ export function cacheEntry(def) {
         colorScheme: def.colorScheme,
         tokens: cleanTokens(def.tokens),
         styles: (def.styles || []).filter(isThemeUrl),
+        icons: cleanIcons(def.icons),
+        strings: cleanStrings(def.strings),
     };
 }
 
@@ -203,6 +237,8 @@ export function readCache(raw) {
             colorScheme: v.colorScheme === 'light' ? 'light' : 'dark',
             tokens: cleanTokens(v.tokens),
             styles: Array.isArray(v.styles) ? v.styles.filter(isThemeUrl) : [],
+            icons: cleanIcons(v.icons),
+            strings: cleanStrings(v.strings),
         };
     } catch (e) {
         return null;

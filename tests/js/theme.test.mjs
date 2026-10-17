@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-    THEMES, THEME_API, DEFAULT_THEME, buildTokenCss, cacheEntry, chooseTheme, cleanTokens, isThemeUrl,
+    THEMES, THEME_API, DEFAULT_THEME, buildTokenCss, cacheEntry, chooseTheme, cleanIcons, cleanStrings, cleanTokens,
+    isThemeUrl,
     readCache, readSafeMode, setInstalled, themeIds, themeText, unsupportedReason, defaultTheme,
 } from '../../static/js/theme/index.js';
 import { compareSignatures, usable } from '../../static/js/theme/audit.js';
@@ -135,4 +136,31 @@ test('audit: what a theme did to a control', () => {
     // A control that cannot be used without the theme is not the theme's fault.
     assert.deepEqual(compareSignatures({ ...ok, visible: false }, { ...ok, visible: false }), []);
     assert.deepEqual(compareSignatures({ ...ok, hit: false }, { ...ok, visible: false }), []);
+});
+
+test('icons point at the theme\'s own SVG files, words are plain text', () => {
+    assert.deepEqual(cleanIcons({
+        play: '/themes/encore/abc123def456/icons/play.svg',
+        pause: 'https://evil.example/pause.svg',
+        next: '/themes/encore/abc123def456/icons/next.png',
+        'Bad Name': '/themes/encore/abc123def456/icons/x.svg',
+    }), { play: '/themes/encore/abc123def456/icons/play.svg' });
+    assert.deepEqual(cleanStrings({
+        es: { Library: 'Inicio', Lyrics: '<b>Letra</b>', Long: 'x'.repeat(161), Num: 7 },
+        'not a lang': { Library: 'x' },
+        en: {},
+    }), { es: { Library: 'Inicio' } });
+});
+
+test('what the page remembers carries the icons and the words', () => {
+    setInstalled([view('alpha', {
+        rev: 'bbbbbbbbbbbb',
+        icons: { play: '/themes/alpha/bbbbbbbbbbbb/icons/play.svg', evil: 'javascript:alert(1)' },
+        strings: { es: { Library: 'Inicio', Bad: '<i>x</i>' } },
+    })], null);
+    const entry = cacheEntry(THEMES.alpha);
+    assert.deepEqual(entry.icons, { play: '/themes/alpha/bbbbbbbbbbbb/icons/play.svg' });
+    assert.deepEqual(entry.strings, { es: { Library: 'Inicio' } });
+    assert.deepEqual(readCache(JSON.stringify(entry)).strings, { es: { Library: 'Inicio' } });
+    assert.deepEqual(THEMES.rainy.icons, {});
 });

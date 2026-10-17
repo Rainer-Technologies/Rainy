@@ -43,7 +43,7 @@ export const Library = {
             const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
             const coverHtml = overridePath
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                : `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             const globalIndex = allSongs.findIndex(s => s.id === song.id);
 
@@ -54,7 +54,7 @@ export const Library = {
             return `
             <div class="song-card-horizontal fade-in" role="button" tabindex="0" aria-label="${escapeHtml(t('Play {title} by {artist}', { title: song.title, artist: song.artist }))}" data-index="${globalIndex}" data-id="${song.id}">
                 <button class="song-menu-btn" type="button" aria-label="${escapeHtml(t('More actions for {title}', { title: song.title }))}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <svg data-icon="more-vert" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
                 </button>
@@ -62,7 +62,7 @@ export const Library = {
                     ${coverHtml}
                     <div class="song-artwork-overlay">
                         <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="play" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 5v14l11-7z"/>
                             </svg>
                         </div>
@@ -96,7 +96,7 @@ export const Library = {
             const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
             const coverHtml = overridePath
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                : `<svg data-icon="music-note" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             const _split2 = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
             const artistNames = _split2(song.artist || 'Unknown Artist');
@@ -105,7 +105,7 @@ export const Library = {
             return `
             <div class="song-card fade-in" role="button" tabindex="0" aria-label="${escapeHtml(t('Play {title} by {artist}', { title: song.title, artist: song.artist }))}" data-index="${index}" data-id="${song.id}">
                 <button class="song-menu-btn" type="button" aria-label="${escapeHtml(t('More actions for {title}', { title: song.title }))}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <svg data-icon="more-vert" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
                 </button>
@@ -113,7 +113,7 @@ export const Library = {
                     ${coverHtml}
                     <div class="song-artwork-overlay">
                         <div class="play-btn-overlay">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <svg data-icon="play" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 5v14l11-7z"/>
                             </svg>
                         </div>
@@ -131,7 +131,7 @@ export const Library = {
             <div class="section-header-row">
                 <h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
                 <div class="section-sort">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
+                    <svg data-icon="sort" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
                     </svg>
                     <select id="sort-select" class="sort-select">
@@ -168,7 +168,7 @@ export const Library = {
             const bust = coverVersions[song.id] ? `?t=${coverVersions[song.id]}` : '';
             const coverHtml = overridePath
                 ? `<img src="/api/music/cover/${encodeURIComponent(overridePath)}${bust}" alt="Cover" loading="lazy" onerror="window.Utils.handleCoverError(this)">`
-                : `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                : `<svg data-icon="music-note" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 
             const _split3 = (window.Utils && window.Utils.splitArtists) ? window.Utils.splitArtists : (raw) => { const seen=new Set(); const out=[]; for(const p of String(raw||'Unknown Artist').split(',')){const n=p.trim(); if(!n)continue; const k=n.toLowerCase(); if(!seen.has(k)){seen.add(k); out.push(n);} } return out.length?out:['Unknown Artist']; };
             const artistNames = _split3(song.artist || 'Unknown Artist');
@@ -187,7 +187,7 @@ export const Library = {
                 <span class="song-row-album">${escapeHtml(song.album || '')}</span>
                 <span class="song-row-duration">${formatDuration(song.duration)}</span>
                 <button class="song-menu-btn" type="button" aria-label="${escapeHtml(t('More actions for {title}', { title: song.title }))}" data-song-id="${song.id}" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
-                    <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                    <svg data-icon="more-vert" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                 </button>
             </div>
             `;

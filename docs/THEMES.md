@@ -5,13 +5,13 @@ A theme changes how all of Rainy looks in the browser: colours, type, shapes, an
 Two packages live in this repository:
 
 - [`packages/example-daylight`](../packages/example-daylight): a light theme made of tokens and about 40 lines of CSS. Start here.
-- [`packages/encore`](../packages/encore): a streaming-app look. It has a black canvas, a slim top bar, shelves of big covers and a one-row player bar with the progress along its edge. A small module washes the song's colours over the page.
+- [`packages/encore`](../packages/encore): YouTube Music's look, one to one. Roboto and Material Symbols carried in the package, YouTube Music's words (Home, Explore, Quick picks), a 64px top bar, a guide of rounded rows, shelves of covers, Quick picks, a one-row player bar with its red line, the Now playing page, Settings as a dialog, and a small module that washes the song's colours over the page. Every control of Rainy's is still there.
 
 > **A package is trusted code.** Its stylesheets restyle the app for everyone on the server. Its module, if it has one, runs in their browser, inside Rainy's page and with their session. Rainy checks that a package is well formed and that its styles follow the rules below; it cannot make an untrusted package safe. Only administrators can install packages, and they should only install ones from authors they trust.
 
 ## What a theme can and cannot do
 
-A theme **never replaces Rainy's markup**. Rainy builds every view, button and menu, and a theme only styles them. This one rule is what lets themes and Rainy change independently:
+A theme **never replaces Rainy's markup**. Rainy builds every view, button and menu. A theme restyles them with tokens and stylesheets, swaps their [icons](#icons), renames their [words](#words), and hides the purely decorative parts it does not want. This one rule is what lets themes and Rainy change independently:
 
 - **A feature Rainy adds shows up in every theme.** It is built by Rainy, so it is there. It takes the theme's look through the tokens and the shared classes (`.btn`, `.control-btn`, `.nav-item`, …), and through the region it lands in.
 - **A theme cannot hide Rainy's controls.** Before a package is installed, its stylesheets are read. Any rule that would hide, disable or shrink away something Rainy built is refused: `display: none`, `visibility: hidden`, `opacity: 0`, `pointer-events: none`, `font-size: 0`, `content-visibility: hidden`, and `display: contents` on anything but a region. A theme may hide only:
@@ -19,6 +19,7 @@ A theme **never replaces Rainy's markup**. Rainy builds every view, button and m
   - the parts below marked *may be hidden*.
 - **Rainy's state always wins.** What Rainy hides (a closed menu, an inactive tab, `.hidden`, `[hidden]`) stays hidden whatever a theme says. These rules live in a cascade layer no theme can override, and `!important` is not allowed in a theme.
 - **There is always a way back.** The account menu, its Settings entry and the theme picker are kept visible and clickable whatever a theme does. `?theme=off` in the address, or **Alt+Shift+D**, shows Rainy's own look in that tab.
+- **One to one in looks, not in features.** A theme can make Rainy look exactly like another app, as Encore does with YouTube Music. Controls that other app does not have (keyboard shortcuts, sort, grid or list, Friends, the queue, the player's More menu) stay, drawn in the theme's language.
 - **What a theme breaks can be found.** Settings → Appearance → *Check the theme in use* (administrators) compares every control on every view with the theme's styles off and on. It reports what the theme hides, covers, shrinks, pushes off screen or makes hard to read. See [Checking a theme](#checking-a-theme).
 
 ## A package
@@ -50,6 +51,8 @@ The manifest sits at the root of the zip, or inside a single top-level folder (w
     "colorScheme": "dark",
     "tokens": { "--accent-primary": "#ff0033", "--bg-primary": "#030303" },
     "styles": ["style.css"],
+    "icons": { "play": "icons/play.svg", "library-music": "icons/home.svg" },
+    "strings": { "en": { "Library": "Home" }, "es": { "Library": "Inicio" } },
     "entry": "index.js",
     "preview": "preview.jpg",
     "i18n": { "es": { "name": "Mi tema", "description": "Una línea para el selector" } }
@@ -64,7 +67,9 @@ The manifest sits at the root of the zip, or inside a single top-level folder (w
 | `name`, `version` | required | `version` looks like `1.2.3`. |
 | `colorScheme` | | `dark` (default) or `light`. It tells the browser how to draw its own controls (scroll bars, date pickers), and the picker shows it. |
 | `tokens` | | Values for Rainy's [tokens](#tokens), or for your own (their names start with `--theme-`). A value is a CSS value of at most 200 characters, without `;`, braces, `<`, `>`, `\`, `url()` or `!important`. |
-| `styles` | | Stylesheets of the package, in order. A theme needs `tokens`, `styles` or both. |
+| `styles` | | Stylesheets of the package, in order. A theme needs at least one of `tokens`, `styles`, `icons` or `strings`. |
+| `icons` | | [Icons](#icons) to draw instead of Rainy's: an icon name to an SVG file of the package. |
+| `strings` | | [Words](#words) to use instead of Rainy's, per language. |
 | `entry` | | A module for [decorative layers](#a-themes-module). |
 | `preview` | recommended | A 16:9 picture of the theme, about 960 × 540. A screenshot works best. Without one, the picker draws a little window in the theme's colours. |
 | `description`, `author`, `license`, `homepage`, `i18n` | | As for environments. |
@@ -109,6 +114,7 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | Part | |
 | --- | --- |
 | `splash` | The boot splash, shown to signed-in users while Rainy loads. |
+| `splash-logo` | The logo on the boot splash. *May be hidden.* |
 | `setup`, `login` | The first-run setup screen and the sign-in screen. |
 | `app` | The signed-in app: header, body and player bar. |
 | `header` | The top bar. |
@@ -119,6 +125,8 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | `search` | The library search box. |
 | `user-menu` | The account menu (trigger and dropdown). |
 | `user-menu-trigger` | The avatar and name that open the account menu. *A control.* |
+| `user-name` | The user's name beside the avatar, in the top bar. *May be hidden.* |
+| `user-menu-arrow` | The little chevron of the account menu's trigger. *May be hidden.* |
 | `user-dropdown` | The account menu's dropdown. |
 | `menu-settings` | The Settings entry of the account menu. *A control.* |
 | `app-body` | Everything between the top bar and the player bar: sidebar and main. |
@@ -126,9 +134,11 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | `sidebar-backdrop` | What dims the page behind the sidebar on phones. *A control.* |
 | `nav` | The navigation inside the sidebar. |
 | `nav-section` | A group of the navigation: Library, Browse, Playlists. |
+| `nav-title` | The title of a group of the navigation, where it is only a title (Library, Playlists). *May be hidden.* |
 | `playlists` | The list of playlists in the sidebar. |
 | `main` | The scrolling area where every view is shown. |
 | `section-header` | The title row of the library and playlist views, with the grid/list toggle. |
+| `view-title`, `view-subtitle` | The big title of the library and playlist views, and the line under it. *May be hidden.* Hide them by view (`html[data-view="library"]`): on a playlist the title is the playlist's name. |
 | `library-stats` | The song, artist and album counts of the library. *May be hidden.* |
 | `loading`, `empty-state` | The library's loading and empty states. |
 | `song-grid`, `song-list` | The library's songs as a grid (shelves and cards), and as a list. |
@@ -142,6 +152,7 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | `progress` | The progress bar and the times. |
 | `player-actions` | The right of the player bar: like, queue, volume, more. |
 | `volume` | The volume control. |
+| `volume-readout` | The volume as a number, beside the slider. *May be hidden.* |
 | `player-menu` | The player bar's More menu: sleep timer, speed, EQ, crossfade, Connect. |
 | `settings` | The Settings page. |
 | `settings-sidebar`, `settings-nav` | The Settings page's navigation and search, and its list of sections. |
@@ -190,6 +201,22 @@ What Rainy builds over and over has a class of its own, and a few controls have 
 | `.toast` | A notice (`.success`, `.error`, `.info`). |
 | `.global-search-overlay`, `.shortcut-overlay` | The global search palette and the keyboard shortcuts sheet. |
 | `.fs-side-tab`, `.fs-artwork-container` | A tab of the full player's side panel (queue, lyrics; `.active` when chosen), and its album art. |
+| `.fs-backdrop`, `.fs-brand`, `.fs-title`, `.fs-artist`, `.fs-side-tabs`, `.fs-control-btn`, `.fs-progress-fill`, `.fs-queue-item` | In the full player: the background (the blurred album art), the Rainy mark, the song's title and artist, the tabs of the side panel, a button of its own controls, the played part of its progress, and a song in its queue (`.active` is the one playing). |
+| `#sidebar-toggle`, `.header-icon-btn`, `#search-input`, `#user-avatar`, `.dropdown-item` | In the top bar: the button that opens or folds the navigation, a round icon button, the search field, the user's initial, and an entry of the account menu. |
+| `.nav-more-toggle`, `#nav-browse-toggle`, `.nav-header-row`, `#sidebar-new-playlist` | In the navigation: the "More" row, the title of the Browse group (which folds it), the title row of Playlists, and its New playlist button. |
+| `.view-toggle`, `.songs-list`, `.section-header-row`, `.section-sort`, `#sort-select`, `.songs-grid-section` | In the library: the grid/list switch, the songs as a list, a shelf's title row with a control beside it, the sort of All songs and its select, and the cards of All songs in a grid. |
+| `.song-artwork-overlay`, `.song-menu-btn`, `.song-duration` | In a song card: what darkens the cover on hover, the menu button (three dots), and the length. |
+| `.song-row-artwork`, `.song-row-title`, `.song-row-artist`, `.song-row-album`, `.song-row-duration` | In a song's list row: its cover, title, artists, album and length. |
+| `.album-card-title`, `.album-card-artist`, `.album-card-meta` | In an album card: its title, artists, and song count and length. |
+| `.album-detail-hero`, `.album-detail-cover`, `.album-detail-type`, `.album-detail-title`, `.album-detail-artist`, `.album-detail-meta`, `.album-detail-tracks`, `.album-play-btn`, `.album-back-btn` | An album's page: its head, cover, kind ("Album"), title, artists, details, songs, Play (on mix pages too), and Back. |
+| `.albums-search-wrapper`, `.albums-search-input`, `.albums-sort-select`, `.artists-search-wrapper`, `.artists-search-input` | The search boxes and fields of the Albums and Artists views, and the sort of Albums. |
+| `.artist-hero`, `#artist-back-btn`, `#artist-play-all-btn`, `.artist-tracks-list` | An artist's page: its head, Back, Play all, and its songs. |
+| `.recent-content`, `.recent-song-cover`, `.recent-song-title` | Recently played: its content, and the cover and title in a row. |
+| `.discover-item-cover`, `.discover-item-title`, `.discover-item-artist-album` | A Discover result's cover, title, and artist and album. |
+| `.mix-hero`, `.mix-detail-head`, `.mix-card-title`, `.mix-card-sub`, `.mix-nav` | Smart Mix: the big mix at the top, the head of a mix's page, a mix card's name and line, and the arrows that scroll a row of mixes. |
+| `#now-playing-title`, `#now-playing-artist`, `#volume-slider` | In the player bar: the title and artist of the song playing, and the volume slider. |
+| `.settings-nav-item`, `.settings-row-label`, `.settings-row-hint`, `.toggle-slider` | In Settings: an entry of the navigation (`.active` when open), a setting's name and the line under it, and the track and knob of a switch. |
+| `.modal-overlay` | The dimmed backdrop of a dialog (it holds `.modal-content`). |
 
 The state classes `active`, `selected`, `playing`, `current`, `collapsed`, `open`, `hidden`, `no-anime`, `success`, `error`, `info` and `warning` may be combined with any of these.
 
@@ -209,6 +236,121 @@ Attributes on `<html>` say what the app is doing, so a theme can follow it: `htm
 | `data-settings` | `true`, `false` | Settings is open. |
 | `data-sidebar` | `open`, `collapsed` | Whether the sidebar is folded to icons. |
 | `class no-anime` | present or not | The user hid the anime logo. |
+
+## Icons
+
+Every icon Rainy draws is an `<svg data-icon="name">`, and a theme can bring its own drawing for any of them. Give the names and SVG files under `icons` in the manifest:
+
+```json
+"icons": { "play": "icons/play.svg", "pause": "icons/pause.svg", "library-music": "icons/home.svg" }
+```
+
+An icon file holds shapes only: `path`, `circle`, `rect`, `ellipse`, `line`, `polyline`, `polygon` and `g`, with their geometry and paint, in any `viewBox`. A file with scripts, links, images, styles or text is refused when the package is installed, and whatever a file holds, only its shapes reach the page. Leave out `fill` to take the colour of the icon's place (Rainy's CSS and yours colour icons through `fill`). Icons a theme does not bring stay Rainy's, and icons Rainy draws later (a new view, a menu just opened) are replaced too. Material Symbols, for instance, work as they come.
+
+| Icon | |
+| --- | --- |
+| `add` | Add, new (a plus) |
+| `album` | An album |
+| `arrow-back` | Go back |
+| `arrow-forward` | Go on, submit |
+| `auto-awesome` | Automatic, magic (sparkles) |
+| `autorenew` | Jobs running again |
+| `bolt` | Energy |
+| `bookmark` | Saved |
+| `build` | Maintenance (a wrench) |
+| `cast` | Cast to a device, Rainy Connect |
+| `check` | Done |
+| `check-circle` | Success |
+| `chevron-left` | Scroll back |
+| `chevron-right` | Scroll on, open |
+| `close` | Close, cancel |
+| `cloud-download` | Download from the internet |
+| `crossfade` | Crossfade |
+| `delete` | Delete |
+| `description` | A file (export) |
+| `disc` | A disc |
+| `drag-indicator` | Drag to reorder |
+| `edit` | Edit, rename |
+| `equalizer` | Equalizer |
+| `error` | Error |
+| `exit` | Leave |
+| `expand-more` | Open a list or menu (a chevron down) |
+| `explore` | Discover, explore |
+| `fire` | Hot |
+| `graphic-eq` | Light show |
+| `grid-view` | Grid view |
+| `group` | Friends, users, sharing |
+| `guitar` | Instrumental |
+| `headphones` | Listening |
+| `heart` | Loved |
+| `help` | Help |
+| `history` | Recently played |
+| `image` | A picture, cover |
+| `import` | Import |
+| `info` | About, information |
+| `key` | Password |
+| `keyboard` | Keyboard shortcuts |
+| `library-music` | The library |
+| `list-view` | List view |
+| `logout` | Sign out |
+| `lyrics` | Lyrics |
+| `menu` | Open the navigation (three lines) |
+| `monitor` | A computer |
+| `moon` | Night, sleep |
+| `more-horiz` | More (three dots in a row) |
+| `more-vert` | More actions (three dots in a column) |
+| `music-note` | A song, music, no cover |
+| `palette` | Colour, appearance |
+| `pause` | Pause |
+| `person` | An artist, a user |
+| `phone` | A phone |
+| `play` | Play |
+| `play-circle` | Play (in a circle) |
+| `playlist-add` | Add to a playlist |
+| `playlist-play` | Play a playlist |
+| `queue-music` | The queue |
+| `queue-play-next` | Play next |
+| `radio` | Radio |
+| `refresh` | Refresh, scan |
+| `remove` | Remove (a minus) |
+| `repeat` | Repeat |
+| `save` | Save |
+| `save-alt` | Keep, download to the device |
+| `schedule` | Time, schedule |
+| `search` | Search |
+| `settings` | Settings |
+| `share` | Share |
+| `shield` | Role, permissions |
+| `shuffle` | Shuffle, mix |
+| `skip-next` | Next track |
+| `skip-previous` | Previous track |
+| `sort` | Sort |
+| `speed` | Playback speed |
+| `spinner` | Loading (drawn as an arc) |
+| `spotify` | Spotify |
+| `star` | Favourite |
+| `sun` | Day |
+| `sync` | Sync |
+| `thumb-down` | Dislike |
+| `thumb-up` | Like |
+| `timer` | Sleep timer |
+| `tune` | Options, adjust |
+| `upload` | Upload |
+| `volume-up` | Volume |
+| `yt` | YouTube |
+
+## Words
+
+A theme can call things by other names: "Home" for Rainy's Library, "Explore" for Discover. Under `strings`, map Rainy's English text (the source text every translation starts from) to yours, per language:
+
+```json
+"strings": {
+    "en": { "Library": "Home", "Search your library": "Search songs, albums, artists" },
+    "es": { "Library": "Inicio", "Search your library": "Busca canciones, álbumes, artistas" }
+}
+```
+
+Only the language in use is read: give each language you want to change, and the others keep Rainy's own words. A text is plain (no markup), up to 160 characters. The English texts are the keys of Rainy's translations, in static/js/i18n/locales/ (`es.js` lists them next to their Spanish). A key that Rainy stops using simply stops applying.
 
 ## Laying things out
 
@@ -325,4 +467,7 @@ Themes keep working as Rainy changes because the contract is checked by `tests/t
 - **A new control goes inside a region.** Any button, link or field in index.html must sit inside a `data-part`. A new region gets a part. Add it to static/js/theme/contract.json and to this file.
 - **Renaming or removing something in the contract breaks installed themes.** The test fails if a part disappears from the page or a listed class is no longer built. Keep the old name working, or wait for a new `api` version.
 - **State goes through classes or `.hidden`, not inline styles.** If something must stay hidden whatever a theme says (a closed panel, an inactive tab), express it with `.hidden` or `[hidden]`, or add its rule to static/css/guard.css.
+- **A new icon gets a name.** Every `<svg>` carries `data-icon` with a name from contract.json's icons (the test fails on an unnamed one). To switch an icon in JavaScript, use `setIcon(svg, name, path)` from static/js/helper/icons.js: never rewrite its path or markup by hand, or a theme's icon would be lost.
+- **New words go through `t()`.** That is what lets a theme rename them, as well as translate them.
+- **A hideable part holds no controls.** Mark only decoration (a title, a count, a logo) as hideable; the test fails if a hideable part contains a button, a link or a field.
 - **A new view gets a value for `data-view`** (through the `current-view-type` context). Add it to the states table.

@@ -59,6 +59,23 @@ const Icons = {
     'spotify': 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.59 14.42c-.2.32-.61.42-.93.22-2.55-1.56-5.76-1.91-9.54-1.05-.37.08-.74-.15-.82-.52-.08-.37.15-.74.52-.82 4.13-.94 7.68-.54 10.55 1.21.32.2.42.61.22.93zm1.22-2.72c-.25.4-.77.53-1.17.28-2.92-1.8-7.38-2.32-10.84-1.27-.45.13-.92-.12-1.05-.57-.13-.45.12-.92.57-1.05 3.96-1.2 8.87-.62 12.21 1.44.4.25.53.77.28 1.17zm.11-2.83c-3.5-2.08-9.28-2.27-12.62-1.26-.54.16-1.11-.13-1.27-.67-.16-.54.13-1.11.67-1.27 3.83-1.16 10.21-.94 14.24 1.45.49.29.65.92.36 1.41-.29.48-.92.65-1.38.34z'
 };
 
+/**
+ * The names UI themes know these icons by (docs/THEMES.md#icons), where they
+ * differ from the variant's own; the rest go by their variant.
+ */
+const THEME_NAMES = {
+    'note': 'music-note', 'arrow-right': 'arrow-forward', 'hamburger': 'menu', 'magnifier': 'search',
+    'arrow-head-down': 'expand-more', 'arrow-head-right': 'chevron-right', 'cog': 'settings',
+    'sign-out': 'logout', 'plus': 'add', 'minus': 'remove', 'vertical-three-dots': 'more-vert',
+    'pencil': 'edit', 'bin': 'delete', 'grid': 'grid-view', 'list': 'list-view', 'like': 'thumb-up',
+    'dislike': 'thumb-down', 'loop': 'repeat', 'volume-full': 'volume-up', 'user': 'person',
+    'times': 'close', 'retry': 'refresh', 'drag': 'drag-indicator', 'list-with-plus': 'playlist-add',
+    'list-with-play': 'playlist-play', 'back': 'skip-previous', 'next': 'skip-next', 'download': 'save-alt',
+};
+
+/** The name a theme replaces a <rainy-icon> variant by. */
+export const themeIconName = (variant) => THEME_NAMES[variant] || variant;
+
 export class Icon extends Component {
     static componentName = 'rainy-icon';
 
@@ -72,12 +89,9 @@ export class Icon extends Component {
     render() {
         const variant = (this.get('variant') ?? 'note');
         const color = (this.get('color') ?? 'currentColor');
+        // The thumb is turned on its path, so a theme's own thumb-down is not turned too.
+        const pathAttrs = variant === 'dislike' ? [Attr.of('transform', 'rotate(180 12 12)')] : [];
         const attrs = Object.entries({
-            ...(variant === 'dislike'
-                ? {
-                    'transform': 'rotate(180)'
-                }
-                : {}),
             ...(variant === 'times'
                 ? {
                     'stroke': color,
@@ -88,8 +102,8 @@ export class Icon extends Component {
         }).map(([key, value]) => Attr.of(key, value));
 
         this.style.display = 'inline-flex';
-        return s.svg(a.viewBox('0 0 24 24'), a.fill(color), ...attrs,
-            s.path(a.d(Icons[variant]))
+        return s.svg(a.viewBox('0 0 24 24'), a.fill(color), a['data-icon'](themeIconName(variant)), ...attrs,
+            s.path(a.d(Icons[variant]), ...pathAttrs)
         );
     }
 };

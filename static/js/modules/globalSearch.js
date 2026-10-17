@@ -15,9 +15,9 @@ const MODE_LIBRARY = 'library';
 const MODE_DISCOVER = 'discover';
 const MODE_STORAGE_KEY = 'rainy.globalSearch.mode';
 
-const SVG_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8 5v14l11-7z"/></svg>';
-const SVG_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
-const SVG_DOWNLOAD = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>';
+const SVG_PLAY = '<svg data-icon="play" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8 5v14l11-7z"/></svg>';
+const SVG_PAUSE = '<svg data-icon="pause" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+const SVG_DOWNLOAD = '<svg data-icon="save-alt" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>';
 
 export class GlobalSearch {
     constructor(app, player) {
@@ -56,7 +56,7 @@ export class GlobalSearch {
             <div class="gs-backdrop"></div>
             <div class="gs-panel">
                 <div class="gs-input-row">
-                    <svg class="gs-icon" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+                    <svg data-icon="search" class="gs-icon" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
                     <input type="text" id="gs-input" class="gs-input" placeholder="${t('Search songs, artists, albums, playlists…')}" autocomplete="off" spellcheck="false" />
                     <div class="gs-seg" role="tablist" aria-label="${t('Search mode')}">
                         <button type="button" class="gs-seg-btn active" data-mode="${MODE_LIBRARY}" role="tab" aria-selected="true">${t('Library')}</button>

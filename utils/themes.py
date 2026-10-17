@@ -67,9 +67,12 @@ PUBLIC_CLASSES = frozenset(
 ) | frozenset(CONTRACT.get('stateClasses', [])) | {
     'btn-primary', 'btn-secondary', 'btn-danger', 'icon-btn-small', 'play-pause', 'secondary',
     'modal-header', 'modal-body'}
+ICON_NAMES = frozenset(i['name'] for i in CONTRACT.get('icons', []))
+MAX_ICON_BYTES = 32 * 1024
 PUBLIC_IDS = frozenset(
     name for item in CONTRACT['items'] for name in re.findall(r'#([\w-]+)', item['selector']))
 
+_LANG = re.compile(r'^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$')
 _TOKEN_NAME = re.compile(r'^--[a-z][a-z0-9-]{0,63}$')
 _BAD_VALUE = re.compile(r'[;{}<>\\]|!\s*important|url\s*\(|expression\s*\(', re.I)
 
@@ -100,6 +103,42 @@ def _tokens(data):
     return out
 
 
+def _icons(data, files):
+    raw = data.get('icons', {})
+    if not isinstance(raw, dict):
+        raise PackageError('"icons" must map icon names (like "play") to SVG files of the package.')
+    if len(raw) > 200:
+        raise PackageError('"icons" may replace at most 200 icons.')
+    out = {}
+    for name, path in raw.items():
+        if name not in ICON_NAMES:
+            raise PackageError(f'"{name}" is not one of Rainy\'s icons (docs/THEMES.md#icons).')
+        out[name] = file_field({'icons': path}, 'icons', files, ('.svg',), required=True)
+    return out
+
+
+def _strings(data):
+    raw = data.get('strings', {})
+    if not isinstance(raw, dict):
+        raise PackageError('"strings" must map a language code to { "English text": "your text" }.')
+    out = {}
+    for lang, table in raw.items():
+        if not isinstance(lang, str) or not _LANG.match(lang) or not isinstance(table, dict):
+            raise PackageError('"strings" must map a language code to { "English text": "your text" }.')
+        if len(table) > 400:
+            raise PackageError(f'"strings" may change at most 400 texts per language ({lang}).')
+        words = {}
+        for key, value in table.items():
+            if not isinstance(key, str) or not key.strip() or len(key) > 300:
+                raise PackageError(f'"strings" ({lang}): every key must be one of Rainy\'s English texts.')
+            if not isinstance(value, str) or len(value) > 160 or re.search(r'[<>]', value):
+                raise PackageError(f'"strings" ({lang}): "{key[:40]}" must become plain text of at most 160 characters.')
+            words[key] = value
+        if words:
+            out[lang] = words
+    return out
+
+
 def validate_manifest(data, files):
     """Check a parsed manifest against the files of its package.
 
@@ -115,14 +154,18 @@ def validate_manifest(data, files):
         raise PackageError('"styles" must be a list of at most 8 stylesheets.')
     tokens = _tokens(data)
     styles = [file_field({'styles': s}, 'styles', files, ('.css',), required=True) for s in styles]
-    if not tokens and not styles:
-        raise PackageError('A theme needs "tokens", "styles" or both: it would not change anything.')
+    icons = _icons(data, files)
+    strings = _strings(data)
+    if not tokens and not styles and not icons and not strings:
+        raise PackageError('A theme needs tokens, styles, icons or strings: it would not change anything.')
     return {
         **{k: common[k] for k in ('manifest', 'api', 'id', 'name', 'version', 'description',
                                    'author', 'license', 'homepage')},
         'colorScheme': scheme,
         'tokens': tokens,
         'styles': styles,
+        'icons': icons,
+        'strings': strings,
         'entry': file_field(data, 'entry', files, SCRIPT_EXT),
         'preview': file_field(data, 'preview', files, IMAGE_EXT),
         'i18n': common['i18n'],
@@ -345,9 +388,33 @@ def lint_css(text, path='style.css'):
     return errors, warnings
 
 
+_SVG_REFUSED = re.compile(
+    r'<\s*(script|foreignObject|image|iframe|object|embed|style|use|a|animate\w*|set)\b'
+    r'|\son\w+\s*=|(?:xlink:)?href\s*=\s*["\'](?!#)|javascript:|<!ENTITY|<!DOCTYPE',
+    re.I)
+
+
+def check_svg(raw, path):
+    """Errors in an icon file: it must be a small, plain SVG of shapes."""
+    if len(raw) > MAX_ICON_BYTES:
+        return [f'{path} is larger than {MAX_ICON_BYTES // 1024} KB.']
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return [f'{path} is not UTF-8 text.']
+    if not re.search(r'<svg\b', text):
+        return [f'{path} is not an SVG.']
+    found = _SVG_REFUSED.search(text)
+    if found:
+        return [f'{path} holds "{found.group(0).strip()}": an icon may only hold shapes (path, circle, rect…).']
+    return []
+
+
 def inspect(manifest, read):
-    """Lint every stylesheet of a theme; raises PackageError for what may not be installed."""
+    """Lint every stylesheet and icon of a theme; raises PackageError for what may not be installed."""
     errors, warnings = [], []
+    for path in sorted(set(manifest.get('icons', {}).values())):
+        errors += check_svg(read(path), path)
     for path in manifest['styles']:
         raw = read(path)
         if len(raw) > MAX_STYLESHEET_BYTES:

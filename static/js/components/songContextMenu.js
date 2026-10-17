@@ -270,7 +270,7 @@ export class SongContextMenu extends Component {
 
         for(const playlist of playlists) {
             item.append(H.of(ContextMenuItem, on.click(() => this.addCurrentSongToPlaylist(playlist)),
-                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'),
+                s.svg(a.viewBox('0 0 24 24'), a.fill('currentColor'), a['data-icon']('play-circle'),
                     s.path(a.d('M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z'))
                 ),
                 h.span(playlistDisplayName(playlist.name))

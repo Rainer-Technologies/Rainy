@@ -30,12 +30,13 @@
  *   signal                      an AbortSignal, aborted when the theme comes off
  *   toast(message), fail(error)
  */
-import { getLanguage, t } from '../i18n/index.js';
+import { getLanguage, setThemeStrings, t } from '../i18n/index.js';
 import {
     CACHE_KEY, DEFAULT_THEME, SAFE_KEY, THEME_API, THEMES, buildTokenCss, cacheEntry, chooseTheme, isThemeUrl,
-    readSafeMode,
+    readCache, readSafeMode,
 } from './index.js';
 import { cssColorToHex } from './color.js';
+import { loadIcons, useIcons } from './icons.js';
 import { getState, onStateChange } from './state.js';
 
 const STYLE_TIMEOUT = 5000;
@@ -52,6 +53,7 @@ let safe = false;
 let mounted = null;         // { instance, abort, stops: [], vars: Set, layers }
 let token = 0;              // newest change wins
 const failed = new Set();   // themes whose styles or module broke here this session
+let dressed = null;         // `${id}@${rev}` whose icons and words are on the page
 const listeners = new Set();
 
 const withTimeout = (promise, ms, what) => Promise.race([
@@ -92,6 +94,24 @@ export function startThemes() {
     worn = root.getAttribute('data-theme') || DEFAULT_THEME;
     if (!root.hasAttribute('data-theme')) root.setAttribute('data-theme', worn);
     if (!root.hasAttribute('data-color-scheme')) root.setAttribute('data-color-scheme', 'dark');
+    // The boot script put the remembered theme's styles on, and i18n its words; its icons follow
+    // as soon as they load, without waiting for the server's list.
+    const cached = !safe && worn !== DEFAULT_THEME ? readCache(storage('local')?.getItem(CACHE_KEY)) : null;
+    if (cached && cached.id === worn) {
+        dressed = `${cached.id}@${cached.rev}`;
+        const mine = token;
+        loadIcons(cached.icons).then((icons) => { if (mine === token && worn === cached.id) useIcons(icons); });
+    }
+}
+
+/** Put a theme's words on the page at once, and its icons once they load (Rainy's own for a built-in theme). */
+async function dress(def, iconsJob, mine) {
+    const key = `${def.id}@${def.rev || 'builtin'}`;
+    if (dressed === key) return;
+    dressed = key;
+    setThemeStrings(def.builtin ? {} : def.strings);
+    const icons = iconsJob ? await iconsJob : new Map();
+    if (mine === token) useIcons(icons);
 }
 
 /**
@@ -145,8 +165,11 @@ export async function wear(id) {
     const mine = ++token;
     if (def.id === worn && themeElements().every((el) => el.dataset.rev === (def.rev || 'builtin'))) {
         if (!mounted && def.entry) mountModule(def, mine);
+        if (dressed !== `${def.id}@${def.rev || 'builtin'}`) dress(def, def.builtin ? null : loadIcons(def.icons), mine);
         return def.id;
     }
+    // The icons load while the styles do.
+    const iconsJob = def.builtin || !def.icons || !Object.keys(def.icons).length ? null : loadIcons(def.icons);
 
     const old = themeElements();
     const added = [];
@@ -177,6 +200,8 @@ export async function wear(id) {
 
     unmountModule();
     for (const el of old) el.remove();
+    dressed = null;
+    dress(def, iconsJob, mine);
     worn = def.id;
     root.setAttribute('data-theme', def.id);
     root.setAttribute('data-color-scheme', def.colorScheme || 'dark');

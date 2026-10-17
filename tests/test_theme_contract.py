@@ -252,3 +252,57 @@ def test_the_docs_list_the_whole_contract(contract):
     missing += [s['name'] for s in contract['states'] if f"`{s['name']}`" not in docs]
     missing += [t for t in contract['tokens'] if f'`{t}`' not in docs]
     assert not missing, f'Document these in docs/THEMES.md: {missing}'
+
+
+# ------------------------------------------------------------ hideable parts
+
+def test_hideable_parts_hold_no_controls(contract, page):
+    """A part a theme may hide is decoration only: hiding it can never hide something to press."""
+    hideable = {p['part'] for p in contract['parts'] if p.get('hideable')}
+    wrong = []
+    for tag, attrs, above, line in page:
+        own = set((attrs.get('data-part') or '').split())
+        if _is_control(tag, attrs) and (hideable & (own | set(above))):
+            wrong.append(f'line {line}: <{tag} id="{attrs.get("id", "")}"> is inside a hideable part')
+    assert not wrong, '\n'.join(wrong)
+
+
+# ------------------------------------------------------------ icons
+
+# What draws icons (the theme modules and the setIcon helper only talk about them).
+ICON_SOURCES = ['static/index.html'] + sorted(
+    os.path.relpath(os.path.join(dirpath, f), ROOT)
+    for dirpath, _dirs, files in os.walk(os.path.join(STATIC, 'js')) for f in files
+    if f.endswith('.js') and os.path.basename(dirpath) != 'theme' and f != 'icons.js')
+
+
+def _icon_names_in_use():
+    used = {}
+    for source in ICON_SOURCES:
+        text = read(*source.split(os.sep))
+        names = re.findall(r'data-icon="([a-z0-9-]+)"', text)
+        names += re.findall(r"a\['data-icon'\]\('([a-z0-9-]+)'\)", text)
+        names += re.findall(r"setIcon\([^,]+, '([a-z0-9-]+)'", text)
+        for name in names:
+            used.setdefault(name, source)
+    icon_js = read('static', 'js', 'components', 'icon.js')
+    mapping = dict(re.findall(r"'([a-z-]+)': '([a-z-]+)'", icon_js.split('THEME_NAMES = {', 1)[1].split('};', 1)[0]))
+    for variant in re.findall(r"^\s*'?([a-z-]+)'?:\s*'M", icon_js, re.M):
+        used.setdefault(mapping.get(variant, variant), 'static/js/components/icon.js')
+    return used
+
+
+def test_every_icon_is_named():
+    """Every icon of the page carries data-icon, so a theme can replace it."""
+    html = read('static', 'index.html')
+    unnamed = [m.start() for m in re.finditer(r'<svg\b(?![^>]*data-icon=)', html)]
+    assert not unnamed, f'{len(unnamed)} <svg> in index.html without data-icon (name it from contract.json icons)'
+
+
+def test_icon_names_match_the_contract(contract):
+    listed = {i['name'] for i in contract['icons']}
+    used = _icon_names_in_use()
+    unknown = {name: src for name, src in used.items() if name not in listed}
+    assert not unknown, f'Icons not in contract.json (add them, and to docs/THEMES.md): {unknown}'
+    unused = sorted(listed - set(used))
+    assert not unused, f'contract.json lists icons nothing draws: {unused}'

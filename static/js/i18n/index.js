@@ -14,6 +14,7 @@
  *   data-i18n-html       the element's whole innerHTML (sentences with <code>/<strong>)
  */
 import english from './locales/en.js';
+import { CACHE_KEY, SAFE_KEY, readCache, readSafeMode } from '../theme/index.js';
 
 export const LANGUAGES = [
     { code: 'en', name: 'English' },
@@ -28,6 +29,9 @@ const STORAGE_KEY = 'rainy-lang';
 /** null until the boot call below, so the first setLanguage always scans the markup. */
 let current = null;
 let dictionary = english;
+// A UI theme's own words, by language (docs/THEMES.md#words). Only the
+// language in use is read: a theme's English never stands in for Spanish.
+let themeStrings = cachedThemeStrings();
 const pluralRules = new Map();
 const listeners = new Set();
 
@@ -78,7 +82,7 @@ function pluralCategory(count) {
  */
 export function t(key, params) {
     if (typeof key !== 'string') return key;
-    let value = dictionary[key] ?? english[key] ?? key;
+    let value = themeStrings[current]?.[key] ?? dictionary[key] ?? english[key] ?? key;
     if (value && typeof value === 'object') {
         const count = Number(params?.count);
         value = value[pluralCategory(count)] ?? value.other ?? key;
@@ -86,6 +90,41 @@ export function t(key, params) {
     if (!params) return value;
     return value.replace(/\{(\w+)\}/g, (match, name) =>
         params[name] === undefined || params[name] === null ? match : String(params[name]));
+}
+
+/** The words of the theme this device wore last time, so the first paint already has them. */
+function cachedThemeStrings() {
+    try {
+        if (readSafeMode(location.search, sessionStorage.getItem(SAFE_KEY)).safe) return {};
+        return readCache(localStorage.getItem(CACHE_KEY))?.strings || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+/**
+ * Use a UI theme's words ({ lang: { English source: text } }, already
+ * checked), or none: re-translates the page and tells onLanguageChange
+ * listeners, so components show them at once.
+ * @param {Record<string, Record<string, string>>} strings
+ */
+export function setThemeStrings(strings) {
+    const next = strings && typeof strings === 'object' ? strings : {};
+    if (JSON.stringify(next) === JSON.stringify(themeStrings)) return;
+    themeStrings = next;
+    if (typeof document === 'undefined') return;
+    translateDom(document.body);
+    for (const fn of [...listeners, ...wordListeners]) {
+        try { fn(current); } catch (e) { console.error('[i18n] listener failed', e); }
+    }
+}
+
+const wordListeners = new Set();
+
+/** Follow changes of a UI theme's words (not of language, which reloads the page). Returns a function that stops. */
+export function onThemeWordsChange(fn) {
+    wordListeners.add(fn);
+    return () => wordListeners.delete(fn);
 }
 
 async function loadDictionary(code) {

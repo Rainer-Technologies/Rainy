@@ -95,13 +95,37 @@ function scrollableAncestor(el) {
     return document.documentElement.scrollHeight > innerHeight;
 }
 
+/**
+ * Whether the centre of a box is cut off by an ancestor that clips its content:
+ * null when it is not, 'scroll' when that ancestor scrolls (it can be brought
+ * into view), 'clip' when nothing can.
+ */
+function clippedBy(el, x, y) {
+    for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+        const c = n.getBoundingClientRect();
+        if (x >= c.left && x <= c.right && y >= c.top && y <= c.bottom) continue;
+        const scrolls = /(auto|scroll)/.test(cs.overflowX + cs.overflowY)
+            && (n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1);
+        return scrolls ? 'scroll' : 'clip';
+    }
+    return null;
+}
+
 /** How a control stands on the page right now. */
 export function signature(el) {
     const visible = typeof el.checkVisibility === 'function'
         ? el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
         : el.offsetParent !== null;
     const r = el.getBoundingClientRect();
-    const inView = r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+    let inView = r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+    let scrollable = false;
+    if (inView) {
+        const clip = clippedBy(el, r.left + r.width / 2, r.top + r.height / 2);
+        // Scrolled out of a panel's view is "out of view, reachable": the same as off the page.
+        if (clip === 'scroll') { inView = false; scrollable = true; }
+    }
     let hit = null;
     if (visible && inView) {
         const x = Math.min(innerWidth - 1, Math.max(0, r.left + r.width / 2));
@@ -115,7 +139,7 @@ export function signature(el) {
         h: r.height,
         inView,
         hit,
-        scrollable: !inView && scrollableAncestor(el),
+        scrollable: scrollable || (!inView && scrollableAncestor(el)),
         contrast: visible ? textContrast(el) : null,
     };
 }
@@ -145,10 +169,30 @@ const freeze = () => {
     return () => el.remove();
 };
 
-/** Compare the controls on the page with the theme's styles off and on. */
-export function auditPage() {
+/** What a view shows: Settings and the full player cover the app, the app is everything else. */
+function viewScope() {
+    const open = (sel) => {
+        const el = document.querySelector(sel);
+        return el && !el.classList.contains('hidden') ? el : null;
+    };
+    const settings = open('[data-part~="settings"]');
+    if (settings) return [settings];
+    const fullscreen = open('[data-part~="fullscreen"]');
+    if (fullscreen) return [fullscreen, document.querySelector('[data-part~="player-bar"]')].filter(Boolean);
+    return null;
+}
+
+/**
+ * Compare the controls on the page with the theme's styles off and on.
+ * @param {Element[]|null} [scope] only the controls inside these (default: what the open view shows)
+ */
+export function auditPage(scope = viewScope()) {
     const controls = [...document.querySelectorAll(CONTROL_SELECTOR)]
-        .filter((el) => !el.closest('#rainy-theme-layer, #rainy-splash, #rainy-rescue'));
+        .filter((el) => !el.closest('#rainy-theme-layer, #rainy-splash, #rainy-rescue'))
+        .filter((el) => !scope || scope.some((root) => root.contains(el)))
+        // A dialog or menu open over the view is checked as part of it; the view under a
+        // full-page panel is not.
+        .filter((el) => scope || !el.closest('[data-part~="settings"], [data-part~="fullscreen"]'));
     const unfreeze = freeze();
     try {
         setThemeOn(false);
