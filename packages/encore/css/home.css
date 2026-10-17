@@ -359,8 +359,6 @@ html[data-view="library"] [data-part~="section-header"] {
     font-family: Roboto, Arial, sans-serif;
 }
 
-.album-detail-hero h1,
-.album-detail-hero h2,
 .artist-hero h1 {
     font-size: clamp(32px, 3.2vw, 45px);
     font-weight: 700;
@@ -395,62 +393,145 @@ html[data-view="library"] [data-part~="section-header"] {
     background: transparent;
 }
 
-/* ---- An album's page ---------------------------------------------------- */
+/* ---- An album's page and a playlist's, as YouTube Music's -----------------
+   Two columns: on the left, centred, the cover, the title, the details and the
+   round buttons (Play a white disc); on the right, the songs as tall rows. */
+
+/* Play: a white disc with a black triangle (its words stay for screen readers). */
+.album-play-btn,
+#playlist-play-btn {
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff;
+    color: #030303;
+    border: none;
+    box-shadow: none;
+}
+
+.album-play-btn:hover,
+#playlist-play-btn:hover {
+    background: rgb(255 255 255 / 0.85);
+    transform: none;
+    filter: none;
+    box-shadow: none;
+}
+
+.album-play-btn svg,
+#playlist-play-btn svg {
+    width: 40px;
+    height: 40px;
+    fill: #030303;
+}
+
+.album-play-btn [data-part~="button-label"],
+#playlist-play-btn [data-part~="button-label"] {
+    display: none;
+}
+
+/* The other buttons beside it: outlined circles. */
+#playlist-settings-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgb(255 255 255 / 0.2);
+    background: transparent;
+}
+
+#playlist-settings-btn:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+#playlist-settings-btn svg {
+    fill: #fff;
+}
 
 .album-detail-cover {
     width: 264px;
     height: 264px;
-    border-radius: 4px;
+    border-radius: 8px;
     box-shadow: none;
+    overflow: hidden;
 }
 
-.album-detail-type {
-    color: rgb(255 255 255 / 0.7);
-    font-size: 14px;
-    letter-spacing: 0;
-    text-transform: none;
+.album-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .album-detail-title {
-    font-size: clamp(32px, 3.2vw, 45px);
+    order: -2;
+    margin: 0;
+    color: #fff;
+    font-size: 32px;
     font-weight: 700;
+    line-height: 1.2;
+}
+
+.album-detail-type {
+    order: -1;
+    color: rgb(255 255 255 / 0.7);
+    font-size: 16px;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .album-detail-artist {
     color: #fff;
     font-size: 16px;
+    font-weight: 500;
 }
 
 .album-detail-meta {
     color: rgb(255 255 255 / 0.7);
-    font-size: 14px;
+    font-size: 16px;
 }
 
-/* "Play": a white pill with a black play icon. */
-.album-play-btn,
-#artist-play-all-btn {
-    height: 36px;
-    padding: 0 16px 0 10px;
-    gap: 6px;
-    border-radius: 18px;
-    background: #fff;
-    color: #030303;
+.album-detail-info .album-play-btn {
+    margin-top: 20px;
+}
+
+/* The songs: tall rows, no lines between them. */
+.album-track-row {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 76px;
+    padding: 0 16px 0 8px;
     border: none;
-    box-shadow: none;
-    font-size: 14px;
+    border-radius: 4px;
+    background: transparent;
+}
+
+.album-track-row:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+.album-track-num {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 16px;
+    text-align: center;
+}
+
+.album-track-title {
+    color: #fff;
+    font-size: 16px;
     font-weight: 500;
 }
 
-.album-play-btn:hover,
-#artist-play-all-btn:hover {
-    background: rgb(255 255 255 / 0.85);
-    transform: none;
-    box-shadow: none;
+.album-track-artist,
+.album-track-duration {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 14px;
 }
 
-.album-play-btn svg,
-#artist-play-all-btn svg {
-    fill: #030303;
+.album-track-duration {
+    font-size: 16px;
 }
 
 .album-back-btn,
@@ -463,6 +544,150 @@ html[data-view="library"] [data-part~="section-header"] {
 
 .album-back-btn:hover {
     color: #fff;
+}
+
+@media (min-width: 900px) {
+    [data-part~="album-detail"]:not(.hidden) {
+        display: grid;
+        grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+        column-gap: clamp(32px, 4vw, 80px);
+        align-items: start;
+    }
+
+    .album-back-btn {
+        grid-column: 1 / -1;
+        justify-self: start;
+        margin-bottom: 8px;
+    }
+
+    .album-detail-hero {
+        grid-column: 1;
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+        padding: 16px 0 0;
+        background: none;
+        text-align: center;
+    }
+
+    .album-detail-info {
+        align-items: center;
+    }
+
+    .album-detail-tracks {
+        grid-column: 2;
+        padding-top: 16px;
+    }
+
+    /* A playlist: its head becomes the left column, with a cover of its own. */
+    html[data-view="playlist"] [data-part~="main"] {
+        display: grid;
+        grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+        column-gap: clamp(32px, 4vw, 80px);
+        align-content: start;
+        align-items: start;
+    }
+
+    html[data-view="playlist"] [data-part~="main"] > * {
+        grid-column: 2;
+    }
+
+    html[data-view="playlist"] [data-part~="section-header"] {
+        grid-column: 1;
+        grid-row: 1 / span 30;
+        position: sticky;
+        top: 0;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding-top: 16px;
+        text-align: center;
+    }
+
+    html[data-view="playlist"] [data-part~="section-header"]::before {
+        content: "";
+        width: 264px;
+        height: 264px;
+        border-radius: 8px;
+        background:
+            url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'><path fill='white' fill-opacity='.9' d='M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z'/></svg>") center / 96px no-repeat,
+            linear-gradient(135deg, rgb(var(--theme-ambient, 255 0 51) / 0.9), rgb(var(--theme-ambient, 255 0 51) / 0.35) 55%, #212121);
+    }
+
+    html[data-view="playlist"] .title-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+
+    html[data-view="playlist"] [data-part~="view-title"] {
+        font-size: 32px;
+    }
+
+    html[data-view="playlist"] .playlist-actions {
+        justify-content: center;
+        margin-top: 24px;
+    }
+
+    /* One row of round buttons, as YouTube Music's: the view switch, Play, the menu. */
+    html[data-view="playlist"] #playlist-menu-container {
+        position: absolute;
+        bottom: 12px;
+        left: calc(50% + 48px);
+    }
+
+    html[data-view="playlist"] .view-toggle {
+        position: absolute;
+        bottom: 16px;
+        right: calc(50% + 48px);
+        gap: 8px;
+    }
+
+    html[data-view="playlist"] [data-part~="shelf-title"] {
+        display: none;
+    }
+
+    html[data-view="playlist"] .library-section {
+        margin-top: 0;
+    }
+
+    /* Its songs: one column of tall rows, the length on the right. */
+    html[data-view="playlist"] .songs-grid-section {
+        grid-template-rows: none;
+        grid-template-columns: minmax(0, 1fr);
+        grid-auto-flow: row;
+        grid-auto-columns: auto;
+        gap: 0;
+        overflow: visible;
+    }
+
+    html[data-view="playlist"] .songs-grid-section .song-card {
+        height: 64px;
+        padding: 0 8px;
+    }
+
+    html[data-view="playlist"] .songs-grid-section .song-info {
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: 16px;
+    }
+
+    html[data-view="playlist"] .songs-grid-section .song-title {
+        grid-column: 1;
+    }
+
+    html[data-view="playlist"] .songs-grid-section .song-duration {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        align-self: center;
+        font-size: 16px;
+    }
+
+    html[data-view="playlist"] .songs-grid-section .song-duration::before {
+        content: none;
+    }
 }
 
 /* The library's own search and sort, as YouTube Music's field and pill. */

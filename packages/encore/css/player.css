@@ -126,8 +126,8 @@
     [data-part~="player-bar"] {
         grid-template-columns:
             [prev] auto [play] auto [next] auto [time] auto [time-end] auto [t-gap] minmax(16px, 1fr)
-            [now] minmax(0, 480px) [keep] auto [like] auto [dislike] auto [n-gap] minmax(16px, 1fr)
-            [volume] auto [repeat] auto [shuffle] auto [queue] auto [more] auto;
+            [now] minmax(0, 480px) [keep] auto [like] auto [dislike] auto [more] auto [n-gap] minmax(16px, 1fr)
+            [volume] auto [repeat] auto [shuffle] auto [queue] auto;
         grid-template-rows: 72px;
         grid-auto-flow: column;
         grid-auto-columns: auto;
@@ -217,21 +217,59 @@
     }
 }
 
-/* ---- Now playing (the full player) -------------------------------------- */
+/* ---- Now playing (the full player) --------------------------------------
+   As YouTube Music's player page: it takes the main area only, under the top
+   bar and beside the guide, with the cover big on the left and the tabbed
+   queue on the right. In the standard full player the player bar stays
+   underneath (as YouTube Music's does); the modern one keeps its own controls
+   under the cover. Every button in it is a plain white icon, except Play: a
+   white disc with a black triangle. */
 
 [data-part~="fullscreen"] {
     background: #030303;
     font-family: Roboto, Arial, sans-serif;
 }
 
-/* The song's colours, softly: not a blurred cover. */
 .fs-backdrop {
-    opacity: 0.18;
-    filter: blur(120px) saturate(1.4);
+    opacity: 0.35;
+    filter: blur(140px) saturate(1.6) brightness(0.55);
 }
 
-.fs-brand {
-    font-family: Roboto, Arial, sans-serif;
+[data-part~="fs-brand"] {
+    display: none;
+}
+
+/* The buttons at the top: plain icons, round on hover. */
+#fs-volume-btn,
+#fs-lightshow-btn,
+#fs-close-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #fff;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+#fs-volume-btn:hover,
+#fs-lightshow-btn:hover,
+#fs-close-btn:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+#fs-volume-btn svg,
+#fs-lightshow-btn svg,
+#fs-close-btn svg {
+    width: 24px;
+    height: 24px;
+    fill: #fff;
+    color: #fff;
+}
+
+#fs-lightshow-btn.active {
+    background: rgb(255 255 255 / 0.15);
 }
 
 .fs-artwork-container {
@@ -239,19 +277,87 @@
     box-shadow: none;
 }
 
-.fs-title {
+[data-part~="fs-title"] {
     color: #fff;
     font-size: 24px;
     font-weight: 700;
     letter-spacing: 0;
 }
 
-.fs-artist {
+[data-part~="fs-artist"] {
     color: rgb(255 255 255 / 0.7);
     font-size: 16px;
     font-weight: 400;
 }
 
+/* With the player bar underneath, the song is there already: only the cover here. */
+[data-part~="fullscreen"].mode-standard [data-part~="fs-title"],
+[data-part~="fullscreen"].mode-standard [data-part~="fs-artist"] {
+    display: none;
+}
+
+/* The modern full player's own controls: white icons, a white disc for Play. */
+.fs-control-btn,
+.fs-control-btn.secondary {
+    width: 48px;
+    height: 48px;
+    background: none;
+    color: #fff;
+}
+
+.fs-control-btn:hover,
+.fs-control-btn.secondary:hover {
+    background: rgb(255 255 255 / 0.1);
+    color: #fff;
+}
+
+.fs-control-btn svg {
+    width: 28px;
+    height: 28px;
+    fill: currentColor;
+}
+
+.fs-control-btn.secondary svg {
+    width: 24px;
+    height: 24px;
+    opacity: 0.85;
+}
+
+.fs-control-btn.play-pause,
+.fs-control-btn.play-pause:hover {
+    width: 64px;
+    height: 64px;
+    background: #fff;
+    color: #030303;
+    box-shadow: none;
+    transform: none;
+}
+
+.fs-control-btn.play-pause svg {
+    width: 40px;
+    height: 40px;
+    fill: #030303;
+    opacity: 1;
+}
+
+.fs-progress-bar {
+    height: 3px;
+    border-radius: 0;
+    background: rgb(255 255 255 / 0.2);
+}
+
+.fs-progress-fill {
+    border-radius: 0;
+    background: #ff0033;
+}
+
+.fs-time {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The side panel: UP NEXT / LYRICS tabs over the queue. */
 [data-part~="fs-side"] {
     background: transparent;
     border: none;
@@ -278,7 +384,7 @@
     font-family: Roboto, Arial, sans-serif;
     font-size: 14px;
     font-weight: 500;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
 }
 
@@ -295,45 +401,101 @@
 
 .fs-queue-item {
     min-height: 56px;
-    padding: 8px;
+    padding: 8px 4px 8px 8px;
     gap: 16px;
     border-radius: 0;
+    border: none;
     border-bottom: 1px solid rgb(255 255 255 / 0.1);
     background: transparent;
 }
 
-.fs-queue-item:hover {
-    background: rgb(255 255 255 / 0.1);
-}
-
+.fs-queue-item:hover,
 .fs-queue-item.active {
     background: rgb(255 255 255 / 0.1);
 }
 
-.fs-control-btn svg {
+.fs-queue-cover {
+    width: 32px;
+    height: 32px;
+    border-radius: 2px;
+}
+
+.fs-queue-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.fs-queue-artist,
+.fs-queue-duration {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 16px;
+}
+
+.fs-queue-menu-btn,
+.fs-queue-drag-handle {
+    color: #fff;
+    background: none;
+}
+
+.fs-queue-menu-btn svg,
+.fs-queue-drag-handle svg {
     fill: #fff;
 }
 
-.fs-progress-fill {
-    background: #ff0033;
-}
-
 @media (min-width: 900px) {
-    /* The cover as big as the page allows, as on YouTube Music's "Now playing". */
+    /* The player page takes the main area: the top bar and the guide stay. */
+    [data-part~="fullscreen"] {
+        top: 64px;
+        left: 240px;
+        width: auto;
+        height: auto;
+        right: 0;
+        bottom: 0;
+    }
+
+    html[data-sidebar="collapsed"] [data-part~="fullscreen"] {
+        left: 72px;
+    }
+
+    [data-part~="fullscreen"].mode-standard {
+        bottom: 0;
+    }
+
+    /* Its buttons in the top corner of the page, in a row. */
+    #fs-close-btn {
+        top: 16px;
+        right: 24px;
+    }
+
+    #fs-lightshow-btn {
+        top: 16px;
+        right: 72px;
+        left: auto;
+    }
+
+    #fs-volume-btn {
+        top: 16px;
+        right: 120px;
+        left: auto;
+    }
+
+    [data-part~="fs-content"] {
+        align-items: center;
+        gap: clamp(32px, 4vw, 96px);
+        padding: 64px clamp(24px, 4vw, 72px) 24px;
+    }
+
     .fs-artwork-container {
-        width: min(600px, 44vw, calc(100vh - 320px));
-        height: min(600px, 44vw, calc(100vh - 320px));
+        width: min(700px, 42vw, calc(100vh - 260px));
+        height: min(700px, 42vw, calc(100vh - 260px));
         max-width: none;
         max-height: none;
     }
 
-    [data-part~="fs-content"] {
-        gap: 48px;
-        padding: 72px clamp(24px, 5vw, 96px) 24px;
-    }
-
     [data-part~="fs-side"] {
-        width: 480px;
-        max-width: 40vw;
+        width: min(540px, 34vw);
+        max-width: none;
+        align-self: stretch;
     }
 }
