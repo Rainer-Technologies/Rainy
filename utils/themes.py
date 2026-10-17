@@ -45,6 +45,8 @@ MAX_STYLESHEET_BYTES = 1024 * 1024
 # Rainy's own look.
 RESERVED_IDS = {'rainy'}
 COLOR_SCHEMES = ('dark', 'light')
+# The full players a theme can be drawn for (the user's own choice otherwise).
+FULLSCREEN_MODES = ('standard', 'modern')
 
 _CONTRACT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'static', 'js', 'theme', 'contract.json')
 
@@ -156,6 +158,9 @@ def validate_manifest(data, files):
     styles = [file_field({'styles': s}, 'styles', files, ('.css',), required=True) for s in styles]
     icons = _icons(data, files)
     strings = _strings(data)
+    fullscreen = data.get('fullscreen')
+    if fullscreen is not None and fullscreen not in FULLSCREEN_MODES:
+        raise PackageError(f'"fullscreen" must be one of: {", ".join(FULLSCREEN_MODES)}.')
     if not tokens and not styles and not icons and not strings:
         raise PackageError('A theme needs tokens, styles, icons or strings: it would not change anything.')
     return {
@@ -166,6 +171,7 @@ def validate_manifest(data, files):
         'styles': styles,
         'icons': icons,
         'strings': strings,
+        'fullscreen': fullscreen,
         'entry': file_field(data, 'entry', files, SCRIPT_EXT),
         'preview': file_field(data, 'preview', files, IMAGE_EXT),
         'i18n': common['i18n'],

@@ -40,6 +40,7 @@ def _view(manifest, rev, *, enabled=True, dev=False, row=None, admin=False):
         'styles': [base + s for s in manifest.get('styles', [])],
         'icons': {name: base + path for name, path in manifest.get('icons', {}).items()},
         'strings': manifest.get('strings', {}),
+        'fullscreen': manifest.get('fullscreen'),
         'entry': base + manifest['entry'] if manifest.get('entry') else None,
         'preview': base + manifest['preview'] if manifest.get('preview') else None,
         'enabled': bool(enabled),

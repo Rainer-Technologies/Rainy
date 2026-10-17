@@ -2217,7 +2217,7 @@
 
 .fs-control-btn.play-pause:hover {
     background-color: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
     transform: scale(1.05);
 }
 

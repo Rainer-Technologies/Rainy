@@ -518,3 +518,16 @@
         padding: 0 var(--spacing-lg);
     }
 }
+
+/* A playlist's Play, under its title. */
+.playlist-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+}
+
+.playlist-play-btn svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+}

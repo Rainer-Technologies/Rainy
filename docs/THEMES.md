@@ -49,6 +49,7 @@ The manifest sits at the root of the zip, or inside a single top-level folder (w
     "license": "MIT",
     "homepage": "https://example.com",
     "colorScheme": "dark",
+    "fullscreen": "standard",
     "tokens": { "--accent-primary": "#ff0033", "--bg-primary": "#030303" },
     "styles": ["style.css"],
     "icons": { "play": "icons/play.svg", "library-music": "icons/home.svg" },
@@ -66,6 +67,7 @@ The manifest sits at the root of the zip, or inside a single top-level folder (w
 | `id` | required | 2 to 32 characters: lowercase letters, digits and hyphens, starting with a letter. Installing a package with the id of an installed one replaces it. `rainy` is taken. |
 | `name`, `version` | required | `version` looks like `1.2.3`. |
 | `colorScheme` | | `dark` (default) or `light`. It tells the browser how to draw its own controls (scroll bars, date pickers), and the picker shows it. |
+| `fullscreen` | | `standard` or `modern`: the full player the theme is drawn for. While the theme is on it wins over the user's own choice (Settings → Player). The standard one keeps the player bar underneath; the modern one has its own controls. Leave it out to follow the user. |
 | `tokens` | | Values for Rainy's [tokens](#tokens), or for your own (their names start with `--theme-`). A value is a CSS value of at most 200 characters, without `;`, braces, `<`, `>`, `\`, `url()` or `!important`. |
 | `styles` | | Stylesheets of the package, in order. A theme needs at least one of `tokens`, `styles`, `icons` or `strings`. |
 | `icons` | | [Icons](#icons) to draw instead of Rainy's: an icon name to an SVG file of the package. |
@@ -138,6 +140,8 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | `playlists` | The list of playlists in the sidebar. |
 | `main` | The scrolling area where every view is shown. |
 | `section-header` | The title row of the library and playlist views, with the grid/list toggle. |
+| `button-label` | The words of a button that also has an icon and tells screen readers what it does (a playlist's or an album's Play). *May be hidden*, which leaves the icon. |
+| `shelf-title` | A shelf's title (built by the app; the same element as `.section-heading`). *May be hidden*, for a view whose only shelf needs none, like a playlist's. |
 | `view-title`, `view-subtitle` | The big title of the library and playlist views, and the line under it. *May be hidden.* Hide them by view (`html[data-view="library"]`): on a playlist the title is the playlist's name. |
 | `library-stats` | The song, artist and album counts of the library. *May be hidden.* |
 | `loading`, `empty-state` | The library's loading and empty states. |
@@ -163,6 +167,8 @@ Regions of the page carry a `data-part` attribute. Select them with `[data-part~
 | `context-menu` | The song menu. |
 | `fullscreen` | The full player. While a light show runs, its environment styles it too ([ENVIRONMENTS.md](ENVIRONMENTS.md#styling-the-player)). |
 | `fs-content` | The box with the song and the side panel in the full player. |
+| `fs-brand` | The Rainy mark at the top left of the full player. *May be hidden.* |
+| `fs-title`, `fs-artist` | The song's title and artist under the cover in the full player. *May be hidden*: the standard full player shows them in the player bar too (`[data-part~="fullscreen"].mode-standard`). |
 | `fs-side` | The full player's side panel: queue and lyrics. |
 | `fs-now-playing` | The song in the full player: artwork, title, artist and controls. |
 | `fs-controls` | The full player's progress and buttons. |
@@ -217,8 +223,12 @@ What Rainy builds over and over has a class of its own, and a few controls have 
 | `#now-playing-title`, `#now-playing-artist`, `#volume-slider` | In the player bar: the title and artist of the song playing, and the volume slider. |
 | `.settings-nav-item`, `.settings-row-label`, `.settings-row-hint`, `.toggle-slider` | In Settings: an entry of the navigation (`.active` when open), a setting's name and the line under it, and the track and knob of a switch. |
 | `.modal-overlay` | The dimmed backdrop of a dialog (it holds `.modal-content`). |
+| `#fs-volume-btn`, `#fs-lightshow-btn`, `#fs-close-btn`, `.fs-buttons`, `.fs-progress-bar`, `.fs-time` | In the full player: its volume, light show and close buttons, the row of its own buttons, its progress bar and the times beside it. |
+| `.fs-queue-cover`, `.fs-queue-title`, `.fs-queue-artist`, `.fs-queue-duration`, `.fs-queue-menu-btn`, `.fs-queue-drag-handle` | In a song of the full player's queue: its cover, title, artist, length, menu button and the handle to reorder it. |
+| `.title-row`, `#playlist-menu-container`, `#playlist-settings-btn`, `.playlist-actions`, `#playlist-play-btn` | A playlist's head: the row of its title and menu, the menu (button and dropdown), its button, and its Play. |
+| `.album-detail-info`, `.album-track-num`, `.album-track-title`, `.album-track-artist`, `.album-track-duration` | An album's page: the words and buttons beside the cover, and a track's number, title, artist and length. |
 
-The state classes `active`, `selected`, `playing`, `current`, `collapsed`, `open`, `hidden`, `no-anime`, `success`, `error`, `info` and `warning` may be combined with any of these.
+The state classes `active`, `selected`, `playing`, `current`, `collapsed`, `open`, `hidden`, `no-anime`, `success`, `error`, `info` and `warning` may be combined with any of these, and the full player says which one it is with `mode-standard` or `mode-modern`, `lyrics-active` and `lightshow-on`.
 
 ### States
 

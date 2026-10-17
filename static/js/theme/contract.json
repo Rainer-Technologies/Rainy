@@ -313,6 +313,27 @@
       "hideable": true
     },
     {
+      "part": "button-label",
+      "selector": "[data-part~=\"button-label\"]",
+      "description": "The words of a button that also has an icon and says what it does to screen readers (a playlist's or album's Play). Hiding it leaves the icon.",
+      "static": true,
+      "hideable": true,
+      "sources": [
+        "static/index.html",
+        "static/js/modules/newViews.js"
+      ]
+    },
+    {
+      "part": "shelf-title",
+      "selector": "[data-part~=\"shelf-title\"]",
+      "description": "A shelf's title (the same element as .section-heading).",
+      "static": false,
+      "hideable": true,
+      "sources": [
+        "static/js/modules/library.js"
+      ]
+    },
+    {
       "part": "library-stats",
       "selector": "[data-part~=\"library-stats\"]",
       "description": "The song, artist and album counts of the library.",
@@ -525,6 +546,27 @@
       "selector": "[data-part~=\"fs-now-playing\"]",
       "description": "The song in the full player: artwork, title, artist and controls.",
       "static": true
+    },
+    {
+      "part": "fs-brand",
+      "selector": "[data-part~=\"fs-brand\"]",
+      "description": "The Rainy mark at the top left of the full player.",
+      "static": true,
+      "hideable": true
+    },
+    {
+      "part": "fs-title",
+      "selector": "[data-part~=\"fs-title\"]",
+      "description": "The song's title under the cover in the full player (the player bar shows it too in the standard full player).",
+      "static": true,
+      "hideable": true
+    },
+    {
+      "part": "fs-artist",
+      "selector": "[data-part~=\"fs-artist\"]",
+      "description": "The song's artist under the cover in the full player.",
+      "static": true,
+      "hideable": true
     },
     {
       "part": "fs-controls",
@@ -763,7 +805,7 @@
       "description": "A shelf of the library: its title and its cards."
     },
     {
-      "part": "shelf-title",
+      "part": "shelf-heading",
       "selector": ".section-heading",
       "sources": [
         "static/js/modules/library.js"
@@ -1468,7 +1510,7 @@
       "description": "The full player's background (the blurred album art)."
     },
     {
-      "part": "fs-brand",
+      "part": "fs-brand-mark",
       "selector": ".fs-brand",
       "sources": [
         "static/index.html"
@@ -1476,7 +1518,7 @@
       "description": "The Rainy mark at the top left of the full player."
     },
     {
-      "part": "fs-title",
+      "part": "fs-title-text",
       "selector": ".fs-title",
       "sources": [
         "static/index.html"
@@ -1484,7 +1526,7 @@
       "description": "The song's title in the full player."
     },
     {
-      "part": "fs-artist",
+      "part": "fs-artist-text",
       "selector": ".fs-artist",
       "sources": [
         "static/index.html"
@@ -1546,6 +1588,182 @@
         "static/index.html"
       ],
       "description": "The track and knob of a .toggle-switch."
+    },
+    {
+      "part": "fs-volume-button",
+      "selector": "#fs-volume-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The volume button of the full player."
+    },
+    {
+      "part": "fs-lightshow-button",
+      "selector": "#fs-lightshow-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The light show button of the full player."
+    },
+    {
+      "part": "fs-close-button",
+      "selector": "#fs-close-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Close the full player."
+    },
+    {
+      "part": "fs-buttons",
+      "selector": ".fs-buttons",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The row of the full player's own buttons."
+    },
+    {
+      "part": "fs-progress-bar",
+      "selector": ".fs-progress-bar",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The full player's progress bar (.fs-time either side)."
+    },
+    {
+      "part": "fs-time",
+      "selector": ".fs-time",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A time beside the full player's progress bar (.current is the first)."
+    },
+    {
+      "part": "fs-queue-cover",
+      "selector": ".fs-queue-cover",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "A cover in the full player's queue."
+    },
+    {
+      "part": "fs-queue-title",
+      "selector": ".fs-queue-title",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "A title in the full player's queue."
+    },
+    {
+      "part": "fs-queue-artist",
+      "selector": ".fs-queue-artist",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "An artist in the full player's queue."
+    },
+    {
+      "part": "fs-queue-duration",
+      "selector": ".fs-queue-duration",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "A length in the full player's queue."
+    },
+    {
+      "part": "fs-queue-menu",
+      "selector": ".fs-queue-menu-btn",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "The menu button of a song in the full player's queue."
+    },
+    {
+      "part": "fs-queue-drag",
+      "selector": ".fs-queue-drag-handle",
+      "sources": [
+        "static/js/player.js"
+      ],
+      "description": "The handle to reorder a song in the full player's queue."
+    },
+    {
+      "part": "playlist-actions",
+      "selector": ".playlist-actions",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The buttons of a playlist's head (its Play)."
+    },
+    {
+      "part": "playlist-play",
+      "selector": "#playlist-play-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "Play the playlist, in its head."
+    },
+    {
+      "part": "playlist-menu",
+      "selector": "#playlist-settings-btn",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A playlist's menu button (three dots), beside its title."
+    },
+    {
+      "part": "album-track-num",
+      "selector": ".album-track-num",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A track's number on an album's page."
+    },
+    {
+      "part": "album-track-title",
+      "selector": ".album-track-title",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A track's title on an album's page."
+    },
+    {
+      "part": "album-track-artist",
+      "selector": ".album-track-artist",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A track's artist on an album's page."
+    },
+    {
+      "part": "album-track-duration",
+      "selector": ".album-track-duration",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "A track's length on an album's page."
+    },
+    {
+      "part": "album-detail-info",
+      "selector": ".album-detail-info",
+      "sources": [
+        "static/js/modules/newViews.js"
+      ],
+      "description": "The words and buttons beside the cover on an album's page."
+    },
+    {
+      "part": "title-row",
+      "selector": ".title-row",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "The row of a view's title and its menu."
+    },
+    {
+      "part": "playlist-menu-box",
+      "selector": "#playlist-menu-container",
+      "sources": [
+        "static/index.html"
+      ],
+      "description": "A playlist's menu button and its dropdown, beside its title (shown on playlists only)."
     }
   ],
   "stateClasses": [
@@ -1560,7 +1778,11 @@
     "success",
     "error",
     "info",
-    "warning"
+    "warning",
+    "mode-standard",
+    "mode-modern",
+    "lyrics-active",
+    "lightshow-on"
   ],
   "icons": [
     {

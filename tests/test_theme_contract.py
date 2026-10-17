@@ -108,6 +108,15 @@ def test_every_part_in_the_page_is_listed(contract, page):
     assert not unlisted, f'Add these parts to static/js/theme/contract.json (and docs/THEMES.md): {unlisted}'
 
 
+def test_parts_built_in_javascript_are_still_built(contract):
+    for part in contract['parts']:
+        if part.get('static'):
+            continue
+        for source in part['sources']:
+            assert f'data-part="{part["part"]}"' in read(*source.split('/')), \
+                f'{source} no longer builds the {part["part"]} part'
+
+
 def test_parts_and_items_have_unique_names(contract):
     names = [p['part'] for p in contract['parts']] + [i['part'] for i in contract['items']]
     assert len(names) == len(set(names))

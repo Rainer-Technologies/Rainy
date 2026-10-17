@@ -380,3 +380,10 @@ def test_the_listing_carries_icons_and_words(admin, anon_client):
     assert theme['strings'] == {'es': {'Library': 'Inicio'}}
     icon = anon_client.get(theme['icons']['play'])
     assert icon.status_code == 200 and icon.mimetype == 'image/svg+xml'
+
+
+def test_a_theme_may_choose_its_full_player():
+    assert packages.read_package(make_zip({**MANIFEST, 'fullscreen': 'standard'}))['fullscreen'] == 'standard'
+    assert packages.read_package(make_zip(MANIFEST))['fullscreen'] is None
+    with pytest.raises(PackageError, match='"fullscreen" must be one of'):
+        packages.read_package(make_zip({**MANIFEST, 'fullscreen': 'cinema'}))

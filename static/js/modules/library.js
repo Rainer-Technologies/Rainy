@@ -77,7 +77,7 @@ export const Library = {
 
         return `
         <div class="library-section" data-section-id="${section.id}">
-            <h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
+            <h2 data-part="shelf-title" class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
             <div class="horizontal-scroll-container">
                 <div class="horizontal-scroll-content">
                     ${songsHtml}
@@ -129,7 +129,7 @@ export const Library = {
 
         const sortFilterHtml = section.id === 'all-songs' ? `
             <div class="section-header-row">
-                <h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
+                <h2 data-part="shelf-title" class="section-heading">${sectionTitle(section, escapeHtml)}</h2>
                 <div class="section-sort">
                     <svg data-icon="sort" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
@@ -141,7 +141,7 @@ export const Library = {
                     </select>
                 </div>
             </div>
-        ` : `<h2 class="section-heading">${sectionTitle(section, escapeHtml)}</h2>`;
+        ` : `<h2 data-part="shelf-title" class="section-heading">${sectionTitle(section, escapeHtml)}</h2>`;
 
         return `
         <div class="library-section" data-section-id="${section.id}">

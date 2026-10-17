@@ -172,6 +172,11 @@ export class RainyApp {
     }
 
     bindEvents() {
+        // Play the open playlist from its first song
+        document.getElementById('playlist-play-btn')?.addEventListener('click', () => {
+            if (this.songs?.length) window.player.playSong(0, this.songs, { type: 'playlist', id: this.currentPlaylistId });
+        });
+
         // Discord-style Settings Page
         document.getElementById('menu-settings')?.addEventListener('click', () => {
             this.closeDropdown();
@@ -829,6 +834,13 @@ export class RainyApp {
     navigateTo(path, { replace = false } = {}) {
         const target = new URL(path, window.location.origin);
         if (target.origin !== window.location.origin) return;
+
+        // A page was asked for while the full player covers the main area (a UI theme may
+        // leave the navigation beside it): close the full player to show the page.
+        const fullscreen = window.player?.fsContainer;
+        if (fullscreen && !fullscreen.classList.contains('hidden') && !target.pathname.startsWith('/settings')) {
+            window.player.toggleFullscreen();
+        }
 
         const next = `${target.pathname}${target.search}${target.hash}`;
         const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -2828,6 +2840,7 @@ export class RainyApp {
         document.getElementById('library-stats').classList.add('hidden');
 
         document.getElementById('playlist-menu-container').classList.remove('hidden');
+        document.getElementById('playlist-actions')?.classList.toggle('hidden', !playlist.songs.length);
 
         this.songs = playlist.songs;
         this.filteredSongs = [...playlist.songs];
@@ -2921,6 +2934,7 @@ export class RainyApp {
         document.getElementById('library-subtitle').textContent = t('Collaborate on playlists together');
         document.getElementById('library-stats').classList.add('hidden');
         document.getElementById('playlist-menu-container').classList.add('hidden');
+        document.getElementById('playlist-actions')?.classList.add('hidden');
 
         // Update Sidebar UI
         document.querySelectorAll('.app-sidebar .nav-item').forEach(el => el.classList.remove('active'));
@@ -2968,6 +2982,7 @@ export class RainyApp {
 
         // Hide playlist settings menu
         document.getElementById('playlist-menu-container').classList.add('hidden');
+        document.getElementById('playlist-actions')?.classList.add('hidden');
 
         // Show Stats
         document.getElementById('library-stats').classList.remove('hidden');
@@ -3013,6 +3028,7 @@ export class RainyApp {
 
         // Hide elements
         document.getElementById('playlist-menu-container').classList.add('hidden');
+        document.getElementById('playlist-actions')?.classList.add('hidden');
         document.getElementById('library-stats').classList.add('hidden');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('songs-grid').classList.add('hidden');
@@ -4904,6 +4920,7 @@ export class RainyApp {
 
         // Hide elements
         document.getElementById('playlist-menu-container').classList.add('hidden');
+        document.getElementById('playlist-actions')?.classList.add('hidden');
         document.getElementById('library-stats').classList.add('hidden');
         document.querySelector('.view-toggle')?.classList.add('hidden');
         document.getElementById('songs-grid').classList.add('hidden');

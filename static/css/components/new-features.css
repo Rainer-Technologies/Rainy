@@ -159,6 +159,8 @@
     cursor: pointer;
     transition: transform 0.2s, filter 0.2s;
 }
+.album-play-btn { display: inline-flex; align-items: center; gap: 8px; }
+.album-play-btn svg { width: 18px; height: 18px; flex: none; }
 .album-play-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
 .album-track-row {
     display: grid;

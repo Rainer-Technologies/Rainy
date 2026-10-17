@@ -241,7 +241,10 @@ export class NewViews {
                     <h1 class="album-detail-title">${Utils.escapeHtml(album.album)}</h1>
                     <div class="album-detail-artist">${Utils.escapeHtml(album.artist)}</div>
                     <div class="album-detail-meta">${album.year || t('Unknown year')} • ${t('{count} songs', { count: album.song_count })} • ${Utils.formatDuration(album.total_duration)}</div>
-                    <button class="album-play-btn" id="album-play-all">▶ ${t('Play Album')}</button>
+                    <button class="album-play-btn" id="album-play-all" aria-label="${Utils.escapeHtml(t('Play Album'))}">
+                        <svg data-icon="play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                        <span data-part="button-label">${t('Play Album')}</span>
+                    </button>
                 </div>
             `;
 

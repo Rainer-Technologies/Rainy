@@ -21,6 +21,7 @@ import { MediaSessionController } from './modules/mediaSession.js';
 import { SleepTimer } from './modules/sleepTimer.js';
 import { SongRadio } from './modules/radio.js';
 import { t } from './i18n/index.js';
+import { THEMES } from './theme/index.js';
 
 export class AudioPlayer {
     constructor() {
@@ -1848,6 +1849,9 @@ export class AudioPlayer {
                 }
             }
 
+            // A UI theme drawn for one full player wears it whatever the user picked (docs/THEMES.md).
+            const theme = THEMES[document.documentElement.getAttribute('data-theme')];
+            if (theme && (theme.fullscreen === 'standard' || theme.fullscreen === 'modern')) mode = theme.fullscreen;
             // Remove existing mode classes
             this.fsContainer.classList.remove('mode-modern', 'mode-standard');
             this.fsContainer.classList.add(`mode-${mode}`);

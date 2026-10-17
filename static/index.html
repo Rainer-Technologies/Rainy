@@ -505,6 +505,15 @@
                             </div>
                         </div>
                         <p data-part="view-subtitle" class="section-subtitle" id="library-subtitle" data-i18n>All your music in one place</p>
+                        <div class="playlist-actions hidden" id="playlist-actions">
+                            <button type="button" class="btn btn-primary playlist-play-btn" id="playlist-play-btn"
+                                aria-label="Play" data-i18n-attr="aria-label">
+                                <svg data-icon="play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                                <span data-part="button-label" data-i18n>Play</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="view-toggle">
@@ -2313,7 +2322,7 @@
         <div class="fs-backdrop" id="fs-backdrop"></div>
         <canvas id="fs-lightshow-canvas" class="hidden"></canvas>
         <!-- Fullscreen Logo Branding -->
-        <div class="fs-brand">
+        <div data-part="fs-brand" class="fs-brand">
             <div class="fs-logo">
                 <img src="/icons/icon-192.png" alt="Rainy" />
             </div>
@@ -2360,8 +2369,8 @@
                 <div class="fs-artwork-container" id="fs-artwork">
                     <!-- Artwork injected here -->
                 </div>
-                <div class="fs-title" id="fs-title">Song Title</div>
-                <div class="fs-artist" id="fs-artist">Artist Name</div>
+                <div data-part="fs-title" class="fs-title" id="fs-title">Song Title</div>
+                <div data-part="fs-artist" class="fs-artist" id="fs-artist">Artist Name</div>
                 <!-- Radio songs only: keep the one playing in the library. Shown in
                      modern mode; standard mode has the same button in the player bar. -->
                 <button class="fs-keep-btn hidden" id="fs-keep-btn" type="button">
