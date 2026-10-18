@@ -40,6 +40,7 @@ from models.radio import RadioAccessModel, RadioCacheModel, RadioTrackModel
 SHALLOW_LIMIT = 50            # one page: enough for a first batch, ~0.7s
 DEEP_LIMIT = 150              # the session pool, ~4s
 RADIO_CACHE_DAYS = 7
+MATCH_VERSION = 1            # invalidate misses from the old ASCII-only matcher
 MIN_SECONDS, MAX_SECONDS = 60, 600
 ARTIST_CAP = 2                # per batch
 LOCAL_MIN, LOCAL_MAX = 10, 60  # library songs the offline fallback draws on (a quarter of it)
@@ -61,9 +62,22 @@ _ARTIST_SPLIT = re.compile(r',|&| x | feat\.? | ft\.? ', re.I)
 # ------------------------------------------------------------------- text
 
 def norm(s):
-    """Accent-folded, lowercase, alphanumeric words."""
-    s = unicodedata.normalize('NFKD', s or '').encode('ascii', 'ignore').decode().lower()
-    return ' '.join(re.sub(r'[^a-z0-9 ]+', ' ', s).split())
+    """Case-folded Unicode words, folding accents only on Latin letters.
+
+    ASCII encoding erased entire non-Latin titles (and collapsed unrelated
+    songs to the same key). Keep other scripts and their meaningful marks,
+    such as Japanese dakuten, while still matching También with Tambien.
+    """
+    folded = []
+    for char in unicodedata.normalize('NFKC', s or ''):
+        if 'LATIN' in unicodedata.name(char, ''):
+            folded.extend(c for c in unicodedata.normalize('NFKD', char)
+                          if not unicodedata.combining(c))
+        else:
+            folded.append(char)
+    return ' '.join(''.join(
+        c if c.isalnum() or unicodedata.category(c).startswith('M') else ' '
+        for c in ''.join(folded).casefold()).split())
 
 
 def core_title(title):
@@ -346,12 +360,13 @@ def ensure_video_id(song):
     """The song's YouTube Music id, matching (and remembering) it if needed."""
     if song.get('youtube_id'):
         return song['youtube_id']
-    if song.get('youtube_matched_at'):
-        return None   # already tried; the background worker retries nothing
+    if song.get('youtube_matched_at') and song.get('youtube_match_version', 0) >= MATCH_VERSION:
+        return None   # already tried with this matcher; avoid a retry loop
     found = match_song(song)
     Database.execute_query(
-        "UPDATE songs SET youtube_id = %s, youtube_matched_at = NOW() WHERE id = %s",
-        (found['videoId'] if found else None, song['id']))
+        "UPDATE songs SET youtube_id = %s, youtube_matched_at = NOW(), "
+        "youtube_match_version = %s WHERE id = %s",
+        (found['videoId'] if found else None, MATCH_VERSION, song['id']))
     return found['videoId'] if found else None
 
 
@@ -495,7 +510,7 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
     from models.song_rating import SongRatingModel
 
     seed = Database.execute_query(
-        "SELECT id, title, artist, duration, youtube_id, youtube_matched_at "
+        "SELECT id, title, artist, duration, youtube_id, youtube_matched_at, youtube_match_version "
         "FROM songs WHERE id = %s", (seed_id,), fetch_one=True)
     if not seed or not LibraryAccessModel.can_play(user_id, seed_id):
         return []

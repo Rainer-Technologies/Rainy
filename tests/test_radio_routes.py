@@ -190,6 +190,51 @@ def test_radio_follows_youtube_music_and_plays_owned_songs_from_the_library(radi
     assert all(t['radio'] and 'id' not in t for t in queue if t.get('videoId'))
 
 
+def test_unicode_seed_with_cached_miss_uses_youtube_music_after_upgrade(radio, monkeypatch):
+    seed_id = radio['seed']
+    Database.execute_query(
+        "UPDATE songs SET title = %s, artist = %s, duration = 114, youtube_id = NULL, "
+        "youtube_matched_at = NOW(), youtube_match_version = 0 WHERE id = %s",
+        ('きみが死ぬまで恋をしたい', 'Yukari Hashimoto', seed_id))
+    result = {'videoId': 'fhwrwHwzZmg',
+              'title': 'きみが死ぬまで恋をしたい - Kimiga Shinumade Koiwoshitai',
+              'artists': ['Yukari Hashimoto'], 'duration': 115}
+    monkeypatch.setattr(ytradio, '_yt_search', lambda query, kind: [result])
+    fetched = []
+
+    def fetch(video_id, deep=False):
+        fetched.append(video_id)
+        return [_track('ColX1C6hJ2Y', 'キスの魔力', 'Yukari Hashimoto')]
+
+    monkeypatch.setattr(ytradio, 'fetch_radio', fetch)
+    monkeypatch.setattr(ytradio, 'cooccurrence', lambda *args: ({}, {}))
+    monkeypatch.setattr(ytradio, '_local_similar',
+                        lambda *args: pytest.fail('Must not fall back to local songs'))
+    res = radio['client'](radio['alice']).post('/api/radio/start', json={'song_id': seed_id})
+    assert res.status_code == 200
+    assert [t['videoId'] for t in res.get_json()['queue']] == ['ColX1C6hJ2Y']
+    assert fetched == ['fhwrwHwzZmg']
+    stored = Database.execute_query(
+        "SELECT youtube_id, youtube_match_version FROM songs WHERE id = %s",
+        (seed_id,), fetch_one=True)
+    assert stored == {'youtube_id': 'fhwrwHwzZmg', 'youtube_match_version': ytradio.MATCH_VERSION}
+
+
+def test_worker_retries_legacy_misses_only_once(radio, monkeypatch):
+    # Both fixture songs carry an old miss. Once retried with this matcher,
+    # they must stop being selected even if YouTube still finds no match.
+    for sid in (radio['seed'], radio['owned']):
+        Database.execute_query(
+            "UPDATE songs SET youtube_id = NULL, youtube_matched_at = NOW(), "
+            "youtube_match_version = 0 WHERE id = %s", (sid,))
+    searched = []
+    monkeypatch.setattr(ytradio, 'match_song', lambda song: searched.append(song['id']))
+    assert radio_worker._learn_one() is True
+    assert radio_worker._learn_one() is True
+    assert radio_worker._learn_one() is False
+    assert sorted(searched) == sorted([radio['seed'], radio['owned']])
+
+
 def test_more_excludes_what_is_already_queued(radio, fake_youtube):
     res = radio['client'](radio['alice']).post('/api/radio/more', json={
         'song_id': radio['seed'],

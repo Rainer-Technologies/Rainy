@@ -134,9 +134,10 @@ def _learn_one():
     """One small step of getting to know the library on YouTube Music.
     Returns False when there is nothing left to do."""
     song = Database.execute_query(
-        "SELECT id, title, artist, duration, youtube_id, youtube_matched_at FROM songs "
-        "WHERE transient = 0 AND youtube_id IS NULL AND youtube_matched_at IS NULL "
-        "ORDER BY id DESC LIMIT 1", fetch_one=True)
+        "SELECT id, title, artist, duration, youtube_id, youtube_matched_at, youtube_match_version "
+        "FROM songs WHERE transient = 0 AND youtube_id IS NULL "
+        "AND (youtube_matched_at IS NULL OR youtube_match_version < %s) "
+        "ORDER BY id DESC LIMIT 1", (ytradio.MATCH_VERSION,), fetch_one=True)
     if song:
         ytradio.ensure_video_id(song)
         return True

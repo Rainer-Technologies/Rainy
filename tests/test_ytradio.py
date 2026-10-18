@@ -6,6 +6,8 @@ hand-made tracks, so nothing here touches YouTube Music or the database.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utils import ytradio
@@ -25,6 +27,55 @@ def _track(vid, title, artist, duration=200, kind=ATV):
 def test_norm_folds_accents_and_punctuation():
     assert norm('Maria También!') == 'maria tambien'
     assert norm('  P#TAS — (Remix) ') == 'p tas remix'
+
+
+@pytest.mark.parametrize('text, expected', [
+    ('きみが死ぬまで恋をしたい', 'きみが死ぬまで恋をしたい'),
+    ('が ガ ぱ パ', 'が ガ ぱ パ'),
+    ('か\u3099', 'が'),
+    ('ｶﾞ', 'ガ'),
+    ('夜に駆ける', '夜に駆ける'),
+    ('Любовь', 'любовь'),
+    ('사랑해', '사랑해'),
+    ('حُبّ', 'حُبّ'),
+    ('También TAMBIE\u0301N', 'tambien tambien'),
+    ('İstanbul', 'istanbul'),
+    ('Ｆｕｌｌ １２３ 🎵', 'full 123'),
+])
+def test_norm_preserves_unicode_words(text, expected):
+    assert norm(text) == expected
+
+
+def test_japanese_song_keys_do_not_collapse_or_alias_an_owned_song():
+    title = 'きみが死ぬまで恋をしたい'
+    other = 'キスの魔力'
+    artist = 'Yukari Hashimoto'
+    assert song_key(title, artist) != song_key(other, artist)
+    out = filter_candidates([_track('fhwrwHwzZmg', title, artist)],
+                            library_by_key={song_key(other, artist): 99})
+    assert len(out) == 1
+    assert 'song_id' not in out[0]
+
+
+def test_non_latin_artist_does_not_match_an_unrelated_latin_artist():
+    song = {'title': 'Same title', 'artist': '喜多修平', 'duration': 200}
+    result = {'title': 'Same title', 'artists': ['Someone Else'], 'duration': 200}
+    total, parts = match_score(song, result)
+    assert not ytradio.is_confident(total, parts)
+
+
+def test_match_japanese_seed_from_real_youtube_music_result():
+    song = {'title': 'きみが死ぬまで恋をしたい', 'artist': 'Yukari Hashimoto', 'duration': 114}
+    results = [
+        {'videoId': 'ColX1C6hJ2Y', 'title': 'キスの魔力 - Kiss no Maryoku',
+         'artists': ['Yukari Hashimoto'], 'duration': 150},
+        {'videoId': 'fhwrwHwzZmg',
+         'title': 'きみが死ぬまで恋をしたい - Kimiga Shinumade Koiwoshitai',
+         'artists': ['Yukari Hashimoto'], 'duration': 115},
+    ]
+    found = match_song(song, search=lambda query, kind: results)
+    assert found is not None
+    assert found['videoId'] == 'fhwrwHwzZmg'
 
 
 def test_core_title_drops_features_and_suffixes():
@@ -94,6 +145,39 @@ def test_match_survives_a_failing_search():
             raise RuntimeError('network down')
         return [KHRUANGBIN_RESULTS[3]]
     assert match_song(KHRUANGBIN, search=search)['videoId'] == 'right000004'
+
+
+def test_unicode_negative_match_is_retried_after_matcher_upgrade(monkeypatch):
+    song = {'id': 1210, 'title': 'きみが死ぬまで恋をしたい',
+            'artist': 'Yukari Hashimoto', 'duration': 114, 'youtube_id': None,
+            'youtube_matched_at': '2026-10-18 21:28:27', 'youtube_match_version': 0}
+    result = {'videoId': 'fhwrwHwzZmg', 'title': song['title'],
+              'artists': [song['artist']], 'duration': 115}
+    monkeypatch.setattr(ytradio, '_yt_search', lambda query, kind: [result])
+    writes = []
+    monkeypatch.setattr(ytradio.Database, 'execute_query',
+                        lambda sql, params: writes.append((sql, params)))
+    assert ytradio.ensure_video_id(song) == 'fhwrwHwzZmg'
+    assert len(writes) == 1
+    assert 'youtube_match_version' in writes[0][0]
+
+
+def test_current_negative_match_is_not_retried(monkeypatch):
+    song = {'id': 1210, 'youtube_id': None, 'youtube_matched_at': '2026-10-18',
+            'youtube_match_version': ytradio.MATCH_VERSION}
+
+    def unexpected(*args, **kwargs):
+        pytest.fail('A current negative match must not search or write again')
+
+    monkeypatch.setattr(ytradio, 'match_song', unexpected)
+    monkeypatch.setattr(ytradio.Database, 'execute_query', unexpected)
+    assert ytradio.ensure_video_id(song) is None
+
+
+def test_known_video_id_is_preserved_after_matcher_upgrade(monkeypatch):
+    song = {'youtube_id': 'fhwrwHwzZmg', 'youtube_match_version': 0}
+    monkeypatch.setattr(ytradio, 'match_song', lambda song: pytest.fail('Already identified'))
+    assert ytradio.ensure_video_id(song) == 'fhwrwHwzZmg'
 
 
 # ── Filtering ───────────────────────────────────────────────────────────

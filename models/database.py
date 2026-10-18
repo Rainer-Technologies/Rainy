@@ -884,6 +884,9 @@ class Database:
         #                        radio_access; deleted again unless kept.
         cls._add_column(cursor, 'songs', 'youtube_id', 'VARCHAR(16) NULL')
         cls._add_column(cursor, 'songs', 'youtube_matched_at', 'TIMESTAMP NULL')
+        # Version negative matches so matcher fixes retry old misses once,
+        # without discarding known video ids or retrying on every request.
+        cls._add_column(cursor, 'songs', 'youtube_match_version', 'INT NOT NULL DEFAULT 0')
         cls._add_column(cursor, 'songs', 'transient', 'TINYINT(1) NOT NULL DEFAULT 0')
 
         # Who may play which transient song (granted when a radio queues it).
