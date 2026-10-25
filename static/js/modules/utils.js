@@ -56,7 +56,7 @@ export const Utils = {
      * Show a toast notification
      * @param {string} message - Toast message; English source strings (and
      *   server error messages) are translated here, so callers pass them as-is
-     * @param {string} type - 'success' or 'error'
+     * @param {string} type - 'success', 'error' or 'info'
      * @param {number} duration - Duration in ms
      */
     showToast(message, type = 'success', duration = 3000) {
@@ -66,9 +66,12 @@ export const Utils = {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
 
-        const icon = type === 'success'
-            ? '<svg data-icon="check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
-            : '<svg data-icon="error" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
+        const icons = {
+            success: '<svg data-icon="check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+            error: '<svg data-icon="error" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+            info: '<svg data-icon="info" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>',
+        };
+        const icon = icons[type] || icons.error;
 
         toast.innerHTML = `${icon}<span class="toast-message">${this.escapeHtml(t(message))}</span>`;
         container.appendChild(toast);

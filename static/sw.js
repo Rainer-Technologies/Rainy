@@ -1,7 +1,7 @@
 /**
  * Rainy Service Worker â€” PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v53';
+const CACHE_NAME = 'rainy-v54';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
@@ -16,6 +16,7 @@ const SHELL_ASSETS = [
   '/css/components/context-menu.css',
   '/css/components/forms.css',
   '/css/components/friends.css',
+  '/css/components/chat.css',
   '/css/components/fullscreen.css',
   '/css/components/header.css',
   '/css/components/modals.css',
@@ -82,6 +83,7 @@ const SHELL_ASSETS = [
   '/js/theme/index.js',
   '/js/theme/state.js',
   '/js/modules/bpmShuffle.js',
+  '/js/modules/chat.js',
   '/js/modules/friends.js',
   '/js/modules/globalSearch.js',
   '/js/modules/keyboardShortcuts.js',
@@ -101,6 +103,7 @@ const SHELL_ASSETS = [
   '/js/services/enrichment.js',
   '/js/services/environments.js',
   '/js/services/themes.js',
+  '/js/services/chat.js',
   '/js/services/friends.js',
   '/js/services/importJobs.js',
   '/js/services/index.js',

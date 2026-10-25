@@ -2387,6 +2387,7 @@ export class RainyApp {
         window.player?.shutdownSession();
         this.libraryWatcher.stop();
         window.friendsModule?.stop();
+        window.chatModule?.stop();
         this.user = null;
         this.songs = [];
         this.filteredSongs = [];

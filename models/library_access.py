@@ -14,7 +14,8 @@ A song ROW is global (one file on disk = one row), but each user only
                     import (never counted or published as theirs).
 
 Members of a shared playlist can also play its songs without any row
-(see can_play); that access is temporary.
+(see can_play), and so can a song a friend sent in the chat; that access is
+temporary.
 """
 from .database import Database
 
@@ -155,8 +156,26 @@ class LibraryAccessModel:
             WHERE pe.track_id = %s AND {_SHARED_PLAYLIST_MEMBER}
             LIMIT 1
         """
-        return Database.execute_query(query, (song_id, user_id, user_id),
-                                      fetch_one=True) is not None
+        if Database.execute_query(query, (song_id, user_id, user_id),
+                                  fetch_one=True) is not None:
+            return True
+        return LibraryAccessModel.sent_by_friend(user_id, song_id)
+
+    @staticmethod
+    def sent_by_friend(user_id, song_id):
+        """Whether a current friend sent the user this song in the chat.
+
+        Like a shared playlist this is playability only: it ends when the
+        friendship does, and the song reaches the library only through
+        save_to_library."""
+        return Database.execute_query("""
+            SELECT 1 FROM chat_messages m
+            JOIN friendships f ON f.status = 'accepted'
+                AND ((f.user_id = m.sender_id AND f.friend_id = m.recipient_id)
+                  OR (f.user_id = m.recipient_id AND f.friend_id = m.sender_id))
+            WHERE m.song_id = %s AND m.recipient_id = %s AND m.kind = 'song'
+            LIMIT 1
+        """, (song_id, user_id), fetch_one=True) is not None
 
     @staticmethod
     def has_radio_access(user_id, song_id):

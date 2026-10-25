@@ -26,5 +26,6 @@ EXPOSE 6969
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 # Threads: every Rainy Connect device holds one request open (its command
-# stream), on top of the audio streams, so a handful per worker is not enough.
-CMD ["gunicorn", "--bind", "0.0.0.0:6969", "--workers", "2", "--threads", "16", "--timeout", "120", "app:app"]
+# stream) and so does every chat client, on top of the audio streams, so a
+# handful per worker is not enough.
+CMD ["gunicorn", "--bind", "0.0.0.0:6969", "--workers", "2", "--threads", "32", "--timeout", "120", "app:app"]
