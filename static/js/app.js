@@ -1900,6 +1900,12 @@ export class RainyApp {
         const emptyState = document.getElementById('empty-state');
         const songsGrid = document.getElementById('songs-grid');
 
+        const currentView = useContext().get('current-view-type');
+        const isLibraryView = currentView === 'library' || !currentView;
+        if (!isLibraryView) {
+            silent = true;
+        }
+
         if (!silent) {
             loadingState.classList.remove('hidden');
             emptyState.classList.add('hidden');
@@ -2908,7 +2914,10 @@ export class RainyApp {
         }
 
         if (useContext().get('current-view-type') === 'friends') {
-            // Re-entry: still refresh data so invites/requests stay current.
+            // Re-entry from the sidebar: always land on the people list and
+            // refresh data so invites/requests stay current. openChat() flips
+            // to Messages right after this when it opened the view itself.
+            window.friendsModule?.activateTab('friends');
             window.friendsModule?.refresh();
             return;
         }
@@ -2930,10 +2939,9 @@ export class RainyApp {
         document.getElementById('empty-state')?.classList.add('hidden');
         document.getElementById('loading-state')?.classList.add('hidden');
 
-        // Show section header
-        document.querySelector('.section-header')?.classList.remove('hidden');
-        document.querySelector('.section-title').textContent = t('Friends');
-        document.getElementById('library-subtitle').textContent = t('Collaborate on playlists together');
+        // The Friends view brings its own page header (title, presence
+        // summary and the add-friend field).
+        document.querySelector('.section-header')?.classList.add('hidden');
         document.getElementById('library-stats').classList.add('hidden');
         document.getElementById('playlist-menu-container').classList.add('hidden');
         document.getElementById('playlist-actions')?.classList.add('hidden');

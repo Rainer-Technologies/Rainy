@@ -23,5 +23,6 @@ export default {
     "+ {count} more lines": {"one": "+ {count} more line", "other": "+ {count} more lines"},
     "Queue ({count} songs)": {"one": "Queue ({count} song)", "other": "Queue ({count} songs)"},
     "{count} plays": {"one": "{count} play", "other": "{count} plays"},
+    "{count} friends": {"one": "{count} friend", "other": "{count} friends"},
     "Saved “{name}” ({count} songs)": {"one": "Saved “{name}” ({count} song)", "other": "Saved “{name}” ({count} songs)"},
 };

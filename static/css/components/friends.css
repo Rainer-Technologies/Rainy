@@ -8,7 +8,7 @@
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 10px;
+    border-radius: var(--radius-full);
     background: var(--error);
     color: var(--text-on-accent);
     font-size: 0.6875rem;
@@ -33,15 +33,8 @@
     display: inline-block;
 }
 
-/* Nav item with badge should keep its row layout */
-.nav-item#nav-friends {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* Shared playlists in the normal sidebar list keep row layout too,
-   so the badge sits at the right edge. */
+/* Nav items with a trailing badge keep their row layout */
+.nav-item#nav-friends,
 .nav-item.nav-shared-item {
     display: flex;
     align-items: center;
@@ -55,7 +48,7 @@
     gap: 10px;
     margin: 0 0 12px;
     padding: 8px 12px;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     background: var(--surface-raised);
     border: 1px solid var(--border-subtle);
     font-size: 0.8rem;
@@ -73,7 +66,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 6px 8px;
     font-size: 0.8rem;
     cursor: pointer;
@@ -85,67 +78,272 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 5px 8px;
     font-size: 0.75rem;
     cursor: pointer;
 }
 
-/* ── Friends view ───────────────────────────── */
+/* ============================================
+   Friends hub
+   ============================================ */
 
 .friends-view {
-    padding: 20px 24px 48px;
-    max-width: 760px;
+    max-width: 1040px;
     margin: 0 auto;
+    padding: 0 0 48px;
 }
 
-/* Tabs — pill group, active = accent fill */
+/* ── Page head ─────────────────────────────── */
+
+.friends-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+}
+
+.friends-heading {
+    min-width: 0;
+}
+
+.friends-heading-title {
+    margin: 0;
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--text-primary);
+}
+
+.friends-heading-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.friends-meta-sep {
+    color: var(--text-tertiary);
+}
+
+.friends-meta-online {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.friends-online-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: var(--radius-full);
+    background: var(--success);
+}
+
+/* Add a friend: a single quiet field, not a banner */
+.friends-add-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(380px, 100%);
+    padding: 4px 4px 4px 12px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-control);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.friends-add-form:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.friends-add-icon {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--text-tertiary);
+    transition: color var(--transition-fast);
+}
+
+.friends-add-form:focus-within .friends-add-icon {
+    color: var(--accent-primary);
+}
+
+.friends-add-input {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    padding: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+}
+
+.friends-add-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.friends-add-submit {
+    flex: none;
+    height: 32px;
+    padding: 0 14px;
+    border: none;
+    border-radius: calc(var(--radius-control) - 2px);
+    background: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.friends-add-submit:hover {
+    background: var(--accent-secondary);
+}
+
+.friends-add-submit:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* ── Tabs ──────────────────────────────────── */
+
 .friends-tabs {
     display: flex;
-    gap: 6px;
-    margin-bottom: 24px;
-    padding: 4px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    width: fit-content;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 26px;
+    border-bottom: 1px solid var(--border-subtle);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.friends-tabs::-webkit-scrollbar {
+    display: none;
 }
 
 .friends-tab {
-    background: none;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    padding: 10px 12px 12px;
     border: none;
+    background: none;
     color: var(--text-secondary);
-    font-size: 0.8125rem;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
     font-weight: 600;
-    padding: 8px 16px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast);
     white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.friends-tab::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: transparent;
+    transition: background var(--transition-fast);
 }
 
 .friends-tab:hover {
-    background: var(--bg-hover);
     color: var(--text-primary);
 }
 
 .friends-tab.active {
-    color: var(--text-on-accent);
-    background: var(--accent-gradient);
-    box-shadow: 0 2px 10px var(--accent-glow);
+    color: var(--text-primary);
 }
 
-/* Section label */
+.friends-tab.active::after {
+    background: var(--accent-primary);
+}
+
+.friends-tab:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -4px;
+    border-radius: var(--radius-control);
+}
+
+.friends-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-full);
+    background: var(--bg-hover);
+    color: var(--text-tertiary);
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 18px;
+}
+
+.friends-tab.active .friends-tab-count {
+    background: var(--bg-highlight);
+    color: var(--text-secondary);
+}
+
+/* Unread / pending counts in a tab */
+.friends-tab .nav-badge {
+    margin-left: 0;
+    background: var(--accent-primary);
+    font-size: 0.625rem;
+}
+
+/* ── Sections ──────────────────────────────── */
+
+.friends-section + .friends-section {
+    margin-top: 30px;
+}
+
+/* The Listening Now section hides itself when nobody is playing */
+.friends-section.hidden + .friends-section {
+    margin-top: 0;
+}
+
+/* Group titles inside the playlist-share modal */
 .friends-subheader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin: 22px 2px 10px;
+    color: var(--text-tertiary);
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--text-tertiary);
+}
+
+.friends-section-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 10px 2px;
+}
+
+.friends-section-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
 }
 
 .friends-count {
@@ -154,80 +352,230 @@
     justify-content: center;
     min-width: 20px;
     height: 20px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: var(--surface-elevated);
-    color: var(--text-secondary);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-/* Add-friend card */
-.friends-add-form {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 8px;
-    padding: 14px;
-    border-radius: var(--radius-lg);
+    padding: 0 7px;
+    border-radius: var(--radius-full);
     background: var(--surface-raised);
     border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
 }
 
-.friends-add-form .form-input {
-    flex: 1;
-    min-width: 0;
+/* ── Listening now ─────────────────────────── */
+
+.friends-listening-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
 }
 
-.friends-add-form .btn {
-    flex: none;
-}
-
-/* Empty state — friendly, not a bare dashed box */
-.friends-empty {
-    padding: 32px 20px;
-    border: 1px dashed var(--border-color);
-    border-radius: var(--radius-lg);
-    color: var(--text-tertiary);
-    font-size: 0.85rem;
-    line-height: 1.6;
-    text-align: center;
-    background: var(--surface-base);
-}
-
-/* Friend rows — roomier cards with avatar + name + meta + actions */
-.friend-row {
+.listening-card {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
+    gap: 12px;
+    min-width: 0;
+    padding: 9px 10px 9px 9px;
     background: var(--surface-raised);
     border: 1px solid var(--border-subtle);
-    margin-bottom: 8px;
+    border-radius: var(--radius-card);
     transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
-.friend-row:hover {
+.listening-card:hover {
     background: var(--surface-elevated);
     border-color: var(--border-color);
 }
 
-/* Avatar — gradient disc with a soft ring */
-.friend-avatar {
-    width: 42px;
-    height: 42px;
+.listening-cover {
+    width: 46px;
+    height: 46px;
     flex: none;
-    border-radius: 50%;
-    background: var(--accent-gradient);
-    color: var(--text-on-accent);
-    font-weight: 700;
-    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 3px var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-elevated);
+    color: var(--text-tertiary);
+}
+
+.listening-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.listening-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.listening-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.listening-user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.listening-line {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+    font-size: 0.8125rem;
+}
+
+.listening-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.listening-sep {
+    flex: none;
+    color: var(--text-tertiary);
+}
+
+.listening-artist {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+}
+
+.listening-play {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.listening-play:hover {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: var(--text-on-accent);
+}
+
+.listening-play:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Small animated equalizer beside the listener's name */
+.listening-eq {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 9px;
+    flex: none;
+}
+
+.listening-eq i {
+    display: block;
+    width: 2px;
+    height: 9px;
+    border-radius: 1px;
+    background: var(--accent-primary);
+    transform-origin: bottom;
+    animation: friends-eq 900ms ease-in-out infinite alternate;
+}
+
+.listening-eq i:nth-child(2) {
+    animation-delay: 250ms;
+}
+
+.listening-eq i:nth-child(3) {
+    animation-delay: 500ms;
+}
+
+@keyframes friends-eq {
+    from {
+        transform: scaleY(0.3);
+    }
+
+    to {
+        transform: scaleY(1);
+    }
+}
+
+/* ── People list ───────────────────────────── */
+
+.friends-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+}
+
+.friend-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.friends-list > .friend-row {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background var(--transition-fast);
+}
+
+.friends-list > .friend-row:last-child {
+    border-bottom: none;
+}
+
+.friends-list > .friend-row:hover {
+    background: var(--surface-elevated);
+}
+
+.friend-avatar {
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.friend-avatar-square {
+    border-radius: var(--radius-control);
 }
 
 .friend-info {
@@ -236,20 +584,41 @@
 }
 
 .friend-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
 }
 
 .friend-email {
-    font-size: 0.75rem;
-    color: var(--text-tertiary);
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.friend-status-online {
+    color: var(--success);
+}
+
+.friend-status-offline {
+    color: var(--text-secondary);
+}
+
+.friend-status-listening {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: var(--accent-primary);
+    font-weight: 500;
+}
+
+.friend-status-listening svg {
+    flex: none;
 }
 
 .friend-actions {
@@ -259,27 +628,360 @@
     flex: none;
 }
 
-/* Status chips */
+/* Compact actions in Rainy's own lists */
+.friends-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.friends-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.friends-btn:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.friends-btn-primary {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+
+.friends-btn-primary:hover {
+    background: var(--accent-secondary);
+    border-color: var(--accent-secondary);
+    color: var(--text-on-accent);
+}
+
+.friends-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.friends-icon-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.friends-icon-btn-danger:hover {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+    color: var(--error);
+}
+
+.friends-icon-btn:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Chips: status words in lists and messages */
 .friend-chip {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--success) 15%, transparent);
-    color: var(--success);
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
     font-size: 0.6875rem;
-    font-weight: 700;
-    text-transform: capitalize;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .friend-chip-warn {
-    background: color-mix(in srgb, var(--warning) 12%, transparent);
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
     color: var(--warning);
 }
 
-/* Share modal lists are compact */
+.friend-chip-saved {
+    background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+    color: var(--accent-primary);
+}
+
+/* ── Requests & invites ────────────────────── */
+
+.friends-requests-container,
+.friends-invites-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.friends-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px 2px;
+}
+
+.friends-group-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.friends-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 44px 24px;
+    text-align: center;
+}
+
+.friends-empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 4px;
+    border-radius: var(--radius-full);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+}
+
+.friends-empty-title {
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.friends-empty-subtitle {
+    max-width: 360px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+/* An empty group inside a list (no icon, one quiet line) */
+.friends-empty-line {
+    padding: 22px 16px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+/* ── Presence & privacy ────────────────────── */
+
+.friends-privacy {
+    margin-top: 34px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.friends-privacy-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 2px;
+    list-style: none;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.friends-privacy-summary::-webkit-details-marker {
+    display: none;
+}
+
+.friends-privacy-summary:hover .friends-privacy-title {
+    color: var(--accent-primary);
+}
+
+.friends-privacy-summary:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-control);
+}
+
+.friends-privacy-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+}
+
+.friends-privacy-summary-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+}
+
+.friends-privacy-title {
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    transition: color var(--transition-fast);
+}
+
+.friends-privacy-hint {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.friends-privacy-chevron {
+    flex: none;
+    color: var(--text-tertiary);
+    transition: transform var(--transition-fast);
+}
+
+.friends-privacy[open] .friends-privacy-chevron {
+    transform: rotate(180deg);
+}
+
+.friends-privacy-body {
+    display: flex;
+    flex-direction: column;
+    margin: 2px 0 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    background: var(--surface-raised);
+    overflow: hidden;
+}
+
+.friends-privacy-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.friends-privacy-row + .friends-privacy-row {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.friends-privacy-row:hover {
+    background: var(--surface-elevated);
+}
+
+.friends-privacy-row:has(input:disabled) {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.friends-privacy-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.friends-privacy-label {
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.friends-privacy-desc {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+/* Switches */
+input[type="checkbox"].switch-control {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    flex: none;
+    width: 38px;
+    height: 22px;
+    margin: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-secondary);
+    outline: none;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+input[type="checkbox"].switch-control::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-full);
+    background: var(--text-secondary);
+    transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+input[type="checkbox"].switch-control:checked {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+input[type="checkbox"].switch-control:checked::before {
+    transform: translateX(16px);
+    background: var(--text-on-accent);
+}
+
+input[type="checkbox"].switch-control:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+/* ── Share modal lists ─────────────────────── */
+
 .friend-share-list {
     max-height: 220px;
     overflow-y: auto;
+}
+
+.friend-share-list .friend-row {
+    gap: 10px;
+    padding: 6px 2px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.friend-share-list .friend-row:last-child {
+    border-bottom: none;
+}
+
+.friend-share-list .friend-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 0.8125rem;
 }
 
 .playlist-share-modal-content {
@@ -299,4 +1001,108 @@
 
 .playlist-share-modal-content .friend-row {
     flex-wrap: nowrap;
+}
+
+/* ── Small screens ─────────────────────────── */
+
+@media (max-width: 768px) {
+    .friends-view {
+        padding-bottom: 32px;
+    }
+
+    .friends-heading-title {
+        font-size: var(--font-size-2xl);
+    }
+
+    .friends-header {
+        align-items: stretch;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .friends-add-form {
+        width: 100%;
+    }
+
+    .friends-tabs {
+        margin-bottom: 22px;
+    }
+
+    .friends-listening-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .friend-row .friends-btn-label {
+        display: none;
+    }
+
+    .friend-row .friends-btn {
+        width: 32px;
+        padding: 0;
+    }
+
+    .friends-list > .friend-row {
+        padding: 10px;
+    }
+}
+
+@media (max-width: 600px) {
+    /* Keep the four tabs on one line: the friends total is already in the
+       heading, and the other counts read as dots on a narrow screen. */
+    .friends-tab-count {
+        display: none;
+    }
+
+    .friends-tab .nav-badge {
+        min-width: 6px;
+        width: 6px;
+        height: 6px;
+        padding: 0;
+        font-size: 0;
+        line-height: 0;
+        color: transparent;
+    }
+
+    .friends-tab {
+        padding: 9px 10px 11px;
+    }
+
+    .friends-tab::after {
+        left: 10px;
+        right: 10px;
+    }
+}
+
+@media (max-width: 460px) {
+    .friends-tab {
+        padding: 9px 7px 11px;
+    }
+
+    .friends-tab::after {
+        left: 7px;
+        right: 7px;
+    }
+}
+
+@media (max-width: 360px) {
+    .friends-tab {
+        gap: 5px;
+        padding: 8px 5px 10px;
+        font-size: 0.6875rem;
+    }
+
+    .friends-tab::after {
+        left: 5px;
+        right: 5px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .listening-eq i {
+        animation: none;
+    }
+
+    .friends-privacy-chevron {
+        transition: none;
+    }
 }

@@ -201,6 +201,10 @@ export class ChatModule {
         return t('Online');
     }
 
+    isListening(friendId) {
+        return !!this.conversations.get(friendId)?.presence?.listening;
+    }
+
     presenceDot(friendId) {
         const online = !!this.conversations.get(friendId)?.presence?.online;
         const listening = !!this.conversations.get(friendId)?.presence?.listening;
@@ -253,19 +257,35 @@ export class ChatModule {
         }
         container.innerHTML = list.map(c => {
             const id = c.friend.id;
+            const isListening = !!c.presence?.listening;
+            const isActive = this.openFriendId === id;
+            const presenceText = this.presenceLine(id);
+            const statusHtml = isListening
+                ? `<span class="friend-status-listening"><svg data-icon="equalizer" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg> ${esc(presenceText)}</span>`
+                : esc(presenceText);
             const last = c.last_message
-                ? `${c.last_message.sender_id === this.app.user?.id ? t('You') + ': ' : ''}${this._preview(c.last_message)}`
-                : this.presenceLine(id);
+                ? `${c.last_message.sender_id === this.app.user?.id ? t('You') + ': ' : ''}${esc(this._preview(c.last_message))}`
+                : statusHtml;
             return `
-            <div class="friend-row chat-conversation" data-friend-id="${id}">
+            <div class="friend-row chat-conversation${isActive ? ' active' : ''}" data-friend-id="${id}">
                 <div class="friend-avatar">${esc((c.friend.username || '?')[0].toUpperCase())}${this.presenceDot(id)}</div>
                 <div class="friend-info">
                     <div class="friend-name">${esc(c.friend.username)}</div>
-                    <div class="friend-email">${esc(last)}</div>
+                    <div class="friend-email">${last}</div>
                 </div>
                 ${c.unread ? `<span class="nav-badge">${c.unread}</span>` : ''}
             </div>`;
         }).join('');
+
+        if (typeof window !== 'undefined' && window.innerWidth > 768) {
+            if (this.openFriendId != null) {
+                document.getElementById('chat-empty-thread')?.classList.add('hidden');
+                document.getElementById('chat-thread')?.classList.remove('hidden');
+            } else {
+                document.getElementById('chat-thread')?.classList.add('hidden');
+                document.getElementById('chat-empty-thread')?.classList.remove('hidden');
+            }
+        }
     }
 
     // ── Thread ──────────────────────────────────────────────────────
@@ -279,9 +299,16 @@ export class ChatModule {
 
     async openThread(friendId) {
         this.openFriendId = friendId;
-        document.getElementById('chat-conversations')?.classList.add('hidden');
+        document.getElementById('chat-empty-thread')?.classList.add('hidden');
         document.getElementById('chat-thread')?.classList.remove('hidden');
         document.getElementById('chat-attach-panel')?.classList.add('hidden');
+        document.querySelectorAll('#chat-conversations .chat-conversation').forEach(el => {
+            el.classList.toggle('active', parseInt(el.dataset.friendId) === friendId);
+        });
+        if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            document.getElementById('chat-sidebar')?.classList.add('mobile-hidden');
+            document.getElementById('chat-main')?.classList.remove('mobile-hidden');
+        }
         this._paintHead();
         await this._loadThread(friendId);
         document.getElementById('chat-input')?.focus();
@@ -290,14 +317,26 @@ export class ChatModule {
     closeThread() {
         this.openFriendId = null;
         this.messages = [];
+        document.querySelectorAll('#chat-conversations .chat-conversation').forEach(el => el.classList.remove('active'));
         document.getElementById('chat-thread')?.classList.add('hidden');
-        document.getElementById('chat-conversations')?.classList.remove('hidden');
+        document.getElementById('chat-empty-thread')?.classList.remove('hidden');
+        if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            document.getElementById('chat-sidebar')?.classList.remove('mobile-hidden');
+            document.getElementById('chat-main')?.classList.add('mobile-hidden');
+        }
         this.renderConversations();
     }
 
     /** The Messages tab was shown or hidden: a visible thread counts as read. */
     onTabShown() {
         this.renderConversations();
+        // On phones the list and the thread share one column: show the list
+        // alone until a conversation is picked.
+        if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            const threadOpen = this.openFriendId != null;
+            document.getElementById('chat-sidebar')?.classList.toggle('mobile-hidden', threadOpen);
+            document.getElementById('chat-main')?.classList.toggle('mobile-hidden', !threadOpen);
+        }
         if (this.openFriendId != null) this._markRead(this.openFriendId);
     }
 
@@ -324,12 +363,16 @@ export class ChatModule {
         const conversation = this.conversations.get(this.openFriendId);
         if (!head || !conversation) return;
         const presence = conversation.presence;
-        const status = presence?.typing ? t('is typing…') : this.presenceLine(conversation.friend.id);
+        const isListening = !!presence?.listening;
+        const statusText = presence?.typing ? t('is typing…') : this.presenceLine(conversation.friend.id);
+        const statusHtml = (isListening && !presence?.typing)
+            ? `<span class="friend-status-listening"><svg data-icon="equalizer" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg> ${esc(statusText)}</span>`
+            : esc(statusText);
         head.innerHTML = `
             <div class="friend-avatar">${esc((conversation.friend.username || '?')[0].toUpperCase())}${this.presenceDot(conversation.friend.id)}</div>
             <div class="friend-info">
                 <div class="friend-name">${esc(conversation.friend.username)}</div>
-                <div class="friend-email">${esc(status)}</div>
+                <div class="friend-email">${statusHtml}</div>
             </div>`;
     }
 
@@ -413,8 +456,11 @@ export class ChatModule {
                 <div class="chat-card-sub">${esc(song.artist)}</div>
             </div>
             <div class="chat-card-actions">
-                <button type="button" class="btn btn-sm btn-primary" data-action="play-song">${t('Play')}</button>
-                ${song.in_library ? '' : `<button type="button" class="btn btn-sm" data-action="keep-song">${t('Add to library')}</button>`}
+                <button type="button" class="btn btn-sm btn-primary" data-action="play-song">
+                    <svg data-icon="play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <span>${t('Play')}</span>
+                </button>
+                ${song.in_library ? `<span class="friend-chip friend-chip-saved">${t('In library')}</span>` : `<button type="button" class="btn btn-sm btn-secondary" data-action="keep-song">${t('Add to library')}</button>`}
             </div>
         </div>`;
     }
@@ -459,12 +505,12 @@ export class ChatModule {
         } else if (action === 'keep-song' && message.song) {
             const res = await useMusicService().saveToLibrary(message.song.id);
             if (res.error) return Utils.showToast(res.error.error || 'Could not add the song', 'error');
-            Utils.showToast('Added to your library');
+            Utils.showToast(t('Added to your library'));
             // Every message with this song now has it in the library.
             for (const other of this.messages.filter(m => m.song?.id === message.song.id)) {
                 this._replaceMessage({ ...other, song: { ...other.song, in_library: true } });
             }
-            this.app.loadLibrary?.();
+            this.app.loadLibrary?.({ silent: true });
         } else if (action === 'accept-invite' || action === 'decline-invite') {
             const shareId = message.invite?.share_id;
             if (!shareId) return;

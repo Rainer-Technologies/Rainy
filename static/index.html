@@ -650,70 +650,144 @@
 
                 <!-- Friends View -->
                 <div data-part="view-friends" id="friends-view" class="friends-view hidden">
-                    <div class="friends-tabs">
-                        <button type="button" class="friends-tab active" data-tab="friends" data-i18n>Friends</button>
-                        <button type="button" class="friends-tab" data-tab="messages"><span data-i18n>Messages</span> <span class="nav-badge hidden" id="chat-tab-badge">0</span></button>
-                        <button type="button" class="friends-tab" data-tab="requests" data-i18n>Requests</button>
-                        <button type="button" class="friends-tab" data-tab="invites" data-i18n>Playlist Invites</button>
+                    <header class="friends-header">
+                        <div class="friends-heading">
+                            <h1 class="friends-heading-title" data-i18n>Friends</h1>
+                            <p class="friends-heading-meta" id="friends-heading-meta"></p>
+                        </div>
+                        <form id="friends-add-form" class="friends-add-form">
+                            <svg data-icon="person" viewBox="0 0 24 24" class="friends-add-icon" fill="currentColor" aria-hidden="true">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                            <input type="text" id="friends-add-input" class="friends-add-input"
+                                placeholder="Add by email or username" aria-label="Add by email or username" data-i18n-attr="placeholder aria-label">
+                            <button type="submit" class="friends-add-submit" data-i18n>Add</button>
+                        </form>
+                    </header>
+
+                    <div class="friends-tabs" role="tablist" aria-label="Friends sections" data-i18n-attr="aria-label">
+                        <button type="button" class="friends-tab active" data-tab="friends" role="tab" aria-selected="true">
+                            <span data-i18n>Friends</span>
+                            <span class="friends-tab-count" id="friends-tab-count">0</span>
+                        </button>
+                        <button type="button" class="friends-tab" data-tab="messages" role="tab" aria-selected="false">
+                            <span data-i18n>Messages</span>
+                            <span class="nav-badge hidden" id="chat-tab-badge">0</span>
+                        </button>
+                        <button type="button" class="friends-tab" data-tab="requests" role="tab" aria-selected="false">
+                            <span data-i18n>Requests</span>
+                            <span class="nav-badge hidden" id="requests-tab-badge">0</span>
+                        </button>
+                        <button type="button" class="friends-tab" data-tab="invites" role="tab" aria-selected="false">
+                            <span data-i18n>Invites</span>
+                            <span class="nav-badge hidden" id="invites-tab-badge">0</span>
+                        </button>
                     </div>
 
                     <div id="friends-friends-panel" class="friends-panel">
-                        <form id="friends-add-form" class="friends-add-form">
-                            <input type="text" id="friends-add-input" class="form-input"
-                                placeholder="Add a friend by email or username" data-i18n-attr="placeholder">
-                            <button type="submit" class="btn btn-primary" data-i18n>Add</button>
-                        </form>
-                        <div class="friends-subheader" data-i18n>Your friends</div>
-                        <div id="friends-list" class="friends-list"></div>
-                        <div class="friends-subheader" data-i18n>What your friends see</div>
-                        <div class="friends-privacy">
-                            <label class="friends-privacy-row">
-                                <input type="checkbox" id="chat-share-online">
-                                <span data-i18n>Show when I am online</span>
-                            </label>
-                            <label class="friends-privacy-row">
-                                <input type="checkbox" id="chat-share-listening">
-                                <span data-i18n>Show what I am listening to</span>
-                            </label>
-                        </div>
+                        <section id="friends-listening-section" class="friends-section hidden">
+                            <div class="friends-section-head">
+                                <h2 class="friends-section-title" data-i18n>Listening Now</h2>
+                            </div>
+                            <div id="friends-listening-grid" class="friends-listening-grid"></div>
+                        </section>
+
+                        <section class="friends-section">
+                            <div class="friends-section-head">
+                                <h2 class="friends-section-title" data-i18n>All Friends</h2>
+                                <span class="friends-count" id="friends-count-badge">0</span>
+                            </div>
+                            <div id="friends-list" class="friends-list"></div>
+                        </section>
+
+                        <details class="friends-privacy" id="friends-privacy">
+                            <summary class="friends-privacy-summary">
+                                <span class="friends-privacy-icon">
+                                    <svg data-icon="shield" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+                                    </svg>
+                                </span>
+                                <span class="friends-privacy-summary-text">
+                                    <span class="friends-privacy-title" data-i18n>Presence &amp; Privacy</span>
+                                    <span class="friends-privacy-hint" data-i18n>Choose what your friends can see.</span>
+                                </span>
+                                <svg data-icon="expand-more" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="friends-privacy-chevron" aria-hidden="true">
+                                    <path d="M7 10l5 5 5-5z"/>
+                                </svg>
+                            </summary>
+                            <div class="friends-privacy-body">
+                                <label class="friends-privacy-row" for="chat-share-online">
+                                    <span class="friends-privacy-info">
+                                        <span class="friends-privacy-label" data-i18n>Show when I am online</span>
+                                        <span class="friends-privacy-desc" data-i18n>Let friends see when you are active on Rainy</span>
+                                    </span>
+                                    <input type="checkbox" id="chat-share-online" class="switch-control" role="switch">
+                                </label>
+                                <label class="friends-privacy-row" for="chat-share-listening">
+                                    <span class="friends-privacy-info">
+                                        <span class="friends-privacy-label" data-i18n>Show what I am listening to</span>
+                                        <span class="friends-privacy-desc" data-i18n>Display your currently playing song to friends in real time</span>
+                                    </span>
+                                    <input type="checkbox" id="chat-share-listening" class="switch-control" role="switch">
+                                </label>
+                            </div>
+                        </details>
                     </div>
 
                     <div id="friends-messages-panel" class="friends-panel hidden">
-                        <div id="chat-conversations" class="friends-list"></div>
-                        <div id="chat-thread" class="chat-thread hidden">
-                            <div class="chat-head">
-                                <button type="button" class="btn btn-sm" id="chat-back" title="Back" data-i18n-attr="title">
-                                    <svg data-icon="arrow-back" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                                </button>
-                                <div class="chat-head-info" id="chat-head-info"></div>
-                            </div>
-                            <div class="chat-messages" id="chat-messages"></div>
-                            <div class="chat-attach hidden" id="chat-attach-panel">
-                                <div id="chat-attach-menu" class="chat-attach-menu">
-                                    <button type="button" class="btn btn-sm" id="chat-attach-song" data-i18n>Send a song</button>
-                                    <button type="button" class="btn btn-sm" id="chat-attach-playlist" data-i18n>Invite to a playlist</button>
+                        <div class="chat-layout" id="chat-layout">
+                            <div class="chat-sidebar" id="chat-sidebar">
+                                <div class="chat-sidebar-header">
+                                    <span class="chat-sidebar-title" data-i18n>Conversations</span>
                                 </div>
-                                <div id="chat-picker" class="chat-picker hidden">
-                                    <input type="text" id="chat-picker-search" class="form-input">
-                                    <div id="chat-picker-list" class="chat-picker-list"></div>
+                                <div id="chat-conversations" class="chat-conversations-list"></div>
+                            </div>
+                            <div class="chat-main" id="chat-main">
+                                <div id="chat-empty-thread" class="chat-empty-thread">
+                                    <div class="chat-empty-icon">
+                                        <svg data-icon="description" viewBox="0 0 24 24" width="48" height="48" fill="currentColor">
+                                            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                                        </svg>
+                                    </div>
+                                    <h4 class="chat-empty-title" data-i18n>Your Messages</h4>
+                                    <p class="chat-empty-subtitle" data-i18n>Select a conversation from the left to start chatting and sharing music.</p>
+                                </div>
+                                <div id="chat-thread" class="chat-thread hidden">
+                                    <div class="chat-head">
+                                        <button type="button" class="icon-btn icon-btn-small" id="chat-back" title="Back" data-i18n-attr="title">
+                                            <svg data-icon="arrow-back" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                                        </button>
+                                        <div class="chat-head-info" id="chat-head-info"></div>
+                                    </div>
+                                    <div class="chat-messages" id="chat-messages"></div>
+                                    <div class="chat-attach hidden" id="chat-attach-panel">
+                                        <div id="chat-attach-menu" class="chat-attach-menu">
+                                            <button type="button" class="btn btn-sm" id="chat-attach-song" data-i18n>Send a song</button>
+                                            <button type="button" class="btn btn-sm" id="chat-attach-playlist" data-i18n>Invite to a playlist</button>
+                                        </div>
+                                        <div id="chat-picker" class="chat-picker hidden">
+                                            <input type="text" id="chat-picker-search" class="form-input">
+                                            <div id="chat-picker-list" class="chat-picker-list"></div>
+                                        </div>
+                                    </div>
+                                    <form class="chat-form" id="chat-form" autocomplete="off">
+                                        <button type="button" class="icon-btn" id="chat-attach" title="Send a song or a playlist invitation" data-i18n-attr="title">
+                                            <svg data-icon="add" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                        </button>
+                                        <input type="text" id="chat-input" class="form-input" maxlength="2000"
+                                            placeholder="Write a message" data-i18n-attr="placeholder">
+                                        <button type="submit" class="btn btn-primary" data-i18n>Send</button>
+                                    </form>
                                 </div>
                             </div>
-                            <form class="chat-form" id="chat-form" autocomplete="off">
-                                <button type="button" class="btn" id="chat-attach" title="Send a song or a playlist invitation" data-i18n-attr="title">
-                                    <svg data-icon="add" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                                </button>
-                                <input type="text" id="chat-input" class="form-input" maxlength="2000"
-                                    placeholder="Write a message" data-i18n-attr="placeholder">
-                                <button type="submit" class="btn btn-primary" data-i18n>Send</button>
-                            </form>
                         </div>
                     </div>
 
                     <div id="friends-requests-panel" class="friends-panel hidden">
-                        <div id="friends-requests-list" class="friends-list"></div>
+                        <div id="friends-requests-list" class="friends-requests-container"></div>
                     </div>
                     <div id="friends-invites-panel" class="friends-panel hidden">
-                        <div id="friends-invites-list" class="friends-list"></div>
+                        <div id="friends-invites-list" class="friends-invites-container"></div>
                     </div>
                 </div>
 
