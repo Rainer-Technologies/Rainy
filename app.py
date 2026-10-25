@@ -14,6 +14,7 @@ from routes.playback import playback_bp
 from routes.albums import albums_bp
 from routes.smartmix import smartmix_bp
 from routes.connect import connect_bp
+from routes.chat import chat_bp
 from routes.server import server_bp
 from routes.playlist_syncs import playlist_syncs_bp
 from routes.radio import radio_bp
@@ -87,6 +88,7 @@ app.register_blueprint(playback_bp, url_prefix='/api/playback')
 app.register_blueprint(albums_bp, url_prefix='/api/albums')
 app.register_blueprint(smartmix_bp, url_prefix='/api/smartmix')
 app.register_blueprint(connect_bp, url_prefix='/api/connect')
+app.register_blueprint(chat_bp)
 app.register_blueprint(server_bp)
 app.register_blueprint(playlist_syncs_bp)
 app.register_blueprint(radio_bp)

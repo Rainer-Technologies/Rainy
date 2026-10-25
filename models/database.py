@@ -970,10 +970,65 @@ class Database:
             )
         """)
 
+        # ── Friends chat ─────────────────────────────────────────────
+        # One row per message between two friends (see models/chat.py).
+        # created_at is an epoch DOUBLE and ids only grow, so a client that
+        # missed events resumes from the last id it saw. Song, playlist and
+        # share are references: they go NULL when the target is deleted and
+        # the message then reads as "no longer available".
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                sender_id INT NOT NULL,
+                recipient_id INT NOT NULL,
+                kind VARCHAR(16) NOT NULL DEFAULT 'text',
+                body TEXT NULL,
+                song_id INT NULL,
+                playlist_id INT NULL,
+                share_id INT NULL,
+                created_at DOUBLE NOT NULL,
+                INDEX idx_chat_recipient (recipient_id, id),
+                INDEX idx_chat_pair (sender_id, recipient_id, id),
+                FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE SET NULL,
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE SET NULL,
+                FOREIGN KEY (share_id) REFERENCES playlist_shares(id) ON DELETE SET NULL
+            )
+        """)
+
+        # How far each user has read each friend's messages.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_reads (
+                user_id INT NOT NULL,
+                friend_id INT NOT NULL,
+                last_read_id BIGINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, friend_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Presence: touched while a client holds its chat stream open.
+        # typing_to/typing_at say who the user is writing to right now.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_presence (
+                user_id INT NOT NULL PRIMARY KEY,
+                last_seen DOUBLE NOT NULL DEFAULT 0,
+                typing_to INT NULL,
+                typing_at DOUBLE NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Privacy: what friends may see of this account.
+        cls._add_column(cursor, 'users', 'share_online', 'TINYINT(1) NOT NULL DEFAULT 1')
+        cls._add_column(cursor, 'users', 'share_listening', 'TINYINT(1) NOT NULL DEFAULT 1')
+
         conn.commit()
         cursor.close()
         conn.close()
-    
+
     @classmethod
     def _create_mysql_database(cls):
         # First connect without database to create it if needed
