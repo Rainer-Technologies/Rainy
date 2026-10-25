@@ -652,6 +652,7 @@
                 <div data-part="view-friends" id="friends-view" class="friends-view hidden">
                     <div class="friends-tabs">
                         <button type="button" class="friends-tab active" data-tab="friends" data-i18n>Friends</button>
+                        <button type="button" class="friends-tab" data-tab="messages"><span data-i18n>Messages</span> <span class="nav-badge hidden" id="chat-tab-badge">0</span></button>
                         <button type="button" class="friends-tab" data-tab="requests" data-i18n>Requests</button>
                         <button type="button" class="friends-tab" data-tab="invites" data-i18n>Playlist Invites</button>
                     </div>
@@ -664,6 +665,48 @@
                         </form>
                         <div class="friends-subheader" data-i18n>Your friends</div>
                         <div id="friends-list" class="friends-list"></div>
+                        <div class="friends-subheader" data-i18n>What your friends see</div>
+                        <div class="friends-privacy">
+                            <label class="friends-privacy-row">
+                                <input type="checkbox" id="chat-share-online">
+                                <span data-i18n>Show when I am online</span>
+                            </label>
+                            <label class="friends-privacy-row">
+                                <input type="checkbox" id="chat-share-listening">
+                                <span data-i18n>Show what I am listening to</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="friends-messages-panel" class="friends-panel hidden">
+                        <div id="chat-conversations" class="friends-list"></div>
+                        <div id="chat-thread" class="chat-thread hidden">
+                            <div class="chat-head">
+                                <button type="button" class="btn btn-sm" id="chat-back" title="Back" data-i18n-attr="title">
+                                    <svg data-icon="arrow-back" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                                </button>
+                                <div class="chat-head-info" id="chat-head-info"></div>
+                            </div>
+                            <div class="chat-messages" id="chat-messages"></div>
+                            <div class="chat-attach hidden" id="chat-attach-panel">
+                                <div id="chat-attach-menu" class="chat-attach-menu">
+                                    <button type="button" class="btn btn-sm" id="chat-attach-song" data-i18n>Send a song</button>
+                                    <button type="button" class="btn btn-sm" id="chat-attach-playlist" data-i18n>Invite to a playlist</button>
+                                </div>
+                                <div id="chat-picker" class="chat-picker hidden">
+                                    <input type="text" id="chat-picker-search" class="form-input">
+                                    <div id="chat-picker-list" class="chat-picker-list"></div>
+                                </div>
+                            </div>
+                            <form class="chat-form" id="chat-form" autocomplete="off">
+                                <button type="button" class="btn" id="chat-attach" title="Send a song or a playlist invitation" data-i18n-attr="title">
+                                    <svg data-icon="add" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                </button>
+                                <input type="text" id="chat-input" class="form-input" maxlength="2000"
+                                    placeholder="Write a message" data-i18n-attr="placeholder">
+                                <button type="submit" class="btn btn-primary" data-i18n>Send</button>
+                            </form>
+                        </div>
                     </div>
 
                     <div id="friends-requests-panel" class="friends-panel hidden">

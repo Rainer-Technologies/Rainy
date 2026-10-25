@@ -190,6 +190,9 @@ What Rainy builds over and over has a class of its own, and a few controls have 
 | `.mix-card` | A mix in Smart Mix. |
 | `.discover-item` | A search result in Discover. |
 | `.friend-row` | A friend, request or invite. |
+| `.presence-dot` | The dot on a friend's avatar: `.online`, and `.listening` while they play something. |
+| `.chat-message` | A message in a conversation (`.mine` or `.theirs`). |
+| `.chat-card` | A song or a playlist invitation inside a message. |
 | `.library-section`, `.section-heading`, `.horizontal-scroll-content` | A shelf of the library, its title, and its cards in a row that scrolls sideways. |
 | `.section-title` | The big title of the library and playlist views. |
 | `.nav-item`, `.nav-header`, `#sidebar-playlists .nav-item` | An entry of the sidebar navigation (`.active` when it is the current view), the title of a group (in Browse it is also the button that folds it), and a playlist in the sidebar. |

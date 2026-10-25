@@ -34,6 +34,10 @@
     border-left: 3px solid var(--error);
 }
 
+.toast.info {
+    border-left: 3px solid var(--text-secondary);
+}
+
 .toast svg {
     width: 20px;
     height: 20px;
@@ -46,6 +50,10 @@
 
 .toast.error svg {
     fill: var(--error);
+}
+
+.toast.info svg {
+    fill: var(--text-secondary);
 }
 
 .toast-message {

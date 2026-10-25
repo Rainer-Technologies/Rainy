@@ -2,7 +2,8 @@
 
 Endpoints (everything needs a friendship with the other account):
     GET  /api/chat/conversations        friends with last message, unread, presence
-    GET  /api/chat/<friend_id>/messages ?before=<id>&limit=<n>, oldest first
+    GET  /api/chat/<friend_id>/messages ?before=<id>&limit=<n>, oldest first,
+                                        plus read_by_friend (their read mark)
     POST /api/chat/<friend_id>/messages {kind: text|song|playlist_invite, ...}
     POST /api/chat/<friend_id>/read     {up_to?}
     POST /api/chat/<friend_id>/typing
@@ -198,7 +199,8 @@ def list_messages(friend_id):
         before = request.args.get('before', type=int)
         limit = request.args.get('limit', type=int) or 50
         messages = ChatModel.thread(user_id, friend_id, before=before, limit=limit)
-        return jsonify({'messages': messages})
+        return jsonify({'messages': messages,
+                        'read_by_friend': ChatModel.read_mark(friend_id, user_id)})
     except Exception:
         return server_error()
 

@@ -2,6 +2,7 @@ import { Modal } from "../components/modal.js";
 import { useContext } from "../helper/context.js";
 import { Logger } from "../helper/logger.js";
 import { useMusicService } from "../services/music.js";
+import { useFriendsService } from "../services/friends.js";
 import { usePlaylistService } from "../services/playlist.js";
 import { ContextMenu, ContextMenuItem, ContextSubMenu } from "./contextMenu.js";
 import { I } from "./icon.js";
@@ -35,6 +36,10 @@ export class SongContextMenu extends Component {
         this._findMetadataItem = useRef(null);
         /** @type {Ref<HTMLDivElement>} */
         this._saveToLibraryItem = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._sendToFriendItem = useRef(null);
+        /** @type {Ref<HTMLDivElement>} */
+        this._friendList = useRef(null);
 
         this.set('current-song', null, { silent: true });
         this.set('current-view-watcher', useContext().listen('current-view-type', (_path, _oldValue, newValue) => {
@@ -278,6 +283,38 @@ export class SongContextMenu extends Component {
         }
     }
 
+    /** Fill the "Send to a Friend" submenu with the user's friends. */
+    async _renderFriends() {
+        const list = this._friendList.value;
+        Array.from(list.children).forEach(el => el.remove());
+
+        const data = await useFriendsService().friends();
+        if(data.error) return Logger.error(data.error);
+
+        const friends = data.value.friends || [];
+        if(friends.length === 0) {
+            list.append(H.of(ContextMenuItem, h.span(t('No friends yet'))));
+            return;
+        }
+        for(const friend of friends) {
+            list.append(H.of(ContextMenuItem, on.click(() => this.sendCurrentSongToFriend(friend)),
+                I.User(),
+                h.span(friend.username)
+            ));
+        }
+    }
+
+    /** Send the current song to a friend as a chat message. */
+    sendCurrentSongToFriend(friend) {
+        this.hide();
+
+        /** @type {SongModel?} */
+        const currentSong = this.get('current-song');
+        if(!currentSong) return;
+
+        window.chatModule?.sendSong(friend.id, currentSong);
+    }
+
     async newPlaylist() {
         this.hide();
 
@@ -419,6 +456,11 @@ export class SongContextMenu extends Component {
                 this._publishDivider.value.style.display = isAdmin ? '' : 'none';
             }
         }
+        // A song can only be passed on from the sender's own library.
+        if (this._sendToFriendItem.value) {
+            const song = this.get('current-song');
+            this._sendToFriendItem.value.classList.toggle('hidden', song?.in_library === false);
+        }
         // "Add to Your Library" only for songs heard through a shared playlist.
         if (this._saveToLibraryItem.value) {
             const song = this.get('current-song');
@@ -452,6 +494,13 @@ export class SongContextMenu extends Component {
                     ),
                     h.div(a.class('dropdown-divider')),
                     h.div(this._playlistList, a.style('overflow-y: auto;', 'max-height: 200px;'))
+                )
+            ),
+            H.of(ContextMenuItem, this._sendToFriendItem, a.hasSubmenu(),
+                I.Share(),
+                h.span(t('Send to a Friend')),
+                H.of(ContextSubMenu, p.onOpen(() => this._renderFriends()),
+                    h.div(this._friendList, a.style('overflow-y: auto;', 'max-height: 200px;'))
                 )
             ),
             H.of(ContextMenuItem, this._saveToLibraryItem, on.click(() => this.saveCurrentSongToLibrary()),

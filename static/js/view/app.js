@@ -29,6 +29,7 @@ export async function handle(data, userdata) {
         userdata.loadLibrary()
     ]);
     userdata.libraryWatcher?.start();
+    window.chatModule?.start();
     userdata.startRouting?.();
     document.dispatchEvent(new CustomEvent('rainy:ready'));
 };

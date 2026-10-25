@@ -673,6 +673,30 @@
       "description": "A friend, request or invite."
     },
     {
+      "part": "presence-dot",
+      "selector": ".presence-dot",
+      "sources": [
+        "static/js/modules/chat.js"
+      ],
+      "description": "The dot on a friend's avatar: `.online`, and `.listening` while they play something."
+    },
+    {
+      "part": "chat-message",
+      "selector": ".chat-message",
+      "sources": [
+        "static/js/modules/chat.js"
+      ],
+      "description": "A message in a conversation (`.mine` or `.theirs`)."
+    },
+    {
+      "part": "chat-card",
+      "selector": ".chat-card",
+      "sources": [
+        "static/js/modules/chat.js"
+      ],
+      "description": "A song or a playlist invitation inside a message."
+    },
+    {
       "part": "playlist-item",
       "selector": "#sidebar-playlists .nav-item",
       "sources": [

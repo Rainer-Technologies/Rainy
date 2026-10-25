@@ -16,7 +16,7 @@ All under `/api/chat`, session cookie like the rest of the API.
 | Request | Answer |
 |---|---|
 | `GET /conversations` | every friend with `last_message`, `unread` and `presence`, newest conversation first |
-| `GET /<friend_id>/messages?before=&limit=` | one page, oldest first |
+| `GET /<friend_id>/messages?before=&limit=` | `{messages, read_by_friend}`: one page, oldest first, and how far the friend has read yours |
 | `POST /<friend_id>/messages` | `{kind, body?, song_id?, playlist_id?, role?}` → `201 {message}` |
 | `POST /<friend_id>/read` | `{up_to?}` → `{last_read_id}` (marks only move forward) |
 | `POST /<friend_id>/typing` | ping while the user types (every ~3 s at most) |

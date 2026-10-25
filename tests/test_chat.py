@@ -98,7 +98,9 @@ def test_friends_exchange_messages_and_unread_counts(world, pair):
     thread = cb.get(f"/api/chat/{world['a']}/messages").get_json()['messages']
     assert [m['body'] for m in thread] == ['hello', 'there']
 
+    assert ca.get(f"/api/chat/{world['b']}/messages").get_json()['read_by_friend'] == 0
     assert cb.post(f"/api/chat/{world['a']}/read").get_json()['last_read_id'] == thread[-1]['id']
+    assert ca.get(f"/api/chat/{world['b']}/messages").get_json()['read_by_friend'] == thread[-1]['id']
     talk = cb.get('/api/chat/conversations').get_json()['conversations'][0]
     assert talk['unread'] == 0
     # The author still has nothing unread of their own.

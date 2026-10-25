@@ -137,10 +137,15 @@ class ChatModel:
             " ON DUPLICATE KEY UPDATE"
             " last_read_id = GREATEST(last_read_id, VALUES(last_read_id))",
             (user_id, friend_id, mark))
+        return ChatModel.read_mark(user_id, friend_id)
+
+    @staticmethod
+    def read_mark(reader_id, author_id):
+        """How far `reader_id` has read the messages of `author_id`."""
         row = Database.execute_query(
             "SELECT last_read_id FROM chat_reads"
             " WHERE user_id = %s AND friend_id = %s",
-            (user_id, friend_id), fetch_one=True)
+            (reader_id, author_id), fetch_one=True)
         return (row or {}).get('last_read_id') or 0
 
     @staticmethod

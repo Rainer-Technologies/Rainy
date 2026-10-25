@@ -11,12 +11,14 @@ import { t } from '../i18n/index.js';
 import { useFriendsService } from '../services/friends.js';
 import { usePlaylistService } from '../services/playlist.js';
 
-const TABS = ['friends', 'requests', 'invites'];
+const TABS = ['friends', 'messages', 'requests', 'invites'];
 
 export class FriendsModule {
     constructor(app) {
         this.app = app;
         this._badgeTimer = null;
+        this._pending = 0;
+        this._chatUnread = 0;
         this._bindStatic();
         this.refreshBadges();
         // Keep the badge fresh while the app is open.
@@ -79,11 +81,12 @@ export class FriendsModule {
     }
 
     showTab(tab) {
-        ['friends', 'requests', 'invites'].forEach(id => {
+        TABS.forEach(id => {
             const el = document.getElementById(`friends-${id}-panel`);
             if (el) el.classList.toggle('hidden', id !== tab);
         });
         if (tab === 'friends') this.renderFriends();
+        if (tab === 'messages') window.chatModule?.onTabShown();
         if (tab === 'requests') this.renderRequests();
         if (tab === 'invites') this.renderInvites();
     }
@@ -101,6 +104,7 @@ export class FriendsModule {
         this.invites = invites.error ? [] : (invites.value.invites || []);
         this.renderAll();
         this.refreshBadges();
+        window.chatModule?.loadSettings();
     }
 
     async refreshBadges() {
@@ -109,17 +113,28 @@ export class FriendsModule {
                 useFriendsService().requests(),
                 useFriendsService().playlistInvites(),
             ]);
-            const count = (requests.error ? 0 : (requests.value.incoming || []).length)
+            this._pending = (requests.error ? 0 : (requests.value.incoming || []).length)
                 + (invites.error ? 0 : (invites.value.invites || []).length);
-            const badge = document.getElementById('friends-badge');
-            if (!badge) return;
-            badge.textContent = String(count);
-            badge.classList.toggle('hidden', count === 0);
-            // Friends lives inside the foldable More section: flag the header too.
-            document.getElementById('nav-more-toggle')?.classList.toggle('has-badge', count > 0);
+            this._paintBadge();
         } catch (e) {
             // Silent: badge is cosmetic.
         }
+    }
+
+    /** Unread chat messages, counted in the sidebar badge with the rest. */
+    setChatUnread(count) {
+        this._chatUnread = count;
+        this._paintBadge();
+    }
+
+    _paintBadge() {
+        const count = this._pending + this._chatUnread;
+        const badge = document.getElementById('friends-badge');
+        if (!badge) return;
+        badge.textContent = String(count);
+        badge.classList.toggle('hidden', count === 0);
+        // Friends lives inside the foldable More section: flag the header too.
+        document.getElementById('nav-more-toggle')?.classList.toggle('has-badge', count > 0);
     }
 
     renderAll() {
@@ -148,16 +163,24 @@ export class FriendsModule {
             </div>
             ${friends.map(f => `
             <div class="friend-row" data-id="${f.id}">
-                <div class="friend-avatar">${Utils.escapeHtml((f.username || '?')[0].toUpperCase())}</div>
+                <div class="friend-avatar">${Utils.escapeHtml((f.username || '?')[0].toUpperCase())}${window.chatModule?.presenceDot(f.id) || ''}</div>
                 <div class="friend-info">
                     <div class="friend-name">${Utils.escapeHtml(f.username)}</div>
-                    <div class="friend-email">${Utils.escapeHtml(f.email)}</div>
+                    <div class="friend-email">${Utils.escapeHtml(window.chatModule?.presenceLine(f.id) || f.email)}</div>
                 </div>
-                <button type="button" class="btn btn-sm btn-danger" data-action="unfriend" data-id="${f.id}">
-                    ${t('Unfriend')}
-                </button>
+                <div class="friend-actions">
+                    <button type="button" class="btn btn-sm btn-primary" data-action="message" data-id="${f.id}">
+                        ${t('Message')}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" data-action="unfriend" data-id="${f.id}">
+                        ${t('Unfriend')}
+                    </button>
+                </div>
             </div>`).join('')}`;
 
+        container.querySelectorAll('[data-action="message"]').forEach(btn => {
+            btn.addEventListener('click', () => window.chatModule?.openChat(parseInt(btn.dataset.id)));
+        });
         container.querySelectorAll('[data-action="unfriend"]').forEach(btn => {
             btn.addEventListener('click', () => this.unfriend(parseInt(btn.dataset.id)));
         });
