@@ -195,30 +195,34 @@ class DuplicateModel:
                             (keeper_id, loser),
                         )
 
-            # 4) History / tags: re-point (duplicates here are harmless).
+            # 4) History and tags: re-point to the keeper. Tags are unique per
+            #    (song, tag, source), and copies of one song usually carry the
+            #    same Last.fm tags, so only the ones the keeper lacks move; the
+            #    rest go with the removed row below.
             for loser in losers:
                 cursor.execute(
                     "UPDATE play_history SET song_id = %s WHERE song_id = %s",
                     (keeper_id, loser),
                 )
+                # A song a friend was sent in the chat stays sent (and playable).
                 cursor.execute(
-                    "UPDATE song_tags SET song_id = %s WHERE song_id = %s",
+                    "UPDATE chat_messages SET song_id = %s WHERE song_id = %s",
                     (keeper_id, loser),
                 )
-            # Dedupe tags that now collide on (song_id, tag_name, source).
-            cursor.execute(
-                """
-                DELETE FROM song_tags
-                WHERE song_id = %s
-                  AND id NOT IN (
-                      SELECT keep_id FROM (
-                          SELECT MIN(id) AS keep_id FROM song_tags
-                          WHERE song_id = %s GROUP BY tag_name, source
-                      ) k
-                  )
-                """,
-                (keeper_id, keeper_id),
-            )
+                cursor.execute(
+                    """
+                    UPDATE song_tags
+                    SET song_id = %s
+                    WHERE song_id = %s
+                      AND NOT EXISTS (
+                          SELECT 1 FROM (SELECT tag_name, source FROM song_tags
+                                         WHERE song_id = %s) k
+                          WHERE k.tag_name = song_tags.tag_name
+                            AND k.source = song_tags.source
+                      )
+                    """,
+                    (keeper_id, loser, keeper_id),
+                )
 
             # 5) playback_state references the song with ON DELETE SET NULL, so
             #    deleting the loser rows is safe.
