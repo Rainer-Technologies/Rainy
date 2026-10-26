@@ -384,6 +384,12 @@
       "static": true
     },
     {
+      "part": "listen-banner",
+      "selector": "[data-part~=\"listen-banner\"]",
+      "description": "The bar in the Friends view for a listening session you host or joined: who listens, with a Sync, Leave or End button.",
+      "static": true
+    },
+    {
       "part": "view-artists",
       "selector": "[data-part~=\"view-artists\"]",
       "description": "The Artists view (grid and profile).",
@@ -694,7 +700,7 @@
       "sources": [
         "static/js/modules/chat.js"
       ],
-      "description": "A song or a playlist invitation inside a message."
+      "description": "A song, a playlist invitation or a listen-together invitation inside a message."
     },
     {
       "part": "playlist-item",

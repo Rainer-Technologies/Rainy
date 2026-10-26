@@ -364,6 +364,19 @@
     border-radius: var(--radius-full);
 }
 
+/* Two buttons (join and decline) must not squeeze the words of the card */
+.chat-card-listen {
+    flex-wrap: wrap;
+}
+
+.chat-card-listen .chat-card-info {
+    flex: 1 1 140px;
+}
+
+.chat-card-listen .chat-card-actions {
+    flex-wrap: wrap;
+}
+
 /* Composer */
 .chat-form {
     display: flex;

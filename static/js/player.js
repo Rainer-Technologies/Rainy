@@ -765,6 +765,9 @@ export class AudioPlayer {
         if (this.isPlaying) {
             this._cancelCrossfade();
             this.audio.pause();
+        } else if (window.listenModule?.blocksPlayback) {
+            // Listening with a host who paused: only the host starts it again.
+            window.listenModule.onPlayBlocked();
         } else {
             this.audio.play().catch(err => Logger.error('Play error:', err));
         }
@@ -1251,13 +1254,15 @@ export class AudioPlayer {
     }
 
     /**
-     * "Add to Your Library" shows only while a radio song that isn't in
-     * the library plays (a new song the radio brought in).
+     * "Add to Your Library" shows while a radio song that isn't in the library
+     * plays (a new song the radio brought in), and while a listener hears a
+     * song with the host that they do not have yet (see listen.js).
      */
     updateKeepButtons() {
         const song = this.currentSong;
-        const show = !!song && song.radio === true && !song.keepRequested
+        const radio = !!song && song.radio === true && !song.keepRequested
             && (song.id == null || song.in_library === false);
+        const show = radio || !!window.listenModule?.keepable(song?.id);
         this.keepBtn?.classList.toggle('hidden', !show);
         this.fsKeepBtn?.classList.toggle('hidden', !show);
     }
@@ -1294,6 +1299,7 @@ export class AudioPlayer {
                 return;
             }
             this.markInLibrary(song.id);
+            window.listenModule?.markKept(song.id);
             window.showToast?.(t('Added to Your Library'), 'success');
             window.app?.libraryWatcher?.check();
         } finally {
@@ -1626,6 +1632,13 @@ export class AudioPlayer {
     }
 
     handlePlay() {
+        // Whatever started it (a song that begins, a media key), a listener
+        // whose host is paused does not play: back to paused.
+        if (window.listenModule?.blocksPlayback) {
+            this.audio.pause();
+            window.listenModule.onPlayBlocked();
+            return;
+        }
         this.isPlaying = true;
         // Re-anchor so the pause gap isn't counted as listening
         this._listenTracker.sync(this.audio.currentTime || 0);

@@ -16,7 +16,10 @@ import time
 
 from models.database import Database
 from models.library_access import LibraryAccessModel
+from models.listen import ListenModel
 
+# The kinds a client may send. 'listen_invite' is written by the server only,
+# when a host invites a friend to listen together (routes/listen.py).
 KINDS = ('text', 'song', 'playlist_invite')
 MAX_TEXT = 2000
 MAX_NOTE = 500
@@ -40,14 +43,14 @@ def _pair(a, b):
 class ChatModel:
     @staticmethod
     def send(sender_id, recipient_id, kind, body=None, song_id=None,
-             playlist_id=None, share_id=None):
+             playlist_id=None, share_id=None, listen_session_id=None):
         """Store a message and answer its id."""
         return Database.execute_query(
             "INSERT INTO chat_messages (sender_id, recipient_id, kind, body,"
-            " song_id, playlist_id, share_id, created_at)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            " song_id, playlist_id, share_id, listen_session_id, created_at)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (sender_id, recipient_id, kind, body, song_id, playlist_id,
-             share_id, _now()))
+             share_id, listen_session_id, _now()))
 
     @staticmethod
     def get(message_id, viewer_id):
@@ -187,6 +190,10 @@ class ChatModel:
                 message['song'] = song
             elif r['kind'] == 'playlist_invite':
                 message['invite'] = ChatModel._invite(r, shares.get(r['share_id']))
+            elif r['kind'] == 'listen_invite':
+                # The card shows the recipient's place in the session.
+                message['listen'] = ListenModel.invite_card(
+                    r['listen_session_id'], r['recipient_id'], r['id'])
             out.append(message)
         return out
 

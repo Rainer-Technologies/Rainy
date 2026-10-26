@@ -11,6 +11,7 @@ import { initLogin, initSetup } from './setup.js';
 import { useRatingService } from './services/rating.js';
 import { useFriendsModule } from './modules/friends.js';
 import { useChatModule } from './modules/chat.js';
+import { useListenModule } from './modules/listen.js';
 import { KeyboardShortcuts } from './modules/keyboardShortcuts.js';
 import { GlobalSearch } from './modules/globalSearch.js';
 import { ShortcutOverlay } from './modules/shortcutOverlay.js';
@@ -67,6 +68,7 @@ onDocumentReady(() => {
     // Initialize the friends module (social layer)
     window.friendsModule = useFriendsModule(window.app);
     window.chatModule = useChatModule(window.app);
+    window.listenModule = useListenModule(window.app);
 
     window.app?.startRouting?.();
 

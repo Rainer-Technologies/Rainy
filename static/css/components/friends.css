@@ -725,6 +725,46 @@
     color: var(--accent-primary);
 }
 
+/* Listen together: the bar for a session you host or joined */
+.listen-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
+}
+
+.listen-banner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.listen-banner-title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+}
+
+.listen-banner-sub {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.listen-banner-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 /* ── Requests & invites ────────────────────── */
 
 .friends-requests-container,

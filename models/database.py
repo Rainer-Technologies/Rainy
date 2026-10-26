@@ -1025,6 +1025,50 @@ class Database:
         cls._add_column(cursor, 'users', 'share_online', 'TINYINT(1) NOT NULL DEFAULT 1')
         cls._add_column(cursor, 'users', 'share_listening', 'TINYINT(1) NOT NULL DEFAULT 1')
 
+        # Listen together: a host's session, and the friends listening along.
+        # The host's playback (song, position, play state) is moved by the
+        # Connect beat of the device the session is bound to, so it needs no
+        # client of its own. A member is 'invited', 'joined' or 'left'; leaving
+        # closes the invitation for good (see models/listen.py).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS listen_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                host_id INT NOT NULL,
+                host_device_id VARCHAR(64) NULL,
+                status VARCHAR(8) NOT NULL DEFAULT 'live',
+                song_id INT NULL,
+                song_title VARCHAR(255) NULL,
+                song_artist VARCHAR(255) NULL,
+                song_album VARCHAR(255) NULL,
+                cover_path VARCHAR(500) NULL,
+                is_playing TINYINT(1) NOT NULL DEFAULT 0,
+                position DOUBLE NOT NULL DEFAULT 0,
+                state_at DOUBLE NOT NULL DEFAULT 0,
+                state_seq INT NOT NULL DEFAULT 0,
+                host_seen DOUBLE NOT NULL DEFAULT 0,
+                version INT NOT NULL DEFAULT 0,
+                created_at DOUBLE NOT NULL DEFAULT 0,
+                ended_at DOUBLE NULL,
+                INDEX idx_listen_host (host_id, status),
+                FOREIGN KEY (host_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE SET NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS listen_members (
+                session_id INT NOT NULL,
+                user_id INT NOT NULL,
+                state VARCHAR(8) NOT NULL DEFAULT 'invited',
+                invited_at DOUBLE NOT NULL DEFAULT 0,
+                updated_at DOUBLE NOT NULL DEFAULT 0,
+                PRIMARY KEY (session_id, user_id),
+                INDEX idx_listen_member_user (user_id, state),
+                FOREIGN KEY (session_id) REFERENCES listen_sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        cls._add_column(cursor, 'chat_messages', 'listen_session_id', 'INT NULL')
+
         conn.commit()
         cursor.close()
         conn.close()

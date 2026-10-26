@@ -25,6 +25,7 @@ from flask import Blueprint, Response, jsonify, request
 from models.chat import KINDS, MAX_NOTE, MAX_TEXT, ChatModel
 from models.friendship import FriendshipModel
 from models.library_access import LibraryAccessModel
+from models.listen import ListenModel
 from models.playlist import PlaylistModel
 from models.playlist_share import VALID_ROLES, PlaylistShareModel
 from models.presence import PresenceModel
@@ -105,6 +106,8 @@ def chat_stream(user_id, after_id, waiter):
         message   a message sent or received (id = message id, resume point)
         presence  {users: [...], full}  friends whose presence changed
         read      {reader_id, author_id, last_read_id}  a read mark moved
+        listen    a listen session the user hosts or is part of, as they see it
+                  (models/listen.py snapshot), whenever its version moved
         open      the stream is up
 
     Runs after the request context is gone, so every query uses its own
@@ -119,6 +122,7 @@ def chat_stream(user_id, after_id, waiter):
         seen = PresenceModel.snapshot(user_id, friend_ids)
         yield _sse("presence", {'users': list(seen.values()), 'full': True})
         marks = ChatModel.read_marks(user_id)
+        listen = {}
         woken = False
 
         while time.monotonic() < deadline:
@@ -148,6 +152,15 @@ def chat_stream(user_id, after_id, waiter):
                                             'last_read_id': last})
                         pinged = now
                 marks = fresh
+            current = ListenModel.visible(user_id)
+            for session_id, version in current.items():
+                if listen.get(session_id) == version:
+                    continue
+                snapshot = ListenModel.snapshot(session_id, user_id)
+                if snapshot is not None:
+                    yield _sse("listen", snapshot)
+                    pinged = now
+            listen = current
             if now - pinged >= STREAM_PING_SECONDS:
                 yield ": ping\n\n"
                 pinged = now

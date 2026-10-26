@@ -3,9 +3,11 @@
  *
  * Lives inside the Friends view (the Messages tab): a list of conversations
  * with presence ("online", "listening to …") and, opened from it, one
- * conversation with songs and playlist invitations as cards. One server
- * stream (docs/CHAT.md) keeps messages, unread counts and presence live; the
- * module is started with the session and stopped with it.
+ * conversation with songs, playlist invitations and listen-together
+ * invitations as cards. One server stream (docs/CHAT.md) keeps messages,
+ * unread counts, presence and listening sessions live (the listening itself is
+ * in modules/listen.js); the module is started with the session and stopped
+ * with it.
  */
 import { Utils } from './utils.js';
 import { t } from '../i18n/index.js';
@@ -87,6 +89,7 @@ export class ChatModule {
         source.addEventListener('message', (e) => this._onMessage(JSON.parse(e.data)));
         source.addEventListener('presence', (e) => this._onPresence(JSON.parse(e.data)));
         source.addEventListener('read', (e) => this._onRead(JSON.parse(e.data)));
+        source.addEventListener('listen', (e) => window.listenModule?.onSnapshot(JSON.parse(e.data)));
         source.onerror = () => {
             // The browser retries a dropped connection by itself; a refused
             // one (too many streams, signed out) it gives up on.
@@ -129,6 +132,7 @@ export class ChatModule {
         if (this.openFriendId === friendId && !this.messages.some(m => m.id === message.id)) {
             this.messages.push(message);
             this._appendMessage(message);
+            if (message.kind === 'listen_invite') this._closeOlderListenCards(message);
         }
         if (incoming && !known) {
             if (looking) {
@@ -173,6 +177,7 @@ export class ChatModule {
         if (message.kind === 'playlist_invite') {
             return t('Playlist invitation: {name}', { name: message.invite?.playlist_name || '' });
         }
+        if (message.kind === 'listen_invite') return t('Listen together');
         return message.body || '';
     }
 
@@ -223,6 +228,7 @@ export class ChatModule {
         document.getElementById('chat-attach')?.addEventListener('click', () => this._toggleAttach());
         document.getElementById('chat-attach-song')?.addEventListener('click', () => this._showPicker('song'));
         document.getElementById('chat-attach-playlist')?.addEventListener('click', () => this._showPicker('playlist'));
+        document.getElementById('chat-attach-listen')?.addEventListener('click', () => this._inviteToListen());
         document.getElementById('chat-picker-search')?.addEventListener('input', () => this._renderPicker());
         document.getElementById('chat-messages')?.addEventListener('click', (e) => this._onCardAction(e));
         document.getElementById('chat-conversations')?.addEventListener('click', (e) => {
@@ -429,6 +435,7 @@ export class ChatModule {
         let body = '';
         if (message.kind === 'song') body = this._songCard(message);
         else if (message.kind === 'playlist_invite') body = this._inviteCard(message, mine);
+        else if (message.kind === 'listen_invite') body = this._listenCard(message, mine);
         else body = `<div class="chat-text">${esc(message.body)}</div>`;
         const time = new Date(message.created_at * 1000)
             .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -492,6 +499,79 @@ export class ChatModule {
         </div>`;
     }
 
+    /**
+     * A listen invitation. For the friend it offers Join and Decline, then Leave
+     * while listening; once they left, or the host ended it, it reads as closed
+     * until the host invites again. The host sees the friend's place in it.
+     */
+    _listenCard(message, mine) {
+        const listen = message.listen || {};
+        const state = listen.state || 'left';
+        const closed = `<span class="friend-chip friend-chip-warn">${t(listen.status === 'ended' ? 'Session ended' : 'Closed')}</span>`;
+        let actions;
+        if (mine) {
+            if (state === 'invited') actions = `<span class="friend-chip friend-chip-warn">${t('Waiting')}</span>`;
+            else if (state === 'joined') actions = `<span class="friend-chip">${t('Listening with you')}</span>`;
+            else actions = closed;
+        } else if (state === 'invited') {
+            actions = `
+                <button type="button" class="btn btn-sm btn-primary" data-action="join-listen">${t('Join')}</button>
+                <button type="button" class="btn btn-sm" data-action="decline-listen">${t('Decline')}</button>`;
+        } else if (state === 'joined') {
+            actions = `
+                <span class="friend-chip">${t('Listening')}</span>
+                <button type="button" class="btn btn-sm" data-action="leave-listen">${t('Leave')}</button>`;
+        } else {
+            actions = closed;
+        }
+        const sub = mine
+            ? t('Invitation sent')
+            : t('{name} invites you to listen together', { name: listen.host?.username || '' });
+        return `
+        <div class="chat-card chat-card-listen" data-session-id="${listen.session_id ?? ''}">
+            <div class="chat-card-cover chat-card-cover-playlist"><svg data-icon="equalizer" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg></div>
+            <div class="chat-card-info">
+                <div class="chat-card-title">${esc(t('Listen together'))}</div>
+                <div class="chat-card-sub">${esc(sub)}</div>
+            </div>
+            <div class="chat-card-actions">${actions}</div>
+        </div>`;
+    }
+
+    /**
+     * A listen session moved (the stream or our own request): the invitation
+     * cards of the open thread follow it. The host's cards show the friend's
+     * place in the session, the friend's show their own.
+     */
+    onListenChanged(snapshot) {
+        for (const message of this.messages) {
+            if (message.kind !== 'listen_invite' || message.listen?.session_id !== snapshot.id) continue;
+            let state = snapshot.state;
+            if (snapshot.role === 'host') {
+                state = (snapshot.members || []).find(m => m.id === message.recipient_id)?.state || 'left';
+            }
+            if (snapshot.status !== 'live' || !this._isNewestListenCard(message)) state = 'left';
+            this._replaceMessage({ ...message, listen: { ...message.listen, status: snapshot.status, state } });
+        }
+    }
+
+    /** Only the newest invitation to a friend is open; older cards read as closed. */
+    _isNewestListenCard(message) {
+        return !this.messages.some(m => m.kind === 'listen_invite' && m.id > message.id
+            && m.listen?.session_id === message.listen?.session_id
+            && m.recipient_id === message.recipient_id);
+    }
+
+    _closeOlderListenCards(message) {
+        for (const older of this.messages) {
+            if (older.kind !== 'listen_invite' || older.id >= message.id
+                || older.listen?.session_id !== message.listen?.session_id
+                || older.recipient_id !== message.recipient_id
+                || older.listen?.state === 'left') continue;
+            this._replaceMessage({ ...older, listen: { ...older.listen, state: 'left' } });
+        }
+    }
+
     async _onCardAction(event) {
         const button = event.target.closest('[data-action]');
         const node = button?.closest('[data-message-id]');
@@ -500,7 +580,12 @@ export class ChatModule {
         if (!message) return;
         const action = button.dataset.action;
 
-        if (action === 'play-song' && message.song) {
+        if (action === 'join-listen' || action === 'decline-listen' || action === 'leave-listen') {
+            const sessionId = message.listen?.session_id;
+            if (!sessionId) return;
+            if (action === 'join-listen') await window.listenModule?.join(sessionId);
+            else await window.listenModule?.leave(sessionId);
+        } else if (action === 'play-song' && message.song) {
             window.player?.playSong(0, [message.song], { type: 'library', id: null });
         } else if (action === 'keep-song' && message.song) {
             const res = await useMusicService().saveToLibrary(message.song.id);
@@ -564,6 +649,13 @@ export class ChatModule {
     }
 
     // ── Attachments ─────────────────────────────────────────────────
+
+    /** Invite the open friend to listen with what this device plays. */
+    _inviteToListen() {
+        document.getElementById('chat-attach-panel')?.classList.add('hidden');
+        if (this.openFriendId == null) return;
+        window.listenModule?.invite(this.openFriendId);
+    }
 
     _toggleAttach() {
         const panel = document.getElementById('chat-attach-panel');

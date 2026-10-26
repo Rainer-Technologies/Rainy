@@ -9,7 +9,9 @@ from functools import wraps
 from flask import Blueprint, Response, jsonify, request
 
 from models.connect import COMMANDS, ConnectModel
+from models.listen import ListenModel
 from routes.auth import get_current_user_id
+from routes.chat import stream_hub as chat_hub
 
 connect_bp = Blueprint('connect', __name__, url_prefix='/api/connect')
 
@@ -139,10 +141,21 @@ def heartbeat(user_id):
     if not device_id:
         return jsonify({'error': 'device_id is required'}), 400
     result = ConnectModel.heartbeat(user_id, device_id, data)
+    _follow_listen_session(user_id, device_id, data)
     # Always 200, even for a dropped beat: the next beat is seconds away and
     # the previous state still stands. A 5xx here made clients retry
     # immediately, which is what turned a slow row lock into a storm.
     return jsonify({'success': True, 'need_queue': result['need_queue']})
+
+
+def _follow_listen_session(user_id, device_id, data):
+    """The device a listen session is hosted from carries its playback into
+    the session (models/listen.py), and wakes the friends listening along."""
+    try:
+        for listener in ListenModel.host_beat(user_id, device_id, data):
+            chat_hub.notify(listener)
+    except Exception as e:
+        print(f"[listen] host beat for {device_id} failed: {e}")
 
 
 @connect_bp.route('/devices', methods=['GET'])

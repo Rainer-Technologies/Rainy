@@ -159,7 +159,21 @@ class LibraryAccessModel:
         if Database.execute_query(query, (song_id, user_id, user_id),
                                   fetch_one=True) is not None:
             return True
+        if LibraryAccessModel.listening_along(user_id, song_id):
+            return True
         return LibraryAccessModel.sent_by_friend(user_id, song_id)
+
+    @staticmethod
+    def listening_along(user_id, song_id):
+        """Whether the user joined a live listen session whose host is playing
+        this song right now. Like the others it is playability only."""
+        return Database.execute_query("""
+            SELECT 1 FROM listen_members m
+            JOIN listen_sessions s ON s.id = m.session_id
+            WHERE m.user_id = %s AND m.state = 'joined' AND s.status = 'live'
+              AND s.song_id = %s
+            LIMIT 1
+        """, (user_id, song_id), fetch_one=True) is not None
 
     @staticmethod
     def sent_by_friend(user_id, song_id):
