@@ -3,7 +3,11 @@
 YouTube Music and the download worker are stubbed; the database and the
 music folder are the real (scratch) ones.
 """
+import json
 import os
+import random
+import subprocess
+import sys
 
 import pytest
 
@@ -126,7 +130,7 @@ def fake_youtube(monkeypatch, radio):
         _track('newvideo002', 'Brand New Two', 'New Artist C'),
         _track('newvideo003', 'Brand New Three', 'New Artist D'),
     ]
-    monkeypatch.setattr(ytradio, 'fetch_radio', lambda video_id, deep=False: pool)
+    monkeypatch.setattr(ytradio, 'fetch_radio', lambda video_id, deep=False, refresh=False: pool)
     monkeypatch.setattr(ytradio, '_local_similar', lambda user_id, seed_id, visible: [radio['owned']])
     monkeypatch.setattr(ytradio, '_cooc_cache', {})
     return pool
@@ -190,6 +194,101 @@ def test_radio_follows_youtube_music_and_plays_owned_songs_from_the_library(radi
     assert all(t['radio'] and 'id' not in t for t in queue if t.get('videoId'))
 
 
+def test_restarting_radio_refreshes_youtube_and_varies_results(radio, monkeypatch):
+    pool = [_track(f'v{i:010d}', f'Song {i}', f'Artist {i}') for i in range(40)]
+    calls = []
+    def youtube(video_id, limit):
+        calls.append((video_id, limit))
+        return pool
+    monkeypatch.setattr(ytradio, '_yt_radio', youtube)
+    monkeypatch.setattr(ytradio, 'cooccurrence', lambda *args: ({}, {}))
+    client = radio['client'](radio['alice'])
+    monkeypatch.setattr(ytradio.random, 'uniform', random.Random(1).uniform)
+    first = client.post('/api/radio/start', json={'song_id': radio['seed']})
+    monkeypatch.setattr(ytradio.random, 'uniform', random.Random(2).uniform)
+    second = client.post('/api/radio/start', json={'song_id': radio['seed']})
+    assert first.status_code == second.status_code == 200
+    first_ids = {t['videoId'] for t in first.get_json()['queue']}
+    second_ids = {t['videoId'] for t in second.get_json()['queue']}
+    assert len(first_ids) == len(second_ids) == 12
+    assert first_ids != second_ids
+    assert calls == [('seedvideo01', ytradio.SHALLOW_LIMIT)] * 2
+
+
+def test_start_does_not_clobber_deep_cache_written_by_another_process(radio, monkeypatch):
+    from models.radio import RadioCacheModel
+    if not Database.is_sqlite():
+        pytest.skip('Cross-process cache test requires an isolated SQLite database')
+    deep = {'deep': True, 'tracks': [_track('deepvideo01', 'Deep', 'Artist')]}
+    fresh = [_track('newvideo001', 'New', 'Artist')]
+
+    def youtube(video_id, limit):
+        subprocess.run(
+            [sys.executable, '-c',
+             'import json,sys; from models.radio import RadioCacheModel; '
+             'RadioCacheModel.put(sys.argv[1], json.loads(sys.argv[2]))',
+             video_id, json.dumps(deep)], check=True)
+        return fresh
+
+    monkeypatch.setattr(ytradio, '_yt_radio', youtube)
+    monkeypatch.setattr(ytradio, 'cooccurrence', lambda *args: ({}, {}))
+    res = radio['client'](radio['alice']).post('/api/radio/start', json={'song_id': radio['seed']})
+    assert [t['videoId'] for t in res.get_json()['queue']] == ['newvideo001']
+    assert RadioCacheModel.get('seedvideo01') == deep
+
+
+@pytest.mark.parametrize('cache_deep', [False, True])
+@pytest.mark.parametrize('outcome', ['filtered', 'empty', 'offline'])
+def test_start_uses_eligible_cached_radio_when_fresh_page_cannot_supply_candidates(
+        radio, monkeypatch, cache_deep, outcome):
+    from models.radio import RadioCacheModel
+    from models.song_rating import SongRatingModel
+
+    alice = radio['alice']
+    SongRatingModel.set_rating(alice, radio['owned'], 'dislike')
+    downloaded = radio['transient']('queuedvid01', 'Downloaded', 'Downloaded Artist')
+    cached = {'deep': cache_deep, 'tracks': [
+        _track('dislike0001', 'Owned Song', 'Owned Artist'),
+        _track('excluded001', 'Excluded', 'Excluded Artist'),
+        _track('queuedvid01', 'Downloaded', 'Downloaded Artist'),
+        _track('skipped0001', 'Skipped Artist Song', 'Skipped Artist'),
+        _track('ranked00001', 'Ranked Song', 'Ranked Artist'),
+    ]}
+    RadioCacheModel.put('seedvideo01', cached)
+    visible_before = set(LibraryAccessModel.visible_song_ids(alice))
+
+    def youtube(video_id, limit):
+        if outcome == 'offline':
+            raise RuntimeError('offline')
+        if outcome == 'empty':
+            return []
+        return [_track('badvideo001', 'Too short', 'Artist', duration=20)]
+
+    monkeypatch.setattr(ytradio, '_yt_radio', youtube)
+    monkeypatch.setattr(ytradio, 'cooccurrence', lambda *args: ({'ranked00001': 5}, {}))
+    monkeypatch.setattr(ytradio, '_local_similar', lambda *args: pytest.fail('Cached radio is eligible'))
+    response = radio['client'](alice).post('/api/radio/start', json={
+        'song_id': radio['seed'], 'exclude_video_ids': ['excluded001'],
+        'exclude_song_ids': [downloaded], 'skipped_artists': ['Skipped Artist'],
+    })
+    assert response.status_code == 200
+    assert [t['videoId'] for t in response.get_json()['queue']] == ['ranked00001', 'skipped0001']
+    assert RadioCacheModel.get('seedvideo01') == cached
+    assert set(LibraryAccessModel.visible_song_ids(alice)) == visible_before
+
+
+def test_start_falls_back_to_local_when_both_fresh_and_cached_are_ineligible(radio, monkeypatch):
+    from models.radio import RadioCacheModel
+    cached = {'deep': True, 'tracks': [_track('cachedbad01', 'Bad (Live)', 'Artist')]}
+    RadioCacheModel.put('seedvideo01', cached)
+    monkeypatch.setattr(ytradio, '_yt_radio', lambda *args: [_track('freshbad001', 'Short', 'Artist', 20)])
+    monkeypatch.setattr(ytradio, 'cooccurrence', lambda *args: ({}, {}))
+    monkeypatch.setattr(ytradio, '_local_similar', lambda *args: [radio['owned']])
+    response = radio['client'](radio['alice']).post('/api/radio/start', json={'song_id': radio['seed']})
+    assert [t['id'] for t in response.get_json()['queue']] == [radio['owned']]
+    assert RadioCacheModel.get('seedvideo01') == cached
+
+
 def test_unicode_seed_with_cached_miss_uses_youtube_music_after_upgrade(radio, monkeypatch):
     seed_id = radio['seed']
     Database.execute_query(
@@ -202,7 +301,7 @@ def test_unicode_seed_with_cached_miss_uses_youtube_music_after_upgrade(radio, m
     monkeypatch.setattr(ytradio, '_yt_search', lambda query, kind: [result])
     fetched = []
 
-    def fetch(video_id, deep=False):
+    def fetch(video_id, deep=False, refresh=False):
         fetched.append(video_id)
         return [_track('ColX1C6hJ2Y', 'キスの魔力', 'Yukari Hashimoto')]
 

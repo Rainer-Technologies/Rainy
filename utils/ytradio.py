@@ -26,6 +26,7 @@ touches YouTube Music or the database is below them.
 import difflib
 import math
 import os
+import random
 import re
 import shutil
 import threading
@@ -235,14 +236,15 @@ def filter_candidates(tracks, seed_title='', library_by_video=None, library_by_k
 
 
 def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
-           artist_cap=ARTIST_CAP):
+           artist_cap=ARTIST_CAP, variation=0.0, rng=None):
     """Order candidates for the listener and pick `limit` of them.
 
-    score = radio position + co-occurrence with the listener's library
-            - a penalty for artists skipped in this session.
+    Score combines radio position and co-occurrence, penalises skipped
+    artists, and optionally adds bounded variation for a fresh session.
     """
     cooccurrence = cooccurrence or {}
     skipped = {norm(a) for a in skipped_artists}
+    rng = rng or random
 
     def score(t):
         s = 1.0 / (1.0 + t.get('pos', 0) / 15.0)
@@ -250,6 +252,8 @@ def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
         names = artists_of(t.get('artist'))
         if names and names[0] in skipped:
             s -= 0.5
+        if variation:
+            s += rng.uniform(-variation, variation)
         return s
 
     ranked = sorted(candidates, key=lambda t: (-score(t), t.get('pos', 0)))
@@ -340,20 +344,32 @@ def track_info(video_id):
     return None
 
 
-def fetch_radio(video_id, deep=False):
-    """Tracks of a song's radio (seed excluded), cached in the database.
+def fetch_radio(video_id, deep=False, refresh=False):
+    """Fetch a seed's radio, optionally refreshing the first page.
 
-    The deep radio is the pool a whole session draws from; the shallow one
-    is a single fast page. A cached deep radio also serves shallow requests.
+    A deep cache also serves shallow requests. A refreshed shallow page is
+    never cached, so it cannot overwrite a concurrent deep fetch.
     """
     cached = RadioCacheModel.get(video_id, RADIO_CACHE_DAYS)
-    if cached and (cached.get('deep') or not deep):
+    usable = cached and (cached.get('deep') or not deep)
+    if usable and not refresh:
         return cached.get('tracks') or []
-    tracks = [t for t in _yt_radio(video_id, DEEP_LIMIT if deep else SHALLOW_LIMIT)
-              if t['videoId'] != video_id]
+    try:
+        tracks = [t for t in _yt_radio(video_id, DEEP_LIMIT if deep else SHALLOW_LIMIT)
+                  if t['videoId'] != video_id]
+    except Exception:
+        # Another request may have filled the cache while YouTube was in flight.
+        latest = RadioCacheModel.get(video_id, RADIO_CACHE_DAYS) if refresh else None
+        if latest and (latest.get('deep') or not deep) and latest.get('tracks'):
+            return latest['tracks']
+        if usable and cached.get('tracks'):
+            return cached['tracks']
+        raise
     if tracks:
-        RadioCacheModel.put(video_id, {'deep': bool(deep), 'tracks': tracks})
-    return tracks
+        if deep or (not refresh and not (cached and cached.get('deep'))):
+            RadioCacheModel.put(video_id, {'deep': bool(deep), 'tracks': tracks})
+        return tracks
+    return (cached.get('tracks') or []) if usable else []
 
 
 def ensure_video_id(song):
@@ -525,7 +541,7 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
     try:
         seed_video = ensure_video_id(seed)
         if seed_video:
-            pool = fetch_radio(seed_video, deep=deep)
+            pool = fetch_radio(seed_video, deep=deep, refresh=not deep)
             counts, per_seed = cooccurrence(user_id, library)
             own_weight, own_videos = per_seed.get(seed_video, (0.0, set()))
             cooc = {v: c - (own_weight if v in own_videos else 0.0) for v, c in counts.items()}
@@ -546,6 +562,11 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
                               for i in disliked if i in by_id},
             )
             candidates = filter_candidates(pool, **filters)
+            if not deep and not candidates:
+                cached = RadioCacheModel.get(seed_video, RADIO_CACHE_DAYS)
+                cached_pool = (cached or {}).get('tracks') or []
+                filters['exclude_videos'] |= _videos_of_downloaded(cached_pool, exclude_songs)
+                candidates = filter_candidates(cached_pool, **filters)
             if deep and len(candidates) < limit:
                 # The seed's own radio is used up: widen with what its
                 # closest neighbours agree on.
@@ -558,7 +579,8 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
                     if song_key(t['title'], t['artist']) in have_keys or t.get('song_id') in have_songs:
                         continue
                     candidates.append({**t, 'pos': len(pool) + t['pos']})
-            picked = rerank(candidates, cooc, skipped_artists, limit=limit)
+            picked = rerank(candidates, cooc, skipped_artists, limit=limit,
+                            variation=0.3 if len(candidates) > limit else 0.0)
     except Exception as e:  # noqa: BLE001
         # YouTube Music is an unofficial API: a radio must survive it failing.
         print(f"[radio] YouTube Music radio failed for song {seed_id}: {e}")

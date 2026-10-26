@@ -4,6 +4,7 @@ Pure logic only: matching, filtering, ranking and queue weaving run on
 hand-made tracks, so nothing here touches YouTube Music or the database.
 """
 import os
+import random
 import sys
 
 import pytest
@@ -241,6 +242,49 @@ def test_filter_keeps_versions_the_seed_also_is():
 
 def _candidates(n):
     return [{**_track(f'v{i:010d}', f'Song {i}', f'Artist {i}'), 'pos': i} for i in range(n)]
+
+
+def test_rerank_variation_changes_picks_without_losing_strong_taste_matches():
+    cands = _candidates(40)
+    weights = {cands[30]['videoId']: 8.0}
+    first = rerank(cands, cooccurrence=weights, limit=12, variation=0.3, rng=random.Random(1))
+    second = rerank(cands, cooccurrence=weights, limit=12, variation=0.3, rng=random.Random(2))
+    assert cands[30] in first and cands[30] in second
+    assert {t['videoId'] for t in first} != {t['videoId'] for t in second}
+    assert len(first) == len(second) == 12
+
+
+def test_refresh_radio_requests_fresh_candidates_without_overwriting_deep_cache(monkeypatch):
+    old = [_track('oldvideo001', 'Old', 'Artist')]
+    fresh = [_track('newvideo001', 'New', 'Artist')]
+    writes = []
+    monkeypatch.setattr(ytradio.RadioCacheModel, 'get', lambda *args: {'deep': True, 'tracks': old})
+    monkeypatch.setattr(ytradio.RadioCacheModel, 'put', lambda *args: writes.append(args))
+    monkeypatch.setattr(ytradio, '_yt_radio', lambda video_id, limit: fresh)
+    assert ytradio.fetch_radio('seedvideo01', refresh=True) == fresh
+    assert writes == []
+
+
+@pytest.mark.parametrize('outcome', ['empty', 'error'])
+def test_refresh_radio_falls_back_to_cached_results_if_youtube_fails(monkeypatch, outcome):
+    cached = [_track('oldvideo001', 'Old', 'Artist')]
+    monkeypatch.setattr(ytradio.RadioCacheModel, 'get', lambda *args: {'deep': True, 'tracks': cached})
+    def youtube(video_id, limit):
+        if outcome == 'error':
+            raise RuntimeError('offline')
+        return []
+    monkeypatch.setattr(ytradio, '_yt_radio', youtube)
+    assert ytradio.fetch_radio('seedvideo01', refresh=True) == cached
+
+
+def test_refresh_radio_uses_cache_populated_during_failed_request(monkeypatch):
+    cached = [_track('newcached01', 'Newly Cached', 'Artist')]
+    reads = iter([None, {'deep': True, 'tracks': cached}])
+    monkeypatch.setattr(ytradio.RadioCacheModel, 'get', lambda *args: next(reads))
+    def offline(video_id, limit):
+        raise RuntimeError('offline')
+    monkeypatch.setattr(ytradio, '_yt_radio', offline)
+    assert ytradio.fetch_radio('seedvideo01', refresh=True) == cached
 
 
 def test_rerank_keeps_radio_order_without_taste_data():
