@@ -313,6 +313,31 @@ def test_rerank_pushes_skipped_artists_down():
     assert out[-1]['artist'] == 'Artist 0'
 
 
+def _owned(i, pos):
+    return {**_track(f'o{i:010d}', f'Mine {i}', f'Owned {i}'), 'pos': pos, 'song_id': i}
+
+
+def test_rerank_caps_songs_the_listener_owns_per_batch():
+    owned = [_owned(i, i) for i in range(6)]
+    new = [{**_track(f'n{i:010d}', f'New {i}', f'New {i}'), 'pos': 6 + i} for i in range(10)]
+    out = rerank(owned + new, limit=8, owned_cap=2)
+    assert len(out) == 8
+    assert [t['song_id'] for t in out if 'song_id' in t] == [0, 1]
+    assert sum('song_id' not in t for t in out) == 6
+
+
+def test_rerank_fills_batch_with_owned_songs_when_nothing_else_is_left():
+    owned = [_owned(i, i) for i in range(5)]
+    out = rerank(owned, limit=4, owned_cap=2)
+    assert [t['pos'] for t in out] == [0, 1, 2, 3]
+
+
+def test_cooccurrence_bonus_is_capped_so_a_tail_track_cannot_pass_the_head():
+    cands = _candidates(150)
+    out = rerank(cands, cooccurrence={cands[149]['videoId']: 1_000_000.0}, limit=1)
+    assert out[0]['pos'] == 0
+
+
 # ── Widening ────────────────────────────────────────────────────────────
 
 def test_expansion_needs_two_neighbours_to_agree():

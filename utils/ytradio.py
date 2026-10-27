@@ -44,6 +44,8 @@ RADIO_CACHE_DAYS = 7
 MATCH_VERSION = 1            # invalidate misses from the old ASCII-only matcher
 MIN_SECONDS, MAX_SECONDS = 60, 600
 ARTIST_CAP = 2                # per batch
+OWNED_CAP = 2                 # songs the listener already owns, per batch
+COOC_CAP = 3.0                # weighted radios; past this co-occurrence adds nothing
 LOCAL_MIN, LOCAL_MAX = 10, 60  # library songs the offline fallback draws on (a quarter of it)
 COOC_SONGS = 600              # library songs feeding the co-occurrence counts
 COOC_RADIO_SIZE = 50
@@ -236,11 +238,16 @@ def filter_candidates(tracks, seed_title='', library_by_video=None, library_by_k
 
 
 def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
-           artist_cap=ARTIST_CAP, variation=0.0, rng=None):
+           artist_cap=ARTIST_CAP, owned_cap=OWNED_CAP, variation=0.0, rng=None):
     """Order candidates for the listener and pick `limit` of them.
 
     Score combines radio position and co-occurrence, penalises skipped
     artists, and optionally adds bounded variation for a fresh session.
+    Co-occurrence is capped at COOC_CAP, so its bonus stays under the
+    position gap between the head and the tail of a radio and cannot carry
+    a tail track over the head on its own. Songs the listener already owns
+    make at most `owned_cap` of a batch; they fill it only when nothing else
+    is left.
     """
     cooccurrence = cooccurrence or {}
     skipped = {norm(a) for a in skipped_artists}
@@ -248,7 +255,8 @@ def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
 
     def score(t):
         s = 1.0 / (1.0 + t.get('pos', 0) / 15.0)
-        s += 0.6 * math.log1p(max(0.0, cooccurrence.get(t['videoId'], 0.0)))
+        co = min(max(0.0, cooccurrence.get(t['videoId'], 0.0)), COOC_CAP)
+        s += 0.6 * math.log1p(co)
         names = artists_of(t.get('artist'))
         if names and names[0] in skipped:
             s -= 0.5
@@ -257,16 +265,33 @@ def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
         return s
 
     ranked = sorted(candidates, key=lambda t: (-score(t), t.get('pos', 0)))
-    chosen, per_artist = [], Counter()
-    for t in ranked:
-        if len(chosen) >= limit:
-            break
+    chosen, held, per_artist, owned = [], [], Counter(), 0
+
+    def take(t):
         names = artists_of(t.get('artist'))
         first = names[0] if names else ''
         if first and per_artist[first] >= artist_cap:
-            continue
+            return False
         per_artist[first] += 1
         chosen.append(t)
+        return True
+
+    for t in ranked:
+        if len(chosen) >= limit:
+            break
+        if t.get('song_id') is not None and owned >= owned_cap:
+            held.append(t)
+            continue
+        if take(t) and t.get('song_id') is not None:
+            owned += 1
+    if len(chosen) < limit and held:
+        # Nothing else is left: the owned songs fill the batch after all.
+        order = {id(t): i for i, t in enumerate(ranked)}
+        for t in held:
+            if len(chosen) >= limit:
+                break
+            take(t)
+        chosen.sort(key=lambda t: order[id(t)])
     return chosen
 
 
