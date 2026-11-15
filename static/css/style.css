@@ -33,6 +33,7 @@
 @import url('./components/connect.css') layer(rainy);
 @import url('./components/friends.css') layer(rainy);
 @import url('./components/chat.css') layer(rainy);
+@import url('./components/insights.css') layer(rainy);
 
 /* Pages */
 @import url('./pages/setup.css') layer(rainy);

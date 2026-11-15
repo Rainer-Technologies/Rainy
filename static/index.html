@@ -361,11 +361,11 @@
                             </svg>
                         </button>
                         <div class="nav-secondary-items" id="nav-secondary-items">
-                            <a href="/recent" class="nav-item nav-secondary-item" id="nav-recent">
-                                <svg data-icon="history" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                            <a href="/insights" class="nav-item nav-secondary-item" id="nav-insights">
+                                <svg data-icon="insights" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/>
                                 </svg>
-                                <span data-i18n>Recently Played</span>
+                                <span data-i18n>Insights</span>
                             </a>
                             <a href="/smart-mix" class="nav-item nav-secondary-item" id="nav-smartmix">
                                 <svg data-icon="shuffle" viewBox="0 0 24 24" fill="currentColor">
@@ -922,6 +922,9 @@
                     <div id="recent-content" class="recent-content"></div>
                     <div id="recent-stats" class="recent-stats hidden"></div>
                 </div>
+
+                <!-- Insights / Rainy Wrapped View -->
+                <div data-part="view-insights" id="insights-view" class="insights-view hidden"></div>
 
                 <!-- Smart Mix View -->
                 <div data-part="view-smartmix" id="smartmix-view" class="smartmix-view hidden">

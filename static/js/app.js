@@ -875,8 +875,8 @@ export class RainyApp {
 
         const route = segments[0].toLowerCase();
         const query = new URLSearchParams(window.location.search);
-        const needsNewViews = ['albums', 'recent', 'recently-played', 'smart-mix', 'smartmix'].includes(route);
-        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover', 'friends'].includes(route)) {
+        const needsNewViews = ['albums', 'smart-mix', 'smartmix'].includes(route);
+        if (['recent', 'recently-played', 'smart-mix', 'smartmix', 'discover', 'friends', 'insights'].includes(route)) {
             this.setMoreNavigationOpen(true);
         }
         if (['albums', 'artists'].includes(route)) {
@@ -885,6 +885,10 @@ export class RainyApp {
         if (needsNewViews && !window.newViews) {
             // main.js creates NewViews just after RainyApp. Keep the route
             // pending if authentication finishes during that small window.
+            this._routingStarted = false;
+            return;
+        }
+        if (['insights', 'recent', 'recently-played'].includes(route) && !window.insightsView) {
             this._routingStarted = false;
             return;
         }
@@ -917,7 +921,9 @@ export class RainyApp {
                 return this.openFriendsView({ updateUrl: false });
             case 'recent':
             case 'recently-played':
-                return window.newViews.switchToRecent({ updateUrl: false });
+                return window.insightsView.switchToInsights({ updateUrl: false, tab: 'recent' });
+            case 'insights':
+                return window.insightsView.switchToInsights({ updateUrl: false });
             case 'smart-mix':
             case 'smartmix':
                 return window.newViews.switchToSmartMix({ updateUrl: false });

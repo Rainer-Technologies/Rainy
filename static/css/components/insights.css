@@ -1,0 +1,232 @@
+/* Insights / Rainy Wrapped — a single coherent listening dashboard.
+   Streak hero first, then a large month-grid calendar (the protagonist);
+   stats filter by selected days. Colours use theme tokens only (THEMES.md). */
+
+.insights-view { padding: 0 24px 48px; }
+.insights-page { display: flex; flex-direction: column; gap: var(--spacing-xl); max-width: 1200px; }
+.insights-loading { color: var(--text-secondary); padding: var(--spacing-lg) 0; }
+.insights-empty { color: var(--text-tertiary); font-size: 14px; padding: var(--spacing-sm) 0; }
+.insights-sub { color: var(--text-tertiary); font-size: 12px; margin-left: 6px; }
+
+/* --- Streak hero banner (always first, animated, evolving) --- */
+.streak-banner {
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: var(--spacing-xl);
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, transparent);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 16%, var(--bg-secondary)), var(--bg-secondary) 70%);
+}
+.streak-banner-glow {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 12% 50%, color-mix(in srgb, var(--accent-primary) 28%, transparent), transparent 55%);
+}
+.streak-banner-flame { position: relative; font-size: 64px; line-height: 1; flex-shrink: 0; color: var(--accent-primary); }
+.streak-banner-flame svg { width: 1em; height: 1em; display: block; }
+.streak-flame-anim { display: inline-block; animation: flame-flicker 1.8s ease-in-out infinite; transform-origin: 50% 80%; }
+.streak-banner-main { position: relative; flex: 1; min-width: 0; }
+.streak-banner-top { display: flex; align-items: baseline; gap: var(--spacing-sm); flex-wrap: wrap; }
+.streak-banner-number { font-size: 56px; font-weight: 800; color: var(--accent-primary); line-height: 1; }
+.streak-banner-unit { font-size: 14px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.streak-tier-badge {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-on-accent); background: var(--accent-primary);
+    padding: 4px 12px; border-radius: var(--radius-full);
+}
+.streak-banner-message { position: relative; color: var(--text-primary); font-size: 15px; font-weight: 500; margin-top: var(--spacing-sm); }
+.streak-banner-best {
+    position: relative; text-align: center; flex-shrink: 0;
+    background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: var(--spacing-md) var(--spacing-lg);
+}
+.streak-banner-best-num { display: block; font-size: 30px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+.streak-banner-best-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Tiers: the banner glows brighter and the flame grows as the streak climbs */
+.streak-banner.tier-0 { border-color: var(--border-subtle); background: var(--bg-secondary); }
+.streak-banner.tier-0 .streak-banner-glow { background: none; }
+.streak-banner.tier-0 .streak-flame-anim { animation: none; }
+.streak-banner.tier-0 .streak-banner-flame { font-size: 48px; color: var(--text-secondary); }
+.streak-banner.tier-0 .streak-banner-number { color: var(--text-secondary); }
+.streak-banner.tier-0 .streak-tier-badge { background: var(--bg-tertiary); color: var(--text-secondary); }
+.streak-banner.tier-2 { box-shadow: 0 0 22px color-mix(in srgb, var(--accent-primary) 14%, transparent); }
+.streak-banner.tier-3 { box-shadow: 0 0 30px color-mix(in srgb, var(--accent-primary) 22%, transparent); }
+.streak-banner.tier-3 .streak-banner-flame { font-size: 70px; }
+.streak-banner.tier-4 { box-shadow: 0 0 40px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
+.streak-banner.tier-4 .streak-banner-flame { font-size: 76px; }
+.streak-banner.tier-4 .streak-flame-anim { animation-duration: 1.2s; }
+.streak-banner.tier-5 { border-color: var(--accent-primary); box-shadow: 0 0 52px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+.streak-banner.tier-5 .streak-banner-flame { font-size: 82px; }
+.streak-banner.tier-5 .streak-flame-anim { animation-duration: 0.9s; }
+.streak-banner.at-risk { border-color: color-mix(in srgb, var(--error) 55%, transparent); box-shadow: 0 0 30px color-mix(in srgb, var(--error) 20%, transparent); }
+.streak-banner.at-risk .streak-banner-glow { background: radial-gradient(circle at 12% 50%, color-mix(in srgb, var(--error) 26%, transparent), transparent 55%); }
+.streak-banner.at-risk .streak-banner-number { color: var(--error); }
+.streak-banner.at-risk .streak-banner-flame { color: var(--error); }
+.streak-banner.at-risk .streak-tier-badge { background: var(--error); }
+.streak-banner.at-risk .streak-flame-anim { animation: flame-wobble 0.7s ease-in-out infinite; }
+
+@keyframes flame-flicker {
+    0%, 100% { transform: scale(1) rotate(-2deg); }
+    50% { transform: scale(1.12) rotate(2deg); }
+}
+@keyframes flame-wobble {
+    0%, 100% { transform: scale(1) rotate(-5deg); }
+    50% { transform: scale(0.94) rotate(5deg); }
+}
+
+/* --- Calendar section (large month-grid protagonist) --- */
+.insights-calendar-section {
+    background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: var(--spacing-xl);
+}
+.insights-calendar-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: var(--spacing-lg); margin-bottom: var(--spacing-lg); flex-wrap: wrap;
+}
+.insights-calendar-titles h2 { font-size: 22px; color: var(--text-primary); margin: 0 0 4px; }
+.insights-calendar-titles p { color: var(--text-secondary); font-size: 13px; margin: 0; }
+.insights-selection { display: flex; align-items: center; gap: var(--spacing-sm); }
+.insights-selection-label {
+    font-size: 13px; font-weight: 600; color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    padding: 6px 14px; border-radius: var(--radius-full);
+}
+.insights-clear-btn {
+    background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+    color: var(--text-primary); cursor: pointer; font-size: 13px;
+    padding: 6px 14px; border-radius: var(--radius-full); transition: var(--transition-fast);
+}
+.insights-clear-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+
+.cal-nav { display: flex; align-items: center; justify-content: center; gap: var(--spacing-lg); margin-bottom: var(--spacing-lg); }
+.cal-arrow {
+    width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle); background: var(--bg-tertiary);
+    color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: var(--transition-fast);
+}
+.cal-arrow svg { width: 20px; height: 20px; }
+.cal-arrow:hover:not(:disabled) { border-color: var(--accent-primary); color: var(--accent-primary); }
+.cal-arrow:disabled { opacity: 0.3; cursor: default; }
+.cal-nav-label { font-size: 18px; font-weight: 700; color: var(--text-primary); min-width: 200px; text-align: center; }
+.cal-nav-label::first-letter { text-transform: uppercase; }
+.cal-single { max-width: 420px; margin: 0 auto; }
+.cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
+.cal-weekdays span { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-blank { aspect-ratio: 1; }
+.cal-day {
+    aspect-ratio: 1; border: none; padding: 0; cursor: pointer;
+    border-radius: var(--radius-sm); background: var(--bg-tertiary);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.cal-day-num { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+.cal-day.level-1 { background: color-mix(in srgb, var(--accent-primary) 28%, var(--bg-tertiary)); }
+.cal-day.level-2 { background: color-mix(in srgb, var(--accent-primary) 50%, var(--bg-tertiary)); }
+.cal-day.level-3 { background: color-mix(in srgb, var(--accent-primary) 72%, var(--bg-tertiary)); }
+.cal-day.level-4 { background: var(--accent-primary); }
+.cal-day.level-3 .cal-day-num, .cal-day.level-4 .cal-day-num { color: var(--text-on-accent); }
+.cal-day:not(.future):hover { transform: scale(1.1); }
+.cal-day.selected { box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 4px var(--text-primary); }
+.cal-day.today { outline: 2px solid var(--accent-primary); outline-offset: 1px; }
+.cal-day.future { opacity: 0.3; cursor: default; }
+.cal-legend { display: flex; align-items: center; gap: 4px; justify-content: flex-end; margin-top: var(--spacing-lg); font-size: 11px; color: var(--text-tertiary); }
+.cal-sw { width: 14px; height: 14px; border-radius: 3px; background: var(--bg-tertiary); }
+.cal-sw.level-1 { background: color-mix(in srgb, var(--accent-primary) 28%, var(--bg-tertiary)); }
+.cal-sw.level-2 { background: color-mix(in srgb, var(--accent-primary) 50%, var(--bg-tertiary)); }
+.cal-sw.level-3 { background: color-mix(in srgb, var(--accent-primary) 72%, var(--bg-tertiary)); }
+.cal-sw.level-4 { background: var(--accent-primary); }
+.cal-legend span:first-child { margin-right: 4px; }
+.cal-legend span:last-child { margin-left: 4px; }
+
+/* --- Stats (selection-driven) --- */
+.insights-stats { display: flex; flex-direction: column; gap: var(--spacing-xl); }
+.insights-overview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-lg); }
+.insights-stat {
+    background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: var(--spacing-lg); text-align: center;
+}
+.insights-stat-value { font-size: 30px; font-weight: 800; color: var(--accent-primary); line-height: 1.1; }
+.insights-stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px; }
+.insights-clock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); }
+.insights-tops { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); }
+
+/* --- Cards --- */
+.insights-card { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--spacing-lg); }
+.insights-card h3 { font-size: 17px; color: var(--text-primary); margin: 0 0 4px; }
+.insights-card-sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 var(--spacing-md); }
+
+/* --- Bar charts (HTML flex bars) --- */
+.insights-chart { display: flex; align-items: flex-end; gap: 2px; width: 100%; }
+.insights-bar-col { flex: 1; display: flex; align-items: flex-end; height: 100%; min-width: 0; }
+.insights-bar { width: 100%; background: color-mix(in srgb, var(--accent-primary) 65%, transparent); border-radius: 2px 2px 0 0; transition: var(--transition-fast); }
+.insights-bar-col:hover .insights-bar { background: var(--accent-primary); }
+.insights-bar.peak { background: var(--accent-primary); }
+.insights-bar-labels { display: flex; gap: 2px; margin-top: 4px; }
+.insights-bar-labels span { flex: 1; text-align: center; font-size: 10px; color: var(--text-tertiary); min-width: 0; }
+.insights-weekday { margin-top: var(--spacing-lg); }
+
+/* --- Rank lists / songs --- */
+.insights-rank-list { display: flex; flex-direction: column; gap: 2px; }
+.insights-rank-row { display: flex; align-items: center; gap: var(--spacing-sm); padding: 7px 8px; border-radius: var(--radius-sm); }
+.insights-rank-row:hover { background: var(--bg-tertiary); }
+.insights-rank { color: var(--text-tertiary); font-weight: 700; min-width: 22px; text-align: center; font-size: 13px; }
+.insights-rank-name { color: var(--text-primary); font-size: 14px; flex: 1; min-width: 0; }
+.insights-rank-count { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+.insights-song-row { display: flex; align-items: center; gap: var(--spacing-sm); padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition-fast); }
+.insights-song-row:hover { background: var(--bg-tertiary); }
+.insights-song-cover { width: 38px; height: 38px; flex-shrink: 0; border-radius: var(--radius-sm); overflow: hidden; }
+.insights-song-cover img { width: 100%; height: 100%; object-fit: cover; }
+.insights-no-cover { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--bg-tertiary); color: var(--text-tertiary); }
+.insights-song-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.insights-song-title { color: var(--text-primary); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.insights-song-artist { color: var(--text-secondary); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.insights-recent-time { color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
+
+/* --- General cards (only when nothing selected) --- */
+.insights-general-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--spacing-lg); align-items: start; }
+
+/* --- Hover tooltip (exact time per day/hour) --- */
+.insights-tooltip {
+    position: fixed; z-index: 1000; pointer-events: none;
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    padding: 6px 10px; font-size: 12px; font-weight: 600;
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--bg-primary) 60%, transparent);
+    max-width: 260px;
+}
+
+/* --- On this day --- */
+.insights-otd-year { display: flex; gap: var(--spacing-md); align-items: baseline; padding: 6px 0; }
+.insights-otd-label { font-weight: 700; color: var(--accent-primary); min-width: 48px; }
+.insights-otd-songs { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
+.insights-otd-song { color: var(--text-primary); font-size: 14px; }
+
+/* --- Wrapped card (full-width highlight) --- */
+.wrapped-card { background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 16%, var(--bg-secondary)), var(--bg-secondary) 75%); border-color: color-mix(in srgb, var(--accent-primary) 45%, transparent); }
+.wrapped-head { display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-md); }
+.wrapped-head h3 { margin: 0; font-size: 22px; }
+.wrapped-spark { font-size: 24px; color: var(--accent-primary); }
+.wrapped-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--spacing-md); }
+.wrapped-tile { background: color-mix(in srgb, var(--bg-secondary) 70%, transparent); border-radius: var(--radius-sm); padding: var(--spacing-md); }
+.wrapped-tile-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.wrapped-tile-value { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
+.wrapped-tile-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+
+@media (max-width: 900px) {
+    .insights-clock-row { grid-template-columns: 1fr; }
+    .insights-general-grid { grid-template-columns: 1fr; }
+    .wrapped-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+    .insights-overview-grid { grid-template-columns: repeat(2, 1fr); }
+    .insights-tops { grid-template-columns: 1fr; }
+    .wrapped-grid { grid-template-columns: repeat(2, 1fr); }
+    .streak-banner { flex-wrap: wrap; gap: var(--spacing-lg); }
+    .streak-banner-best { margin-left: 0; }
+    .cal-single { max-width: 100%; }
+    .cal-nav-label { font-size: 18px; min-width: 0; }
+    .cal-day-num { font-size: 14px; }
+}

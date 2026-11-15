@@ -16,6 +16,7 @@ import { KeyboardShortcuts } from './modules/keyboardShortcuts.js';
 import { GlobalSearch } from './modules/globalSearch.js';
 import { ShortcutOverlay } from './modules/shortcutOverlay.js';
 import { NewViews } from './modules/newViews.js';
+import { InsightsView } from './modules/insights.js';
 import { startStateBridge } from './theme/state.js';
 import { startThemes } from './theme/host.js';
 
@@ -64,6 +65,7 @@ onDocumentReady(() => {
 
     // Initialize new views (Albums, Recently Played, Smart Mix)
     window.newViews = new NewViews(window.app, window.player);
+    window.insightsView = new InsightsView(window.app, window.player);
 
     // Initialize the friends module (social layer)
     window.friendsModule = useFriendsModule(window.app);

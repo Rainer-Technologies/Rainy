@@ -1,7 +1,7 @@
 /**
  * Rainy Service Worker â€” PWA support with offline shell caching
  */
-const CACHE_NAME = 'rainy-v59';
+const CACHE_NAME = 'rainy-v66';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',

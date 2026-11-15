@@ -78,7 +78,7 @@ export class NewViews {
     // --- View Switching ---
 
     hideAllViews() {
-        ['albums-view', 'recent-view', 'smartmix-view', 'discover-view', 'artists-view', 'friends-view'].forEach(id => {
+        ['albums-view', 'recent-view', 'smartmix-view', 'discover-view', 'artists-view', 'friends-view', 'insights-view'].forEach(id => {
             document.getElementById(id)?.classList.add('hidden');
         });
         document.getElementById('songs-grid')?.classList.add('hidden');
@@ -96,7 +96,7 @@ export class NewViews {
      * to Library / Discover / Artists so the new views don't linger.
      */
     hideNewViews() {
-        ['albums-view', 'recent-view', 'smartmix-view', 'friends-view'].forEach(id => {
+        ['albums-view', 'recent-view', 'smartmix-view', 'friends-view', 'insights-view'].forEach(id => {
             document.getElementById(id)?.classList.add('hidden');
         });
     }
