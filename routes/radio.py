@@ -23,7 +23,7 @@ def _video_ids(values, cap=500):
     return [v for v in (values or []) if isinstance(v, str) and _VIDEO_ID.match(v)][-cap:]
 
 
-def _queue(deep):
+def _queue(deep, rotate=False):
     from utils import ytradio
 
     data = request.get_json(silent=True) or {}
@@ -40,7 +40,7 @@ def _queue(deep):
             get_current_user_id(), seed_id,
             exclude_song_ids=_ints(data.get('exclude_song_ids')),
             exclude_video_ids=_video_ids(data.get('exclude_video_ids')),
-            skipped_artists=skipped, limit=limit, deep=deep)
+            skipped_artists=skipped, limit=limit, deep=deep, rotate=rotate)
     except Exception:
         return server_error()
     return jsonify({'queue': queue})
@@ -49,9 +49,10 @@ def _queue(deep):
 @radio_bp.route('/start', methods=['POST'])
 @require_auth
 def start_radio():
-    """First batch of a radio for a song. Uses a single fast page of the
-    seed's radio so the queue fills in about a second."""
-    return _queue(deep=False)
+    """First batch of a radio for a song. Draws a rotating sample from the
+    seed's deep radio, so starting the same radio again gives different tracks
+    (like YouTube Music) instead of the same head every time."""
+    return _queue(deep=True, rotate=True)
 
 
 @radio_bp.route('/more', methods=['POST'])

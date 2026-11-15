@@ -51,8 +51,20 @@ COOC_SONGS = 600              # library songs feeding the co-occurrence counts
 COOC_RADIO_SIZE = 50
 TRANSIENT_TTL_HOURS = 24
 TRANSIENT_MAX_FILES = 200
+SERVED_TTL_S = 45 * 60        # remember a seed's recently-served videos this long, so
+                              # re-running radio on the same song rotates to fresh tracks
+SERVED_MAX_VIDEOS = 60        # cap the per-seed memory
+ROTATE_VARIATION = 0.35       # extra score noise when drawing a fresh (rotating) batch
 
 _ATV = 'MUSIC_VIDEO_TYPE_ATV'  # official audio ("Topic") tracks
+_OMV = 'MUSIC_VIDEO_TYPE_OMV'  # official music video
+_OSM = 'MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC'  # artist-provided official audio
+# What counts as a real music track for a radio. YouTube's radio for many songs
+# (especially anime / game music) is made of official music VIDEOS, not audio-only
+# "Topic" tracks. Accepting only ATV rejected the entire pool and dropped the radio
+# into the offline audio-similarity fallback, which surfaced unrelated songs.
+# User uploads (UGC) and podcasts are still excluded.
+_MUSIC_TYPES = {_ATV, _OMV, _OSM}
 
 _PAREN = re.compile(r'[\(\[][^\)\]]*[\)\]]')
 _FEAT = re.compile(r'\b(feat|ft|featuring)\b\.?.*$', re.I)
@@ -202,8 +214,9 @@ def filter_candidates(tracks, seed_title='', library_by_video=None, library_by_k
     A track the listener already owns (same video, or same title + artist)
     is kept as that library song: it carries its 'song_id' and will play
     from disk. Anything else is a *new* song, and those are held to a
-    stricter bar: no user uploads / music videos, no odd lengths, no
-    versions the seed is not (live, remix, sped up…). Blocked (disliked)
+    stricter bar: official music only (audio tracks, official music videos,
+    official source audio — no user uploads or podcasts), no odd lengths,
+    no versions the seed is not (live, remix, sped up…). Blocked (disliked)
     and already queued songs are dropped either way.
     Each kept track gets its position in the radio as 'pos'.
     """
@@ -226,7 +239,7 @@ def filter_candidates(tracks, seed_title='', library_by_video=None, library_by_k
                 seen_keys.add(key)
                 out.append({**t, 'pos': pos, 'song_id': song_id})
             continue
-        if t.get('type') != _ATV:
+        if t.get('type') not in _MUSIC_TYPES:
             continue
         if not MIN_SECONDS <= (t.get('duration') or 0) <= MAX_SECONDS:
             continue
@@ -237,8 +250,24 @@ def filter_candidates(tracks, seed_title='', library_by_video=None, library_by_k
     return out
 
 
+def _weighted_order(candidates, score, rng):
+    """A random order biased toward high scores (weighted sampling without
+    replacement, Efraimidis–Spirakis). Unlike a strict sort, two draws differ,
+    which is what lets a re-run of the same radio rotate to new tracks while
+    still favouring the head of the radio and the listener's co-occurrence.
+    """
+    keyed = []
+    for t in candidates:
+        w = max(0.05, score(t))
+        u = rng.random()
+        keyed.append((u ** (1.0 / w), t.get('pos', 0), t))
+    keyed.sort(key=lambda k: (-k[0], k[1]))
+    return [t for _, _, t in keyed]
+
+
 def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
-           artist_cap=ARTIST_CAP, owned_cap=OWNED_CAP, variation=0.0, rng=None):
+           artist_cap=ARTIST_CAP, owned_cap=OWNED_CAP, variation=0.0, rng=None,
+           rotate=False):
     """Order candidates for the listener and pick `limit` of them.
 
     Score combines radio position and co-occurrence, penalises skipped
@@ -248,10 +277,15 @@ def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
     a tail track over the head on its own. Songs the listener already owns
     make at most `owned_cap` of a batch; they fill it only when nothing else
     is left.
+
+    `rotate=True` draws the batch by weighted sampling instead of a strict
+    sort, so starting the same radio again gives a different selection.
     """
     cooccurrence = cooccurrence or {}
     skipped = {norm(a) for a in skipped_artists}
     rng = rng or random
+    if rotate:
+        variation = max(variation, ROTATE_VARIATION)
 
     def score(t):
         s = 1.0 / (1.0 + t.get('pos', 0) / 15.0)
@@ -264,7 +298,10 @@ def rerank(candidates, cooccurrence=None, skipped_artists=(), limit=10,
             s += rng.uniform(-variation, variation)
         return s
 
-    ranked = sorted(candidates, key=lambda t: (-score(t), t.get('pos', 0)))
+    if rotate:
+        ranked = _weighted_order(candidates, score, rng)
+    else:
+        ranked = sorted(candidates, key=lambda t: (-score(t), t.get('pos', 0)))
     chosen, held, per_artist, owned = [], [], Counter(), 0
 
     def take(t):
@@ -421,6 +458,41 @@ _local_cache = {}
 _local_lock = threading.Lock()
 _LOCAL_TTL = 600.0
 
+# Recently-served videos per (listener, seed). Re-running radio on the same song
+# should rotate to different tracks, like YouTube Music does, instead of replaying
+# the same head of the seed's radio. In-memory (resets on restart, which is fine).
+_served = {}
+_served_lock = threading.Lock()
+
+
+def _served_videos(user_id, seed_video):
+    """Videos recently served for this seed, still within the TTL."""
+    with _served_lock:
+        hit = _served.get((user_id, seed_video))
+        if not hit:
+            return set()
+        ts, videos = hit
+        if time.time() - ts > SERVED_TTL_S:
+            _served.pop((user_id, seed_video), None)
+            return set()
+        return set(videos)
+
+
+def _record_served(user_id, seed_video, videos):
+    """Remember the videos a fresh batch served, so the next one rotates past them."""
+    if not videos:
+        return
+    with _served_lock:
+        key = (user_id, seed_video)
+        ts, prev = _served.get(key, (time.time(), []))
+        if time.time() - ts > SERVED_TTL_S:
+            prev = []
+        merged = list(dict.fromkeys(list(prev) + list(videos)))[-SERVED_MAX_VIDEOS:]
+        _served[key] = (time.time(), merged)
+        if len(_served) > 500:
+            oldest = min(_served, key=lambda k: _served[k][0])
+            _served.pop(oldest, None)
+
 
 def _library_rows(user_id):
     from models.library_access import LibraryAccessModel
@@ -538,7 +610,7 @@ def track_payload(track):
 # ------------------------------------------------------------ queue build
 
 def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
-                skipped_artists=(), limit=12, deep=True):
+                skipped_artists=(), limit=12, deep=True, rotate=False):
     """The next `limit` items of a radio session.
 
     Follows YouTube Music's radio for the seed, re-ranked for the listener.
@@ -546,6 +618,10 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
     to download. Stateless: the client says what it already queued
     (exclude_*). Returns player items: songs (song_payload) and new tracks
     (track_payload).
+
+    `rotate=True` (a fresh "start radio") draws a weighted sample and skips the
+    videos this seed served recently, so starting the same radio again rotates
+    to different tracks instead of replaying the same ones.
     """
     from models.library_access import LibraryAccessModel
     from models.song_rating import SongRatingModel
@@ -577,11 +653,12 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
             # A track downloaded earlier is queued as its song, so the client
             # reports it by song id: don't offer its video again.
             queued_videos = _videos_of_downloaded(pool, exclude_songs)
+            recent = _served_videos(user_id, seed_video) if rotate else set()
             filters = dict(
                 seed_title=seed['title'],
                 library_by_video={r['youtube_id']: r['id'] for r in library if r.get('youtube_id')},
                 library_by_key=by_key,
-                exclude_videos=set(exclude_video_ids) | queued_videos | {seed_video},
+                exclude_videos=set(exclude_video_ids) | queued_videos | {seed_video} | recent,
                 exclude_songs=exclude_songs,
                 blocked_keys={song_key(by_id[i]['title'], by_id[i]['artist'])
                               for i in disliked if i in by_id},
@@ -604,8 +681,17 @@ def build_queue(user_id, seed_id, exclude_song_ids=(), exclude_video_ids=(),
                     if song_key(t['title'], t['artist']) in have_keys or t.get('song_id') in have_songs:
                         continue
                     candidates.append({**t, 'pos': len(pool) + t['pos']})
+            if rotate and recent and len(candidates) < limit:
+                # Too few fresh tracks left: let recently-served ones back in
+                # rather than return a short batch.
+                filters['exclude_videos'] -= recent
+                candidates = filter_candidates(pool, **filters)
             picked = rerank(candidates, cooc, skipped_artists, limit=limit,
-                            variation=0.3 if len(candidates) > limit else 0.0)
+                            variation=0.3 if len(candidates) > limit else 0.0,
+                            rotate=rotate)
+            if rotate and picked:
+                _record_served(user_id, seed_video,
+                               [t['videoId'] for t in picked if t.get('videoId')])
     except Exception as e:  # noqa: BLE001
         # YouTube Music is an unofficial API: a radio must survive it failing.
         print(f"[radio] YouTube Music radio failed for song {seed_id}: {e}")

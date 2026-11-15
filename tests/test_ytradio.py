@@ -346,3 +346,80 @@ def test_expansion_needs_two_neighbours_to_agree():
     b = [_track('shared00001', 'Shared', 'X'), _track('known000003', 'Known', 'Z')]
     out = expansion_pool([a, b], known_videos={'known000003'})
     assert [t['videoId'] for t in out] == ['shared00001']
+
+
+# ── Official music videos are valid radio tracks (the anime/reggaeton bug) ──
+
+def test_filter_accepts_official_music_videos_not_just_audio():
+    # YouTube's radio for anime/game songs is mostly official music VIDEOS (OMV),
+    # not audio-only ATV. Rejecting them emptied the pool and dropped the radio
+    # into the unrelated offline fallback. OMV + official source must be kept.
+    tracks = [
+        _track('omv00000001', 'Sorairo Days', 'Shoko Nakagawa', kind='MUSIC_VIDEO_TYPE_OMV'),
+        _track('osm00000002', 'Ray of Light', 'Shoko Nakagawa',
+               kind='MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC'),
+        _track('atv00000003', 'Crossing Field', 'LiSA', kind=ATV),
+        _track('ugc00000004', 'Subida', 'Canal', kind='MUSIC_VIDEO_TYPE_UGC'),
+        _track('pod00000005', 'Episode', 'Podcast', kind='MUSIC_VIDEO_TYPE_PODCAST_EPISODE'),
+    ]
+    out = filter_candidates(tracks, seed_title='Sorairo Days')
+    assert {t['videoId'] for t in out} == {'omv00000001', 'osm00000002', 'atv00000003'}
+
+
+def test_filter_still_rejects_user_uploads_and_odd_lengths():
+    tracks = [
+        _track('ugc00000001', 'Cover', 'Canal', kind='MUSIC_VIDEO_TYPE_UGC'),
+        _track('omv00000002', 'Too Short', 'X', duration=20, kind='MUSIC_VIDEO_TYPE_OMV'),
+        _track('omv00000003', 'Too Long', 'X', duration=5000, kind='MUSIC_VIDEO_TYPE_OMV'),
+        _track('omv00000004', 'Good Song', 'X', kind='MUSIC_VIDEO_TYPE_OMV'),
+    ]
+    out = filter_candidates(tracks, seed_title='Seed')
+    assert [t['videoId'] for t in out] == ['omv00000004']
+
+
+# ── Rotation: re-running the same radio gives different tracks ─────────────
+
+def test_rerank_rotate_draws_different_batches():
+    cands = _candidates(60)
+    a = rerank(cands, limit=12, rotate=True, rng=random.Random(1))
+    b = rerank(cands, limit=12, rotate=True, rng=random.Random(2))
+    assert len(a) == len(b) == 12
+    assert {t['videoId'] for t in a} != {t['videoId'] for t in b}, \
+        'two rotating draws from the same pool must differ'
+
+
+def test_rerank_rotate_still_caps_artists():
+    # 3 songs per artist; the cap of 2 must hold even when sampling.
+    cands = [{**_track(f'v{i:010d}', f'Song {i}', f'Artist {i // 3}'), 'pos': i}
+             for i in range(30)]
+    out = rerank(cands, limit=12, rotate=True, rng=random.Random(7))
+    per = {}
+    for t in out:
+        per[t['artist']] = per.get(t['artist'], 0) + 1
+    assert all(n <= 2 for n in per.values())
+
+
+def test_rerank_without_rotate_is_deterministic():
+    cands = _candidates(40)
+    a = rerank(cands, limit=10, rng=random.Random(1))
+    b = rerank(cands, limit=10, rng=random.Random(2))
+    assert [t['videoId'] for t in a] == [t['videoId'] for t in b]
+
+
+def test_served_memory_rotates_and_is_capped(monkeypatch):
+    ytradio._served.clear()
+    now = [1000.0]
+    monkeypatch.setattr(ytradio.time, 'time', lambda: now[0])
+    ytradio._record_served(1, 'seedvid0001', [f'v{i}' for i in range(12)])
+    assert ytradio._served_videos(1, 'seedvid0001') == {f'v{i}' for i in range(12)}
+    # a second batch accumulates, so the next draw rotates past both
+    ytradio._record_served(1, 'seedvid0001', [f'w{i}' for i in range(12)])
+    served = ytradio._served_videos(1, 'seedvid0001')
+    assert len(served) == 24
+    # capped so the memory cannot grow without bound
+    ytradio._record_served(1, 'seedvid0001', [f'x{i}' for i in range(200)])
+    assert len(ytradio._served_videos(1, 'seedvid0001')) <= ytradio.SERVED_MAX_VIDEOS
+    # after the TTL the memory is forgotten and the seed can serve its head again
+    now[0] += ytradio.SERVED_TTL_S + 1
+    assert ytradio._served_videos(1, 'seedvid0001') == set()
+    ytradio._served.clear()
