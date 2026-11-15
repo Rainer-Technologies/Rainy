@@ -85,9 +85,12 @@ test('Smart Mix highlight follows real now-playing updates across deck promotion
         ensureLikedDataInitialized: async () => {}, updateReactionButtons() {},
     });
     let rowUpdates = 0;
+    // Mirror production: detail rows are keyed by songKey (id:<id>, or vid:<videoId>
+    // for external tracks), not the bare numeric id.
+    const trackKey = s => (s.id != null ? `id:${s.id}` : `vid:${s.videoId}`);
     const rows = h.p.playlist.map(song => {
         const classes = new Set();
-        return { dataset: { song: String(song.id) }, classList: {
+        return { dataset: { song: trackKey(song) }, classList: {
             toggle(name, enabled) {
                 rowUpdates++;
                 if (enabled) classes.add(name); else classes.delete(name);
@@ -108,7 +111,7 @@ test('Smart Mix highlight follows real now-playing updates across deck promotion
     const notifications = [];
     h.scope.window.addEventListener('rainy:now-playing', event => notifications.push(event.detail));
     view._markPlaying();
-    assert.deepEqual(playingIds(), ['1']);
+    assert.deepEqual(playingIds(), ['id:1']);
 
     // Promotion itself emits no physical play/loadstart event.
     h.p._startCrossfade(1);
@@ -118,18 +121,18 @@ test('Smart Mix highlight follows real now-playing updates across deck promotion
     h.tick(5000);
     assert.equal(h.p.audio, h.incoming);
     assert.equal(h.p.currentSong.id, 2);
-    assert.deepEqual(playingIds(), ['2'], 'promotion must move the Smart Mix playing row');
+    assert.deepEqual(playingIds(), ['id:2'], 'promotion must move the Smart Mix playing row');
     assert.equal(notifications.length, 1);
     assert.equal(notifications[0].player, h.p);
     assert.equal(notifications[0].song, h.p.currentSong);
 
     // Subsequent user selection now uses the promoted physical deck too.
     h.p.playSong(2);
-    assert.deepEqual(playingIds(), ['3'], 'manual selection must not depend on the original audio element');
+    assert.deepEqual(playingIds(), ['id:3'], 'manual selection must not depend on the original audio element');
     assert.equal(notifications.length, 2);
     h.p.togglePlayPause();
     h.incoming.emit('pause');
-    assert.deepEqual(playingIds(), ['3'], 'the highlight represents the current song, including when paused');
+    assert.deepEqual(playingIds(), ['id:3'], 'the highlight represents the current song, including when paused');
 
     // Another player sharing the window must not refresh this view.
     const updatesBeforeForeignSong = rowUpdates;
@@ -137,7 +140,7 @@ test('Smart Mix highlight follows real now-playing updates across deck promotion
     otherPlayer.updateNowPlaying(h.p.playlist[0]);
     assert.equal(notifications.length, 3, 'the foreign event also comes from production updateNowPlaying');
     assert.equal(rowUpdates, updatesBeforeForeignSong, 'ignore notifications from a different player');
-    assert.deepEqual(playingIds(), ['3']);
+    assert.deepEqual(playingIds(), ['id:3']);
     await settle();
 });
 
@@ -500,4 +503,58 @@ test('consecutive handoffs alternate physical decks and leave no orphan fade dri
     assert.equal(h.p.audio.currentTime, 5);
     assert.equal(h.timers.size, 0);
     assert.equal(h.p.crossfadeAudio.paused, true);
+});
+
+// ── Radio: a stalled preview recovers by itself once its download lands ──
+
+test('adoptDownloadedSong reloads a stalled radio preview from the local file and resumes', () => {
+    const h = harness();
+    const pending = { videoId: 'vid123', title: 'New Song', artist: 'A', radio: true };
+    Object.assign(h.p, { playlist: [pending], currentIndex: 0, currentSong: pending,
+        isBuffering: true, isPlaying: true });
+    h.p.audio.readyState = 1;      // preview stuck: not enough data
+    h.p.audio.currentTime = 7;     // it had played a little before stalling
+    const sourcesBefore = h.p.audio.sources.length;
+
+    h.p.adoptDownloadedSong(0, { id: 42, title: 'New Song', artist: 'A', duration: 200 });
+
+    assert.equal(pending.id, 42, 'entry becomes the real song');
+    assert.equal(pending.videoId, undefined);
+    assert.equal(h.p.audio.src, '/api/music/stream/42', 'switched to the local stream');
+    assert.ok(h.p.audio.sources.length > sourcesBefore, 'audio source was reloaded');
+    assert.ok(h.p.audio.loadCalls >= 1);
+    assert.ok(h.p.audio.playCalls >= 1, 'playback resumed on its own');
+    h.p.audio.emit('loadedmetadata');
+    assert.equal(h.p.audio.currentTime, 7, 'resumes where the preview left off');
+});
+
+test('adoptDownloadedSong does not interrupt a preview that is playing fine', () => {
+    const h = harness();
+    const pending = { videoId: 'vid123', title: 'New Song', radio: true };
+    Object.assign(h.p, { playlist: [pending], currentIndex: 0, currentSong: pending,
+        isBuffering: false, isPlaying: true });
+    h.p.audio.readyState = 4; h.p.audio.paused = false; h.p.audio.error = null;
+    const srcBefore = h.p.audio.src;
+    const playsBefore = h.p.audio.playCalls, loadsBefore = h.p.audio.loadCalls;
+
+    h.p.adoptDownloadedSong(0, { id: 42, title: 'New Song' });
+
+    assert.equal(pending.id, 42, 'entry still upgraded for likes/lyrics/history');
+    assert.equal(h.p.audio.src, srcBefore, 'healthy preview is not reloaded');
+    assert.equal(h.p.audio.playCalls, playsBefore);
+    assert.equal(h.p.audio.loadCalls, loadsBefore);
+});
+
+test('adoptDownloadedSong on a non-current track never touches the audio', () => {
+    const h = harness();
+    const pending = { videoId: 'vid999', title: 'Later Song', radio: true };
+    Object.assign(h.p, { playlist: [{ id: 1 }, pending], currentIndex: 0,
+        currentSong: { id: 1 }, isBuffering: true, isPlaying: true });
+    const srcBefore = h.p.audio.src, playsBefore = h.p.audio.playCalls;
+
+    h.p.adoptDownloadedSong(1, { id: 77, title: 'Later Song' });
+
+    assert.equal(pending.id, 77);
+    assert.equal(h.p.audio.src, srcBefore);
+    assert.equal(h.p.audio.playCalls, playsBefore);
 });

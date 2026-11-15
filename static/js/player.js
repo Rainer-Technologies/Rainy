@@ -1310,18 +1310,57 @@ export class AudioPlayer {
     /**
      * A radio track that was queued (or already playing from the preview
      * stream) finished downloading: its queue entry becomes the real song.
-     * The audio that is playing is left alone; only what the entry *is*
-     * changes, so likes, lyrics and history start working for it.
+     * If the preview is playing fine, the audio is left alone and only what
+     * the entry *is* changes, so likes, lyrics and history start working.
+     * But if the preview was stuck loading (slow or failed YouTube extraction)
+     * while the download was in flight, the upgrade alone would leave it
+     * spinning forever — so we reload from the now-available local file and
+     * resume, letting the track recover on its own once preloaded.
      */
     adoptDownloadedSong(index, song) {
         const entry = this.playlist[index];
         if (!entry) return;
+        const isCurrent = index === this.currentIndex;
+        // Detect a stalled preview BEFORE overwriting the entry. A healthy
+        // preview (enough data, playing, no error) must not be interrupted.
+        const audio = this.audio;
+        const stuck = isCurrent && !!audio && (
+            !!audio.error || this.isBuffering || audio.readyState < 3 ||
+            (this.isPlaying && audio.paused));
+        const resumeAt = stuck ? (audio.currentTime || 0) : 0;
+
         delete entry.videoId;
         delete entry.cover_url;
         Object.assign(entry, song, { radio: true });
-        if (index !== this.currentIndex) return;
+        if (!isCurrent) return;
         this.updateNowPlaying(entry);
         if (this.lyricsActive) this.loadLyrics(entry.id);
+        if (stuck) this._recoverCurrentFromLocal(resumeAt);
+    }
+
+    /**
+     * The current track's preview stream stalled, but its download has landed.
+     * Switch the audio to the local file and resume where it left off, so a
+     * track that was "loading forever" starts playing by itself.
+     */
+    _recoverCurrentFromLocal(position = 0) {
+        const audio = this.audio;
+        const entry = this.playlist[this.currentIndex];
+        if (!audio || !entry) return;
+        if (this._crossfading) this._cancelCrossfade();
+        const url = this._streamUrl(entry);   // now the local stream (id is set)
+        const seek = () => {
+            if (position > 0 && Number.isFinite(position)) {
+                try { audio.currentTime = position; } catch (e) { /* not seekable yet */ }
+            }
+        };
+        audio.addEventListener('loadedmetadata', seek, { once: true });
+        audio.src = url;
+        audio.load();
+        this.handleWaiting();   // show the spinner while the local file buffers
+        if (this.isPlaying) {
+            audio.play().catch(err => Logger.error('Radio recovery playback error:', err));
+        }
     }
 
     /** A queued song became part of the library (kept, liked, added to a playlist). */
@@ -1704,6 +1743,16 @@ export class AudioPlayer {
     handleError(e) {
         Logger.error('Audio error:', e);
         this.isBuffering = false;
+        // An error must not leave the loading spinner up forever (it reads as
+        // "infinite loading"). Restore the play/pause icon; if this is a radio
+        // preview whose download lands later, adoptDownloadedSong recovers it.
+        this.iconLoading.classList.add('hidden');
+        this.nowPlayingArtwork.classList.remove('buffering');
+        if (this.isPlaying) {
+            this.iconPause.classList.remove('hidden');
+        } else {
+            this.iconPlay.classList.remove('hidden');
+        }
     }
 
     handleWaiting() {
