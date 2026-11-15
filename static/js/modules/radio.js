@@ -125,11 +125,60 @@ export class SongRadio {
      */
     keepWhenReady(song) {
         const session = this._session;
-        if (!this._alive(session) || !song?.videoId || song.id != null) return null;
+        if (!song?.videoId || song.id != null) return null;
+        if (!this._alive(session)) {
+            // A mix (not a radio session) brought this external track in. Keep
+            // it through the same stateless prefetch endpoint, standalone.
+            return this.keepStandalone(song);
+        }
         if (session.failed.has(song.videoId)) return 'failed';
         session.keep.add(song.videoId);
         song.keepRequested = true;
         this._poll();
+        return 'queued';
+    }
+
+    /**
+     * Keep an external track that is NOT part of a radio session (e.g. a song a
+     * Smart Mix suggested). Uses the same stateless /api/radio/prefetch the
+     * radio uses: queue the download, and when it lands adopt it into the queue
+     * and add it to the library. Returns 'queued' | 'failed' | 'kept'.
+     */
+    keepStandalone(song) {
+        const player = this.player;
+        if (!song?.videoId || song.id != null) return null;
+        if (song.keepRequested) return 'queued';
+        song.keepRequested = true;
+        const index = player.playlist.indexOf(song);
+        const attempt = async (tries) => {
+            let state = null;
+            try {
+                const res = await fetch('/api/radio/prefetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tracks: [song] }),
+                });
+                if (res.ok) state = ((await res.json()).tracks || {})[song.videoId];
+            } catch (err) {
+                Logger.warn('Mix track prefetch failed:', err);
+            }
+            if (state?.status === 'ready' && state.song) {
+                const i = player.playlist.indexOf(song);
+                if (i >= 0) {
+                    player.adoptDownloadedSong(i, state.song);
+                    await player.keepSong(player.playlist[i]);
+                }
+                return;
+            }
+            if (state?.status === 'failed' || tries <= 0) {
+                song.keepRequested = false;
+                this.hooks.onKeepFailed?.(song);
+                player.updateKeepButtons();
+                return;
+            }
+            setTimeout(() => attempt(tries - 1), POLL_MS);
+        };
+        attempt(30);
         return 'queued';
     }
 

@@ -25,7 +25,11 @@ const ICON = {
 };
 
 const esc = (s) => Utils.escapeHtml(String(s ?? ''));
-const coverUrl = (p) => `/api/music/cover/${encodeURIComponent(p)}`;
+// Library covers are served by the cover route; external (YouTube) tracks carry
+// an absolute cover_url that must be used as-is.
+const coverUrl = (p) => (/^https?:\/\//.test(p) ? p : `/api/music/cover/${encodeURIComponent(p)}`);
+const songCover = (s) => s.cover_path || s.cover_url || '';
+const songKey = (s) => (s.id != null ? `id:${s.id}` : `vid:${s.videoId}`);
 
 function fmtTotal(seconds) {
     const m = Math.round((seconds || 0) / 60);
@@ -185,7 +189,9 @@ export class MixesView {
 
     _meta(mix) {
         const count = t('{count} songs', { count: mix.count });
-        return `${count} · ${fmtTotal(mix.duration)}`;
+        const ext = mix.external_count
+            ? ` · ${t('{count} new', { count: mix.external_count })}` : '';
+        return `${count} · ${fmtTotal(mix.duration)}${ext}`;
     }
 
     _hero(mix) {
@@ -311,18 +317,23 @@ export class MixesView {
         this.home?.classList.add('hidden');
         this.detail.classList.remove('hidden');
 
-        const rows = mix.songs.map((s, i) => `
-            <div class="recent-song-row mix-track" data-song="${s.id}" data-index="${i}">
+        const rows = mix.songs.map((s, i) => {
+            const ext = s.in_library === false || s.external;
+            const cov = songCover(s);
+            return `
+            <div class="recent-song-row mix-track${ext ? ' mix-track-external' : ''}" data-song="${esc(songKey(s))}" data-index="${i}">
                 <div class="recent-song-num">${i + 1}</div>
-                <div class="recent-song-cover">${s.cover_path
-                    ? `<img src="${coverUrl(s.cover_path)}" alt="" loading="lazy">`
+                <div class="recent-song-cover">${cov
+                    ? `<img src="${esc(coverUrl(cov))}" alt="" loading="lazy">`
                     : '<div class="recent-no-cover">♪</div>'}</div>
                 <div class="recent-song-info">
-                    <div class="recent-song-title">${esc(s.title)}</div>
+                    <div class="recent-song-title">${esc(s.title)}${ext
+                        ? `<span class="mix-new-badge" title="${esc(t('Not in your library yet'))}">${t('New')}</span>` : ''}</div>
                     <div class="recent-song-artist">${esc(s.artist)}</div>
                 </div>
                 <div class="recent-song-duration">${Utils.formatDuration(s.duration)}</div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
 
         this.detail.innerHTML = `
             <button class="album-back-btn" id="mix-back" type="button">&larr; ${t('Back to Smart Mix')}</button>
@@ -352,9 +363,10 @@ export class MixesView {
     }
 
     _markPlaying() {
-        const id = this.player.currentSong?.id;
+        const cur = this.player.currentSong;
+        const key = cur ? songKey(cur) : null;
         this.detail?.querySelectorAll('.mix-track').forEach(row => {
-            row.classList.toggle('playing', id != null && Number(row.dataset.song) === id);
+            row.classList.toggle('playing', key != null && row.dataset.song === key);
         });
     }
 
@@ -375,6 +387,13 @@ export class MixesView {
 
     async save(mix, btn) {
         if (btn.disabled) return;
+        // External (not-in-library) tracks have no song id yet; a playlist can
+        // only hold library songs. Keep them out, and say so if nothing remains.
+        const ids = mix.songs.map(s => s.id).filter(id => id != null);
+        if (!ids.length) {
+            window.showToast?.(t('Add these songs to your library first, then save the mix'), 'info');
+            return;
+        }
         btn.disabled = true;
         const generic = mix.kind === 'supermix' || mix.kind === 'my' || mix.kind === 'mood';
         try {
@@ -383,7 +402,7 @@ export class MixesView {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: generic ? `${mixTitle(mix)} ${new Date().toLocaleDateString()}` : mixTitle(mix),
-                    song_ids: mix.songs.map(s => s.id),
+                    song_ids: ids,
                 }),
             });
             const data = await res.json();

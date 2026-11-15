@@ -1,6 +1,7 @@
 // English is the source language: t() falls back to the key itself.
 // Only strings whose singular differs from the plural key need an entry.
 export default {
+    "{count} new": {"one": "{count} new", "other": "{count} new"},
     "{count} songs": {"one": "{count} song", "other": "{count} songs"},
     "Merge into the selected copy and permanently delete the other {count} files from disk?": {"one": "Merge into the selected copy and permanently delete the other {count} file from disk?", "other": "Merge into the selected copy and permanently delete the other {count} files from disk?"},
     "Merged {count} duplicates": {"one": "Merged {count} duplicate", "other": "Merged {count} duplicates"},

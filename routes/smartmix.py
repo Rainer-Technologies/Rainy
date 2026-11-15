@@ -128,6 +128,20 @@ _mix_cache = {}   # user_id -> {'ts', 'seed', 'mixes'}
 _mix_cache_lock = threading.Lock()
 
 
+def _youtube_provider(user_id, ctx):
+    """Songs the listener does not own, from YouTube Music's radio.
+
+    Budgeted and cache-first inside utils/mixyoutube, so the shelf request stays
+    fast; returns [] when YouTube gives nothing and the mix stays library-only.
+    """
+    from utils import mixyoutube
+
+    def provider(mood_id=None, want=mixyoutube.PER_MIX, exclude_videos=()):
+        return mixyoutube.candidates(user_id, ctx, mood_id=mood_id, want=want,
+                                     exclude_videos=exclude_videos)
+    return provider
+
+
 @smartmix_bp.route('/mixes', methods=['GET'])
 @login_required
 def list_mixes(user_id):
@@ -141,8 +155,13 @@ def list_mixes(user_id):
 
     seed = random.randrange(1 << 30)
     try:
+        from utils import mixyoutube
         ctx = mix_engine.load_context(user_id)
-        mixes = mix_engine.serialize(ctx, mix_engine.build_mixes(ctx, seed=seed))
+        # One Session fetches the whole shelf's YouTube radios once, then every
+        # mix draws from that pool — keeps the request fast on a cold cache.
+        provider = mixyoutube.shelf_provider(user_id, ctx)
+        mixes = mix_engine.serialize(
+            ctx, mix_engine.build_mixes(ctx, seed=seed, external=provider))
     except Exception as e:  # noqa: BLE001
         print(f"[smartmix] mix generation failed: {e}")
         return jsonify({'error': 'Could not build mixes right now'}), 500
@@ -169,9 +188,17 @@ def more_from_mix(user_id):
         ctx = mix_engine.load_context(user_id)
         ids = mix_engine.extend(ctx, mix_id, recent, limit=limit,
                                 seed=random.randrange(1 << 30))
+        # Endless playback keeps suggesting new music too: a mood mix seeds its
+        # YouTube radio from songs that fit that mood, so the drift stays on character.
+        external = []
+        try:
+            mood_id = mix_id[5:] if mix_id.startswith('mood-') else None
+            external = _youtube_provider(user_id, ctx)(mood_id=mood_id, want=3)
+        except Exception as e:  # noqa: BLE001
+            print(f"[smartmix] extend youtube failed: {e}")
         songs = mix_engine.serialize(ctx, [{
             'id': mix_id, 'kind': 'more', 'shelf': '', 'title': '', 'subtitle': '',
-            'tag': None, 'song_ids': ids}])
+            'tag': None, 'song_ids': ids, 'external_tracks': external}])
     except Exception as e:  # noqa: BLE001
         print(f"[smartmix] extend failed: {e}")
         return jsonify({'songs': []})
@@ -321,14 +348,36 @@ def generate_mix(user_id):
     else:
         # Radio mode: find songs similar to seed (same artist, genre, album)
         if not seed_song_id:
-            # No seed — just shuffle everything
-            query = f"""
-                SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
-                       s.track_number, s.year, s.genre, s.cover_path
-                FROM songs s WHERE 1=1{disliked_filter}
-                ORDER BY RAND() LIMIT %s
-            """
-            results = Database.execute_query(query, tuple(params + [limit]), fetch_all=True)
+            # No seed: this is the mobile home's Smart Mix tile. It used to be a
+            # plain shuffle of the whole library; now it runs through the same
+            # personalised engine as the web shelf (taste-weighted, artist-capped,
+            # flow-ordered), library-only so the response shape is unchanged.
+            results = []
+            try:
+                from utils import mixes as mix_engine
+                ctx = mix_engine.load_context(user_id)
+                shelf = mix_engine.build_mixes(ctx, seed=random.randrange(1 << 30))
+                supermix = next((m for m in shelf if m['kind'] == 'supermix'), None)
+                if supermix and supermix['song_ids']:
+                    ids = supermix['song_ids'][:limit]
+                    placeholders = ', '.join(['%s'] * len(ids))
+                    results = Database.execute_query(
+                        f"""SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                                   s.track_number, s.year, s.genre, s.cover_path
+                            FROM songs s WHERE s.id IN ({placeholders})
+                            ORDER BY FIELD(s.id, {placeholders})""",
+                        tuple(ids + ids), fetch_all=True) or []
+            except Exception as e:  # noqa: BLE001
+                print(f"[smartmix] engine radio failed, falling back to shuffle: {e}")
+                results = []
+            if not results:
+                query = f"""
+                    SELECT s.id, s.file_path, s.title, s.artist, s.album, s.duration,
+                           s.track_number, s.year, s.genre, s.cover_path
+                    FROM songs s WHERE 1=1{disliked_filter}
+                    ORDER BY RAND() LIMIT %s
+                """
+                results = Database.execute_query(query, tuple(params + [limit]), fetch_all=True)
         else:
             results = _legacy_radio(seed_song_id, limit, disliked_ids, params)
 
