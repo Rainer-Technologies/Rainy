@@ -94,7 +94,7 @@ def get_top_songs(user_id):
 @login_required
 def get_top_artists(user_id):
     """Get most listened artists."""
-    limit = request.args.get('limit', type=int, default=20)
+    limit = min(max(request.args.get('limit', type=int, default=20), 1), 200)
     artists = PlaybackHistoryModel.get_top_artists(user_id, limit)
     return jsonify({'artists': artists})
 
@@ -103,7 +103,7 @@ def get_top_artists(user_id):
 @login_required
 def get_top_genres(user_id):
     """Get most listened genres."""
-    limit = request.args.get('limit', type=int, default=10)
+    limit = min(max(request.args.get('limit', type=int, default=10), 1), 200)
     genres = PlaybackHistoryModel.get_top_genres(user_id, limit)
     return jsonify({'genres': genres})
 

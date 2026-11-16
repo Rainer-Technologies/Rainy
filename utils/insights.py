@@ -14,7 +14,7 @@ days, while the calendar history and the streak always span the full history.
 from datetime import date, timedelta
 
 from models.database import Database
-from models.playback_history import _to_epoch_iso
+from models.playback_history import _to_epoch_iso, aggregate_top_artists
 
 # Minimum counted seconds in a day for it to count toward a streak.
 STREAK_MIN_SECONDS = 60
@@ -137,15 +137,14 @@ def _top_artists(user_id, limit, selected=None):
     clause, params = _sel_clause(selected, 'ph.played_at')
     rows = Database.execute_query(
         f"""
-        SELECT s.artist AS name, COUNT(*) AS play_count, COUNT(DISTINCT s.id) AS song_count
+        SELECT s.artist, COUNT(*) AS play_count
         FROM play_history ph JOIN songs s ON ph.song_id = s.id
         WHERE ph.user_id = %s AND ph.counted = 1{clause}
-        GROUP BY s.artist ORDER BY play_count DESC, s.artist ASC LIMIT %s
-        """, (user_id, *params, limit), fetch_all=True) or []
-    for r in rows:
-        r['play_count'] = int(r['play_count'])
-        r['song_count'] = int(r['song_count'])
-    return rows
+        GROUP BY s.id, s.artist
+        """, (user_id, *params), fetch_all=True) or []
+    # Split collaboration credits so each artist gets their plays.
+    return [{'name': a['artist'], 'play_count': a['play_count'], 'song_count': a['song_count']}
+            for a in aggregate_top_artists(rows, limit)]
 
 
 def _top_songs(user_id, limit, selected=None):
@@ -288,11 +287,12 @@ def build_wrapped(user_id, year):
     def _top(sql):
         return Database.execute_query(sql, (user_id, year), fetch_one=True)
 
-    top_artist = _top(
-        """SELECT s.artist AS name, COUNT(*) AS plays
+    artist_rows = Database.execute_query(
+        """SELECT s.artist, COUNT(*) AS play_count
            FROM play_history ph JOIN songs s ON ph.song_id = s.id
            WHERE ph.user_id=%s AND ph.counted=1 AND YEAR(ph.played_at)=%s
-           GROUP BY s.artist ORDER BY plays DESC, s.artist ASC LIMIT 1""")
+           GROUP BY s.id, s.artist""", (user_id, year), fetch_all=True) or []
+    top_artist = aggregate_top_artists(artist_rows, 1)
     top_song = _top(
         """SELECT s.title AS name, s.artist AS secondary, s.cover_path AS cover_path,
                   COUNT(*) AS plays
@@ -320,7 +320,7 @@ def build_wrapped(user_id, year):
         'active_days': int(row.get('active_days') or 0),
         'first_listen': first.date().isoformat() if hasattr(first, 'date') else (
             str(first)[:10] if first else None),
-        'top_artist': {'name': top_artist['name'], 'plays': int(top_artist['plays'])} if top_artist else None,
+        'top_artist': {'name': top_artist[0]['artist'], 'plays': top_artist[0]['play_count']} if top_artist else None,
         'top_song': {'name': top_song['name'], 'artist': top_song['secondary'],
                      'cover_path': top_song['cover_path'], 'plays': int(top_song['plays'])} if top_song else None,
         'top_genre': {'name': top_genre['name'], 'plays': int(top_genre['plays'])} if top_genre else None,

@@ -45,6 +45,46 @@ def _num(value, default=0):
     return number
 
 
+def _artist_names(raw):
+    """Individual names from a comma-joined credit ("A, B" -> ["A", "B"]).
+
+    Mirrors the scanner's normalize_artist: case-insensitive dedupe, first
+    spelling kept; an empty credit falls back to Unknown Artist.
+    """
+    seen = set()
+    names = []
+    for part in str(raw or '').split(','):
+        name = part.strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key not in seen:
+            seen.add(key)
+            names.append(name)
+    return names or ['Unknown Artist']
+
+
+def aggregate_top_artists(song_rows, limit):
+    """Per-artist totals from per-song play rows ({artist, play_count}).
+
+    Collaboration credits are split so every artist on a track gets the
+    play — "A, B" is a credit, not an artist of its own. Names merge
+    case-insensitively; ties break alphabetically.
+    """
+    plays, songs, display = {}, {}, {}
+    for row in song_rows:
+        count = int(row['play_count'])
+        for name in _artist_names(row['artist']):
+            key = name.lower()
+            if key not in display:
+                display[key] = name
+            plays[key] = plays.get(key, 0) + count
+            songs[key] = songs.get(key, 0) + 1
+    ranked = sorted(plays, key=lambda k: (-plays[k], display[k].lower(), display[k]))
+    return [{'artist': display[k], 'play_count': plays[k], 'song_count': songs[k]}
+            for k in ranked[:limit]]
+
+
 class PlaybackHistoryModel:
     @staticmethod
     def normalize_play(data):
@@ -210,21 +250,22 @@ class PlaybackHistoryModel:
 
     @staticmethod
     def get_top_artists(user_id, limit=20):
-        """Most listened artists by qualifying play count."""
+        """Most listened artists by qualifying play count.
+
+        Plays are aggregated per song first, then collaboration credits are
+        split so each credited artist gets the play — grouping by the raw
+        credit string would bury featured artists behind one-off "A, B"
+        entries.
+        """
         query = """
-            SELECT s.artist, COUNT(*) as play_count, COUNT(DISTINCT s.id) as song_count
+            SELECT s.artist, COUNT(*) as play_count
             FROM play_history ph
             JOIN songs s ON ph.song_id = s.id
             WHERE ph.user_id = %s AND ph.counted = 1
-            GROUP BY s.artist
-            ORDER BY play_count DESC, s.artist ASC
-            LIMIT %s
+            GROUP BY s.id, s.artist
         """
-        rows = Database.execute_query(query, (user_id, limit), fetch_all=True) or []
-        for row in rows:
-            row['play_count'] = int(row['play_count'])
-            row['song_count'] = int(row['song_count'])
-        return rows
+        rows = Database.execute_query(query, (user_id,), fetch_all=True) or []
+        return aggregate_top_artists(rows, limit)
 
     @staticmethod
     def get_top_genres(user_id, limit=10):

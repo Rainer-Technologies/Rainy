@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from mysql.connector import errors as mysql_errors
 
-from models.playback_history import InvalidPlay, PlaybackHistoryModel
+from models.playback_history import InvalidPlay, PlaybackHistoryModel, aggregate_top_artists
 
 
 class FakeDB:
@@ -150,6 +150,45 @@ def test_most_played_counts_only_qualifying_listens(db):
     assert 'r.play_count DESC, r.last_played DESC' in db.calls[0][0]
 
 
+def test_top_artists_credit_every_artist_on_a_collab(db):
+    # bbno$'s solo track plus two features: every play must reach bbno$.
+    db.results = [[
+        {'artist': 'bbno$', 'play_count': Decimal('71')},
+        {'artist': 'bbno$, Ethan Nestor', 'play_count': Decimal('38')},
+        {'artist': 'bbno$, ironmouse', 'play_count': Decimal('28')},
+        {'artist': 'ironmouse', 'play_count': Decimal('59')},
+    ]]
+    artists = PlaybackHistoryModel.get_top_artists(1, 10)
+    assert artists[0] == {'artist': 'bbno$', 'play_count': 137, 'song_count': 3}
+    assert artists[1] == {'artist': 'ironmouse', 'play_count': 87, 'song_count': 2}
+    assert artists[2] == {'artist': 'Ethan Nestor', 'play_count': 38, 'song_count': 1}
+    query = db.calls[0][0]
+    assert 'counted = 1' in query
+    # Per-song rows: a SQL LIMIT before splitting credits would drop plays.
+    assert 'GROUP BY s.id, s.artist' in query
+    assert 'LIMIT' not in query
+
+
+def test_top_artists_merge_case_and_dedupe_within_a_credit():
+    rows = [{'artist': 'A, a, B', 'play_count': 3}, {'artist': 'a', 'play_count': 2}]
+    assert aggregate_top_artists(rows, 10) == [
+        {'artist': 'A', 'play_count': 5, 'song_count': 2},
+        {'artist': 'B', 'play_count': 3, 'song_count': 1},
+    ]
+
+
+def test_top_artists_empty_credit_is_unknown_artist():
+    rows = [{'artist': None, 'play_count': 2}, {'artist': '  ', 'play_count': 1}]
+    assert aggregate_top_artists(rows, 10) == [
+        {'artist': 'Unknown Artist', 'play_count': 3, 'song_count': 2}]
+
+
+def test_top_artists_ties_break_alphabetically_and_limit_applies():
+    rows = [{'artist': 'Zed', 'play_count': 4}, {'artist': 'alice', 'play_count': 4},
+            {'artist': 'Bob', 'play_count': 1}]
+    assert [a['artist'] for a in aggregate_top_artists(rows, 2)] == ['alice', 'Zed']
+
+
 # ------------------------------------------------------------------- routes
 
 def test_route_records_play_with_new_fields(client, db):
@@ -191,3 +230,19 @@ def test_batch_route_validation(client, db):
 
 def test_batch_route_requires_auth(anon_client):
     assert anon_client.post('/api/playback/history/batch', json={'plays': []}).status_code in (401, 403, 302)
+
+
+def test_artists_route_clamps_limit(client, db):
+    db.results = [[{'artist': 'A', 'play_count': 2}, {'artist': 'B', 'play_count': 1}]]
+    r = client.get('/api/playback/history/artists?limit=-1')
+    assert r.status_code == 200
+    # Clamped to 1 — a negative slice would silently drop the last artist.
+    assert len(r.get_json()['artists']) == 1
+    db.results = [[]]
+    assert client.get('/api/playback/history/artists?limit=99999999').status_code == 200
+
+
+def test_genres_route_clamps_limit(client, db):
+    db.results = [[]]
+    assert client.get('/api/playback/history/genres?limit=-5').status_code == 200
+    assert db.calls[0][1] == (1, 1)
